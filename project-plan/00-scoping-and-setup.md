@@ -105,7 +105,7 @@ Invoke the `frontend` skill; follow its recipe. Key additions:
   - `backend` with live reload via `runserver`,
   - `worker` and `beat` (run from same image, different commands),
   - `frontend` with `ng serve --host 0.0.0.0`,
-  - `ngrok` using `ngrok/ngrok:latest` pointing at backend:8000, reading tunnel config from `.env.local`.
+  - `ngrok` using `ngrok/ngrok:latest` pointing at backend:8777, reading tunnel config from `.env.local`.
 - Makefile targets: `make up`, `make down`, `make logs`, `make shell-be`, `make shell-fe`, `make test-be`, `make test-fe`.
 
 ### 6.5 Railway staging
@@ -171,8 +171,8 @@ New endpoints:
 
 ### 10.3 Integration
 
-- docker-compose spins; `curl http://localhost:8000/healthz` returns 200.
-- `curl http://localhost:4200` returns the Angular SPA shell.
+- docker-compose spins; `curl http://localhost:8777/healthz` returns 200.
+- `curl http://localhost:4444` returns the Angular SPA shell.
 
 ### 10.4 E2E (Playwright)
 
@@ -191,7 +191,7 @@ New endpoints:
 ## 11. Security Considerations
 
 - `DEBUG = False` in prod settings; enforced by `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS=31536000`.
-- CORS locked to `app.strattraderpro-staging.up.railway.app` and `http://localhost:4200`.
+- CORS locked to `app.strattraderpro-staging.up.railway.app` and `http://localhost:4444`.
 - Secrets never in repo; `git-secrets` pre-commit hook recommended.
 - `bandit` + `ruff` + `semgrep` added to CI.
 - Trivy scans Docker images; fail on HIGH+ CVEs.

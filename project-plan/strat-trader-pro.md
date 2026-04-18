@@ -708,7 +708,7 @@ All endpoints JSON over HTTPS, JWT bearer, `Api-Version: 2026-04-01` header. Ope
 | Secrets | Railway env vars; per-user broker creds fernet-encrypted with a KEK stored in env. |
 | Webhook auth | HMAC-SHA256 with per-user-per-strategy secret; constant-time compare; replay-protected via idempotency key. |
 | CSRF | N/A for pure-JWT API, but CSRF tokens on cookie-based admin. |
-| CORS | Strict allowlist: production frontend origin + `localhost:4200` in dev. |
+| CORS | Strict allowlist: production frontend origin + `localhost:4444` in dev. |
 | Rate limiting | Per-endpoint (webhook: 60/min/user; auth: 5/min/email; trade: 30/min/user). |
 | Input validation | DRF serializers + jsonschema for webhook payloads. |
 | Dependency security | `pip-audit` in CI; Dependabot PRs. |
@@ -827,7 +827,7 @@ jobs:
 - `postgres`, `redis`, `backend` (Django), `frontend` (ng serve), `celery-worker`, `celery-beat`, `llm-worker`, `ngrok`.
 
 **ngrok bridge (for local TradingView testing):**
-- `ngrok http 8000 --domain=<user-reserved-subdomain>` exposes the local webhook endpoint.
+- `ngrok http 8777 --domain=<user-reserved-subdomain>` exposes the local webhook endpoint.
 - A management command `python manage.py set_dev_webhook_host <ngrok-url>` updates the `WebhookConfig.url_base` for all user strategies in the local DB so TradingView alerts reach localhost.
 - `.env.local.example` shipped with safe defaults.
 

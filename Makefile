@@ -1,4 +1,4 @@
-.PHONY: up down logs shell-be shell-fe test-be test-fe build lint tunnel
+.PHONY: up down logs shell-be shell-fe test-be test-fe build lint tunnel schema-export schema-types schema
 
 # ---------- Local dev (docker-compose) ----------
 
@@ -43,6 +43,17 @@ migrate:
 
 makemigrations:
 	docker compose exec backend python manage.py makemigrations
+
+# ---------- OpenAPI schema + type generation ----------
+
+schema-export:
+	docker compose exec backend python manage.py spectacular --file /app/openapi.json
+	docker compose cp backend:/app/openapi.json docs/openapi/openapi.json
+
+schema-types:
+	cd frontend && npm run schema:types
+
+schema: schema-export schema-types
 
 # ---------- ngrok tunnel ----------
 

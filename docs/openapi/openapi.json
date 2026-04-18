@@ -1,0 +1,529 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "StratTraderPro API",
+    "description": "Trading bot platform API — webhook-driven, regime-aware, multi-broker.",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/api/v1/auth/register/": {
+      "post": {
+        "operationId": "auth_register",
+        "tags": ["auth"],
+        "summary": "Register a new account",
+        "description": "Creates a new user and sends a verification email. Duplicate emails return 202 with a generic body to prevent enumeration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" },
+              "example": {
+                "email": "trader@example.com",
+                "display_name": "Jane Trader",
+                "password": "correct horse battery staple"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registration accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegisterOkEnvelope" },
+                "example": {
+                  "data": {
+                    "id": "6f2e5a1d-0c9b-4b4e-8d6a-111111111111",
+                    "email": "trader@example.com"
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted (duplicate email — anti-enumeration)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusEnvelope" },
+                "example": { "data": { "status": "pending_verification" } }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or weak password",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
+                "example": {
+                  "error": {
+                    "code": "PASSWORD_WEAK",
+                    "message": "Password does not meet policy.",
+                    "details": { "password": ["This password is too common."] }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify-email/": {
+      "post": {
+        "operationId": "auth_verify_email",
+        "tags": ["auth"],
+        "summary": "Verify email via token",
+        "description": "Consumes the verification token and returns a JWT pair on success.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VerifyEmailRequest" },
+              "example": { "token": "uvv_6d2c...sample" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verified — returns JWT pair",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TokenPairEnvelope" }
+              }
+            }
+          },
+          "400": {
+            "description": "Token invalid or expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
+                "example": {
+                  "error": { "code": "TOKEN_INVALID", "message": "Verification token is invalid or expired." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/resend-verification/": {
+      "post": {
+        "operationId": "auth_resend_verification",
+        "tags": ["auth"],
+        "summary": "Resend verification email",
+        "description": "Idempotent. Always returns 200 to avoid email enumeration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResendVerificationRequest" },
+              "example": { "email": "trader@example.com" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/StatusEnvelope" } }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login/": {
+      "post": {
+        "operationId": "auth_login",
+        "tags": ["auth"],
+        "summary": "Log in with email + password",
+        "description": "Returns `{access, refresh, user, mfa_required}`. `mfa_required` is always false in M01.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" },
+              "example": {
+                "email": "trader@example.com",
+                "password": "correct horse battery staple"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TokenPairEnvelope" },
+                "example": {
+                  "data": {
+                    "access": "eyJhbGciOi...access.jwt",
+                    "refresh": "eyJhbGciOi...refresh.jwt",
+                    "user": {
+                      "id": "6f2e5a1d-0c9b-4b4e-8d6a-111111111111",
+                      "email": "trader@example.com",
+                      "display_name": "Jane Trader",
+                      "is_verified": true
+                    },
+                    "mfa_required": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
+                "example": { "error": { "code": "INVALID_CREDENTIALS", "message": "Invalid email or password." } }
+              }
+            }
+          },
+          "403": {
+            "description": "Email not verified",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
+                "example": { "error": { "code": "EMAIL_NOT_VERIFIED", "message": "Please verify your email before signing in." } }
+              }
+            }
+          },
+          "423": {
+            "description": "Account locked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
+                "example": { "error": { "code": "ACCOUNT_LOCKED", "message": "Account temporarily locked due to repeated failures." } }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh/": {
+      "post": {
+        "operationId": "auth_refresh",
+        "tags": ["auth"],
+        "summary": "Rotate a refresh token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefreshRequest" },
+              "example": { "refresh": "eyJhbGciOi...refresh.jwt" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rotated — new JWT pair",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TokenPairEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Token invalid or family revoked",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout/": {
+      "post": {
+        "operationId": "auth_logout",
+        "tags": ["auth"],
+        "summary": "Log out — revokes refresh family",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LogoutRequest" },
+              "example": { "refresh": "eyJhbGciOi...refresh.jwt" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Revoked",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/StatusEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/reset/": {
+      "post": {
+        "operationId": "auth_password_reset",
+        "tags": ["auth"],
+        "summary": "Request a password reset email",
+        "description": "Always returns 200 to avoid email enumeration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PasswordResetRequest" },
+              "example": { "email": "trader@example.com" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/StatusEnvelope" } }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/reset/confirm/": {
+      "post": {
+        "operationId": "auth_password_reset_confirm",
+        "tags": ["auth"],
+        "summary": "Set a new password using the reset token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PasswordResetConfirmRequest" },
+              "example": {
+                "token": "prv_7a1c...sample",
+                "password": "correct horse battery staple"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password set — returns new JWT pair",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TokenPairEnvelope" } }
+            }
+          },
+          "400": {
+            "description": "Token invalid or weak password",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/": {
+      "get": {
+        "operationId": "users_me",
+        "tags": ["auth"],
+        "summary": "Get the currently authenticated user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CurrentUserEnvelope" },
+                "example": {
+                  "data": {
+                    "id": "6f2e5a1d-0c9b-4b4e-8d6a-111111111111",
+                    "email": "trader@example.com",
+                    "display_name": "Jane Trader",
+                    "is_verified": true,
+                    "created_at": "2026-04-17T12:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "AuthUser": {
+        "type": "object",
+        "required": ["id", "email", "display_name", "is_verified"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "display_name": { "type": "string" },
+          "is_verified": { "type": "boolean" }
+        }
+      },
+      "CurrentUserData": {
+        "type": "object",
+        "required": ["id", "email", "display_name", "is_verified", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "display_name": { "type": "string" },
+          "is_verified": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RegisterData": {
+        "type": "object",
+        "required": ["id", "email"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "StatusData": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" }
+        }
+      },
+      "TokenPairData": {
+        "type": "object",
+        "required": ["access", "refresh", "user"],
+        "properties": {
+          "access": { "type": "string" },
+          "refresh": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/AuthUser" },
+          "mfa_required": { "type": "boolean" }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable error code.",
+            "enum": [
+              "USER_EXISTS",
+              "INVALID_CREDENTIALS",
+              "EMAIL_NOT_VERIFIED",
+              "ACCOUNT_LOCKED",
+              "RATE_LIMITED",
+              "TOKEN_INVALID",
+              "TOKEN_EXPIRED",
+              "PASSWORD_WEAK",
+              "VALIDATION_ERROR"
+            ]
+          },
+          "message": { "type": "string" },
+          "details": {
+            "type": "object",
+            "additionalProperties": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "RegisterOkEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": { "data": { "$ref": "#/components/schemas/RegisterData" } }
+      },
+      "StatusEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": { "data": { "$ref": "#/components/schemas/StatusData" } }
+      },
+      "TokenPairEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": { "data": { "$ref": "#/components/schemas/TokenPairData" } }
+      },
+      "CurrentUserEnvelope": {
+        "type": "object",
+        "required": ["data"],
+        "properties": { "data": { "$ref": "#/components/schemas/CurrentUserData" } }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "$ref": "#/components/schemas/ApiError" } }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "display_name", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "display_name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "password": { "type": "string", "minLength": 12, "maxLength": 256, "writeOnly": true }
+        }
+      },
+      "VerifyEmailRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": { "token": { "type": "string" } }
+      },
+      "ResendVerificationRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": { "email": { "type": "string", "format": "email" } }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "writeOnly": true }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "required": ["refresh"],
+        "properties": { "refresh": { "type": "string" } }
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "required": ["refresh"],
+        "properties": { "refresh": { "type": "string" } }
+      },
+      "PasswordResetRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": { "email": { "type": "string", "format": "email" } }
+      },
+      "PasswordResetConfirmRequest": {
+        "type": "object",
+        "required": ["token", "password"],
+        "properties": {
+          "token": { "type": "string" },
+          "password": { "type": "string", "minLength": 12, "maxLength": 256, "writeOnly": true }
+        }
+      }
+    }
+  }
+}

@@ -85,6 +85,12 @@ coverage.xml
 celerybeat-schedule
 celerybeat.pid
 
+# ===== Playwright =====
+frontend/playwright-report/
+frontend/test-results/
+frontend/playwright/.cache/
+frontend/out-tsc/
+
 # ===== Misc =====
 *.bak
 *.tmp

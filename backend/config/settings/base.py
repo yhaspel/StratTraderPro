@@ -197,7 +197,7 @@ AUTH_LOCKOUT_WINDOW_MINUTES = env.int("AUTH_LOCKOUT_WINDOW_MINUTES", default=15)
 AUTH_LOCKOUT_DURATION_MINUTES = env.int("AUTH_LOCKOUT_DURATION_MINUTES", default=15)
 
 # Frontend base URL — used to construct verification / reset links in emails.
-FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:4200")
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:4444")
 
 # ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)

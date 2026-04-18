@@ -6,7 +6,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.db import IntegrityError, transaction
 from django_ratelimit.decorators import ratelimit
 from django_ratelimit.exceptions import Ratelimited
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -15,6 +15,14 @@ from rest_framework_simplejwt.exceptions import InvalidToken
 from . import services
 from .models import AuthEvent, EmailVerificationToken, PasswordResetToken
 from .responses import fail, ok
+from .schema import (
+    ERROR_EXAMPLES,
+    CurrentUserEnvelopeSerializer,
+    ErrorEnvelopeSerializer,
+    RegisterOkEnvelopeSerializer,
+    StatusEnvelopeSerializer,
+    TokenPairEnvelopeSerializer,
+)
 from .serializers import (
     CurrentUserSerializer,
     LoginSerializer,
@@ -59,7 +67,36 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
 
-    @extend_schema(request=RegisterSerializer, responses={201: dict, 409: dict})
+    @extend_schema(
+        operation_id="auth_register",
+        tags=["auth"],
+        summary="Register a new account",
+        description=(
+            "Creates a new user and sends a verification email. "
+            "Duplicate emails return 202 with a generic body to prevent enumeration."
+        ),
+        request=RegisterSerializer,
+        responses={
+            201: RegisterOkEnvelopeSerializer,
+            202: StatusEnvelopeSerializer,
+            400: ErrorEnvelopeSerializer,
+            429: ErrorEnvelopeSerializer,
+        },
+        examples=[
+            OpenApiExample(
+                "Register request",
+                value={
+                    "email": "trader@example.com",
+                    "display_name": "Jane Trader",
+                    "password": "correct horse battery staple",
+                },
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["PASSWORD_WEAK"],
+            ERROR_EXAMPLES["VALIDATION_ERROR"],
+            ERROR_EXAMPLES["RATE_LIMITED"],
+        ],
+    )
     def post(self, request):
         if getattr(request, "limited", False):
             return fail("RATE_LIMITED", "Too many requests.", status=429, **_retry_after())
@@ -113,7 +150,22 @@ class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
     serializer_class = VerifyEmailSerializer
 
-    @extend_schema(request=VerifyEmailSerializer, responses={200: dict, 400: dict})
+    @extend_schema(
+        operation_id="auth_verify_email",
+        tags=["auth"],
+        summary="Verify email via token",
+        description="Consumes the verification token and returns a JWT pair on success.",
+        request=VerifyEmailSerializer,
+        responses={200: TokenPairEnvelopeSerializer, 400: ErrorEnvelopeSerializer},
+        examples=[
+            OpenApiExample(
+                "Verify request",
+                value={"token": "uvv_6d2c...sample"},
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["TOKEN_INVALID"],
+        ],
+    )
     def post(self, request):
         ser = VerifyEmailSerializer(data=request.data)
         bad = _handle_validation(ser)
@@ -139,7 +191,22 @@ class ResendVerificationView(APIView):
     permission_classes = [AllowAny]
     serializer_class = ResendVerificationSerializer
 
-    @extend_schema(request=ResendVerificationSerializer, responses={200: dict})
+    @extend_schema(
+        operation_id="auth_resend_verification",
+        tags=["auth"],
+        summary="Resend verification email",
+        description="Idempotent. Always returns 200 to avoid email enumeration.",
+        request=ResendVerificationSerializer,
+        responses={200: StatusEnvelopeSerializer, 429: ErrorEnvelopeSerializer},
+        examples=[
+            OpenApiExample(
+                "Resend request",
+                value={"email": "trader@example.com"},
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["RATE_LIMITED"],
+        ],
+    )
     def post(self, request):
         if getattr(request, "limited", False):
             return fail("RATE_LIMITED", "Too many requests.", status=429, **_retry_after())
@@ -171,7 +238,34 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     serializer_class = LoginSerializer
 
-    @extend_schema(request=LoginSerializer, responses={200: dict, 401: dict, 403: dict, 423: dict, 429: dict})
+    @extend_schema(
+        operation_id="auth_login",
+        tags=["auth"],
+        summary="Log in with email + password",
+        description=(
+            "Returns `{access, refresh, user, mfa_required}`. "
+            "`mfa_required` is always false in M01 (MFA ships in M02)."
+        ),
+        request=LoginSerializer,
+        responses={
+            200: TokenPairEnvelopeSerializer,
+            401: ErrorEnvelopeSerializer,
+            403: ErrorEnvelopeSerializer,
+            423: ErrorEnvelopeSerializer,
+            429: ErrorEnvelopeSerializer,
+        },
+        examples=[
+            OpenApiExample(
+                "Login request",
+                value={"email": "trader@example.com", "password": "correct horse battery staple"},
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["INVALID_CREDENTIALS"],
+            ERROR_EXAMPLES["EMAIL_NOT_VERIFIED"],
+            ERROR_EXAMPLES["ACCOUNT_LOCKED"],
+            ERROR_EXAMPLES["RATE_LIMITED"],
+        ],
+    )
     def post(self, request):
         if getattr(request, "limited", False):
             return fail("RATE_LIMITED", "Too many requests.", status=429, **_retry_after())
@@ -243,7 +337,25 @@ class RefreshView(APIView):
     permission_classes = [AllowAny]
     serializer_class = RefreshSerializer
 
-    @extend_schema(request=RefreshSerializer, responses={200: dict, 401: dict})
+    @extend_schema(
+        operation_id="auth_refresh",
+        tags=["auth"],
+        summary="Rotate a refresh token",
+        description=(
+            "Consumes the supplied refresh token and issues a new pair in the same family. "
+            "Reusing an already-rotated refresh revokes the whole family."
+        ),
+        request=RefreshSerializer,
+        responses={200: TokenPairEnvelopeSerializer, 401: ErrorEnvelopeSerializer},
+        examples=[
+            OpenApiExample(
+                "Refresh request",
+                value={"refresh": "eyJhbGciOi...refresh.jwt"},
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["TOKEN_INVALID"],
+        ],
+    )
     def post(self, request):
         ser = RefreshSerializer(data=request.data)
         bad = _handle_validation(ser)
@@ -263,7 +375,20 @@ class LogoutView(APIView):
     permission_classes = [AllowAny]
     serializer_class = LogoutSerializer
 
-    @extend_schema(request=LogoutSerializer, responses={200: dict})
+    @extend_schema(
+        operation_id="auth_logout",
+        tags=["auth"],
+        summary="Log out — revokes refresh family",
+        request=LogoutSerializer,
+        responses={200: StatusEnvelopeSerializer},
+        examples=[
+            OpenApiExample(
+                "Logout request",
+                value={"refresh": "eyJhbGciOi...refresh.jwt"},
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request):
         ser = LogoutSerializer(data=request.data)
         bad = _handle_validation(ser)
@@ -280,7 +405,22 @@ class PasswordResetView(APIView):
     permission_classes = [AllowAny]
     serializer_class = PasswordResetSerializer
 
-    @extend_schema(request=PasswordResetSerializer, responses={200: dict})
+    @extend_schema(
+        operation_id="auth_password_reset",
+        tags=["auth"],
+        summary="Request a password reset email",
+        description="Always returns 200 to avoid email enumeration.",
+        request=PasswordResetSerializer,
+        responses={200: StatusEnvelopeSerializer, 429: ErrorEnvelopeSerializer},
+        examples=[
+            OpenApiExample(
+                "Reset request",
+                value={"email": "trader@example.com"},
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["RATE_LIMITED"],
+        ],
+    )
     def post(self, request):
         if getattr(request, "limited", False):
             return fail("RATE_LIMITED", "Too many requests.", status=429, **_retry_after())
@@ -308,7 +448,23 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     serializer_class = PasswordResetConfirmSerializer
 
-    @extend_schema(request=PasswordResetConfirmSerializer, responses={200: dict, 400: dict})
+    @extend_schema(
+        operation_id="auth_password_reset_confirm",
+        tags=["auth"],
+        summary="Set a new password using the reset token",
+        description="Issues a JWT pair on success and revokes any outstanding refresh families.",
+        request=PasswordResetConfirmSerializer,
+        responses={200: TokenPairEnvelopeSerializer, 400: ErrorEnvelopeSerializer},
+        examples=[
+            OpenApiExample(
+                "Confirm request",
+                value={"token": "prv_7a1c...sample", "password": "correct horse battery staple"},
+                request_only=True,
+            ),
+            ERROR_EXAMPLES["TOKEN_INVALID"],
+            ERROR_EXAMPLES["PASSWORD_WEAK"],
+        ],
+    )
     def post(self, request):
         ser = PasswordResetConfirmSerializer(data=request.data)
         if not ser.is_valid():
@@ -340,6 +496,12 @@ class PasswordResetConfirmView(APIView):
 # ---------------------------------------------------------------------------
 # Me
 # ---------------------------------------------------------------------------
+@extend_schema(
+    operation_id="users_me",
+    tags=["auth"],
+    summary="Get the currently authenticated user",
+    responses={200: CurrentUserEnvelopeSerializer, 401: ErrorEnvelopeSerializer},
+)
 class CurrentUserView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CurrentUserSerializer

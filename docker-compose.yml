@@ -35,7 +35,7 @@ services:
       dockerfile: docker/backend.Dockerfile
     command: >
       sh -c "python manage.py migrate --noinput &&
-             python manage.py runserver 0.0.0.0:8000"
+             python manage.py runserver 0.0.0.0:8777"
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
@@ -43,7 +43,7 @@ services:
       SECRET_KEY: local-dev-secret-key-not-for-prod
       SENTRY_DSN: ""
     ports:
-      - "8000:8000"
+      - "8777:8777"
     volumes:
       - ./backend:/app
     depends_on:
@@ -94,7 +94,7 @@ services:
     working_dir: /app
     command: sh -c "corepack enable && pnpm install && pnpm start -- --host 0.0.0.0"
     ports:
-      - "4200:4200"
+      - "4444:4444"
     volumes:
       - ./frontend:/app
       - fe_node_modules:/app/node_modules
@@ -104,7 +104,7 @@ services:
     image: ngrok/ngrok:latest
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-    command: http backend:8000
+    command: http backend:8777
     ports:
       - "4040:4040"  # ngrok web UI
     depends_on:

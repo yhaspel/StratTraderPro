@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-04-16
+> **Last updated:** 2026-04-18
 
 ---
 
@@ -248,10 +248,10 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 01.11.1 | OpenAPI schema with request/response examples | ⏳ Pending | drf-spectacular auto-generates; examples need manual annotation |
-| 01.11.2 | openapi-typescript type generation | ⏳ Pending | Needs running backend for schema export |
-| 01.11.3 | Contract test (schema ↔ frontend parity) | ⏳ Pending | After type generation |
-| 01.11.4 | E2E Playwright tests | ⏳ Pending | Needs running full stack |
+| 01.11.1 | OpenAPI schema with request/response examples | ✅ Done | Envelope serializers + examples in apps/users/schema.py; views annotated |
+| 01.11.2 | openapi-typescript type generation | ✅ Done | `npm run schema:types` → frontend/src/app/core/generated/schema.ts; snapshot at docs/openapi/openapi.json; `make schema` re-exports from live backend |
+| 01.11.3 | Contract test (schema ↔ frontend parity) | ✅ Done | Compile-time type assertions in auth.models.contract.spec.ts; tsc --noEmit passes |
+| 01.11.4 | E2E Playwright tests | ✅ Done | frontend/e2e/ with register/login/reset/refresh specs + `installAuthMock` fixture; runs against mocked backend by default (set E2E_BASE_URL for real stack) |
 | 01.11.5 | Grafana Auth Health dashboard | ⏳ Pending | Manual: Grafana Cloud |
 | 01.11.6 | Admin registration for new models | ✅ Done | AuthEvent, RefreshTokenFamily, FailedLoginAttempt |
 | 01.11.7 | CHANGELOG update | ⏳ Pending | |

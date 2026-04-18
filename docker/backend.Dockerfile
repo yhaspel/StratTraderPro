@@ -24,11 +24,11 @@ COPY backend/ .
 # Collect static files
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
-EXPOSE 8000
+EXPOSE 8777
 
 # Default: run gunicorn with uvicorn workers
 CMD ["gunicorn", "config.wsgi:application", \
-     "--bind", "0.0.0.0:8000", \
+     "--bind", "0.0.0.0:8777", \
      "--workers", "3", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--access-logfile", "-", \

@@ -19,8 +19,8 @@ cp frontend/.env.local.example frontend/.env.local
 make up
 
 # 4. Verify
-curl http://localhost:8000/healthz          # Backend health
-open http://localhost:4200                   # Frontend landing page
+curl http://localhost:8777/healthz          # Backend health
+open http://localhost:4444                   # Frontend landing page
 
 # 5. Run tests
 make test-be    # Backend (pytest)
