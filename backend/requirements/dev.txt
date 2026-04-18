@@ -1,0 +1,18 @@
+-r base.txt
+
+# Dev server
+django-extensions>=3.2,<3.3
+
+# Debugging
+django-debug-toolbar>=4.2,<4.3
+ipython>=8.0
+
+# Linting / Formatting
+ruff>=0.2
+bandit>=1.7,<1.8
+
+# Testing
+pytest>=7.4
+pytest-django>=4.7
+pytest-cov>=4.1
+factory-boy>=3.3

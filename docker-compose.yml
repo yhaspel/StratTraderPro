@@ -1,0 +1,117 @@
+version: "3.9"
+
+services:
+  # ---------- Data stores ----------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: strattraderpro
+      POSTGRES_USER: stp_user
+      POSTGRES_PASSWORD: stp_local_pw
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stp_user -d strattraderpro"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------- Backend ----------
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+      SENTRY_DSN: ""
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Celery Worker ----------
+  worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: celery -A config.celery worker -l info
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Celery Beat ----------
+  beat:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: celery -A config.celery beat -l info -S redbeat.RedBeatScheduler
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ---------- Frontend ----------
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install && pnpm start -- --host 0.0.0.0"
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - fe_node_modules:/app/node_modules
+
+  # ---------- ngrok tunnel (optional) ----------
+  ngrok:
+    image: ngrok/ngrok:latest
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command: http backend:8000
+    ports:
+      - "4040:4040"  # ngrok web UI
+    depends_on:
+      - backend
+    profiles:
+      - tunnel  # only starts with: docker compose --profile tunnel up
+
+volumes:
+  pgdata:
+  fe_node_modules:

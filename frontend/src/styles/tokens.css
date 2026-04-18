@@ -1,0 +1,40 @@
+/*
+ * StratTraderPro Design Tokens
+ * Custom properties consumed by Tailwind via tailwind.config.js.
+ * Uses logical properties for RTL compatibility.
+ */
+
+:root {
+  /* Primary — deep blue for trust/finance */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-900: #1e3a5f;
+
+  /* Accent — teal for positive signals */
+  --color-accent-500: #14b8a6;
+
+  /* Danger — red for risk/kill-switch */
+  --color-danger-500: #ef4444;
+
+  /* Success — green for fills/profit */
+  --color-success-500: #22c55e;
+
+  /* Spacing scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}

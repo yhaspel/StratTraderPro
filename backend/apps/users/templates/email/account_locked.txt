@@ -1,0 +1,7 @@
+{% load i18n %}{% blocktrans with name=user.display_name %}Hi {{ name }},{% endblocktrans %}
+
+{% blocktrans count minutes=duration_minutes %}Your StratTraderPro account has been locked for {{ minutes }} minute due to repeated failed sign-in attempts.{% plural %}Your StratTraderPro account has been locked for {{ minutes }} minutes due to repeated failed sign-in attempts.{% endblocktrans %}
+
+{% blocktrans %}If this wasn't you, we recommend resetting your password as a precaution.{% endblocktrans %}
+
+— {% trans "The StratTraderPro team" %}

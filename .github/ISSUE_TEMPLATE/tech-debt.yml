@@ -1,0 +1,39 @@
+name: Tech Debt
+description: Track technical debt or refactoring work
+title: "[Tech Debt]: "
+labels: ["tech-debt"]
+assignees: ["yuval3000"]
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What & Why
+      description: What needs to be improved and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current State
+      description: How things work today (include file paths / code refs).
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Desired State
+      description: What the improved version looks like.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Low — nice to have
+        - Medium — affects developer productivity
+        - High — affects reliability or security

@@ -1,0 +1,9 @@
+{% load i18n %}{% blocktrans with name=user.display_name %}Hi {{ name }},{% endblocktrans %}
+
+{% blocktrans %}Welcome to StratTraderPro. Please verify your email address by visiting the link below:{% endblocktrans %}
+
+{{ link }}
+
+{% blocktrans %}This link expires in 24 hours. If you didn't create an account, you can ignore this message.{% endblocktrans %}
+
+— {% trans "The StratTraderPro team" %}

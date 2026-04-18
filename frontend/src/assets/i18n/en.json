@@ -1,0 +1,78 @@
+{
+  "app": {
+    "title": "StratTraderPro",
+    "tagline": "Regime-aware algorithmic trading — powered by webhooks, sentiment, and market breadth.",
+    "status": "Platform scaffold — staging environment"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "strategies": "Strategies",
+    "backtest": "Backtest",
+    "risk": "Risk",
+    "admin": "Admin",
+    "login": "Log In",
+    "logout": "Log Out"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in to StratTraderPro",
+      "email": "Email address",
+      "password": "Password",
+      "submit": "Sign in",
+      "forgot": "Forgot your password?",
+      "no_account": "Don't have an account?",
+      "register_link": "Create one",
+      "error": {
+        "INVALID_CREDENTIALS": "Invalid email or password.",
+        "ACCOUNT_LOCKED": "Account temporarily locked. Please try again later.",
+        "EMAIL_NOT_VERIFIED": "Please verify your email before signing in.",
+        "RATE_LIMITED": "Too many attempts. Please wait and try again."
+      }
+    },
+    "register": {
+      "title": "Create your account",
+      "email": "Email address",
+      "display_name": "Display name",
+      "password": "Password",
+      "password_hint": "At least 12 characters, with letters and digits.",
+      "submit": "Create account",
+      "have_account": "Already have an account?",
+      "login_link": "Sign in"
+    },
+    "verify_email": {
+      "verifying": "Verifying your email...",
+      "resend": "Resend verification email"
+    },
+    "resend": {
+      "title": "Check your inbox",
+      "description": "We sent a verification link to your email. Click it to activate your account.",
+      "sent": "Verification email sent!",
+      "submit": "Resend email",
+      "back_to_login": "Back to sign in"
+    },
+    "reset": {
+      "title": "Reset your password",
+      "description": "Enter your email and we'll send you a link to reset your password.",
+      "email": "Email address",
+      "submit": "Send reset link",
+      "sent": "If an account with that email exists, we sent a reset link. Check your inbox.",
+      "back_to_login": "Back to sign in"
+    },
+    "reset_confirm": {
+      "title": "Choose a new password",
+      "password": "New password",
+      "confirm_password": "Confirm new password",
+      "submit": "Reset password",
+      "back_to_login": "Back to sign in"
+    }
+  }
+}

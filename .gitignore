@@ -1,0 +1,93 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+.Python
+env/
+venv/
+.venv/
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# ===== Django =====
+db.sqlite3
+db.sqlite3-journal
+*.log
+local_settings.py
+media/
+staticfiles/
+static_collected/
+
+# ===== Node / Angular =====
+node_modules/
+.angular/
+dist/
+tmp/
+out-tsc/
+.sass-cache/
+connect.lock
+coverage/
+libpeerconnection.log
+testem.log
+typings/
+.pnpm-store/
+.pnpm-debug.log
+
+# ===== Environment / Secrets =====
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# ===== IDEs =====
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ===== Docker =====
+docker-compose.override.yml
+
+# ===== Coverage / Testing =====
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# ===== Celery =====
+celerybeat-schedule
+celerybeat.pid
+
+# ===== Misc =====
+*.bak
+*.tmp
+*.temp
+.terraform/
+*.tfstate*
