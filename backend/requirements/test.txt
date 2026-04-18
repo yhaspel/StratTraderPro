@@ -9,5 +9,5 @@ hypothesis>=6.92,<7.0
 freezegun>=1.4,<2.0
 
 # Security scanning
-bandit>=1.7,<1.8
+bandit>=1.7,<1.10
 semgrep
