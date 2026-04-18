@@ -15,7 +15,7 @@ celery-redbeat>=2.1,<2.2
 redis>=5.0,<5.1
 
 # Observability
-sentry-sdk[django,celery]>=1.40,<2.0
+sentry-sdk[django,celery]>=1.40,<3.0
 django-prometheus>=2.3,<2.4
 opentelemetry-distro[otlp]>=0.43b0
 python-json-logger>=2.0,<2.1
