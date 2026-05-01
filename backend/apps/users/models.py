@@ -203,8 +203,8 @@ class AuthEvent(models.Model):
         REFRESH_OK = "refresh_ok"
         REFRESH_REUSE = "refresh_reuse"
         FAMILY_REVOKED = "family_revoked"
-        PASSWORD_RESET_REQUESTED = "password_reset_requested"
-        PASSWORD_RESET_CONFIRMED = "password_reset_confirmed"
+        PASSWORD_RESET_REQUESTED = "password_reset_requested"  # noqa: S105
+        PASSWORD_RESET_CONFIRMED = "password_reset_confirmed"  # noqa: S105
         ACCOUNT_LOCKED = "account_locked"
         RESEND_VERIFICATION = "resend_verification"
 
