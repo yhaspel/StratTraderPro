@@ -1,12 +1,12 @@
 # ---------- Stage 1: Build wheels ----------
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 COPY backend/requirements/ requirements/
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements/prod.txt
 
 # ---------- Stage 2: Runtime ----------
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
