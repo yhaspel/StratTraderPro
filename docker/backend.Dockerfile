@@ -30,4 +30,8 @@ EXPOSE 8777
 
 # On boot: run migrations (idempotent, safe to repeat) then launch gunicorn.
 # Using `sh -c` so ${PORT} expands at container start, not build time.
-CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers 3 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile -"]
+# UvicornWorker requires an ASGI app (config.asgi); using config.wsgi here would
+# raise `WSGIHandler.__call__() missing 1 required positional argument:
+# 'start_response'` on every request. config.asgi.py exposes an ASGI app via
+# django.core.asgi.get_asgi_application — that's what uvicorn expects.
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.asgi:application --bind 0.0.0.0:${PORT} --workers 3 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile -"]

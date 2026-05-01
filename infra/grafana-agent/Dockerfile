@@ -15,7 +15,11 @@ ENV AGENT_WAL_DIR=/tmp/agent-wal
 # probe can hit /-/ready on it.
 EXPOSE 12345
 
-ENTRYPOINT ["/bin/agent"]
+# In v0.40+ the static-mode binary was renamed `/bin/agent` → `/bin/grafana-agent`
+# (the old name now belongs to Grafana Alloy). We override the upstream ENTRYPOINT
+# so this Dockerfile is pinned to the static-mode entrypoint regardless of any
+# image-default changes Grafana might make in future patch releases.
+ENTRYPOINT ["/bin/grafana-agent"]
 CMD ["-config.file=/etc/agent/agent.yaml", \
      "-config.expand-env=true", \
      "-server.http.address=0.0.0.0:12345", \
