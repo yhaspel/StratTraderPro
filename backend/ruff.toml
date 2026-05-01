@@ -6,4 +6,11 @@ select = ["E", "F", "I", "W", "B", "S"]
 ignore = ["S101"]
 
 [lint.per-file-ignores]
-"config/settings/*.py" = ["F405", "F403"]
+# Settings modules use star-imports from base, intentionally bind 0.0.0.0 in dev,
+# embed a non-secret test SECRET_KEY, and call `git rev-parse` with a partial path.
+"config/settings/*.py" = ["F405", "F403", "S104", "S105", "S607", "E402"]
+# Auto-generated Django migrations: line length is not human-controlled.
+"**/migrations/*.py" = ["E501"]
+# Tests legitimately use hardcoded credentials and small import-shuffles.
+"**/tests.py" = ["S105", "S106"]
+"**/test_*.py" = ["S105", "S106"]
