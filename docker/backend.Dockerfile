@@ -2,8 +2,8 @@
 FROM python:3.12-slim AS builder
 
 WORKDIR /build
-COPY backend/requirements/prod.txt requirements.txt
-RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+COPY backend/requirements/ requirements/
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements/prod.txt
 
 # ---------- Stage 2: Runtime ----------
 FROM python:3.12-slim
@@ -24,12 +24,10 @@ COPY backend/ .
 # Collect static files
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
+# Railway injects PORT at runtime; 8777 stays as the local docker-compose default
+ENV PORT=8777
 EXPOSE 8777
 
-# Default: run gunicorn with uvicorn workers
-CMD ["gunicorn", "config.wsgi:application", \
-     "--bind", "0.0.0.0:8777", \
-     "--workers", "3", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+# On boot: run migrations (idempotent, safe to repeat) then launch gunicorn.
+# Using `sh -c` so ${PORT} expands at container start, not build time.
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers 3 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile -"]

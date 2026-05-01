@@ -20,7 +20,10 @@ CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31_536_000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
-SECURE_SSL_REDIRECT = True
+# Railway terminates TLS at the edge — letting Django redirect HTTP→HTTPS
+# again would create an infinite loop because the proxied request looks like HTTP.
+# Keep this False on Railway; rely on the platform/CDN to enforce HTTPS.
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
 
 # ---------------------------------------------------------------------------
 # CORS

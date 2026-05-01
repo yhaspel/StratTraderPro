@@ -1,0 +1,54 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Gzip
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+    gzip_min_length 256;
+
+    # Angular SPA — fallback to index.html for client-side routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy API requests to Django backend.
+    # ${BACKEND_URL} is substituted at container start by the official nginx
+    # image's envsubst step (NGINX_ENVSUBST_FILTER limits substitution to BACKEND_URL
+    # so nginx variables like $uri, $host, $remote_addr survive).
+    #
+    # On Railway: set BACKEND_URL=https://<api>.up.railway.app  (PUBLIC URL — see
+    # railway-deployment skill, gotcha #2: private *.railway.internal DNS is
+    # unreliable from nginx).
+    # In docker-compose: set BACKEND_URL=http://backend:8777 (defaults to that if unset).
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # Static assets — long cache
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Health check for the nginx container itself (used by Railway healthcheck)
+    location = /health {
+        default_type text/plain;
+        return 200 'ok';
+    }
+
+    # Legacy alias
+    location = /nginx-health {
+        default_type text/plain;
+        return 200 'ok';
+    }
+}

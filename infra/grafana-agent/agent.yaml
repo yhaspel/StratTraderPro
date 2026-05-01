@@ -1,0 +1,40 @@
+# Grafana Agent config — pushes Prometheus metrics from the StratTraderPro
+# backend to Grafana Cloud Hosted Prometheus.
+#
+# Substitution: launched with `-config.expand-env=true` so ${VAR} expands from
+# the container env at startup. Set GRAFANA_PROM_URL / GRAFANA_PROM_USER /
+# GRAFANA_PROM_TOKEN / BACKEND_TARGET / RAILWAY_ENVIRONMENT_NAME on the Railway
+# service. For staging the backend address is `backend.railway.internal:8777`
+# (the API service's Railway-internal DNS name on the same project).
+
+server:
+  log_level: info
+
+metrics:
+  global:
+    scrape_interval: 30s
+    external_labels:
+      cluster: strattraderpro-${RAILWAY_ENVIRONMENT_NAME}
+      env: ${RAILWAY_ENVIRONMENT_NAME}
+    remote_write:
+      - url: ${GRAFANA_PROM_URL}
+        basic_auth:
+          username: ${GRAFANA_PROM_USER}
+          password: ${GRAFANA_PROM_TOKEN}
+  configs:
+    - name: strattraderpro
+      scrape_configs:
+        - job_name: backend
+          metrics_path: /metrics
+          scheme: http
+          static_configs:
+            - targets:
+                - ${BACKEND_TARGET}
+              labels:
+                service: backend
+          # Trim noisy default python_* runtime metrics to stay inside the
+          # Grafana Cloud free-tier active-series quota.
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: 'python_gc_.*|python_info'
+              action: drop
