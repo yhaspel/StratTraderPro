@@ -13,6 +13,13 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken
 
 from . import services
+from .metrics import (
+    FAMILY_REVOCATIONS_TOTAL,
+    LOGIN_TOTAL,
+    PASSWORD_RESET_TOTAL,
+    LoginResult,
+    PasswordResetStep,
+)
 from .models import AuthEvent, EmailVerificationToken, PasswordResetToken
 from .responses import fail, ok
 from .schema import (
@@ -268,6 +275,7 @@ class LoginView(APIView):
     )
     def post(self, request):
         if getattr(request, "limited", False):
+            LOGIN_TOTAL.labels(result=LoginResult.RATE_LIMITED).inc()
             return fail("RATE_LIMITED", "Too many requests.", status=429, **_retry_after())
 
         ser = LoginSerializer(data=request.data)
@@ -283,6 +291,7 @@ class LoginView(APIView):
                 AuthEvent.EventType.LOGIN_FAIL, email=email, request=request,
                 metadata={"reason": "locked"},
             )
+            LOGIN_TOTAL.labels(result=LoginResult.LOCKED).inc()
             return fail(
                 "ACCOUNT_LOCKED",
                 "Account temporarily locked due to repeated failures.",
@@ -304,6 +313,7 @@ class LoginView(APIView):
                 services.record_event(
                     AuthEvent.EventType.ACCOUNT_LOCKED, email=email, user=target, request=request,
                 )
+            LOGIN_TOTAL.labels(result=LoginResult.BAD_PASSWORD).inc()
             return fail("INVALID_CREDENTIALS", "Invalid email or password.", status=401)
 
         if not user.is_verified:
@@ -311,6 +321,7 @@ class LoginView(APIView):
                 AuthEvent.EventType.LOGIN_FAIL, user=user, request=request,
                 metadata={"reason": "unverified"},
             )
+            LOGIN_TOTAL.labels(result=LoginResult.UNVERIFIED).inc()
             return fail(
                 "EMAIL_NOT_VERIFIED",
                 "Please verify your email before signing in.",
@@ -322,6 +333,7 @@ class LoginView(APIView):
         # MFA placeholder field per plan §6.2 — always false in M01.
         pair["mfa_required"] = False
         services.record_event(AuthEvent.EventType.LOGIN_OK, user=user, request=request)
+        LOGIN_TOTAL.labels(result=LoginResult.OK).inc()
         return ok(pair)
 
 
@@ -436,6 +448,9 @@ class PasswordResetView(APIView):
             services.record_event(
                 AuthEvent.EventType.PASSWORD_RESET_REQUESTED, user=user, request=request
             )
+        # Increment unconditionally — incrementing only on `if user` would leak
+        # email existence via metric volume; anti-enumeration applies here too.
+        PASSWORD_RESET_TOTAL.labels(step=PasswordResetStep.REQUESTED).inc()
         return ok({"status": "ok"})
 
 
@@ -485,11 +500,16 @@ class PasswordResetConfirmView(APIView):
         user.save()
         services.clear_failed_logins(user.email)
         # Revoke any outstanding refresh families — password changed.
+        revoked_count = 0
         for fam in user.refresh_families.filter(revoked_at__isnull=True):
             fam.revoke(reason="password_reset")
+            revoked_count += 1
+        if revoked_count:
+            FAMILY_REVOCATIONS_TOTAL.inc(revoked_count)
         services.record_event(
             AuthEvent.EventType.PASSWORD_RESET_CONFIRMED, user=user, request=request
         )
+        PASSWORD_RESET_TOTAL.labels(step=PasswordResetStep.CONFIRMED).inc()
         return ok(services.issue_token_pair(user))
 
 

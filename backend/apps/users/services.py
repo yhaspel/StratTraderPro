@@ -5,6 +5,7 @@ Kept separate from views so logic is unit-testable without HTTP.
 """
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Optional
 
@@ -15,6 +16,11 @@ from django.utils import timezone
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
+from .metrics import (
+    FAMILY_REVOCATIONS_TOTAL,
+    REFRESH_TOTAL,
+    RefreshResult,
+)
 from .models import (
     AuthEvent,
     EmailVerificationToken,
@@ -22,6 +28,8 @@ from .models import (
     PasswordResetToken,
     RefreshTokenFamily,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -89,17 +97,20 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
     try:
         token = RefreshToken(raw_refresh)
     except TokenError as exc:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken(str(exc)) from exc
 
     family_id = token.get("family_id")
     jti = str(token["jti"])
     user_id = token.get("user_id")
     if not family_id or not user_id:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("Refresh token is missing required claims")
 
     try:
         family = RefreshTokenFamily.objects.select_related("user").get(family_id=family_id)
     except RefreshTokenFamily.DoesNotExist:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("Unknown refresh token family")
 
     if family.is_revoked:
@@ -109,6 +120,7 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
             request=request,
             metadata={"family_id": str(family.family_id), "reason": "already_revoked"},
         )
+        REFRESH_TOTAL.labels(result=RefreshResult.FAMILY_REVOKED).inc()
         raise InvalidToken("Refresh token family revoked")
 
     if jti != family.current_jti:
@@ -126,10 +138,13 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
             request=request,
             metadata={"family_id": str(family.family_id)},
         )
+        REFRESH_TOTAL.labels(result=RefreshResult.REUSE_DETECTED).inc()
+        FAMILY_REVOCATIONS_TOTAL.inc()
         raise InvalidToken("Refresh token reuse detected — family revoked")
 
     user = family.user
     if not user.is_active:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("User inactive")
 
     pair = issue_token_pair(user, family=family)
@@ -139,6 +154,7 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
         request=request,
         metadata={"family_id": str(family.family_id)},
     )
+    REFRESH_TOTAL.labels(result=RefreshResult.OK).inc()
     return pair
 
 
@@ -164,6 +180,7 @@ def revoke_refresh(raw_refresh: str, *, request=None) -> bool:
         request=request,
         metadata={"family_id": str(family.family_id)},
     )
+    FAMILY_REVOCATIONS_TOTAL.inc()
     return True
 
 
@@ -192,11 +209,26 @@ def clear_failed_logins(email: str) -> None:
 # Email
 # ---------------------------------------------------------------------------
 def _send_templated(*, to: str, subject: str, template_base: str, context: dict) -> None:
+    """
+    Render and send a transactional email. Network failures (Resend down, 422
+    on an unverified test-sender recipient, SMTP timeout, …) are LOGGED but
+    NOT raised — the user-facing endpoint must not 500 just because the
+    provider rejected delivery. The matching AuthEvent is still recorded by
+    the caller so we can replay sends later if needed.
+    """
     text = render_to_string(f"email/{template_base}.txt", context)
     html = render_to_string(f"email/{template_base}.html", context)
     msg = EmailMultiAlternatives(subject=subject, body=text, to=[to])
     msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    try:
+        msg.send(fail_silently=False)
+    except Exception:  # noqa: BLE001 — we genuinely want to swallow ALL errors here
+        # structlog scrubber will redact `to` (matches `email`-like fields if
+        # present), so this is safe to log even with PII rules in place.
+        logger.exception(
+            "transactional email send failed",
+            extra={"template": template_base, "to": to},
+        )
 
 
 def send_verification_email(user, raw_token: str) -> None:

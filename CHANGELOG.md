@@ -6,8 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Known issues (open after 0.1.0-auth)
-- `POST /api/v1/auth/register/` returns 500 (instead of 202) when Resend rejects the recipient — most commonly when using the test sender `onboarding@resend.dev`, which only delivers to addresses verified on the Resend account. Mitigation: verify a sending domain in Resend (DKIM/SPF) and switch `DEFAULT_FROM_EMAIL` to it. Code fix tracked separately: wrap the email send in a try/except, log the failure, return 202 either way (anti-enumeration is still preserved).
+### Added
+- `apps/users/metrics.py` with the four Prometheus counters required by plan §12: `auth_login_total{result}`, `auth_refresh_total{result}`, `auth_family_revocations_total`, `auth_password_reset_total{step}`. All four are now incremented from views/services on every relevant code path. The Auth Health dashboard panels and three alerts (login success rate < 95%, family revocations > 5/h, sustained 429s) now have data to chart against.
+
+### Fixed
+- `POST /api/v1/auth/register/` no longer returns 500 when Resend rejects delivery (Resend test-sender restriction, SMTP timeout, or any other backend-email failure). `_send_templated` now logs the exception and continues — the user/account is still created and the response is the expected 201/202. Anti-enumeration semantics preserved.
 
 ---
 
