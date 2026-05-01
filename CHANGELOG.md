@@ -8,9 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - `apps/users/metrics.py` with the four Prometheus counters required by plan §12: `auth_login_total{result}`, `auth_refresh_total{result}`, `auth_family_revocations_total`, `auth_password_reset_total{step}`. All four are now incremented from views/services on every relevant code path. The Auth Health dashboard panels and three alerts (login success rate < 95%, family revocations > 5/h, sustained 429s) now have data to chart against.
+- `backend/gunicorn.conf.py` enabling `prometheus_client` multi-process mode. Each gunicorn worker mmaps its counter state into `/tmp/prom-multiproc` (set via `ENV PROMETHEUS_MULTIPROC_DIR` in `docker/backend.Dockerfile`); the `/metrics` handler aggregates across all workers and the `child_exit` hook calls `multiprocess.mark_process_dead` so dead-worker files don't inflate totals. Verified on staging: 8 consecutive `/metrics` scrapes return identical aggregated values (was bouncing 2/3/4 between workers before).
 
 ### Fixed
 - `POST /api/v1/auth/register/` no longer returns 500 when Resend rejects delivery (Resend test-sender restriction, SMTP timeout, or any other backend-email failure). `_send_templated` now logs the exception and continues — the user/account is still created and the response is the expected 201/202. Anti-enumeration semantics preserved.
+- Grafana alert rules `auth-login-success`, `auth-family-revocations`, `auth-rate-limit-spike` were initially created with range queries flowing into the threshold expression, which Grafana 11 errors on (`looks like time series data, only reduced data can be alerted on`). Switched all three to instant queries (`queryType: 'instant'`, `instant: true, range: false`) so the threshold expression sees a scalar; verified end-to-end by triggering 3+ family revocations and observing the rule transition Inactive → Pending(activeAt) → Firing(activeAt + 5m) → email delivered to `auth-health-email` contact point.
 
 ---
 
