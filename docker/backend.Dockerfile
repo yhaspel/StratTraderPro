@@ -10,7 +10,13 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=config.settings.prod
+    DJANGO_SETTINGS_MODULE=config.settings.prod \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prom-multiproc
+
+# prometheus_client multiprocess mode (see backend/gunicorn.conf.py): each
+# worker mmaps its counter state into this directory; the /metrics handler
+# aggregates across all files. Must exist before the first worker boots.
+RUN mkdir -p /tmp/prom-multiproc
 
 WORKDIR /app
 
@@ -34,4 +40,4 @@ EXPOSE 8777
 # raise `WSGIHandler.__call__() missing 1 required positional argument:
 # 'start_response'` on every request. config.asgi.py exposes an ASGI app via
 # django.core.asgi.get_asgi_application — that's what uvicorn expects.
-CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.asgi:application --bind 0.0.0.0:${PORT} --workers 3 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.asgi:application --config /app/gunicorn.conf.py --bind 0.0.0.0:${PORT} --workers 3 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile -"]
