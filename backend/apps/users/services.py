@@ -109,9 +109,9 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
 
     try:
         family = RefreshTokenFamily.objects.select_related("user").get(family_id=family_id)
-    except RefreshTokenFamily.DoesNotExist:
+    except RefreshTokenFamily.DoesNotExist as exc:
         REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
-        raise InvalidToken("Unknown refresh token family")
+        raise InvalidToken("Unknown refresh token family") from exc
 
     if family.is_revoked:
         record_event(
