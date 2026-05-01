@@ -1,7 +1,8 @@
 """M00 backend tests — health endpoints, schema, logging scrubber, sentry init."""
 import json
 
-from django.test import TestCase, RequestFactory, override_settings
+from django.test import RequestFactory, TestCase, override_settings
+
 from config.urls import healthz
 
 
