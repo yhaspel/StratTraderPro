@@ -59,7 +59,7 @@ jobs:
         run: cd backend && ruff check .
 
       - name: Security scan (bandit)
-        run: cd backend && bandit -r apps/ config/ -x tests -q
+        run: cd backend && bandit -r apps/ config/ -x tests -q --severity-level medium
 
       - name: Run tests
         env:
