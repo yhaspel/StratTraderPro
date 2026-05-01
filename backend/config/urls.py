@@ -1,7 +1,7 @@
 """StratTraderPro URL Configuration."""
 from django.contrib import admin
 from django.http import JsonResponse
-from django.urls import path, include
+from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from config.settings.base import GIT_SHA
