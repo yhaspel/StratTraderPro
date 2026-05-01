@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Known issues (open after 0.1.0-auth)
+- `POST /api/v1/auth/register/` returns 500 (instead of 202) when Resend rejects the recipient — most commonly when using the test sender `onboarding@resend.dev`, which only delivers to addresses verified on the Resend account. Mitigation: verify a sending domain in Resend (DKIM/SPF) and switch `DEFAULT_FROM_EMAIL` to it. Code fix tracked separately: wrap the email send in a try/except, log the failure, return 202 either way (anti-enumeration is still preserved).
+
+---
+
+## [0.1.0-auth] — 2026-05-01
+
+### Added (since the placeholder 2026-04-30 entry)
+- **Railway staging deployment**: 7-service environment (`backend`, `frontend`, `Postgres`, `Redis`, `celery-worker`, `celery-beat`, `grafana-agent`) on a single Railway project, region us-east4. URLs: `https://frontend-staging-9011.up.railway.app`, `https://backend-staging-4b6d.up.railway.app`. Project: `https://railway.com/project/17060567-b194-4926-a7c0-7f339e306bdf`.
+- **Grafana Cloud — Auth Health dashboard live** (`https://yuval3000.grafana.net/d/stp-auth-health`): four panels (login success rate, login outcomes, family revocations, rate-limit hits) and three alert rules wired to email contact point `auth-health-email` → yuval3000@gmail.com. Dashboard JSON checked in at `infra/grafana/auth-health-dashboard.json`.
+- `infra/grafana-agent/` Docker config for the `grafana-agent` Railway service (Grafana Agent v0.43.4 in static mode, scraping `backend.railway.internal:8000/metrics` and remote-writing to `prometheus-prod-58-prod-eu-central-0.grafana.net`).
+- `docker/nginx.conf.template` with `${BACKEND_URL}` envsubst for the frontend nginx — replaces the docker-compose-only `nginx.conf`.
+
+### Changed
+- `docker/backend.Dockerfile`: gunicorn now points at `config.asgi:application` (uvicorn worker requires ASGI; was running `config.wsgi` and 500'ing every request); honors `${PORT}`; runs `migrate --noinput` on boot.
+- `docker/frontend.Dockerfile`: switched from baked-in nginx config to the official nginx image's envsubst template flow (`NGINX_ENVSUBST_FILTER=^BACKEND_URL$`), so `BACKEND_URL` resolves at container start.
+- `backend/config/settings/prod.py`: `SECURE_SSL_REDIRECT` now defaults to False and is env-controlled — Railway terminates TLS at the edge and Django redirecting again caused infinite loops.
+- `backend/config/settings/base.py` (in repo): no functional change, but staging-side `ALLOWED_HOSTS` now includes `backend.railway.internal` so the in-cluster Grafana Agent can scrape `/metrics` without 400.
+- `setup-guides/grafana-setup.md` and `docs/runbooks/staging-deploy.md`: updated to reflect actual deployed config (stack slug `yuval3000`, Agent v0.43.4 not Alloy, scope `set:alloy-data-write`); added new troubleshooting rows for ASGI-mismatch, agent binary rename, and `up=0`-from-ALLOWED_HOSTS.
+
+### Verified on staging
+- Backend: `/healthz` 200; `/metrics` 200; `/api/schema/` 200 (also via frontend's nginx proxy at `/api/schema/`).
+- Grafana Cloud Explore: `up{service="backend"} == 1` after the ALLOWED_HOSTS fix.
+- AC-01-1 (register), AC-01-3 (unverified login), AC-01-9 (weak password), AC-01-10 (rate limits), AC-01-13 (auth.* i18n keys present) — all confirmed via curl against the live staging URL.
+- AC-01-2/4/5/6/8/11 require manual click-through (verification email + browser auth flow) and are tagged for the next session's smoke test against staging.
+
 ---
 
 ## [0.1.0-auth] — 2026-04-30

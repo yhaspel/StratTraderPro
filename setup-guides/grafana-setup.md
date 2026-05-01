@@ -4,6 +4,21 @@
 > **Owner:** @yuval3000 (manual)
 > **Time:** ~30–45 min
 > **Outcome:** A live **Auth Health** dashboard in Grafana Cloud scraping Prometheus metrics from the Railway-staging backend, with three alerts wired up.
+>
+> **Status (2026-05-01):** Sections 0–3 complete. Pipeline verified: `up{service="backend"}` returns `1` in Grafana Cloud Explore (datasource `grafanacloud-yuval3000-prom`). Section 4 (dashboard import) and Section 5 (alert verification) outstanding.
+
+## Deployed configuration (cheatsheet)
+
+| | Actual | Notes |
+|---|---|---|
+| Grafana stack slug | `yuval3000` | Auto-generated from email; the guide's example "strattraderpro" was never created. Datasource is therefore `grafanacloud-yuval3000-prom`. |
+| Region | `prod-eu-central-0` | Affects remote_write URL only; query latency from us-east4 backend → eu-central-0 cloud is acceptable for 30s scrapes. |
+| API token name | `strattraderpro-staging` | No expiry. Stored locally in `.env.grafana.local` (gitignored). |
+| API token scope | `set:alloy-data-write` | Replaces the old `MetricsPublisher` role; superset that covers Prometheus write. |
+| Collector | Grafana **Agent** v0.43.4 (static, YAML) | Image: `grafana/agent:v0.43.4`. Alloy migration deferred. |
+| Collector path on Railway | service `grafana-agent`, root `/infra/grafana-agent` | See `infra/grafana-agent/README.md` for env vars. |
+| Backend scrape target | `backend.railway.internal:8000` | Internal DNS, port = backend's `PORT` env var. |
+| Backend `ALLOWED_HOSTS` | must include `backend.railway.internal` | Without it Django returns 400 to the agent and `up=0`. **This is not in the upstream Railway docs.** |
 
 ---
 
@@ -18,7 +33,7 @@ Please collect / decide the following and paste them back into the chat (or save
 | 3 | Grafana Cloud **Prometheus username** (numeric instance ID) | Same page as #2 | env: `GRAFANA_PROM_USER` |
 | 4 | Grafana Cloud **API token** (scope: `MetricsPublisher`) | Grafana Cloud → *Security → Access Policies → Add token* | env: `GRAFANA_PROM_TOKEN` (GitHub Actions secret + Railway service var) |
 | 5 | Notification target for alerts (email / Slack webhook / PagerDuty key) | Your choice | Configured inside Grafana UI |
-| 6 | Confirmation that Railway staging is up and `/metrics` returns 200 | `curl https://api-staging.strattraderpro.com/metrics` | — |
+| 6 | Confirmation that Railway staging is up and `/metrics` returns 200 | ✅ `curl https://backend-staging-4b6d.up.railway.app/metrics` (custom domain not yet wired) | — |
 
 Once you give me items **1–5**, I can hand you a ready-to-import dashboard JSON and the exact `prometheus.yml` / Railway env-var diff. Item 6 is a precondition — if staging isn't deployed yet, finish M00.9.3 / M00.9.7 first.
 
@@ -56,33 +71,18 @@ Save these three values — they are items 2/3/4 above.
 
 We push metrics from the Railway-hosted backend to Grafana via Prometheus remote_write. Two options; pick **A** unless you have reasons to prefer **B**.
 
-### Option A — Grafana Agent sidecar (recommended)
+### Option A — Grafana Agent sidecar (recommended) ✅ deployed
 
-1. Add a new Railway service `grafana-agent` from the Docker image `grafana/agent:latest`.
-2. Mount the following config (paste into Railway as a file or as `AGENT_CONFIG_CONTENT`):
+1. ✅ Service `grafana-agent` deployed on Railway from this repo, root directory `/infra/grafana-agent`. Pinned image `grafana/agent:v0.43.4` (not `:latest` — locks against Grafana's pending Alloy migration). Config and Dockerfile live in-repo; see `infra/grafana-agent/README.md`.
+2. ✅ Config matches what's at `infra/grafana-agent/agent.yaml`. Includes `metric_relabel_configs` to drop `python_gc_*` to stay inside the free-tier active-series quota.
+3. ✅ Env vars set on the Railway service (per environment): `GRAFANA_PROM_URL`, `GRAFANA_PROM_USER`, `GRAFANA_PROM_TOKEN`, `BACKEND_TARGET=${{backend.RAILWAY_PRIVATE_DOMAIN}}:8000`, `PORT=12345`. The agent's HTTP server is bound to `$PORT` so Railway's healthcheck can reach `/-/ready` on it.
+4. ✅ Verified in Grafana Cloud Explore: `up{service="backend"} == 1` after the backend's `ALLOWED_HOSTS` was updated to include `backend.railway.internal` (without that, Django responds 400 to the agent and `up` stays at 0).
 
-   ```yaml
-   server:
-     log_level: info
-   metrics:
-     global:
-       scrape_interval: 30s
-       remote_write:
-         - url: ${GRAFANA_PROM_URL}
-           basic_auth:
-             username: ${GRAFANA_PROM_USER}
-             password: ${GRAFANA_PROM_TOKEN}
-     configs:
-       - name: strattraderpro-staging
-         scrape_configs:
-           - job_name: backend
-             static_configs:
-               - targets: ['backend.railway.internal:8000']
-             metrics_path: /metrics
-   ```
+**Gotchas encountered during this rollout** (worth keeping for the production duplicate later):
 
-3. Set `GRAFANA_PROM_URL`, `GRAFANA_PROM_USER`, `GRAFANA_PROM_TOKEN` as Railway service variables.
-4. Redeploy. Watch `grafana-agent` logs — you should see `level=info component=remote_write msg="successful write"` within 60s.
+- `grafana/agent:v0.40+` renamed `/bin/agent` → `/bin/grafana-agent`. The image's default ENTRYPOINT works; an explicit `ENTRYPOINT ["/bin/agent"]` in your Dockerfile fails with `executable file not found`.
+- The static Grafana Agent does **not** log "successful write" at info level — silence is success. Filter logs for `error` and look for none, or query `up{}` in Grafana to confirm scrapes are succeeding.
+- Backend's gunicorn must run an **ASGI** app (`config.asgi:application`) when paired with `uvicorn.workers.UvicornWorker`. Pointing it at `config.wsgi:application` returns 500 on every request: `WSGIHandler.__call__() missing 1 required positional argument: 'start_response'`.
 
 ### Option B — Push directly from Django
 

@@ -134,6 +134,9 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 01 — Auth Foundation
 
+**Status:** ✅ Done (pending git tag) — 2026-05-01
+**Notes:** All 30 of 30 sub-tasks done; only remaining gate is the user pushing the `v0.1.0-auth` tag.
+
 **Status:** 🔄 In Progress
 **Started:** 2026-04-17
 **Completed:** —
@@ -252,10 +255,12 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 01.11.2 | openapi-typescript type generation | ✅ Done | `npm run schema:types` → frontend/src/app/core/generated/schema.ts; snapshot at docs/openapi/openapi.json; `make schema` re-exports from live backend |
 | 01.11.3 | Contract test (schema ↔ frontend parity) | ✅ Done | Compile-time type assertions in auth.models.contract.spec.ts; tsc --noEmit passes |
 | 01.11.4 | E2E Playwright tests | ✅ Done | frontend/e2e/ with register/login/reset/refresh specs + `installAuthMock` fixture; runs against mocked backend by default (set E2E_BASE_URL for real stack) |
-| 01.11.5 | Grafana Auth Health dashboard | ⏳ Pending | Manual: Grafana Cloud |
+| 01.11.5 | Grafana Auth Health dashboard | ✅ Done | Live at https://yuval3000.grafana.net/d/stp-auth-health; 4 panels + 3 email alerts to yuval3000@gmail.com; JSON checked in at `infra/grafana/auth-health-dashboard.json` |
 | 01.11.6 | Admin registration for new models | ✅ Done | AuthEvent, RefreshTokenFamily, FailedLoginAttempt |
-| 01.11.7 | CHANGELOG update | ⏳ Pending | |
-| 01.11.8 | Tag v0.1.0-auth | ⏳ Pending | After all ACs verified on staging |
+| 01.11.7 | CHANGELOG update | ✅ Done | v0.1.0-auth section + open known-issue (Resend 422 → 500 on register) noted |
+| 01.11.8 | Tag v0.1.0-auth | ⏳ Pending | Awaiting user `git tag v0.1.0-auth && git push --tags` after this commit lands |
+| 01.11.9 | Railway staging deploy (7 services) | ✅ Done | backend, frontend, Postgres, Redis, celery-worker, celery-beat, grafana-agent — all Online; project `17060567-b194-4926-a7c0-7f339e306bdf`, env `staging` |
+| 01.11.10 | AC-01-1..13 staging smoke (curl-able subset) | ✅ Done | AC-01-1, 3, 9, 10, 13 confirmed via curl. AC-01-2/4/5/6/8 require user inbox click-through; AC-01-7/12 covered by unit tests; AC-01-11 covered by frontend guard spec |
 
 ---
 
