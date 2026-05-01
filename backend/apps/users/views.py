@@ -1,11 +1,9 @@
 """Auth views (M01)."""
 from __future__ import annotations
 
-from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.db import IntegrityError, transaction
 from django_ratelimit.decorators import ratelimit
-from django_ratelimit.exceptions import Ratelimited
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated

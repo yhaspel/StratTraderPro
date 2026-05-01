@@ -5,7 +5,6 @@ backend. Rate-limiting is disabled by default (test settings).
 """
 from __future__ import annotations
 
-import json
 from datetime import timedelta
 
 from django.conf import settings
@@ -25,8 +24,6 @@ from apps.users.services import (
     issue_token_pair,
     is_locked,
     record_failed_login,
-    rotate_refresh,
-    revoke_refresh,
 )
 
 User = get_user_model()
@@ -176,7 +173,7 @@ class LoginTests(TestCase):
         self.assertEqual(FailedLoginAttempt.objects.filter(email="test@example.com").count(), 1)
 
     def test_login_10th_failure_locks_account(self):
-        user = _create_user()
+        _create_user()
         for _ in range(10):
             record_failed_login("test@example.com")
         self.assertTrue(is_locked("test@example.com"))
@@ -280,11 +277,7 @@ class PasswordResetTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(len(mail.outbox), 1)
-        # Grab the raw token from the token model (we can't parse the email in tests
-        # since we don't send raw tokens in the response).
-        tok = PasswordResetToken.objects.first()
-        # We need the raw token, which we can't easily get after the fact.
-        # Instead, issue manually:
+        # We can't parse the raw token from the email in tests, so issue manually:
         _, raw = PasswordResetToken.issue(user)
         new_pw = "BrandNewPass999!"
         resp = self.client.post(
