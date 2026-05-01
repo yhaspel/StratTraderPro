@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-04-18
+> **Last updated:** 2026-05-01 — M01 closed; ready for M02
 
 ---
 
@@ -134,12 +134,15 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 01 — Auth Foundation
 
-**Status:** ✅ Done (pending git tag) — 2026-05-01
-**Notes:** All 30 of 30 sub-tasks done; only remaining gate is the user pushing the `v0.1.0-auth` tag.
-
-**Status:** 🔄 In Progress
+**Status:** ✅ Done — 2026-05-01
 **Started:** 2026-04-17
-**Completed:** —
+**Completed:** 2026-05-01
+
+**Tags:**
+- `v0.1.0-auth` (commit `33c48ac`) — M01 baseline as planned in `01-auth-foundation.md`. Pushed.
+- `v0.1.1-auth-metrics` — captures the post-baseline observability hardening: four Prometheus auth counters wired, Resend 422→500 hardening, gunicorn multi-process Prometheus mode, alert-rule instant-query fix. Pending user `git push origin v0.1.1-auth-metrics` after the matching CHANGELOG commit lands.
+
+**Plan §17 exit-gate:** all items ✅ — see 01.11 below for the receipts.
 
 > See `01-auth-foundation.md` for full spec.
 
@@ -255,12 +258,17 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 01.11.2 | openapi-typescript type generation | ✅ Done | `npm run schema:types` → frontend/src/app/core/generated/schema.ts; snapshot at docs/openapi/openapi.json; `make schema` re-exports from live backend |
 | 01.11.3 | Contract test (schema ↔ frontend parity) | ✅ Done | Compile-time type assertions in auth.models.contract.spec.ts; tsc --noEmit passes |
 | 01.11.4 | E2E Playwright tests | ✅ Done | frontend/e2e/ with register/login/reset/refresh specs + `installAuthMock` fixture; runs against mocked backend by default (set E2E_BASE_URL for real stack) |
-| 01.11.5 | Grafana Auth Health dashboard | ✅ Done | Live at https://yuval3000.grafana.net/d/stp-auth-health; 4 panels + 3 email alerts to yuval3000@gmail.com; JSON checked in at `infra/grafana/auth-health-dashboard.json` |
+| 01.11.5 | Grafana Auth Health dashboard | ✅ Done | Live at https://yuval3000.grafana.net/d/stp-auth-health; 4 panels + 3 alert rules in folder `StratTraderPro Auth` (UID `cfkrwjgh3sxkwa`) routed to `auth-health-email` contact point → yuval3000@gmail.com. Dashboard JSON checked in at `infra/grafana/auth-health-dashboard.json` |
 | 01.11.6 | Admin registration for new models | ✅ Done | AuthEvent, RefreshTokenFamily, FailedLoginAttempt |
-| 01.11.7 | CHANGELOG update | ✅ Done | v0.1.0-auth section + open known-issue (Resend 422 → 500 on register) noted |
-| 01.11.8 | Tag v0.1.0-auth | ⏳ Pending | Awaiting user `git tag v0.1.0-auth && git push --tags` after this commit lands |
+| 01.11.7 | CHANGELOG update | ✅ Done | `[0.1.0-auth] 2026-05-01` documents M01 baseline; `[Unreleased]` documents the v0.1.1 patch (counters + Resend fix + multi-process + alert query fix) ahead of tagging |
+| 01.11.8 | Tag v0.1.0-auth | ✅ Done | Pushed at commit `33c48ac` |
 | 01.11.9 | Railway staging deploy (7 services) | ✅ Done | backend, frontend, Postgres, Redis, celery-worker, celery-beat, grafana-agent — all Online; project `17060567-b194-4926-a7c0-7f339e306bdf`, env `staging` |
-| 01.11.10 | AC-01-1..13 staging smoke (curl-able subset) | ✅ Done | AC-01-1, 3, 9, 10, 13 confirmed via curl. AC-01-2/4/5/6/8 require user inbox click-through; AC-01-7/12 covered by unit tests; AC-01-11 covered by frontend guard spec |
+| 01.11.10 | AC-01-1..13 staging verification | ✅ Done | AC-01-1, 3, 9, 10, 13 confirmed via curl pre-email-verification. AC-01-2 (`is_verified: true` in /login response), AC-01-4 (full JWT pair w/ correct TTLs), AC-01-5 (refresh rotates to new jti, same family_id), AC-01-6 (replaying rotated refresh → `Refresh token reuse detected — family revoked` 401, replaying refresh_v2 → `Refresh token family revoked` 401), AC-01-8 (200 for both known and unknown emails — anti-enum preserved) all confirmed via curl after user clicked verification link. AC-01-7/12 covered by unit tests (rate limit masks lockout under load test from one IP); AC-01-11 covered by frontend `auth.guard.spec.ts` |
+| 01.11.11 | Prometheus auth counters wired (plan §12) | ✅ Done | `apps/users/metrics.py` — `auth_login_total{result}` (5 outcomes), `auth_refresh_total{result}` (4 outcomes), `auth_family_revocations_total`, `auth_password_reset_total{step}`. Incremented from `LoginView` (5 paths), `PasswordResetView`/`Confirm`, and `services.rotate_refresh`/`revoke_refresh`. Verified populating in Grafana Explore. |
+| 01.11.12 | Resend 422 → 500 hardening | ✅ Done | `services._send_templated` wraps `msg.send` in try/except — provider failures (Resend test-sender restriction, SMTP timeout) are logged, the user/account is still created, response stays at the expected 201/202. Anti-enum semantics preserved. |
+| 01.11.13 | Multi-process Prometheus mode | ✅ Done | `backend/gunicorn.conf.py` adds `child_exit` hook calling `multiprocess.mark_process_dead(worker.pid)`; `docker/backend.Dockerfile` sets `ENV PROMETHEUS_MULTIPROC_DIR=/tmp/prom-multiproc` and `mkdir -p` the dir before workers boot. Verified: 8 consecutive `/metrics` scrapes return identical aggregated values (was bouncing 2/3/4 between workers before). |
+| 01.11.14 | Alert rules fixed + family-revocation smoke test | ✅ Done | All three rules originally created with `queryType: ''` (range mode) → Grafana 11 `looks like time series data, only reduced data can be alerted on` error. Updated to `queryType: 'instant'` + `instant: true` so the threshold expression sees a scalar. End-to-end verified: triggered 3 family revocations → rule transitioned `Inactive → Pending(activeAt 19:11:40Z) → Firing(activeAt+5m, 19:16:40Z)` → email sent via `auth-health-email` contact point. Closes plan §5 family-revocation alert smoke test. |
+| 01.11.15 | Tag v0.1.1-auth-metrics | ⏳ Pending | Awaiting user `git tag -a v0.1.1-auth-metrics && git push origin v0.1.1-auth-metrics` after the CHANGELOG commit lands |
 
 ---
 
