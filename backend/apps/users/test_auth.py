@@ -21,8 +21,8 @@ from apps.users.models import (
     RefreshTokenFamily,
 )
 from apps.users.services import (
-    issue_token_pair,
     is_locked,
+    issue_token_pair,
     record_failed_login,
 )
 
@@ -367,6 +367,7 @@ class LettersAndDigitsValidatorTest(TestCase):
 
     def test_reject_digits_only(self):
         from django.core.exceptions import ValidationError
+
         from apps.users.validators import LettersAndDigitsValidator
         v = LettersAndDigitsValidator()
         with self.assertRaises(ValidationError):
@@ -374,6 +375,7 @@ class LettersAndDigitsValidatorTest(TestCase):
 
     def test_reject_letters_only(self):
         from django.core.exceptions import ValidationError
+
         from apps.users.validators import LettersAndDigitsValidator
         v = LettersAndDigitsValidator()
         with self.assertRaises(ValidationError):
