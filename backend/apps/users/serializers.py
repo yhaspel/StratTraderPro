@@ -15,7 +15,7 @@ def _validate_password_or_raise(password: str, user=None) -> None:
     try:
         validate_password(password, user=user)
     except DjangoValidationError as exc:
-        raise serializers.ValidationError({"password": list(exc.messages)})
+        raise serializers.ValidationError({"password": list(exc.messages)}) from exc
 
 
 # ---------------------------------------------------------------------------
