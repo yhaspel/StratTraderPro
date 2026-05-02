@@ -1,0 +1,10 @@
+Hi {{ user.display_name }},
+
+You just connected {{ provider }} sign-in to your StratTraderPro account.
+From now on, you can sign in with either your password or your {{ provider }}
+account — both work and will land you on the same account.
+
+If this wasn't you, sign in immediately, change your password under
+Settings → Security, and disconnect {{ provider }}.
+
+— StratTraderPro

@@ -45,6 +45,7 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # M2.5 — required by django-allauth
 ]
 
 THIRD_PARTY_APPS = [
@@ -56,6 +57,12 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
     "django_prometheus",
     "anymail",
+    # M2.5 — django-allauth for Google OAuth (we hijack only the OAuth bits;
+    # see apps/users/social_adapters.py for the bridge to our custom JWT pipeline).
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
 ]
 
 LOCAL_APPS = [
@@ -87,8 +94,13 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # M2.5 — required by django-allauth >= 0.61
+    "allauth.account.middleware.AccountMiddleware",
     "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
+
+# M2.5 — django-allauth requires the sites framework
+SITE_ID = 1
 
 # ---------------------------------------------------------------------------
 # URL / WSGI / ASGI
@@ -101,6 +113,13 @@ ASGI_APPLICATION = "config.asgi.application"
 # Auth
 # ---------------------------------------------------------------------------
 AUTH_USER_MODEL = "users.User"
+
+# M2.5 — allauth needs its auth backend installed alongside Django's default
+# (which our existing email/password login uses).
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
 
 # ---------------------------------------------------------------------------
 # Templates
@@ -226,6 +245,62 @@ MFA_TOKEN_TTL_MINUTES = env.int("MFA_TOKEN_TTL_MINUTES", default=5)
 MFA_TOTP_VALID_WINDOW = env.int("MFA_TOTP_VALID_WINDOW", default=1)
 MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", default="StratTraderPro")
 MFA_BACKUP_CODE_COUNT = env.int("MFA_BACKUP_CODE_COUNT", default=10)
+
+# ---------------------------------------------------------------------------
+# Auth (M2.5) — Google OAuth via django-allauth
+# ---------------------------------------------------------------------------
+# We use django-allauth ONLY for the OAuth state machine (Google authorize
+# round-trip + SocialAccount bookkeeping). Email verification, password reset,
+# session login, and signup forms remain handled by our M01 custom code.
+# Bridge logic lives in apps/users/social_adapters.py — it auto-links by
+# verified email and bridges the post-callback User into our JWT pipeline.
+
+GOOGLE_OAUTH_ENABLED = env.bool("GOOGLE_OAUTH_ENABLED", default=True)
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+
+# Exchange-code TTL — frontend POSTs the code to /auth/oauth/exchange/ within
+# this window to swap it for a token pair (or MFA challenge).
+OAUTH_EXCHANGE_TTL_MINUTES = env.int("OAUTH_EXCHANGE_TTL_MINUTES", default=5)
+
+# allauth account config — neutered to avoid colliding with our M01 flows.
+# We mix old-style (AUTHENTICATION_METHOD/USERNAME_REQUIRED) and new-style
+# (LOGIN_METHODS/SIGNUP_FIELDS) settings because allauth 0.61 still validates
+# both during boot.
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_VERIFICATION = "none"   # we send our own verification email
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_USER_MODEL_EMAIL_FIELD = "email"
+ACCOUNT_ADAPTER = "apps.users.social_adapters.AccountAdapter"
+
+# allauth socialaccount config
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True            # auto-link by verified email
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_STORE_TOKENS = False                   # we don't need Google's access token; only ID claims
+SOCIALACCOUNT_ADAPTER = "apps.users.social_adapters.SocialAdapter"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APP": {
+            "client_id": GOOGLE_OAUTH_CLIENT_ID,
+            "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+            "key": "",
+        },
+        "SCOPE": ["email", "profile", "openid"],
+        "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
+        # Trust Google's email_verified claim — that's the whole point of OAuth.
+        "VERIFIED_EMAIL": True,
+    },
+}
+
+# After allauth completes the OAuth dance, redirect to our custom callback view
+# which issues the exchange code and 302s to the frontend.
+LOGIN_REDIRECT_URL = "/api/v1/auth/oauth/google/post-callback/"
+ACCOUNT_LOGOUT_REDIRECT_URL = "/"
 
 # ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)

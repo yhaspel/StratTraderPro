@@ -256,6 +256,12 @@ class AuthEvent(models.Model):
         PASSWORD_CHANGED = "password_changed"  # noqa: S105
         PROFILE_UPDATED = "profile_updated"
         SESSION_REVOKED = "session_revoked"
+        # M2.5 — Google OAuth
+        OAUTH_LOGIN_OK = "oauth_login_ok"
+        OAUTH_USER_CREATED = "oauth_user_created"   # first sign-in via Google created a new User
+        OAUTH_LINKED = "oauth_linked"               # Google identity auto-linked to existing email
+        OAUTH_EXCHANGE_OK = "oauth_exchange_ok"
+        OAUTH_EXCHANGE_FAIL = "oauth_exchange_fail"
 
     id = models.BigAutoField(primary_key=True)
     user = models.ForeignKey(
@@ -361,3 +367,65 @@ class BackupCode(models.Model):
     @property
     def is_used(self) -> bool:
         return self.used_at is not None
+
+
+# ---------------------------------------------------------------------------
+# M2.5 — OAuth exchange code
+# ---------------------------------------------------------------------------
+class OAuthExchangeCode(models.Model):
+    """
+    Single-use code issued at the end of the Google OAuth callback. The
+    frontend POSTs this to ``/api/v1/auth/oauth/exchange/`` to swap it for a
+    JWT pair (or an MFA challenge if the user has MFA enabled).
+
+    Why not put the JWT in the redirect URL directly? URL fragments leak via
+    referer headers, server logs, and browser history. The exchange-code
+    pattern keeps the JWT off the wire entirely — the code is single-use,
+    short-lived, and only ever transits through one redirect hop.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="oauth_exchange_codes"
+    )
+    code_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    # Provider that issued this code (currently always 'google'; future: apple, github)
+    provider = models.CharField(max_length=32, default="google")
+
+    class Meta:
+        db_table = "users_oauth_exchange_code"
+        indexes = [models.Index(fields=["user", "consumed_at"])]
+
+    @classmethod
+    def issue(cls, user, *, provider: str = "google"):
+        """Mint a fresh exchange code. Returns ``(row, raw_code)``."""
+        from datetime import timedelta as _td
+
+        raw = secrets.token_urlsafe(32)
+        ttl_minutes = settings.OAUTH_EXCHANGE_TTL_MINUTES
+        row = cls.objects.create(
+            user=user,
+            code_hash=_hash_token(raw),
+            expires_at=timezone.now() + _td(minutes=ttl_minutes),
+            provider=provider,
+        )
+        return row, raw
+
+    @classmethod
+    def consume(cls, raw: str):
+        """
+        Single-use consumption. Returns the matching User if the code is
+        valid + unconsumed + unexpired, else None.
+        """
+        try:
+            row = cls.objects.select_related("user").get(code_hash=_hash_token(raw))
+        except cls.DoesNotExist:
+            return None
+        if row.consumed_at is not None or row.expires_at < timezone.now():
+            return None
+        row.consumed_at = timezone.now()
+        row.save(update_fields=["consumed_at"])
+        return row.user

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 24px;">
+  <h2 style="color: #0066ff;">Welcome to StratTraderPro</h2>
+  <p>Hi {{ user.display_name }},</p>
+  <p>Your account was just created via <strong>{{ provider }}</strong> sign-in.</p>
+  <p>A couple of things you should do next:</p>
+  <ul>
+    <li><strong>Set up two-factor authentication.</strong> Trades and broker connections require it. Visit Settings → Security in the app to enable it.</li>
+    <li>You signed up via {{ provider }} so no password is set yet. If you ever want to sign in with a password as a fallback, use "Forgot password" on the sign-in page to set one.</li>
+  </ul>
+  <p style="color: #6b7280;">If this wasn't you, contact support immediately — someone may have used your {{ provider }} account to register on our service.</p>
+  <p>— StratTraderPro</p>
+</body>
+</html>

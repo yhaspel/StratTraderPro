@@ -182,5 +182,22 @@
     "language_hint": "Only English is currently supported. More languages coming soon.",
     "notification_email": "Email me about important account events",
     "saved": "Profile saved."
+  },
+  "oauth": {
+    "continue_with_google": "Continue with Google",
+    "or": "OR",
+    "callback": {
+      "working_title": "Signing you in…",
+      "working_body": "One moment while we finish setting up your session.",
+      "error_title": "Sign-in didn't complete",
+      "back_to_login": "Back to sign in",
+      "error": {
+        "OAUTH_FAILED": "Google sign-in didn't complete. Please try again.",
+        "EXCHANGE_INVALID": "Your sign-in session expired. Please start over.",
+        "NO_EXCHANGE_CODE": "Missing sign-in token. Please start over.",
+        "FEATURE_DISABLED": "Google sign-in is temporarily unavailable. Please use email + password.",
+        "UNKNOWN": "Something went wrong. Please try again."
+      }
+    }
   }
 }

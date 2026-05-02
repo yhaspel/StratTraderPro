@@ -2,7 +2,20 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-02 — M02 implementation complete; awaiting `v0.2.0-mfa` tag and ready for M03
+> **Last updated:** 2026-05-02 — M02 implementation complete; production environment bootstrapped (forked from staging, prod-unique secrets); M2.5 (Google OAuth) backend + frontend complete in code, awaiting GOOGLE_OAUTH_* env vars in Railway and smoke test; awaiting `v0.2.0-mfa` and `v0.2.5-oauth-google` tags; ready for M03
+
+## Production Environment
+
+| | |
+|---|---|
+| Project | `https://railway.com/project/17060567-b194-4926-a7c0-7f339e306bdf` |
+| Backend | `https://backend-production-f3e8.up.railway.app` |
+| Frontend | `https://frontend-production-c977f.up.railway.app` |
+| Bootstrapped | 2026-05-02 |
+| Runbook | `docs/runbooks/prod-bootstrap.md` |
+| KEK rotation | `docs/runbooks/mfa-kek-rotation.md` |
+
+Staging URLs remain at `backend-staging-4b6d.up.railway.app` and `frontend-staging-9011.up.railway.app`.
 
 ---
 

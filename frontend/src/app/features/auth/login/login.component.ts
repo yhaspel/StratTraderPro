@@ -4,11 +4,12 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
+import { GoogleButtonComponent } from '../google-button/google-button.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, GoogleButtonComponent],
   template: `
     <div class="mx-auto max-w-md p-6">
       <h1 class="text-2xl font-bold mb-6">{{ 'auth.login.title' | translate }}</h1>
@@ -18,6 +19,14 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
           {{ 'auth.login.error.' + err.code | translate : { default: err.message } }}
         </div>
       }
+
+      <app-google-button class="block mb-4" />
+
+      <div class="my-4 flex items-center text-xs text-gray-500">
+        <span class="flex-1 border-t border-gray-300"></span>
+        <span class="px-3">{{ 'oauth.or' | translate }}</span>
+        <span class="flex-1 border-t border-gray-300"></span>
+      </div>
 
       <form [formGroup]="form" (ngSubmit)="onSubmit()">
         <div class="mb-4">

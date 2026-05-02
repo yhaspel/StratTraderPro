@@ -46,11 +46,19 @@ LOGGING["handlers"]["console"]["formatter"] = "json"
 # ---------------------------------------------------------------------------
 # Sentry
 # ---------------------------------------------------------------------------
+# Derive Sentry environment from Railway's auto-injected
+# RAILWAY_ENVIRONMENT_NAME (`staging` or `production`) so events from
+# different envs group separately on the Sentry dashboard. Override via
+# SENTRY_ENVIRONMENT if running outside Railway. Was previously hardcoded
+# to "production" — a bug, since staging also runs under config.settings.prod.
 if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration(), CeleryIntegration()],
         traces_sample_rate=0.1,
         send_default_pii=False,
-        environment="production",
+        environment=env(
+            "SENTRY_ENVIRONMENT",
+            default=env("RAILWAY_ENVIRONMENT_NAME", default="production"),
+        ),
     )

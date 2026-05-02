@@ -113,6 +113,52 @@ export class AuthFacade {
     await this.router.navigate(['/login']);
   }
 
+  // -------------------------------------------------------------------------
+  // M2.5 — Google OAuth
+  // -------------------------------------------------------------------------
+  /**
+   * Kick off Google sign-in. Backend returns the authorize URL; we redirect
+   * the browser there. Google bounces back to backend's /callback/, which
+   * issues a single-use exchange code and 302s to /oauth/callback?exchange=...
+   */
+  async startGoogleSignIn(): Promise<void> {
+    this.store.setLoading();
+    try {
+      const res = await firstValueFrom(this.api.oauthGoogleStart());
+      if (res.error) { this.store.setError(res.error); return; }
+      // Use replace so the user can't click Back into a half-finished OAuth state.
+      window.location.replace(res.data!.authorize_url);
+    } catch (e) {
+      this.handleError(e);
+    }
+  }
+
+  /**
+   * Called by the /oauth/callback route component when the browser lands
+   * back from Google. Swaps the exchange code for tokens (or routes to MFA).
+   */
+  async completeGoogleSignIn(exchangeCode: string): Promise<boolean> {
+    this.store.setLoading();
+    try {
+      const res = await firstValueFrom(this.api.oauthExchange(exchangeCode));
+      if (res.error) { this.store.setError(res.error); return false; }
+      const data = res.data!;
+      if ((data as LoginResult).mfa_required === true) {
+        const mfaToken = (data as { mfa_token: string }).mfa_token;
+        this.store.setMfaPending(mfaToken);
+        await this.router.navigate(['/login/mfa']);
+        return true;
+      }
+      this.applyTokenPair(data as AuthTokenPair);
+      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
+      await this.router.navigateByUrl(next as string);
+      return true;
+    } catch (e) {
+      this.handleError(e);
+      return false;
+    }
+  }
+
   async logout(): Promise<void> {
     const refresh = this.store.refreshToken();
     if (refresh) {

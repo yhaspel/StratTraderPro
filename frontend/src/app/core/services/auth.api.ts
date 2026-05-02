@@ -119,4 +119,15 @@ export class AuthApi {
       all: true,
     });
   }
+
+  // ---- M2.5 — Google OAuth ----
+  oauthGoogleStart(): Observable<ApiEnvelope<{ authorize_url: string }>> {
+    return this.http.get<ApiEnvelope<{ authorize_url: string }>>(`${BASE}/auth/oauth/google/start/`);
+  }
+
+  oauthExchange(exchangeCode: string): Observable<ApiEnvelope<LoginResult>> {
+    return this.http.post<ApiEnvelope<LoginResult>>(`${BASE}/auth/oauth/exchange/`, {
+      exchange: exchangeCode,
+    });
+  }
 }

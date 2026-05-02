@@ -204,3 +204,10 @@ class SessionRevokeSerializer(serializers.Serializer):
                 "Must provide either ``family_id`` or set ``all=true``."
             )
         return attrs
+
+
+# ---------------------------------------------------------------------------
+# M2.5 — OAuth exchange
+# ---------------------------------------------------------------------------
+class OAuthExchangeSerializer(serializers.Serializer):
+    exchange = serializers.CharField(min_length=10, max_length=128)

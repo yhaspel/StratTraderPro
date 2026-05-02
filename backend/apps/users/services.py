@@ -310,6 +310,33 @@ def send_mfa_disabled_email(user) -> None:
     )
 
 
+# M2.5 — OAuth notification emails
+def send_oauth_account_created_email(user) -> None:
+    _send_templated(
+        to=user.email,
+        subject="Welcome to StratTraderPro",
+        template_base="oauth_account_created",
+        context={"user": user, "provider": "Google"},
+    )
+
+
+def send_oauth_account_linked_email(user) -> None:
+    _send_templated(
+        to=user.email,
+        subject="Google sign-in connected to your StratTraderPro account",
+        template_base="oauth_account_linked",
+        context={"user": user, "provider": "Google"},
+    )
+
+
+# M2.5 — helper for "did this happen in the last X seconds" check used by
+# OAuthPostCallbackView to distinguish first-time signup vs returning user.
+def _now_microsec_diff(t) -> int:
+    """Microseconds since timestamp t. Used by views_oauth.py."""
+    delta = timezone.now() - t
+    return delta.seconds * 1_000_000 + delta.microseconds
+
+
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------

@@ -1,5 +1,13 @@
 """URL routes for the users app — mounted under /api/v1/."""
-from django.urls import path
+from django.urls import include, path
+
+# allauth's stock Google OAuth views. We mount them at our own paths instead
+# of using allauth's default urls.py so the callback URL exactly matches what
+# we registered in Google Cloud Console.
+from allauth.socialaccount.providers.google.views import (
+    oauth2_callback as _allauth_google_oauth2_callback,
+    oauth2_login as _allauth_google_oauth2_login,
+)
 
 from .views import (
     CurrentUserView,
@@ -22,6 +30,11 @@ from .views_m02 import (
     ProfileUpdateView,
     SessionsListView,
     SessionsRevokeView,
+)
+from .views_oauth import (
+    OAuthExchangeView,
+    OAuthGoogleStartView,
+    OAuthPostCallbackView,
 )
 
 # Note: several view symbols above are already function-views wrapped in
@@ -59,4 +72,26 @@ urlpatterns = [
     path("users/me/password/", PasswordChangeView.as_view(), name="users-me-password"),
     path("users/me/sessions/", SessionsListView.as_view(), name="users-me-sessions"),
     path("users/me/sessions/revoke/", SessionsRevokeView.as_view(), name="users-me-sessions-revoke"),
+
+    # ---- M2.5 — Google OAuth ----
+    # Our wrappers (custom JSON-friendly start, post-callback bridge, exchange)
+    path("auth/oauth/google/start/", OAuthGoogleStartView.as_view(), name="auth-oauth-google-start"),
+    path("auth/oauth/google/post-callback/", OAuthPostCallbackView.as_view(), name="auth-oauth-google-post-callback"),
+    path("auth/oauth/exchange/", OAuthExchangeView.as_view(), name="auth-oauth-exchange"),
+    # Allauth's stock callback view at the path we registered in GCP. The
+    # name `google_callback` MUST match what allauth's provider expects when
+    # it builds the redirect_uri (search-allauth-source for `google_callback`).
+    # The `google_login` URL is also required: allauth's view resolves it
+    # internally for the redirect_uri reverse-lookup, even though we never hit
+    # it directly (our /start/ view drives it).
+    path(
+        "auth/oauth/google/callback/",
+        _allauth_google_oauth2_callback,
+        name="google_callback",
+    ),
+    path(
+        "auth/oauth/google/login/",
+        _allauth_google_oauth2_login,
+        name="google_login",
+    ),
 ]
