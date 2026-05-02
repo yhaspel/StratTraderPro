@@ -57,6 +57,9 @@ typings/
 .vscode/
 *.code-workspace
 
+# Claude Code / Cowork session-local state
+.claude/settings.local.json
+
 # ===== OS =====
 .DS_Store
 Thumbs.db

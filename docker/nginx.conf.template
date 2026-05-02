@@ -10,9 +10,15 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
     gzip_min_length 256;
 
-    # Angular SPA — fallback to index.html for client-side routing
+    # Angular SPA — fallback to index.html for client-side routing.
+    # `Cache-Control: no-store` on the HTML response so users always get the
+    # current bundle hash on each deploy. (Hashed JS/CSS bundles are still
+    # cached aggressively by the static-asset rule below; only index.html is
+    # uncached, which is correct because its content changes every build.)
     location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        expires off;
     }
 
     # Runtime config exposed to the SPA. Lets the frontend know its absolute
