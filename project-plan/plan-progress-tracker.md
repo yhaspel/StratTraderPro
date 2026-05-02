@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-01 — M01 closed; ready for M02
+> **Last updated:** 2026-05-02 — M02 implementation complete; awaiting `v0.2.0-mfa` tag and ready for M03
 
 ---
 
@@ -274,11 +274,59 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 02 — MFA & User Profile
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Done (implementation) — pending tag `v0.2.0-mfa`
+**Started:** 2026-05-01
+**Completed:** 2026-05-02
 
 > See `02-mfa-and-user-profile.md` for full spec.
+
+### 02.1 Backend — MFA core
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.1.1 | Dependencies: pyotp, qrcode[pil], cryptography | ✅ Done | `backend/requirements/base.txt` |
+| 02.1.2 | Settings: `MFA_ENABLED`, `FERNET_KEK` (dev default derived from SECRET_KEY), `MFA_TOKEN_TTL_MINUTES`, `MFA_TOTP_VALID_WINDOW`, `MFA_TOTP_ISSUER`, `MFA_BACKUP_CODE_COUNT` | ✅ Done | `config/settings/base.py` |
+| 02.1.3 | Models: `MFADevice`, `BackupCode`, `UserProfile` + `User.mfa_enabled` derived property + `RefreshTokenFamily.{user_agent,ip,last_used_at}` + 9 new `AuthEvent.EventType` values | ✅ Done | `apps/users/models.py` |
+| 02.1.4 | Migration `users.0002_mfa_and_profile` | ✅ Done | Renamed from auto-generated suffix. Applies cleanly. |
+| 02.1.5 | Auto-create `UserProfile` via `post_save` signal | ✅ Done | `apps/users/signals.py`; `UsersConfig.ready` wires it |
+| 02.1.6 | MFA service: Fernet wrap/unwrap, TOTP gen+verify (±1 window), QR PNG, backup codes (gen+consume), `mfa_token` (issue+decode) | ✅ Done | `apps/users/mfa.py` |
+| 02.1.7 | Profile/sessions service helpers: `serialize_profile`, `serialize_session` w/ masked IP + UA summary, `list_user_sessions`, `revoke_other_sessions` | ✅ Done | `apps/users/services.py` |
+| 02.1.8 | `IsAuthenticatedAndMFAEnforced` permission + `custom_exception_handler` mapping `PermissionDenied("MFA_REQUIRED")` → structured 403 | ✅ Done | `apps/users/permissions.py`, `apps/users/exception_handler.py` |
+| 02.1.9 | MFA views: enroll, enroll/confirm, verify (rate-limited 5/min/mfa_token), disable, backup-codes/regenerate (password+TOTP per defense-in-depth) | ✅ Done | `apps/users/views_m02.py` |
+| 02.1.10 | LoginView modified: enrolled users get `{mfa_required, mfa_token}` instead of token pair | ✅ Done | |
+| 02.1.11 | Profile/sessions/password-change views under `/users/me/{update,password,sessions,sessions/revoke}/` | ✅ Done | |
+| 02.1.12 | Scaffold MFA-protected pings: `/api/v1/{brokers,orders,risk,strategies}/ping/` with `mfa_required=True` | ✅ Done | `apps/{brokers,orders,risk,strategies}/views.py` + `urls.py` mounted in `config/urls.py` |
+| 02.1.13 | MFA Prometheus counters: `auth_mfa_{enrollments,verifications,backup_used,challenge_failures}_total` | ✅ Done | `apps/users/metrics_m02.py` |
+| 02.1.14 | Email templates: `mfa_enabled.{txt,html}`, `mfa_disabled.{txt,html}` | ✅ Done | |
+| 02.1.15 | Admin: register `MFADevice`, `BackupCode`, `UserProfile`; bulk action "Force-disable MFA (audited; emails the user)" | ✅ Done | `apps/users/admin.py` |
+| 02.1.16 | Tests: 36 new in `test_mfa.py` covering Fernet roundtrip, TOTP correctness (incl. ±step), backup-code single-use + regenerate wipe, full enroll/login/disable HTTP flow, MFA enforcement on all 4 protected prefixes, profile validation, password-change family revocation, sessions list/revoke. Total backend pytest: 66 passing. | ✅ Done | |
+
+### 02.2 Frontend — Angular
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.2.1 | Domain models: `LoginResult` discriminated union, `UserProfile`, `Session`, `MFAEnrollResponse`, etc. | ✅ Done | `core/models/auth.models.ts` |
+| 02.2.2 | API service: 11 new methods on `AuthApi` covering MFA, profile, sessions, password change | ✅ Done | `core/services/auth.api.ts` |
+| 02.2.3 | `AuthStore` extended with `mfa_pending` status + in-memory-only `mfaToken` signal (never persisted) | ✅ Done | |
+| 02.2.4 | `AuthFacade`: `verifyMfa`, `cancelMfa`; login routes to `/login/mfa` when `mfa_required=true` | ✅ Done | |
+| 02.2.5 | New facades: `ProfileFacade`, `MfaFacade`, `SessionsFacade` | ✅ Done | |
+| 02.2.6 | `TotpInputComponent` — 6-cell, paste-aware, keyboard-navigable | ✅ Done | `features/auth/totp-input/` |
+| 02.2.7 | `MfaChallengeComponent` at `/login/mfa` with backup-code toggle | ✅ Done | |
+| 02.2.8 | `MfaSetupComponent` 4-step wizard at `/settings/security/mfa/setup` (intro → QR → verify → backup codes) | ✅ Done | |
+| 02.2.9 | `SecurityComponent` at `/settings/security` (MFA enable/disable + regenerate + sessions list + password change) | ✅ Done | |
+| 02.2.10 | `ProfileComponent` at `/settings/profile` with searchable IANA timezone via `Intl.supportedValuesOf` | ✅ Done | |
+| 02.2.11 | i18n keys: `mfa.*`, `security.*`, `profile.*` | ✅ Done | `assets/i18n/en.json` |
+| 02.2.12 | Help page `assets/help/mfa.html` | ✅ Done | |
+
+### 02.3 Documentation
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.3.1 | ADR-020 — TOTP over SMS | ✅ Done | `docs/adr/020-totp-over-sms.md` |
+| 02.3.2 | Runbook — user lost MFA (with identity-check checklist + admin bulk action) | ✅ Done | `docs/runbooks/user-lost-mfa.md` |
+| 02.3.3 | Runbook — KEK rotation (envelope-encryption pattern via `MultiFernet`) | ✅ Done | `docs/runbooks/mfa-kek-rotation.md` |
+| 02.3.4 | CHANGELOG.md entry under `[Unreleased]` | ✅ Done | |
+| 02.3.5 | Tag `v0.2.0-mfa` | ⏳ Pending | Awaiting user `git tag -a v0.2.0-mfa && git push origin v0.2.0-mfa` after commit lands |
 
 ---
 

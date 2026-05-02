@@ -39,6 +39,7 @@ class AuthUserSerializer(serializers.Serializer):
     email = serializers.EmailField()
     display_name = serializers.CharField()
     is_verified = serializers.BooleanField()
+    mfa_enabled = serializers.BooleanField(required=False)
 
 
 class RegisterDataSerializer(serializers.Serializer):

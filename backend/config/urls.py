@@ -66,6 +66,12 @@ urlpatterns = [
 
     # API v1
     path("api/v1/", include("apps.users.urls")),
-    # path("api/strategies/", include("apps.strategies.urls")),
-    # ...
+    # M02 — MFA-protected scaffold endpoints. Real viewsets ship in
+    # later milestones; the ping/ routes exist so AC-02-6 ("calling
+    # /api/v1/brokers/ without MFA returns 403 MFA_REQUIRED") can be
+    # exercised against a real URL.
+    path("api/v1/brokers/", include("apps.brokers.urls")),
+    path("api/v1/orders/", include("apps.orders.urls")),
+    path("api/v1/risk/", include("apps.risk.urls")),
+    path("api/v1/strategies/", include("apps.strategies.urls")),
 ]

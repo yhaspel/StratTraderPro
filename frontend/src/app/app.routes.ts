@@ -15,13 +15,19 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/auth/auth.routes').then(m => m.AUTH_ROUTES),
   },
+  // Settings (M02): /settings/profile, /settings/security, /settings/security/mfa/setup
+  {
+    path: '',
+    loadChildren: () =>
+      import('./features/settings/settings.routes').then(m => m.SETTINGS_ROUTES),
+  },
   // Protected routes
   {
     path: 'dashboard',
     canMatch: [authGuard],
     loadComponent: () =>
       import('./features/landing/landing.component').then(m => m.LandingComponent),
-    // TODO(M02+): replace with real dashboard component
+    // TODO(M03+): replace with real dashboard component
   },
   { path: '**', redirectTo: '' },
 ];

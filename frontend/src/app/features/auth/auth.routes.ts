@@ -8,6 +8,13 @@ export const AUTH_ROUTES: Routes = [
     loadComponent: () => import('./login/login.component').then(m => m.LoginComponent),
   },
   {
+    // /login/mfa — MFA challenge step. NOT guest-guarded: it's reachable
+    // *only* when AuthStore holds an mfa_token; the component itself
+    // bounces back to /login if there's no token.
+    path: 'login/mfa',
+    loadComponent: () => import('./mfa-challenge/mfa-challenge.component').then(m => m.MfaChallengeComponent),
+  },
+  {
     path: 'register',
     canMatch: [guestGuard],
     loadComponent: () => import('./register/register.component').then(m => m.RegisterComponent),

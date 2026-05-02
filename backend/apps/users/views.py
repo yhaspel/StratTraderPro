@@ -1,6 +1,7 @@
-"""Auth views (M01)."""
+"""Auth views (M01 + M02)."""
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.db import IntegrityError, transaction
 from django_ratelimit.decorators import ratelimit
@@ -186,7 +187,7 @@ class VerifyEmailView(APIView):
         services.record_event(
             AuthEvent.EventType.VERIFY_EMAIL, user=user, request=request
         )
-        return ok(services.issue_token_pair(user))
+        return ok(services.issue_token_pair(user, request=request))
 
 
 # ---------------------------------------------------------------------------
@@ -327,8 +328,24 @@ class LoginView(APIView):
             )
 
         services.clear_failed_logins(email)
-        pair = services.issue_token_pair(user)
-        # MFA placeholder field per plan §6.2 — always false in M01.
+
+        # M02 — if MFA is enrolled, issue a short-lived mfa_token instead of
+        # a full token pair. Client must POST it to /auth/mfa/verify/ with a
+        # TOTP or backup code to complete login.
+        if settings.MFA_ENABLED and user.mfa_enabled:
+            from .mfa import issue_mfa_token  # local import to avoid M01 boot cost
+
+            mfa_token = issue_mfa_token(user)
+            services.record_event(
+                AuthEvent.EventType.LOGIN_OK,
+                user=user,
+                request=request,
+                metadata={"mfa_required": True},
+            )
+            LOGIN_TOTAL.labels(result=LoginResult.OK).inc()
+            return ok({"mfa_required": True, "mfa_token": mfa_token})
+
+        pair = services.issue_token_pair(user, request=request)
         pair["mfa_required"] = False
         services.record_event(AuthEvent.EventType.LOGIN_OK, user=user, request=request)
         LOGIN_TOTAL.labels(result=LoginResult.OK).inc()
@@ -508,7 +525,7 @@ class PasswordResetConfirmView(APIView):
             AuthEvent.EventType.PASSWORD_RESET_CONFIRMED, user=user, request=request
         )
         PASSWORD_RESET_TOTAL.labels(step=PasswordResetStep.CONFIRMED).inc()
-        return ok(services.issue_token_pair(user))
+        return ok(services.issue_token_pair(user, request=request))
 
 
 # ---------------------------------------------------------------------------

@@ -10,13 +10,16 @@ import {
 } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 
-function buildFacade(overrides: Partial<AuthFacade> = {}): Partial<AuthFacade> {
+function buildFacade(overrides: Record<string, unknown> = {}): Partial<AuthFacade> {
+  // Cast through unknown — the test only exercises template branches that
+  // call status() and error() like signals, but the structural Signal<T>
+  // type carries an opaque brand we don't need to recreate for a mock.
   return {
     login: jasmine.createSpy('login').and.returnValue(Promise.resolve(true)),
-    status: () => 'idle' as any,
-    error: () => null,
+    status: (() => 'idle') as unknown as AuthFacade['status'],
+    error: (() => null) as unknown as AuthFacade['error'],
     ...overrides,
-  };
+  } as Partial<AuthFacade>;
 }
 
 describe('LoginComponent — form validators', () => {
@@ -50,7 +53,7 @@ describe('LoginComponent — form validators', () => {
   });
 
   it('submit button is disabled while loading', () => {
-    const facade = buildFacade({ status: () => 'loading' as any });
+    const facade = buildFacade({ status: (() => 'loading') as unknown });
     TestBed.overrideProvider(AuthFacade, { useValue: facade });
     const fixture = TestBed.createComponent(LoginComponent);
     fixture.componentInstance.form.setValue({ email: 'u@e.com', password: 'pw' });

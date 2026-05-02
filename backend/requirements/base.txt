@@ -33,3 +33,8 @@ httpx>=0.26,<0.27
 argon2-cffi>=23.1,<24.0
 django-anymail[resend]>=10.2,<11.0
 django-ratelimit>=4.1,<4.2
+
+# Auth (M02 — MFA)
+pyotp>=2.9,<3.0
+qrcode[pil]>=7.4,<8.0
+cryptography>=42.0,<43.0

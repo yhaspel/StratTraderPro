@@ -11,6 +11,12 @@ export class AuthStore {
   private readonly _refreshToken = signal<string | null>(this.loadRefresh());
   private readonly _status = signal<AuthStatus>('idle');
   private readonly _error = signal<ApiError | null>(null);
+  /**
+   * Short-lived MFA challenge token (5 min). Held in memory ONLY — never
+   * persisted to localStorage. Survives navigation but not page refresh,
+   * which is the right tradeoff for a 5-minute, single-use credential.
+   */
+  private readonly _mfaToken = signal<string | null>(null);
 
   // Public readonly signals
   readonly user = this._user.asReadonly();
@@ -18,7 +24,9 @@ export class AuthStore {
   readonly refreshToken = this._refreshToken.asReadonly();
   readonly status = this._status.asReadonly();
   readonly error = this._error.asReadonly();
+  readonly mfaToken = this._mfaToken.asReadonly();
   readonly isAuthenticated = computed(() => this._user() !== null && this._status() === 'authed');
+  readonly isMfaPending = computed(() => this._status() === 'mfa_pending' && this._mfaToken() !== null);
 
   // --- Mutations ---
 
@@ -33,7 +41,27 @@ export class AuthStore {
     this._refreshToken.set(refresh);
     this._status.set('authed');
     this._error.set(null);
+    this._mfaToken.set(null);
     this.persistRefresh(refresh);
+  }
+
+  /** Login returned mfa_required — stash the mfa_token and route to /login/mfa. */
+  setMfaPending(mfaToken: string): void {
+    this._user.set(null);
+    this._accessToken.set(null);
+    this._refreshToken.set(null);
+    this._mfaToken.set(mfaToken);
+    this._status.set('mfa_pending');
+    this._error.set(null);
+    this.removeRefresh();
+  }
+
+  /** Patch the user signal in-place (e.g. after /users/me/update/). */
+  patchUser(user: Partial<AuthUser>): void {
+    const cur = this._user();
+    if (cur) {
+      this._user.set({ ...cur, ...user });
+    }
   }
 
   setError(error: ApiError): void {
@@ -41,10 +69,15 @@ export class AuthStore {
     this._error.set(error);
   }
 
+  clearError(): void {
+    this._error.set(null);
+  }
+
   clearAuth(): void {
     this._user.set(null);
     this._accessToken.set(null);
     this._refreshToken.set(null);
+    this._mfaToken.set(null);
     this._status.set('idle');
     this._error.set(null);
     this.removeRefresh();

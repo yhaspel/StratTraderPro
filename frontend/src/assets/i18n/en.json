@@ -10,6 +10,7 @@
     "backtest": "Backtest",
     "risk": "Risk",
     "admin": "Admin",
+    "settings": "Settings",
     "login": "Log In",
     "logout": "Log Out"
   },
@@ -20,7 +21,8 @@
     "save": "Save",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "delete": "Delete"
+    "delete": "Delete",
+    "copied": "Copied"
   },
   "auth": {
     "login": {
@@ -74,5 +76,111 @@
       "submit": "Reset password",
       "back_to_login": "Back to sign in"
     }
+  },
+  "mfa": {
+    "challenge": {
+      "title": "Two-factor authentication",
+      "subtitle": "Enter the 6-digit code from your authenticator app.",
+      "submit": "Verify",
+      "use_backup_instead": "Use a backup code instead",
+      "use_totp_instead": "Use my authenticator app instead",
+      "backup_label": "Backup code",
+      "cancel": "Cancel and sign in again"
+    },
+    "setup": {
+      "title": "Set up two-factor authentication",
+      "step": {
+        "intro": "Intro",
+        "qr": "Scan",
+        "verify": "Verify",
+        "backup": "Backup"
+      },
+      "intro": {
+        "body": "Two-factor authentication protects your trading account by requiring a code from your phone every time you sign in.",
+        "bullet1": "Use any TOTP-compatible app: Google Authenticator, Authy, 1Password, Bitwarden.",
+        "bullet2": "Trades, broker connections, and risk settings are gated behind 2FA.",
+        "bullet3": "You'll receive 10 single-use backup codes — store them safely.",
+        "cta": "Begin enrollment"
+      },
+      "qr": {
+        "body": "Scan this QR code with your authenticator app, OR copy the secret manually.",
+        "alt": "QR code containing the TOTP enrollment URI",
+        "show_secret": "Show secret as text",
+        "copy": "Copy secret",
+        "cta": "I've added it — continue"
+      },
+      "verify": {
+        "body": "Enter the 6-digit code from your authenticator app to confirm.",
+        "cta": "Confirm"
+      },
+      "backup": {
+        "body": "Save these backup codes somewhere safe. Each one works exactly once and can sign you in if you lose your phone.",
+        "warning": "These will not be shown again. Store them now.",
+        "download": "Download as .txt",
+        "copy": "Copy all",
+        "confirm_saved": "I've saved my backup codes in a safe place.",
+        "cta": "Finish"
+      },
+      "done": {
+        "body": "Two-factor authentication is now enabled on your account.",
+        "cta": "Back to security settings"
+      }
+    },
+    "error": {
+      "MFA_CODE_INVALID": "That code didn't match. Try again.",
+      "TOKEN_INVALID": "Your sign-in session expired. Please sign in again.",
+      "INVALID_CREDENTIALS": "Password or code didn't match.",
+      "MFA_NOT_ENABLED": "MFA is not enabled on this account.",
+      "MFA_ALREADY_ENABLED": "MFA is already enabled.",
+      "RATE_LIMITED": "Too many attempts. Please wait and try again.",
+      "FEATURE_DISABLED": "MFA is temporarily unavailable. Please try later."
+    }
+  },
+  "security": {
+    "title": "Security",
+    "mfa": {
+      "title": "Two-factor authentication",
+      "subtitle": "Require a code from your authenticator app at every sign-in.",
+      "enabled": "Enabled",
+      "disabled": "Off",
+      "enroll_cta": "Set up 2FA",
+      "disable_help": "Disabling 2FA requires both your current password and a current authenticator code.",
+      "password_placeholder": "Current password",
+      "totp_placeholder": "6-digit code",
+      "disable_cta": "Disable 2FA"
+    },
+    "backup": {
+      "title": "Backup codes",
+      "subtitle": "Generate a fresh batch of 10 single-use codes. The old set stops working immediately.",
+      "regenerate_cta": "Regenerate codes",
+      "shown_once": "These will not be shown again. Save them now."
+    },
+    "sessions": {
+      "title": "Active sessions",
+      "subtitle": "Devices currently signed in to your account.",
+      "current": "this device",
+      "last_used": "Last used",
+      "revoke_one": "Revoke",
+      "revoke_all": "Sign out everywhere else",
+      "empty": "No other active sessions."
+    },
+    "password": {
+      "title": "Change password",
+      "subtitle": "Choose a new password. Other devices will be signed out.",
+      "current": "Current password",
+      "next": "New password",
+      "cta": "Change password",
+      "success": "Password changed. Other sessions have been signed out."
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "display_name": "Display name",
+    "timezone": "Timezone",
+    "timezone_search": "Search timezones…",
+    "language": "Language",
+    "language_hint": "Only English is currently supported. More languages coming soon.",
+    "notification_email": "Email me about important account events",
+    "saved": "Profile saved."
   }
 }

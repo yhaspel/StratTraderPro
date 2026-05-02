@@ -1,0 +1,10 @@
+Hi {{ user.display_name }},
+
+Two-factor authentication has just been enabled on your StratTraderPro
+account. You'll need a code from your authenticator app every time you
+sign in from a new device.
+
+If this wasn't you, sign in immediately, change your password, and
+contact support.
+
+— StratTraderPro

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthApi } from '../../core/services/auth.api';
 import { AuthStore } from '../stores/auth.store';
-import { ApiError, AuthTokenPair } from '../../core/models/auth.models';
+import { ApiError, AuthTokenPair, LoginResult } from '../../core/models/auth.models';
 
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
@@ -16,7 +16,9 @@ export class AuthFacade {
   readonly user = this.store.user;
   readonly status = this.store.status;
   readonly error = this.store.error;
+  readonly mfaToken = this.store.mfaToken;
   readonly isAuthenticated = this.store.isAuthenticated;
+  readonly isMfaPending = this.store.isMfaPending;
 
   async register(email: string, displayName: string, password: string): Promise<boolean> {
     this.store.setLoading();
@@ -59,6 +61,42 @@ export class AuthFacade {
     try {
       const res = await firstValueFrom(this.api.login(email, password));
       if (res.error) { this.store.setError(res.error); return false; }
+      const data = res.data!;
+      // Discriminated union: mfa_required=true means we got an mfa_token
+      // instead of a token pair.
+      if ((data as LoginResult).mfa_required === true) {
+        const mfaToken = (data as { mfa_token: string }).mfa_token;
+        this.store.setMfaPending(mfaToken);
+        await this.router.navigate(['/login/mfa']);
+        return true;
+      }
+      this.applyTokenPair(data as AuthTokenPair);
+      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
+      await this.router.navigateByUrl(next as string);
+      return true;
+    } catch (e) {
+      this.handleError(e);
+      return false;
+    }
+  }
+
+  /** Submit a TOTP or backup code paired with the held mfa_token. */
+  async verifyMfa(code: string, isBackupCode = false): Promise<boolean> {
+    const token = this.store.mfaToken();
+    if (!token) {
+      this.store.setError({ code: 'MFA_TOKEN_MISSING', message: 'Session expired. Sign in again.' });
+      await this.router.navigate(['/login']);
+      return false;
+    }
+    this.store.setLoading();
+    try {
+      const res = await firstValueFrom(this.api.mfaVerify(token, code, isBackupCode));
+      if (res.error) {
+        this.store.setError(res.error);
+        // Restore mfa_pending state so the user can retry without re-login.
+        this.store.setMfaPending(token);
+        return false;
+      }
       this.applyTokenPair(res.data!);
       const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
       await this.router.navigateByUrl(next as string);
@@ -67,6 +105,12 @@ export class AuthFacade {
       this.handleError(e);
       return false;
     }
+  }
+
+  /** Abandon the MFA-pending state and bounce back to /login. */
+  async cancelMfa(): Promise<void> {
+    this.store.clearAuth();
+    await this.router.navigate(['/login']);
   }
 
   async logout(): Promise<void> {

@@ -169,6 +169,8 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+    # M02 — uniform error envelope, MFA_REQUIRED mapping
+    "EXCEPTION_HANDLER": "apps.users.exception_handler.custom_exception_handler",
 }
 
 # ---------------------------------------------------------------------------
@@ -198,6 +200,32 @@ AUTH_LOCKOUT_DURATION_MINUTES = env.int("AUTH_LOCKOUT_DURATION_MINUTES", default
 
 # Frontend base URL — used to construct verification / reset links in emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:4444")
+
+# ---------------------------------------------------------------------------
+# Auth (M02) — MFA
+# ---------------------------------------------------------------------------
+# Master feature flag: when False, /api/v1/auth/mfa/* return 503 and login
+# never branches into the MFA-pending state. Useful for emergency rollback
+# without redeploying. See plan-progress-tracker.md M02 §15.
+MFA_ENABLED = env.bool("MFA_ENABLED", default=True)
+
+# Fernet key-encryption key (KEK) for MFA secrets at rest. In dev/test we
+# derive a deterministic KEK from SECRET_KEY so the test suite + a fresh
+# `runserver` work without provisioning. In prod, FERNET_KEK MUST be a real
+# 32-byte url-safe base64 key supplied via Railway env. Rotation procedure
+# documented in docs/runbooks/mfa-kek-rotation.md.
+import base64 as _b64
+import hashlib as _hashlib
+
+_default_kek = _b64.urlsafe_b64encode(_hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()).decode("ascii")
+FERNET_KEK = env("FERNET_KEK", default=_default_kek)
+
+# MFA token (issued at login for enrolled users, exchanged at /auth/mfa/verify/)
+MFA_TOKEN_TTL_MINUTES = env.int("MFA_TOKEN_TTL_MINUTES", default=5)
+# TOTP step tolerance: ±1 step (= ±30s) per plan AC-02-11.
+MFA_TOTP_VALID_WINDOW = env.int("MFA_TOTP_VALID_WINDOW", default=1)
+MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", default="StratTraderPro")
+MFA_BACKUP_CODE_COUNT = env.int("MFA_BACKUP_CODE_COUNT", default=10)
 
 # ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)

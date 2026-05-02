@@ -4,66 +4,6 @@
  */
 
 export interface paths {
-    "/api/v1/auth/register/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register a new account
-         * @description Creates a new user and sends a verification email. Duplicate emails return 202 with a generic body to prevent enumeration.
-         */
-        post: operations["auth_register"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/verify-email/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Verify email via token
-         * @description Consumes the verification token and returns a JWT pair on success.
-         */
-        post: operations["auth_verify_email"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/resend-verification/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Resend verification email
-         * @description Idempotent. Always returns 200 to avoid email enumeration.
-         */
-        post: operations["auth_resend_verification"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/login/": {
         parameters: {
             query?: never;
@@ -75,26 +15,9 @@ export interface paths {
         put?: never;
         /**
          * Log in with email + password
-         * @description Returns `{access, refresh, user, mfa_required}`. `mfa_required` is always false in M01.
+         * @description Returns `{access, refresh, user, mfa_required}`. `mfa_required` is always false in M01 (MFA ships in M02).
          */
         post: operations["auth_login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/refresh/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Rotate a refresh token */
-        post: operations["auth_refresh"];
         delete?: never;
         options?: never;
         head?: never;
@@ -112,6 +35,94 @@ export interface paths {
         put?: never;
         /** Log out — revokes refresh family */
         post: operations["auth_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/backup-codes/regenerate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the user's set of backup codes with a fresh batch of 10. */
+        post: operations["auth_mfa_regenerate_backup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/disable/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable MFA. Requires both current password and a current TOTP code. */
+        post: operations["auth_mfa_disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/enroll/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin TOTP enrollment
+         * @description Generate (or replace) a pending MFA device. Returns the QR PNG (base64) + raw secret. Confirm via /enroll/confirm/.
+         */
+        post: operations["auth_mfa_enroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/enroll/confirm/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm TOTP enrollment with a verification code */
+        post: operations["auth_mfa_enroll_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/verify/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete MFA challenge — exchange mfa_token + code for tokens */
+        post: operations["auth_mfa_verify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -147,8 +158,156 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Set a new password using the reset token */
+        /**
+         * Set a new password using the reset token
+         * @description Issues a JWT pair on success and revokes any outstanding refresh families.
+         */
         post: operations["auth_password_reset_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a refresh token
+         * @description Consumes the supplied refresh token and issues a new pair in the same family. Reusing an already-rotated refresh revokes the whole family.
+         */
+        post: operations["auth_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register a new account
+         * @description Creates a new user and sends a verification email. Duplicate emails return 202 with a generic body to prevent enumeration.
+         */
+        post: operations["auth_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/resend-verification/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend verification email
+         * @description Idempotent. Always returns 200 to avoid email enumeration.
+         */
+        post: operations["auth_resend_verification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify email via token
+         * @description Consumes the verification token and returns a JWT pair on success.
+         */
+        post: operations["auth_verify_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brokers/ping/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 200 OK iff caller is authenticated AND has MFA enabled. */
+        get: operations["v1_brokers_ping_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/ping/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_orders_ping_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk/ping/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_risk_ping_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/strategies/ping/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["v1_strategies_ping_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -172,10 +331,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/password/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change password. Revokes all other refresh sessions. */
+        post: operations["users_me_password_change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/sessions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's active refresh-token families. */
+        get: operations["users_me_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/sessions/revoke/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a single session by family_id, OR all-other if all=true. */
+        post: operations["users_me_sessions_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/update/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update display_name / timezone / language / notification preferences */
+        patch: operations["users_me_update"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApiError: {
+            /** @description Stable machine-readable error code. */
+            code: string;
+            message: string;
+            /** @description Optional field→messages map for validation errors. */
+            details?: {
+                [key: string]: string[];
+            };
+        };
         AuthUser: {
             /** Format: uuid */
             id: string;
@@ -183,8 +419,71 @@ export interface components {
             email: string;
             display_name: string;
             is_verified: boolean;
+            mfa_enabled?: boolean;
         };
-        CurrentUserData: {
+        CurrentUserEnvelope: {
+            data: components["schemas"]["_CurrentUserData"];
+        };
+        ErrorEnvelope: {
+            error: components["schemas"]["ApiError"];
+        };
+        Login: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        Logout: {
+            refresh: string;
+        };
+        PasswordReset: {
+            /** Format: email */
+            email: string;
+        };
+        PasswordResetConfirm: {
+            token: string;
+            password: string;
+        };
+        Refresh: {
+            refresh: string;
+        };
+        Register: {
+            /** Format: email */
+            email: string;
+            display_name: string;
+            password: string;
+        };
+        RegisterData: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+        };
+        RegisterOkEnvelope: {
+            data: components["schemas"]["RegisterData"];
+        };
+        ResendVerification: {
+            /** Format: email */
+            email: string;
+        };
+        StatusData: {
+            status: string;
+        };
+        StatusEnvelope: {
+            data: components["schemas"]["StatusData"];
+        };
+        TokenPairData: {
+            access: string;
+            refresh: string;
+            user: components["schemas"]["AuthUser"];
+            mfa_required?: boolean;
+        };
+        TokenPairEnvelope: {
+            data: components["schemas"]["TokenPairData"];
+        };
+        VerifyEmail: {
+            token: string;
+        };
+        _CurrentUserData: {
             /** Format: uuid */
             id: string;
             /** Format: email */
@@ -193,79 +492,6 @@ export interface components {
             is_verified: boolean;
             /** Format: date-time */
             created_at: string;
-        };
-        RegisterData: {
-            /** Format: uuid */
-            id: string;
-            /** Format: email */
-            email: string;
-        };
-        StatusData: {
-            status: string;
-        };
-        TokenPairData: {
-            access: string;
-            refresh: string;
-            user: components["schemas"]["AuthUser"];
-            mfa_required?: boolean;
-        };
-        ApiError: {
-            /**
-             * @description Stable machine-readable error code.
-             * @enum {string}
-             */
-            code: "USER_EXISTS" | "INVALID_CREDENTIALS" | "EMAIL_NOT_VERIFIED" | "ACCOUNT_LOCKED" | "RATE_LIMITED" | "TOKEN_INVALID" | "TOKEN_EXPIRED" | "PASSWORD_WEAK" | "VALIDATION_ERROR";
-            message: string;
-            details?: {
-                [key: string]: string[];
-            };
-        };
-        RegisterOkEnvelope: {
-            data: components["schemas"]["RegisterData"];
-        };
-        StatusEnvelope: {
-            data: components["schemas"]["StatusData"];
-        };
-        TokenPairEnvelope: {
-            data: components["schemas"]["TokenPairData"];
-        };
-        CurrentUserEnvelope: {
-            data: components["schemas"]["CurrentUserData"];
-        };
-        ErrorEnvelope: {
-            error: components["schemas"]["ApiError"];
-        };
-        RegisterRequest: {
-            /** Format: email */
-            email: string;
-            display_name: string;
-            password: string;
-        };
-        VerifyEmailRequest: {
-            token: string;
-        };
-        ResendVerificationRequest: {
-            /** Format: email */
-            email: string;
-        };
-        LoginRequest: {
-            /** Format: email */
-            email: string;
-            password: string;
-        };
-        RefreshRequest: {
-            refresh: string;
-        };
-        LogoutRequest: {
-            refresh: string;
-        };
-        PasswordResetRequest: {
-            /** Format: email */
-            email: string;
-        };
-        PasswordResetConfirmRequest: {
-            token: string;
-            password: string;
         };
     };
     responses: never;
@@ -276,176 +502,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    auth_register: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "email": "trader@example.com",
-                 *       "display_name": "Jane Trader",
-                 *       "password": "correct horse battery staple"
-                 *     }
-                 */
-                "application/json": components["schemas"]["RegisterRequest"];
-            };
-        };
-        responses: {
-            /** @description Registration accepted */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": "6f2e5a1d-0c9b-4b4e-8d6a-111111111111",
-                     *         "email": "trader@example.com"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["RegisterOkEnvelope"];
-                };
-            };
-            /** @description Accepted (duplicate email — anti-enumeration) */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "status": "pending_verification"
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["StatusEnvelope"];
-                };
-            };
-            /** @description Validation error or weak password */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "PASSWORD_WEAK",
-                     *         "message": "Password does not meet policy.",
-                     *         "details": {
-                     *           "password": [
-                     *             "This password is too common."
-                     *           ]
-                     *         }
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Rate limited */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    auth_verify_email: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "token": "uvv_6d2c...sample"
-                 *     }
-                 */
-                "application/json": components["schemas"]["VerifyEmailRequest"];
-            };
-        };
-        responses: {
-            /** @description Verified — returns JWT pair */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenPairEnvelope"];
-                };
-            };
-            /** @description Token invalid or expired */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "TOKEN_INVALID",
-                     *         "message": "Verification token is invalid or expired."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    auth_resend_verification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "email": "trader@example.com"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ResendVerificationRequest"];
-            };
-        };
-        responses: {
-            /** @description Accepted */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StatusEnvelope"];
-                };
-            };
-            /** @description Rate limited */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     auth_login: {
         parameters: {
             query?: never;
@@ -455,131 +511,45 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "email": "trader@example.com",
-                 *       "password": "correct horse battery staple"
-                 *     }
-                 */
-                "application/json": components["schemas"]["LoginRequest"];
+                "application/json": components["schemas"]["Login"];
+                "application/x-www-form-urlencoded": components["schemas"]["Login"];
+                "multipart/form-data": components["schemas"]["Login"];
             };
         };
         responses: {
-            /** @description Login success */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "access": "eyJhbGciOi...access.jwt",
-                     *         "refresh": "eyJhbGciOi...refresh.jwt",
-                     *         "user": {
-                     *           "id": "6f2e5a1d-0c9b-4b4e-8d6a-111111111111",
-                     *           "email": "trader@example.com",
-                     *           "display_name": "Jane Trader",
-                     *           "is_verified": true
-                     *         },
-                     *         "mfa_required": false
-                     *       }
-                     *     }
-                     */
                     "application/json": components["schemas"]["TokenPairEnvelope"];
                 };
             };
-            /** @description Invalid credentials */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "INVALID_CREDENTIALS",
-                     *         "message": "Invalid email or password."
-                     *       }
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Email not verified */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "EMAIL_NOT_VERIFIED",
-                     *         "message": "Please verify your email before signing in."
-                     *       }
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Account locked */
             423: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "ACCOUNT_LOCKED",
-                     *         "message": "Account temporarily locked due to repeated failures."
-                     *       }
-                     *     }
-                     */
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Rate limited */
             429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    auth_refresh: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "refresh": "eyJhbGciOi...refresh.jwt"
-                 *     }
-                 */
-                "application/json": components["schemas"]["RefreshRequest"];
-            };
-        };
-        responses: {
-            /** @description Rotated — new JWT pair */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenPairEnvelope"];
-                };
-            };
-            /** @description Token invalid or family revoked */
-            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -598,16 +568,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "refresh": "eyJhbGciOi...refresh.jwt"
-                 *     }
-                 */
-                "application/json": components["schemas"]["LogoutRequest"];
+                "application/json": components["schemas"]["Logout"];
+                "application/x-www-form-urlencoded": components["schemas"]["Logout"];
+                "multipart/form-data": components["schemas"]["Logout"];
             };
         };
         responses: {
-            /** @description Revoked */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -615,6 +581,96 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StatusEnvelope"];
                 };
+            };
+        };
+    };
+    auth_mfa_regenerate_backup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_mfa_disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_mfa_enroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_mfa_enroll_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_mfa_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -627,16 +683,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "email": "trader@example.com"
-                 *     }
-                 */
-                "application/json": components["schemas"]["PasswordResetRequest"];
+                "application/json": components["schemas"]["PasswordReset"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordReset"];
+                "multipart/form-data": components["schemas"]["PasswordReset"];
             };
         };
         responses: {
-            /** @description Accepted */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -645,7 +697,6 @@ export interface operations {
                     "application/json": components["schemas"]["StatusEnvelope"];
                 };
             };
-            /** @description Rate limited */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -665,17 +716,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "token": "prv_7a1c...sample",
-                 *       "password": "correct horse battery staple"
-                 *     }
-                 */
-                "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+                "application/x-www-form-urlencoded": components["schemas"]["PasswordResetConfirm"];
+                "multipart/form-data": components["schemas"]["PasswordResetConfirm"];
             };
         };
         responses: {
-            /** @description Password set — returns new JWT pair */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -684,7 +730,6 @@ export interface operations {
                     "application/json": components["schemas"]["TokenPairEnvelope"];
                 };
             };
-            /** @description Token invalid or weak password */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -692,6 +737,226 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
+            };
+        };
+    };
+    auth_refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Refresh"];
+                "application/x-www-form-urlencoded": components["schemas"]["Refresh"];
+                "multipart/form-data": components["schemas"]["Refresh"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    auth_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Register"];
+                "application/x-www-form-urlencoded": components["schemas"]["Register"];
+                "multipart/form-data": components["schemas"]["Register"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterOkEnvelope"];
+                };
+            };
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusEnvelope"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    auth_resend_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendVerification"];
+                "application/x-www-form-urlencoded": components["schemas"]["ResendVerification"];
+                "multipart/form-data": components["schemas"]["ResendVerification"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    auth_verify_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmail"];
+                "application/x-www-form-urlencoded": components["schemas"]["VerifyEmail"];
+                "multipart/form-data": components["schemas"]["VerifyEmail"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairEnvelope"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    v1_brokers_ping_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_orders_ping_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_risk_ping_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_strategies_ping_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -704,27 +969,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Current user */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "data": {
-                     *         "id": "6f2e5a1d-0c9b-4b4e-8d6a-111111111111",
-                     *         "email": "trader@example.com",
-                     *         "display_name": "Jane Trader",
-                     *         "is_verified": true,
-                     *         "created_at": "2026-04-17T12:00:00Z"
-                     *       }
-                     *     }
-                     */
                     "application/json": components["schemas"]["CurrentUserEnvelope"];
                 };
             };
-            /** @description Unauthenticated */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -732,6 +984,78 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
+            };
+        };
+    };
+    users_me_password_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    users_me_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    users_me_sessions_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    users_me_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -3,7 +3,16 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApiEnvelope, AuthTokenPair, AuthUser } from '../models/auth.models';
+import {
+  ApiEnvelope,
+  AuthMeResponse,
+  AuthTokenPair,
+  LoginResult,
+  MFAEnrollConfirmResponse,
+  MFAEnrollResponse,
+  Session,
+  UserProfile,
+} from '../models/auth.models';
 
 const BASE = `${environment.apiBase}/v1`;
 
@@ -25,8 +34,12 @@ export class AuthApi {
     return this.http.post<ApiEnvelope<{ status: string }>>(`${BASE}/auth/resend-verification/`, { email });
   }
 
-  login(email: string, password: string): Observable<ApiEnvelope<AuthTokenPair>> {
-    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/login/`, { email, password });
+  /**
+   * Login. May return either a full token pair OR an MFA challenge — the
+   * backend's response shape is discriminated by `mfa_required`.
+   */
+  login(email: string, password: string): Observable<ApiEnvelope<LoginResult>> {
+    return this.http.post<ApiEnvelope<LoginResult>>(`${BASE}/auth/login/`, { email, password });
   }
 
   refresh(refreshToken: string): Observable<ApiEnvelope<AuthTokenPair>> {
@@ -45,7 +58,65 @@ export class AuthApi {
     return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/password/reset/confirm/`, { token, password });
   }
 
-  me(): Observable<ApiEnvelope<AuthUser>> {
-    return this.http.get<ApiEnvelope<AuthUser>>(`${BASE}/users/me/`);
+  me(): Observable<ApiEnvelope<AuthMeResponse>> {
+    return this.http.get<ApiEnvelope<AuthMeResponse>>(`${BASE}/users/me/`);
+  }
+
+  // ---- M02 — MFA ----
+  mfaEnroll(): Observable<ApiEnvelope<MFAEnrollResponse>> {
+    return this.http.post<ApiEnvelope<MFAEnrollResponse>>(`${BASE}/auth/mfa/enroll/`, {});
+  }
+
+  mfaEnrollConfirm(code: string): Observable<ApiEnvelope<MFAEnrollConfirmResponse>> {
+    return this.http.post<ApiEnvelope<MFAEnrollConfirmResponse>>(
+      `${BASE}/auth/mfa/enroll/confirm/`, { code },
+    );
+  }
+
+  mfaVerify(mfaToken: string, code: string, isBackupCode = false): Observable<ApiEnvelope<AuthTokenPair>> {
+    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/mfa/verify/`, {
+      mfa_token: mfaToken, code, is_backup_code: isBackupCode,
+    });
+  }
+
+  mfaDisable(currentPassword: string, code: string): Observable<ApiEnvelope<{ status: string }>> {
+    return this.http.post<ApiEnvelope<{ status: string }>>(`${BASE}/auth/mfa/disable/`, {
+      current_password: currentPassword, code,
+    });
+  }
+
+  mfaRegenerateBackupCodes(currentPassword: string, code: string): Observable<ApiEnvelope<MFAEnrollConfirmResponse>> {
+    return this.http.post<ApiEnvelope<MFAEnrollConfirmResponse>>(
+      `${BASE}/auth/mfa/backup-codes/regenerate/`, { current_password: currentPassword, code },
+    );
+  }
+
+  // ---- M02 — profile, sessions, password change ----
+  updateProfile(patch: Partial<{ display_name: string; timezone: string; language: string; notification_email: boolean }>): Observable<ApiEnvelope<{ user: AuthMeResponse; profile: UserProfile }>> {
+    return this.http.patch<ApiEnvelope<{ user: AuthMeResponse; profile: UserProfile }>>(
+      `${BASE}/users/me/update/`, patch,
+    );
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Observable<ApiEnvelope<{ status: string }>> {
+    return this.http.post<ApiEnvelope<{ status: string }>>(`${BASE}/users/me/password/`, {
+      current_password: currentPassword, new_password: newPassword,
+    });
+  }
+
+  listSessions(): Observable<ApiEnvelope<{ sessions: Session[] }>> {
+    return this.http.get<ApiEnvelope<{ sessions: Session[] }>>(`${BASE}/users/me/sessions/`);
+  }
+
+  revokeSession(familyId: string): Observable<ApiEnvelope<{ revoked: number }>> {
+    return this.http.post<ApiEnvelope<{ revoked: number }>>(`${BASE}/users/me/sessions/revoke/`, {
+      family_id: familyId,
+    });
+  }
+
+  revokeAllOtherSessions(): Observable<ApiEnvelope<{ revoked: number }>> {
+    return this.http.post<ApiEnvelope<{ revoked: number }>>(`${BASE}/users/me/sessions/revoke/`, {
+      all: true,
+    });
   }
 }
