@@ -26,12 +26,27 @@ export class AuthFacade {
     try {
       const res = await firstValueFrom(this.api.register(email, displayName, password));
       if (res.error) { this.store.setError(res.error); return false; }
+      // Reset status before navigating away — register doesn't authenticate
+      // the user (they still need to verify their email and then sign in),
+      // so leaving status='loading' would freeze the /login submit button
+      // when they come back to it.
+      this.store.setIdle();
       await this.router.navigate(['/resend-verification'], { queryParams: { email } });
       return true;
     } catch (e) {
       this.handleError(e);
       return false;
     }
+  }
+
+  /**
+   * Clear any stale `'loading'` status left behind by a prior navigation
+   * (e.g. register → /resend-verification → back to /login). Called by
+   * the login screen on init so the submit button isn't stuck disabled.
+   * No-op when the user is already authed or in MFA challenge.
+   */
+  resetFormState(): void {
+    this.store.setIdle();
   }
 
   async verifyEmail(token: string): Promise<boolean> {

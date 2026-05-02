@@ -71,6 +71,13 @@ export class RegisterComponent {
     password: ['', [Validators.required, Validators.minLength(12)]],
   });
 
+  constructor() {
+    // Reset stale 'loading' status from a prior screen so the submit
+    // button isn't disabled when this page mounts. See LoginComponent
+    // for the symmetric fix.
+    this.facade.resetFormState();
+  }
+
   async onSubmit(): Promise<void> {
     if (this.form.invalid) return;
     const { email, displayName, password } = this.form.getRawValue();

@@ -73,6 +73,24 @@ export class AuthStore {
     this._error.set(null);
   }
 
+  /**
+   * Reset transient form state (status + error) without touching the
+   * authenticated user or tokens. Used by /login and /register on init
+   * to clear a leftover `'loading'` status from a prior navigation —
+   * e.g. user submits register → routes to /resend-verification → uses
+   * the back button to /login. Without this, the submit button stays
+   * disabled forever because `facade.status() === 'loading'` is still
+   * true. No-op if the user is already authed or in MFA challenge so
+   * we don't trample real session state.
+   */
+  setIdle(): void {
+    const s = this._status();
+    if (s !== 'authed' && s !== 'mfa_pending') {
+      this._status.set('idle');
+    }
+    this._error.set(null);
+  }
+
   clearAuth(): void {
     this._user.set(null);
     this._accessToken.set(null);

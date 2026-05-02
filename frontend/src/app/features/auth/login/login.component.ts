@@ -63,6 +63,15 @@ export class LoginComponent {
     password: ['', Validators.required],
   });
 
+  constructor() {
+    // Defensive reset: if we landed on /login with a stale `'loading'`
+    // status from a prior screen (register → /resend-verification → back,
+    // or startGoogleSignIn that didn't actually navigate), the submit
+    // button would otherwise stay disabled. setIdle is a no-op for authed
+    // and mfa_pending states so we don't disturb real sessions.
+    this.facade.resetFormState();
+  }
+
   async onSubmit(): Promise<void> {
     if (this.form.invalid) return;
     const { email, password } = this.form.getRawValue();
