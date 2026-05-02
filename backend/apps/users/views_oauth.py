@@ -37,6 +37,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
@@ -115,6 +116,11 @@ class OAuthPostCallbackView(APIView):
     """
 
     permission_classes = [AllowAny]
+    # DRF default is JWTAuthentication, which doesn't read Django's session.
+    # allauth's complete_social_login uses django.contrib.auth.login() which
+    # writes to the session — we need SessionAuthentication here so this view
+    # can see the user that allauth just logged in.
+    authentication_classes = [SessionAuthentication]
     http_method_names = ["get"]
 
     @extend_schema(exclude=True)
