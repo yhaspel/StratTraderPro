@@ -118,21 +118,28 @@ export class AuthFacade {
   // M2.5 — Google OAuth
   // -------------------------------------------------------------------------
   /**
-   * Kick off Google sign-in via top-level navigation to the backend's
-   * /start/ endpoint, which 302s to Google.
+   * Kick off Google sign-in.
    *
-   * Why a top-level nav instead of fetch+window.location: allauth stashes the
-   * OAuth state token in Django's session (cookie). That cookie is dropped by
-   * a cross-origin XHR (Set-Cookie from cross-origin AJAX requires
-   * `credentials: 'include'` AND `SameSite=None; Secure` — fragile). With a
-   * top-level navigation, the browser handles cookies normally and the
-   * session cookie travels back when Google redirects to /callback/.
+   * The user must navigate to the BACKEND'S ABSOLUTE URL (not the same-origin
+   * `/api/` proxy on the frontend host) — otherwise the Django session cookie
+   * set during /start/ would be attached to the frontend's domain, and the
+   * browser would drop it when Google redirects to the backend's domain at
+   * the end of the OAuth round-trip. The cookie domain is what makes
+   * allauth's state-verification work.
+   *
+   * The absolute backend URL is exposed at runtime via `window.STP_CONFIG`,
+   * which nginx fills in from the BACKEND_URL env var (see
+   * docker/nginx.conf.template). Falls back to the same-origin /api proxy
+   * for local dev where there's no nginx; in that case the OAuth flow won't
+   * cross domains anyway.
    */
   async startGoogleSignIn(): Promise<void> {
     this.store.setLoading();
-    // Use assign (not replace) so the user can use the Back button if Google
-    // shows a consent screen and they change their mind.
-    window.location.assign(`${environment.apiBase}/v1/auth/oauth/google/start/`);
+    const backendUrl = (window as unknown as { STP_CONFIG?: { backendUrl?: string } }).STP_CONFIG?.backendUrl;
+    const target = backendUrl
+      ? `${backendUrl.replace(/\/$/, '')}/api/v1/auth/oauth/google/start/`
+      : `${environment.apiBase}/v1/auth/oauth/google/start/`;
+    window.location.assign(target);
   }
 
   /**

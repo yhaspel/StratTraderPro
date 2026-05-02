@@ -15,6 +15,16 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # Runtime config exposed to the SPA. Lets the frontend know its absolute
+    # backend URL — needed for OAuth flows where the cookies set during
+    # /start/ must persist across Google's redirect back to the backend
+    # (a same-origin proxied request would set cookies on the frontend
+    # domain, which the browser then drops when bouncing back to backend).
+    location = /config.js {
+        default_type application/javascript;
+        return 200 "window.STP_CONFIG = { backendUrl: '${BACKEND_URL}' };";
+    }
+
     # Proxy API requests to Django backend.
     # ${BACKEND_URL} is substituted at container start by the official nginx
     # image's envsubst step (NGINX_ENVSUBST_FILTER limits substitution to BACKEND_URL
