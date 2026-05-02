@@ -67,14 +67,15 @@ def _feature_disabled_response():
 # ---------------------------------------------------------------------------
 class OAuthGoogleStartView(APIView):
     """
-    GET /api/v1/auth/oauth/google/start/?next=/dashboard
+    GET /api/v1/auth/oauth/google/start/
 
-    Returns ``{"authorize_url": "https://accounts.google.com/o/oauth2/v2/auth?..."}``.
-    The frontend window.location.assigns to it; Google takes the user through
-    consent + redirect-back-to-our-callback.
-
-    We delegate URL-building to allauth's GoogleProvider so the state token,
-    nonce, scopes, and PKCE all line up with what the callback view expects.
+    302s to Google's authorize URL via allauth's stock ``oauth2_login`` view.
+    The frontend does ``window.location.assign('.../start/')`` — a top-level
+    navigation, NOT an XHR. This is critical: the browser sets the session
+    cookie that allauth uses to stash the OAuth state token, and that cookie
+    must travel back when Google redirects to our /callback/. A cross-origin
+    XHR followed by ``window.location`` drops that cookie and the callback
+    rejects with ``PermissionDenied`` from ``verify_and_unstash_state``.
     """
 
     permission_classes = [AllowAny]
@@ -82,7 +83,7 @@ class OAuthGoogleStartView(APIView):
     @extend_schema(
         operation_id="auth_oauth_google_start",
         tags=["oauth"],
-        summary="Get the Google authorize URL the frontend should redirect to.",
+        summary="Redirect the browser to Google's OAuth authorize URL.",
     )
     def get(self, request):
         if not settings.GOOGLE_OAUTH_ENABLED or not settings.GOOGLE_OAUTH_CLIENT_ID:
@@ -91,23 +92,10 @@ class OAuthGoogleStartView(APIView):
         from allauth.socialaccount.providers.oauth2.client import OAuth2Error
         from allauth.socialaccount.providers.google.views import oauth2_login
 
-        # Allauth's oauth2_login is a Django view that 302s to Google. We call
-        # it but capture the Location header to surface as JSON instead.
         try:
-            response = oauth2_login(request)
+            return oauth2_login(request)
         except OAuth2Error as exc:
             return fail("OAUTH_START_FAILED", str(exc), status=502)
-
-        if isinstance(response, HttpResponseRedirect):
-            return ok({"authorize_url": response["Location"]})
-
-        # Defensive — allauth should always 302 here; if it didn't, something
-        # changed under us.
-        return fail(
-            "OAUTH_START_FAILED",
-            "Could not obtain Google authorize URL.",
-            status=502,
-        )
 
 
 # ---------------------------------------------------------------------------

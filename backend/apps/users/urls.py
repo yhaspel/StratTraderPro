@@ -1,5 +1,6 @@
 """URL routes for the users app — mounted under /api/v1/."""
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 # allauth's stock Google OAuth views. We mount them at our own paths instead
 # of using allauth's default urls.py so the callback URL exactly matches what
@@ -93,5 +94,21 @@ urlpatterns = [
         "auth/oauth/google/login/",
         _allauth_google_oauth2_login,
         name="google_login",
+    ),
+    # Stub URL alias so allauth's bundled templates can resolve
+    # `{% url 'account_login' %}` without crashing when they render error
+    # pages. Redirects to our frontend login route. (Without this, OAuth
+    # error paths blow up with NoReverseMatch.)
+    path(
+        "auth/account/login/",
+        RedirectView.as_view(url="/login", query_string=True),
+        name="account_login",
+    ),
+    # Same defensive alias for `account_signup` — referenced from the same
+    # allauth templates.
+    path(
+        "auth/account/signup/",
+        RedirectView.as_view(url="/register", query_string=True),
+        name="account_signup",
     ),
 ]

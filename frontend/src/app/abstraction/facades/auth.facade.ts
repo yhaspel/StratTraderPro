@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuthApi } from '../../core/services/auth.api';
 import { AuthStore } from '../stores/auth.store';
 import { ApiError, AuthTokenPair, LoginResult } from '../../core/models/auth.models';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
@@ -117,20 +118,21 @@ export class AuthFacade {
   // M2.5 — Google OAuth
   // -------------------------------------------------------------------------
   /**
-   * Kick off Google sign-in. Backend returns the authorize URL; we redirect
-   * the browser there. Google bounces back to backend's /callback/, which
-   * issues a single-use exchange code and 302s to /oauth/callback?exchange=...
+   * Kick off Google sign-in via top-level navigation to the backend's
+   * /start/ endpoint, which 302s to Google.
+   *
+   * Why a top-level nav instead of fetch+window.location: allauth stashes the
+   * OAuth state token in Django's session (cookie). That cookie is dropped by
+   * a cross-origin XHR (Set-Cookie from cross-origin AJAX requires
+   * `credentials: 'include'` AND `SameSite=None; Secure` — fragile). With a
+   * top-level navigation, the browser handles cookies normally and the
+   * session cookie travels back when Google redirects to /callback/.
    */
   async startGoogleSignIn(): Promise<void> {
     this.store.setLoading();
-    try {
-      const res = await firstValueFrom(this.api.oauthGoogleStart());
-      if (res.error) { this.store.setError(res.error); return; }
-      // Use replace so the user can't click Back into a half-finished OAuth state.
-      window.location.replace(res.data!.authorize_url);
-    } catch (e) {
-      this.handleError(e);
-    }
+    // Use assign (not replace) so the user can use the Back button if Google
+    // shows a consent screen and they change their mind.
+    window.location.assign(`${environment.apiBase}/v1/auth/oauth/google/start/`);
   }
 
   /**

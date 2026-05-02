@@ -311,16 +311,18 @@ class OAuthGoogleStartViewTests(TestCase):
             },
         },
     )
-    def test_start_returns_google_authorize_url(self):
-        # allauth reads provider config from settings — no DB SocialApp needed.
+    def test_start_redirects_to_google(self):
+        # /start/ is a top-level navigation that returns 302 → Google. This
+        # is critical: returning JSON would force a cross-origin XHR, which
+        # drops the session cookie that allauth uses to stash the state token,
+        # and the callback would fail with PermissionDenied.
         resp = self.client.get(f"{API}auth/oauth/google/start/")
-        self.assertEqual(resp.status_code, 200)
-        url = resp.json()["data"]["authorize_url"]
+        self.assertEqual(resp.status_code, 302)
+        url = resp["Location"]
         self.assertIn("accounts.google.com", url)
         self.assertIn("client_id=fake-client-id-for-test", url)
-        # response_type=code is required for the auth-code flow we use.
         self.assertIn("response_type=code", url)
-        # state token present (allauth generates it)
+        # state token present (allauth generates it and stashes in session)
         self.assertIn("state=", url)
 
     @override_settings(GOOGLE_OAUTH_ENABLED=False)
