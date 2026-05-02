@@ -278,6 +278,28 @@ class LoginMFAFlowTests(TestCase):
         self.assertEqual(resp.status_code, 401)
         self.assertEqual(resp.json()["error"]["code"], "TOKEN_INVALID")
 
+    @override_settings(RATELIMIT_ENABLE=True)
+    def test_mfa_verify_rate_limit_keyer_does_not_crash(self):
+        """Regression test for prod 500 caused by `request.data` access in the
+        ratelimit lambda — that's a DRF-only attribute, but django-ratelimit
+        wraps the view BEFORE DRF, so it sees a raw Django request without
+        `.data` and crashes.
+
+        With key='ip' (the fix), this regression doesn't recur and the view
+        returns 401 normally regardless of rate-limit state.
+        """
+        user = _create_user()
+        _enroll_mfa(user)
+        resp = self.client.post(
+            f"{API}auth/mfa/verify/",
+            {"mfa_token": "garbage-token", "code": "000000"},
+            content_type="application/json",
+        )
+        # Pre-fix: 500. Post-fix: 401 with structured error.
+        self.assertNotEqual(resp.status_code, 500)
+        self.assertEqual(resp.status_code, 401)
+        self.assertIn(resp.json()["error"]["code"], {"TOKEN_INVALID", "RATE_LIMITED"})
+
 
 # =========================================================================
 # MFA disable + regenerate

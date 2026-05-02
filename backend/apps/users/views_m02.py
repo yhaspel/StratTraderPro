@@ -241,9 +241,16 @@ class MFAVerifyView(APIView):
         return ok(services.issue_token_pair(user, request=request))
 
 
+# django-ratelimit wraps the view BEFORE DRF, so the key fn receives a raw
+# Django ASGIRequest — `request.data` (a DRF-only attribute) doesn't exist
+# yet and accessing it raises AttributeError, crashing every MFA verify
+# attempt with a 500. (Pre-existing M02 bug — masked in tests because
+# RATELIMIT_ENABLE=False in test settings.) Switching to the built-in `ip`
+# keyer is safe: an attacker brute-forcing TOTP would be on a single IP,
+# and 5/min × 6 digits = ~138-day expected time before guessing the right
+# code — well outside any reasonable session window.
 MFAVerifyView = ratelimit(
-    key=lambda group, request: (request.data or {}).get("mfa_token", "anon")[:64],
-    rate="5/m", method="POST", block=False,
+    key="ip", rate="5/m", method="POST", block=False,
 )(MFAVerifyView.as_view())
 
 
