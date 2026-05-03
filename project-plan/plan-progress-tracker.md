@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-02 — M02 implementation complete; production environment bootstrapped (forked from staging, prod-unique secrets); M2.5 (Google OAuth) backend + frontend complete in code, awaiting GOOGLE_OAUTH_* env vars in Railway and smoke test; awaiting `v0.2.0-mfa` and `v0.2.5-oauth-google` tags; ready for M03
+> **Last updated:** 2026-05-03 — M02 (MFA + User Profile) and M2.5 (Google OAuth sign-in) both formally closed. Tags `v0.2.0-mfa` and `v0.2.5-oauth-google` pushed. 91/91 backend tests green at HEAD. Production environment bootstrapped (forked from staging, prod-unique secrets) and verified end-to-end on `backend-production-f3e8` / `frontend-production-c977f`; staging similarly verified. Post-implementation stabilization fixes (5 backend, 3 frontend) merged and deployed to both envs. Ready for **M03 — Strategies & Webhook Config**.
 
 ## Production Environment
 
@@ -287,9 +287,9 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 02 — MFA & User Profile
 
-**Status:** ✅ Done (implementation) — pending tag `v0.2.0-mfa`
+**Status:** ✅ Done — tag `v0.2.0-mfa` pushed
 **Started:** 2026-05-01
-**Completed:** 2026-05-02
+**Completed:** 2026-05-02 (implementation) / 2026-05-03 (final stabilization + tag)
 
 > See `02-mfa-and-user-profile.md` for full spec.
 
@@ -339,7 +339,87 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 02.3.2 | Runbook — user lost MFA (with identity-check checklist + admin bulk action) | ✅ Done | `docs/runbooks/user-lost-mfa.md` |
 | 02.3.3 | Runbook — KEK rotation (envelope-encryption pattern via `MultiFernet`) | ✅ Done | `docs/runbooks/mfa-kek-rotation.md` |
 | 02.3.4 | CHANGELOG.md entry under `[Unreleased]` | ✅ Done | |
-| 02.3.5 | Tag `v0.2.0-mfa` | ⏳ Pending | Awaiting user `git tag -a v0.2.0-mfa && git push origin v0.2.0-mfa` after commit lands |
+| 02.3.5 | Tag `v0.2.0-mfa` | ✅ Done | Pushed 2026-05-02 |
+| 02.3.6 | Stabilization: ratelimit lambda for `/auth/mfa/verify/` was using DRF-only `request.data` (django-ratelimit wraps before DRF) — caused 500 in production despite green tests. Switched key to `"ip"`, added regression test with `@override_settings(RATELIMIT_ENABLE=True)`. | ✅ Done | Commit `7624262`. Found during M2.5 OAuth → MFA smoke test on staging. |
+
+---
+
+## Phase 02.5 — Google OAuth Sign-in / Sign-up
+
+**Status:** ✅ Done — tag `v0.2.5-oauth-google` pushed
+**Started:** 2026-05-02
+**Completed:** 2026-05-03
+
+> Inserted between M02 and M03 because users wanted a one-click sign-up
+> path before the trading milestones land. M2.5 reuses the M01 JWT family
+> pipeline and the M02 MFA gate — Google proves email control, not
+> second-factor ownership. See `docs/adr/021-google-oauth-allauth.md` for
+> the full decision rationale and account-linking semantics.
+
+### 02.5.1 Backend — django-allauth bridge + JWT issuance
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.5.1.1 | Dependencies: `django-allauth` (state machine only), `dj-rest-auth` | ✅ Done | `backend/requirements/base.txt` |
+| 02.5.1.2 | Settings: `INSTALLED_APPS` adds `django.contrib.sites`, `allauth.*`, Google provider; `AUTHENTICATION_BACKENDS` adds `allauth.account.auth_backends.AuthenticationBackend` alongside our `ModelBackend`; `AccountMiddleware` added; `SITE_ID = 1`; `LOGIN_REDIRECT_URL` points at our post-callback view; `ACCOUNT_AUTHENTICATION_METHOD="email"`, `ACCOUNT_EMAIL_VERIFICATION="none"` (we run our own); `GOOGLE_OAUTH_ENABLED`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `OAUTH_EXCHANGE_TTL_MINUTES` (default 5) | ✅ Done | `config/settings/base.py` |
+| 02.5.1.3 | `OAuthExchangeCode` model — single-use sha256-hashed code, 5-min TTL, keeps JWT pair off the redirect URL | ✅ Done | `apps/users/models.py` |
+| 02.5.1.4 | Migration `users.0003_oauth_exchange_code` | ✅ Done | Applies cleanly on staging + prod |
+| 02.5.1.5 | Custom adapters: `AccountAdapter` blocks local signup (`is_open_for_signup=False` so allauth's parallel signup form is dead); `SocialAdapter.populate_user` sets `display_name` from Google's `name`, `is_verified=True`; `SocialAdapter.pre_social_login` auto-links by verified email via `sociallogin.connect()` | ✅ Done | `apps/users/social_adapters.py` |
+| 02.5.1.6 | Three OAuth endpoints: `GET /api/v1/auth/oauth/google/start/` (302s to Google's authorize URL via allauth's stock `oauth2_login`), `GET /api/v1/auth/oauth/google/callback/` (allauth's stock callback — registered in Google Cloud Console), `POST /api/v1/auth/oauth/exchange/` (swaps single-use code for `{access, refresh, user}` OR `{mfa_required, mfa_token}`) | ✅ Done | `apps/users/views_oauth.py` |
+| 02.5.1.7 | `OAuthPostCallbackView` — `LOGIN_REDIRECT_URL` target. Tears down allauth's session login, mints exchange code, 302s to frontend with `?exchange=<code>`. **Uses `SessionAuthentication` explicitly** because DRF's default `JWTAuthentication` doesn't read Django's session, which allauth's `complete_social_login` writes to. | ✅ Done | `apps/users/views_oauth.py` |
+| 02.5.1.8 | URL stubs: `auth/oauth/google/{login,callback}/` mounted (allauth needs them for state-token URL reverse), `auth/account/{login,signup}/` redirect to frontend `/login` and `/register` (allauth bundled error templates reference `{% url 'account_login' %}`) | ✅ Done | `apps/users/urls.py` |
+| 02.5.1.9 | MFA gate preserved — exchange returns `{mfa_required: true, mfa_token}` for users with `mfa_enabled=True`. Same response shape as password login, frontend's `/login/mfa` route handles both. | ✅ Done | |
+| 02.5.1.10 | Audit events: `OAUTH_LOGIN_OK`, `OAUTH_USER_CREATED`, `OAUTH_LINKED`, `OAUTH_EXCHANGE_OK`, `OAUTH_EXCHANGE_FAIL` added to `AuthEvent.EventType` | ✅ Done | |
+| 02.5.1.11 | Prometheus counters: `auth_oauth_login_total{result}`, `auth_oauth_exchange_total{result}` | ✅ Done | `apps/users/metrics_oauth.py` |
+| 02.5.1.12 | Email templates: `oauth_account_created.{txt,html}`, `oauth_account_linked.{txt,html}` (latter so a real user notices an attacker linking their Google to a stolen account) | ✅ Done | |
+| 02.5.1.13 | Tests: 24 in `apps/users/test_oauth.py` covering `OAuthExchangeCode` (issue, consume, single-use, expiry, replay rejection, inactive user); `SocialAdapter` (auto-link with verified email, refusal to link unverified, no-op on already-linked); `OAuthExchangeView` (happy path, MFA gate, invalid/expired/consumed code, audit events, feature-disabled 503); `OAuthGoogleStartView` (returns valid Google authorize URL with state token, refuses when disabled or unconfigured). Total backend pytest at HEAD: **91 passing**. | ✅ Done | |
+
+### 02.5.2 Frontend — Angular
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.5.2.1 | `GoogleButtonComponent` — brand-compliant Google G logo SVG, white background per their brand guidelines | ✅ Done | `features/auth/google-button/` |
+| 02.5.2.2 | "Continue with Google" rendered above the email/password form on `/login` and `/register`, OR divider, i18n key `oauth.or` | ✅ Done | |
+| 02.5.2.3 | `OauthCallbackComponent` at `/oauth/callback` — handles `?exchange=<code>` (POSTs to exchange endpoint, routes to `/dashboard` or `/login/mfa`) or `?error=oauth_failed` (renders message + retry link) | ✅ Done | |
+| 02.5.2.4 | `AuthFacade.startGoogleSignIn()` — uses absolute backend URL from `window.STP_CONFIG.backendUrl` (not the same-origin `/api/` proxy) so the Django session cookie set during `/start/` lives on the backend domain and survives the bounce back from Google | ✅ Done | `abstraction/facades/auth.facade.ts` |
+| 02.5.2.5 | `AuthFacade.completeGoogleSignIn(code)` — exchange call, MFA-pending routing | ✅ Done | |
+| 02.5.2.6 | i18n keys under `oauth.*` (button label, OR divider, callback messages, error states) | ✅ Done | `assets/i18n/en.json` |
+
+### 02.5.3 Infrastructure & manual setup
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.5.3.1 | Google Cloud Console: existing `strattraderpro` project, OAuth consent screen configured, `StratTraderPro Web` OAuth 2.0 Web client created with 3 redirect URIs (localhost dev + staging + prod), `yuval3000@gmail.com` added as test user. App still in **Testing mode** — publish to In Production before opening sign-up to anyone outside the test-user list. | ✅ Done | Walkthrough in `docs/runbooks/google-oauth-setup.md` |
+| 02.5.3.2 | `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` set in Railway env for **both** staging and prod backend services | ✅ Done | Set 2026-05-02 via Railway dashboard. Never committed. |
+| 02.5.3.3 | nginx runtime config injection: new `location = /config.js` block in `docker/nginx.conf.template` returns `window.STP_CONFIG = { backendUrl: '${BACKEND_URL}' }`, substituted at container start by the official nginx image's envsubst step. Frontend's `index.html` loads it before Angular bundles. Solves OAuth cookie-domain mismatch by giving the SPA the absolute backend URL at runtime. | ✅ Done | `docker/nginx.conf.template`, `frontend/src/index.html` |
+| 02.5.3.4 | Smoke-test prod and staging: register, sign in via Google, MFA challenge correctly demanded for MFA-enrolled accounts, `/api/v1/auth/oauth/exchange/` returns `{access, refresh, user}` on success | ✅ Done | Verified via Chrome connector against staging on 2026-05-02; prod auth flow verified 2026-05-03 (signed in + `/users/me/` returned 200 with valid Bearer token). |
+
+### 02.5.4 Stabilization fixes (post-implementation, pre-tag)
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.5.4.1 | OAuth state-cookie loss (`PermissionDenied` at `verify_and_unstash_state`): fixed by returning allauth's stock 302 directly from `/start/` (top-level navigation, not XHR — the session cookie has to live on the backend domain), plus added `account_login` URL alias for allauth's bundled error templates | ✅ Done | Commit `71ccb62` |
+| 02.5.4.2 | OAuth cookie-domain mismatch: routed `/start/` through backend's absolute URL via the new `window.STP_CONFIG` mechanism (see 02.5.3.3) | ✅ Done | Commit `cc35e37` |
+| 02.5.4.3 | OAuth post-callback hit `?error=oauth_failed`: `OAuthPostCallbackView` was missing `authentication_classes = [SessionAuthentication]`, so DRF's default `JWTAuthentication` couldn't see the Django session that allauth's `complete_social_login` had just written. Added the override. | ✅ Done | Commit `cc6c03d` |
+| 02.5.4.4 | Auth-guard let unauthenticated users into `/dashboard` when localStorage was wiped but the in-memory signal was stale (e.g. after refresh-interceptor's logout-on-401). Now requires both `store.isAuthenticated() && store.refreshToken()` — wiped persistence forces redirect to `/login`. | ✅ Done | Commit `542a11c`. `frontend/src/app/core/guards/auth.guard.ts` |
+| 02.5.4.5 | nginx `Cache-Control: no-store` on `index.html` — every deploy serves the fresh bundle hash without `?cb=` query string. Hashed JS/CSS keep their immutable 1y cache. | ✅ Done | Commit `542a11c`. `docker/nginx.conf.template` |
+| 02.5.4.6 | `/login` submit button stuck disabled after register: `register()` was calling `store.setLoading()` and navigating to `/resend-verification` without resetting status, so when the user came back to `/login` the button was permanently disabled (`form.invalid \|\| status === 'loading'`). Added `AuthStore.setIdle()` (no-op if authed/mfa_pending), call it in `register()` success path, and defensive `resetFormState()` calls in `LoginComponent` + `RegisterComponent` constructors as belt-and-suspenders for any future `startGoogleSignIn`-style leaks. Pinned with a regression test. | ✅ Done | Commit `24e0a80` |
+
+### 02.5.5 Documentation
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 02.5.5.1 | ADR-021 — Google OAuth via django-allauth, with custom JWT bridge | ✅ Done | `docs/adr/021-google-oauth-allauth.md` (149 lines) |
+| 02.5.5.2 | Runbook — Google OAuth setup (GCP project + consent screen + Web client + redirect URIs + test users + publishing flow + secret rotation + failure modes) | ✅ Done | `docs/runbooks/google-oauth-setup.md` (167 lines) |
+| 02.5.5.3 | CHANGELOG.md entry under `[Unreleased]` covering all M2.5 surface area + the prod-bootstrap work that landed alongside | ✅ Done | |
+| 02.5.5.4 | Tag `v0.2.5-oauth-google` | ✅ Done | Pushed 2026-05-03 |
+| 02.5.5.5 | macOS Finder duplicate files cleanup (` 2.*` suffix on 10 files across `docs/` and `frontend/src/`) — harmless artifacts from earlier sync events, removed for tidiness | ✅ Done | Commit `c18172a` |
+
+### Known follow-ups (deferred — slot into M03 or beyond)
+
+- **Frontend env badge** still hardcodes "Platform scaffold — staging environment" via the `app.status` i18n key on both staging and prod. Needs an env-aware key swap (probably from build-time `environment.*.ts` since runtime `STP_CONFIG` already exists for the backend URL — could be extended).
+- **Login error envelope handling**: when the backend returns 401 `INVALID_CREDENTIALS`, the refresh interceptor retries the call, the second response is parsed differently, and the user sees `auth.login.error.UNKNOWN` instead of "Invalid email or password". Pre-existing from M01, exists on both envs.
+- **`DJANGO_SETTINGS_MODULE` is `config.settings.prod`** in BOTH staging and prod envs — only `RAILWAY_ENVIRONMENT_NAME` differentiates them. Acceptable today but worth a `staging.py` settings split if/when staging needs to diverge (wider CORS for testing, DEBUG toolbar, looser HSTS).
 
 ---
 
