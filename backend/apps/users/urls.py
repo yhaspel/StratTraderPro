@@ -1,14 +1,15 @@
 """URL routes for the users app — mounted under /api/v1/."""
-from django.urls import include, path
-from django.views.generic import RedirectView
-
 # allauth's stock Google OAuth views. We mount them at our own paths instead
 # of using allauth's default urls.py so the callback URL exactly matches what
 # we registered in Google Cloud Console.
 from allauth.socialaccount.providers.google.views import (
     oauth2_callback as _allauth_google_oauth2_callback,
+)
+from allauth.socialaccount.providers.google.views import (
     oauth2_login as _allauth_google_oauth2_login,
 )
+from django.urls import path
+from django.views.generic import RedirectView
 
 from .views import (
     CurrentUserView,

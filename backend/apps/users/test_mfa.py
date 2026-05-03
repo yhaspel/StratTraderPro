@@ -5,14 +5,12 @@ import pyotp
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import TestCase, override_settings
-from django.urls import URLResolver, get_resolver
 
 from apps.users.mfa import (
     decrypt_secret,
     encrypt_secret,
     generate_backup_codes,
     generate_totp_secret,
-    issue_mfa_token,
     verify_totp,
 )
 from apps.users.models import (
@@ -20,10 +18,11 @@ from apps.users.models import (
     BackupCode,
     MFADevice,
     RefreshTokenFamily,
-    User as _UModel,  # noqa: F401 (mypy hint only)
     UserProfile,
 )
-from apps.users.permissions import IsAuthenticatedAndMFAEnforced
+from apps.users.models import (
+    User as _UModel,  # noqa: F401 (mypy hint only)
+)
 from apps.users.services import issue_token_pair
 
 User = get_user_model()
@@ -462,8 +461,9 @@ class PasswordChangeTests(TestCase):
 
     def test_change_password_revokes_other_families(self):
         user = _create_user()
-        # First family — not the current one
-        other = issue_token_pair(user)
+        # First family — not the current one (created for side effect: a second
+        # RefreshTokenFamily row that should be revoked on password change).
+        issue_token_pair(user)
         # Current family
         current = issue_token_pair(user)
         resp = self.client.post(

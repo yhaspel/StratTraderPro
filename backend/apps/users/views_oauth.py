@@ -31,12 +31,10 @@ URL fragments leak through referer headers, server logs, and browser history.
 from __future__ import annotations
 
 from django.conf import settings
-from django.contrib.auth import get_user_model, logout as django_logout
-from django.http import HttpResponseRedirect
+from django.contrib.auth import get_user_model
+from django.contrib.auth import logout as django_logout
 from django.shortcuts import redirect
-from django.urls import reverse
 from drf_spectacular.utils import extend_schema
-from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -90,8 +88,8 @@ class OAuthGoogleStartView(APIView):
         if not settings.GOOGLE_OAUTH_ENABLED or not settings.GOOGLE_OAUTH_CLIENT_ID:
             return _feature_disabled_response()
 
-        from allauth.socialaccount.providers.oauth2.client import OAuth2Error
         from allauth.socialaccount.providers.google.views import oauth2_login
+        from allauth.socialaccount.providers.oauth2.client import OAuth2Error
 
         try:
             return oauth2_login(request)

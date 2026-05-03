@@ -120,6 +120,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
 
     def get_profile(self, obj):
         from . import services
+
         # ensure-on-read: defensive in case signal didn't fire (e.g. legacy users)
         from .models import UserProfile
         prof, _ = UserProfile.objects.get_or_create(user=obj)

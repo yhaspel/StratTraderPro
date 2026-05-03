@@ -23,7 +23,8 @@ from typing import Optional
 
 import pyotp
 import qrcode
-from cryptography.fernet import Fernet, InvalidToken as FernetInvalidToken
+from cryptography.fernet import Fernet
+from cryptography.fernet import InvalidToken as FernetInvalidToken
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -168,7 +169,7 @@ def consume_backup_code(user, code: str) -> bool:
 class _MFAToken(Token):
     """5-minute JWT bearing ``purpose=mfa``. Only accepted by /auth/mfa/verify/."""
 
-    token_type = "mfa"
+    token_type = "mfa"  # noqa: S105 — SimpleJWT token-class identifier, not a credential
     lifetime = None  # filled in __init__
 
     def __init__(self, token=None, verify=True):

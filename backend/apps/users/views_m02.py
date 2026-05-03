@@ -22,7 +22,6 @@ from django.contrib.auth import authenticate, get_user_model
 from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.utils import extend_schema
-from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken

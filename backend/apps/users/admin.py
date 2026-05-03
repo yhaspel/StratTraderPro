@@ -15,7 +15,15 @@ from .models import (
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     ordering = ("-created_at",)
-    list_display = ("email", "display_name", "is_verified", "is_active", "is_staff", "mfa_enabled_display", "created_at")
+    list_display = (
+        "email",
+        "display_name",
+        "is_verified",
+        "is_active",
+        "is_staff",
+        "mfa_enabled_display",
+        "created_at",
+    )
     search_fields = ("email", "display_name")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
@@ -60,7 +68,12 @@ class MFADeviceAdmin(admin.ModelAdmin):
                 user=user,
                 email=user.email,
                 event_type=AuthEvent.EventType.MFA_DISABLED,
-                metadata={"actor": "admin", "admin_user": request.user.email if request.user.is_authenticated else "system"},
+                metadata={
+                    "actor": "admin",
+                    "admin_user": (
+                        request.user.email if request.user.is_authenticated else "system"
+                    ),
+                },
             )
         self.message_user(request, f"Disabled MFA on {queryset.count()} user(s).")
 
@@ -84,7 +97,17 @@ class AuthEventAdmin(admin.ModelAdmin):
 class RefreshTokenFamilyAdmin(admin.ModelAdmin):
     list_display = ("family_id", "user", "created_at", "last_used_at", "revoked_at", "revoke_reason")
     list_filter = ("revoked_at",)
-    readonly_fields = ("family_id", "user", "created_at", "revoked_at", "revoke_reason", "current_jti", "ip", "user_agent", "last_used_at")
+    readonly_fields = (
+        "family_id",
+        "user",
+        "created_at",
+        "revoked_at",
+        "revoke_reason",
+        "current_jti",
+        "ip",
+        "user_agent",
+        "last_used_at",
+    )
 
 
 @admin.register(FailedLoginAttempt)

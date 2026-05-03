@@ -13,7 +13,6 @@ from rest_framework.exceptions import NotAuthenticated, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_default_handler
 
-
 _PERMISSION_CODE_MAP = {
     "MFA_REQUIRED": ("MFA_REQUIRED", "Multi-factor authentication is required."),
 }
