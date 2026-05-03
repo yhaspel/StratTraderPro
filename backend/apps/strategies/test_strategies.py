@@ -19,10 +19,8 @@ Coverage map (acceptance criteria from
 from __future__ import annotations
 
 import json
-import logging
 import shutil
 import tempfile
-from io import BytesIO
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
@@ -30,8 +28,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
-from apps.strategies import services
-from apps.strategies.models import Strategy, StrategyFile, WebhookConfig
+from apps.strategies.models import Strategy, WebhookConfig
 from apps.strategies.validators import (
     PINE_MAX_BYTES,
     StrategyValidationError,

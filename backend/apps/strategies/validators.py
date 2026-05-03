@@ -18,7 +18,8 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from jsonschema import Draft202012Validator
-from jsonschema.exceptions import SchemaError, ValidationError as JsonSchemaValidationError
+from jsonschema.exceptions import SchemaError
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
 # ---------------------------------------------------------------------------
 # Limits — surfaced as constants so tests + frontend can reference them.

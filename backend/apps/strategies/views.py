@@ -26,7 +26,6 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
 from drf_spectacular.utils import extend_schema
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
@@ -40,7 +39,7 @@ from .metrics import (
     StrategyUploadResult,
     refresh_count_gauge,
 )
-from .models import Strategy, StrategyFile, WebhookConfig
+from .models import Strategy, StrategyFile
 from .permissions import can_user_delete, can_user_modify, can_user_view
 from .serializers import (
     StrategySerializer,
@@ -188,7 +187,12 @@ class StrategiesListCreateView(APIView):
             for kind, fname, blob, digest in (
                 (StrategyFile.Kind.PINE, parsed.pine_filename, parsed.pine_bytes, parsed.pine_sha256),
                 (StrategyFile.Kind.DESC, parsed.desc_filename, parsed.desc_bytes, parsed.desc_sha256),
-                (StrategyFile.Kind.WEBHOOK_TEMPLATE, parsed.webhook_filename, parsed.webhook_bytes, parsed.webhook_sha256),
+                (
+                    StrategyFile.Kind.WEBHOOK_TEMPLATE,
+                    parsed.webhook_filename,
+                    parsed.webhook_bytes,
+                    parsed.webhook_sha256,
+                ),
             ):
                 StrategyFile.objects.create(
                     strategy=strategy,

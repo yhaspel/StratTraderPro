@@ -34,7 +34,7 @@ from django.utils.text import slugify
 
 from apps.strategies import services
 from apps.strategies.metrics import refresh_count_gauge
-from apps.strategies.models import Strategy, StrategyFile
+from apps.strategies.models import Strategy
 
 #: Sub-strings on these filenames take a folder out of contention. Keeps the
 #: command from accidentally globbing readme.md or research.md.
@@ -161,9 +161,6 @@ class Command(BaseCommand):
             return ("noop", slug)
 
         existing_before = Strategy.objects.filter(owner=None, slug=slug).first()
-        had_files_before = existing_before and set(
-            existing_before.files.values_list("kind", flat=True)
-        )
 
         strategy, changed = services.upsert_system_strategy(
             slug=slug,

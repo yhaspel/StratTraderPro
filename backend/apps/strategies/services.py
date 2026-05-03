@@ -13,7 +13,6 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional
 
-from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken as FernetInvalidToken
 from django.conf import settings
 from django.db import transaction

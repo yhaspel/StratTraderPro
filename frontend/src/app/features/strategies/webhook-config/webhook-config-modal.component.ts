@@ -4,17 +4,18 @@
  *   - URL row (read-only + copy button)
  *   - Secret row (masked, reveal-once after rotate)
  *   - Rotate button (with confirm)
- *   - JSON Schema editor (Monaco — lazy-loaded only when modal opens)
- *   - Payload template editor (Monaco — same chunk)
+ *   - JSON Schema editor (textarea, JSON-validated live)
+ *   - Payload template editor (textarea, JSON-validated live)
  *   - "Test" button — POSTs payload to the dry-run endpoint
  *   - "Copy TradingView alert template" — fills `sig` with the just-revealed
  *     secret per AC-03-9 (otherwise leaves a placeholder)
  *
- * Monaco import strategy:
- *   We use a simple `<textarea>` as an accessible fallback editor and show a
- *   "loading rich editor" line while the dynamic import happens. The Monaco
- *   integration uses dynamic import so the chunk is only fetched when this
- *   modal opens, satisfying the bundle-size DoD note.
+ * Editor: textarea-only for M03. The `monaco-editor` npm package was tried
+ * but its CSS imports a `.ttf` font that Angular 19's stock esbuild has no
+ * loader for, breaking the production build. Switching to a CDN AMD loader
+ * (the officially-recommended pattern for Monaco in arbitrary apps) is
+ * tracked for a future milestone — the textarea works correctly today,
+ * including line numbers via CSS counters and live JSON validation.
  */
 import { Component, Input, Output, EventEmitter, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -95,9 +96,6 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
               {{ 'webhook.modal.schema.label' | translate }}
             </label>
-            @if (!monacoReady()) {
-              <p class="text-xs text-gray-500 mb-1">{{ 'webhook.modal.editor_loading' | translate }}</p>
-            }
             <textarea rows="8" [value]="schemaText()" (input)="onSchemaInput($event)"
                       class="w-full font-mono text-xs border rounded p-2"
                       spellcheck="false" autocomplete="off"></textarea>
@@ -157,7 +155,6 @@ export class WebhookConfigModalComponent implements OnInit {
   loading = signal(true);
   saving = signal(false);
   rotating = signal(false);
-  monacoReady = signal(false);
   copied = signal<'url' | 'secret' | 'tv' | null>(null);
 
   schemaText = signal('');
@@ -177,26 +174,6 @@ export class WebhookConfigModalComponent implements OnInit {
       this.templateText.set(JSON.stringify(cfg.payload_template, null, 2));
     }
     this.loading.set(false);
-    // Lazy-import Monaco. Failure is non-fatal — the textarea fallback works.
-    this._lazyLoadMonaco();
-  }
-
-  private async _lazyLoadMonaco(): Promise<void> {
-    try {
-      // Dynamic import isolates Monaco into its own webpack chunk so this
-      // ~400KB-gzipped bundle only loads when the modal opens.
-      // The implementation upgrades the textarea to a richer editor; it's
-      // intentionally optional so the test suite + bundle-size CI gate
-      // can verify lazy-loading without requiring Monaco to be present.
-      // @ts-ignore — type defs only present in environments where the
-      //              user has run `npm install monaco-editor`.
-      const monaco = await import(/* webpackChunkName: "monaco" */ 'monaco-editor').catch(() => null);
-      if (monaco) {
-        this.monacoReady.set(true);
-      }
-    } catch {
-      // Stay on textarea; not a user-facing error.
-    }
   }
 
   onSchemaInput(ev: Event) {
