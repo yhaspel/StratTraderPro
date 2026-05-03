@@ -122,6 +122,23 @@ jobs:
           docker compose logs backend
           exit 1
 
+      - name: Wait for frontend
+        # The compose `frontend` service runs `pnpm install && ng serve` from
+        # scratch on a fresh node:20-alpine container, which can take 60–90s
+        # before the dev server starts answering on :4444. Mirror the backend
+        # retry loop here so the smoke step doesn't race the dev server.
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4444 -o /dev/null; then
+              echo "Frontend is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend failed to start"
+          docker compose logs frontend
+          exit 1
+
       - name: Check frontend
         run: curl -sf http://localhost:4444 | grep -q "StratTraderPro"
 

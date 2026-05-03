@@ -1,5 +1,10 @@
 # Core
-Django>=5.0,<5.1
+# Django 5.1.x — bumped from 5.0.x to clear three CVEs flagged by Trivy in CI:
+#   - CVE-2025-64459 (CRITICAL, SQL injection)
+#   - CVE-2025-57833 (HIGH, SQL injection in FilteredRelation column aliases)
+#   - CVE-2025-64458 (HIGH, DoS on Windows)
+# All three are fixed in Django 5.1.14.
+Django>=5.1.14,<5.2
 djangorestframework>=3.14,<3.15
 django-cors-headers>=4.3,<4.4
 djangorestframework-simplejwt>=5.3,<5.4
@@ -37,7 +42,9 @@ django-ratelimit>=4.1,<4.2
 # Auth (M02 — MFA)
 pyotp>=2.9,<3.0
 qrcode[pil]>=7.4,<8.0
-cryptography>=42.0,<43.0
+# cryptography 46.0.5+ clears CVE-2026-26007 (HIGH, missing subgroup validation
+# for SECT curves). Trivy in CI fails on HIGH/CRITICAL with a fixed version.
+cryptography>=46.0.5,<47.0
 
 # Auth (M2.5 — Google OAuth via django-allauth)
 django-allauth>=0.61,<0.62
