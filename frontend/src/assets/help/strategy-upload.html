@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Upload your first strategy</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Upload your first strategy</h1>
+
+<p>StratTraderPro accepts user-uploaded TradingView Pine strategies. Each
+upload is a bundle of three files. The platform validates the bundle,
+stores the bytes, and surfaces a per-user webhook URL + secret so
+TradingView alerts can fire your strategy.</p>
+
+<div class="warn">
+  <strong>Heads-up:</strong> uploaded strategies are <em>not</em> tested
+  by StratTraderPro. We store the Pine bytes verbatim (and never execute
+  them server-side), but you are responsible for reviewing the strategy
+  before enabling live execution. The upload form requires you to
+  acknowledge this risk.
+</div>
+
+<h2>The three-file bundle</h2>
+
+<p>Pick a stem (3–64 characters from <code>A–Z</code>, <code>a–z</code>,
+<code>0–9</code>, <code>_</code>, or <code>-</code>). All three files
+share that stem.</p>
+
+<table>
+  <tr><th>File</th><th>Filename pattern</th><th>Size limit</th></tr>
+  <tr>
+    <td>Pine script</td>
+    <td><code>&lt;stem&gt;.pine</code></td>
+    <td>64 KB</td>
+  </tr>
+  <tr>
+    <td>Description</td>
+    <td><code>&lt;stem&gt;_Description.txt</code></td>
+    <td>16 KB</td>
+  </tr>
+  <tr>
+    <td>Webhook payload template</td>
+    <td><code>&lt;stem&gt;_Webhook.json</code></td>
+    <td>16 KB</td>
+  </tr>
+</table>
+
+<p>The pine script must declare its TradingView Pine version within the
+first 64 bytes:</p>
+
+<pre>//@version=5
+strategy("Demo Strategy", overlay=true)
+…</pre>
+
+<h2>The webhook JSON</h2>
+
+<p>This file is the <em>template</em> we'll show you when you copy the
+TradingView alert config. It must be a JSON object that includes the
+following top-level keys:</p>
+
+<ul>
+  <li><code>strategy</code> — your strategy slug or any string.</li>
+  <li><code>action</code> — typically <code>"buy"</code>, <code>"sell"</code>, or <code>"exit"</code>.</li>
+  <li><code>symbol</code> — TradingView usually fills this with <code>{{ticker}}</code>.</li>
+  <li><code>qty</code> — number of contracts/shares.</li>
+  <li><code>order_type</code> — <code>"MKT"</code>, <code>"LMT"</code>, etc.</li>
+</ul>
+
+<p>You can add other keys (<code>idempotency_key</code>, <code>account_id</code>,
+anything else) — they'll be passed through to the broker layer.</p>
+
+<h2>The wizard</h2>
+
+<ol>
+  <li><strong>Select files</strong> — drop in all three. Filenames are
+  validated live; mismatches show inline.</li>
+  <li><strong>Review</strong> — confirm the parsed description preview
+  and the JSON keys are what you expect.</li>
+  <li><strong>Acknowledge &amp; submit</strong> — check the
+  "I understand uploaded strategies are not tested" box and submit.</li>
+</ol>
+
+<h2>What happens next</h2>
+
+<ol>
+  <li>Your strategy appears in <em>Strategies</em> with a "User-uploaded"
+  badge.</li>
+  <li>Open <em>Configure webhook</em> to view your unique webhook URL
+  and one-time HMAC secret. <strong>Copy the secret now</strong> — it
+  won't be shown again.</li>
+  <li>Paste the URL + secret into your TradingView alert config (the
+  Copy TradingView template button does this for you).</li>
+  <li>StratTraderPro validates inbound alerts against your stored JSON
+  Schema before sending orders downstream (M04).</li>
+</ol>
+
+<h2>Common errors</h2>
+
+<table>
+  <tr><th>Code</th><th>What it means</th></tr>
+  <tr><td><code>STRATEGY_FILE_MISMATCH</code></td><td>Stem doesn't match across the three files, OR the stem contains an illegal character.</td></tr>
+  <tr><td><code>STRATEGY_FILE_TOO_LARGE</code></td><td>One of the files exceeds its size limit.</td></tr>
+  <tr><td><code>STRATEGY_WEBHOOK_INVALID</code></td><td>Webhook JSON didn't parse, or is missing one of the required keys.</td></tr>
+</table>
+
+</body>
+</html>

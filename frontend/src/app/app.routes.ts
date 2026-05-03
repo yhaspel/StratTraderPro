@@ -21,6 +21,12 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/settings/settings.routes').then(m => m.SETTINGS_ROUTES),
   },
+  // Strategies (M03): /strategies, /strategies/upload, /strategies/:id
+  {
+    path: '',
+    loadChildren: () =>
+      import('./features/strategies/strategies.routes').then(m => m.STRATEGIES_ROUTES),
+  },
   // Protected routes
   {
     path: 'dashboard',

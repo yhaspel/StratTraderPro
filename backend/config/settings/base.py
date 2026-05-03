@@ -303,6 +303,22 @@ LOGIN_REDIRECT_URL = "/api/v1/auth/oauth/google/post-callback/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/"
 
 # ---------------------------------------------------------------------------
+# Strategies (M03)
+# ---------------------------------------------------------------------------
+# Master feature flag — when False, /api/v1/strategies/* return 503.
+# Useful for rollback without redeploy. See plan §15.
+STRATEGIES_V1_ENABLED = env.bool("STRATEGIES_V1_ENABLED", default=True)
+
+# Public base URL for the per-user/per-strategy webhook receiver. The
+# endpoint itself goes live in M04; here we only display the URL to the
+# user. Keep the trailing-slash semantics consistent with how TradingView
+# constructs alert webhook URLs.
+STRATEGY_WEBHOOK_BASE_URL = env(
+    "STRATEGY_WEBHOOK_BASE_URL",
+    default="https://api.strattraderpro.com/hooks/v1",
+)
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")

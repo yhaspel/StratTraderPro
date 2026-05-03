@@ -50,3 +50,8 @@ cryptography>=46.0.5,<47.0
 django-allauth>=0.61,<0.62
 requests>=2.31,<3.0
 requests-oauthlib>=1.3,<2.0
+
+# Strategies (M03)
+# JSON Schema Draft 2020-12 validation for user-uploaded webhook payload
+# templates. Used in apps.strategies.validators.
+jsonschema>=4.21,<5.0

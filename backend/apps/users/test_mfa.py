@@ -393,11 +393,21 @@ class IsAuthenticatedAndMFAEnforcedTests(TestCase):
 
     def test_all_protected_prefixes_have_mfa_gate(self):
         """Auto-coverage: no /brokers /orders /risk /strategies endpoint
-        accepts a non-MFA user. Future viewsets must opt-in too."""
+        accepts a non-MFA user. Future viewsets must opt-in too.
+
+        ``strategies`` was upgraded from a ping stub to a real viewset in
+        M03 — list endpoint at ``/strategies/`` (no /ping/ suffix).
+        """
         user = _create_user()
-        for path in ("brokers", "orders", "risk", "strategies"):
-            with self.subTest(path=path):
-                resp = self.client.get(f"{API}{path}/ping/", **_auth(user))
+        scaffold_paths = (
+            ("brokers", "ping/"),
+            ("orders", "ping/"),
+            ("risk", "ping/"),
+            ("strategies", ""),  # M03 — real viewset, list at the prefix
+        )
+        for prefix, suffix in scaffold_paths:
+            with self.subTest(path=prefix):
+                resp = self.client.get(f"{API}{prefix}/{suffix}", **_auth(user))
                 self.assertEqual(resp.status_code, 403)
                 self.assertEqual(resp.json()["error"]["code"], "MFA_REQUIRED")
 

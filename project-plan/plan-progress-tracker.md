@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-03 — M02 (MFA + User Profile) and M2.5 (Google OAuth sign-in) both formally closed. Tags `v0.2.0-mfa` and `v0.2.5-oauth-google` pushed. 91/91 backend tests green at HEAD. Production environment bootstrapped (forked from staging, prod-unique secrets) and verified end-to-end on `backend-production-f3e8` / `frontend-production-c977f`; staging similarly verified. Post-implementation stabilization fixes (5 backend, 3 frontend) merged and deployed to both envs. Ready for **M03 — Strategies & Webhook Config**.
+> **Last updated:** 2026-05-03 — M03 (Strategies & Webhook Config) implementation complete. 128/128 backend tests green at HEAD (+37 from M03). All 12 ACs (AC-03-1..12) implemented and unit/integration-tested. ADR-030, ADR-031, strategy-import runbook, and 2 help pages committed. Frontend: list / upload wizard / webhook-config modal (Monaco lazy chunk) / detail page wired through `StrategiesFacade` + signal store. Pending: pip-install Monaco, deploy to staging, run `load_strategies` against the real Trading Strategies project, smoke-test, tag `v0.3.0-strategies`.
 
 ## Production Environment
 
@@ -425,11 +425,98 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 03 — Strategies & Webhook Config
 
-**Status:** ⏳ Pending
-**Started:** —
+**Status:** 🔄 In Progress (implementation done; staging deploy + seed + tag pending)
+**Started:** 2026-05-03
 **Completed:** —
 
 > See `03-strategies-and-webhook-config.md` for full spec.
+
+### 03.1 Backend — models, migration, validators
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.1.1 | `Strategy`, `StrategyFile`, `WebhookConfig` models | ✅ Done | `apps/strategies/models.py`. Soft-delete via `is_enabled`. `unique_together = (owner, slug)` on Strategy and `(user, strategy)` on WebhookConfig. |
+| 03.1.2 | Migration `strategies.0001_initial` | ✅ Done | Handwritten, applies cleanly, `makemigrations --check` clean. |
+| 03.1.3 | Validators: 3-file bundle + JSON Schema (Draft 2020-12) | ✅ Done | `apps/strategies/validators.py` — stem regex, size limits, pine `//@version=` check, required webhook keys, path-traversal + null-byte rejection, XSS substring scan. |
+| 03.1.4 | Services: secret encrypt/rotate, webhook URL builder, default schema/template, seed upserts | ✅ Done | `apps/strategies/services.py` — reuses M02 Fernet KEK. `rotate_secret()` is destructive + version-bumping. |
+| 03.1.5 | Serializers: read, update, upload, webhook-config | ✅ Done | `apps/strategies/serializers.py`. `StrategyUploadSerializer.accept_untested_risk` enforces AC-03-5. |
+| 03.1.6 | `jsonschema>=4.21,<5.0` added to `requirements/base.txt` | ✅ Done | |
+
+### 03.2 Backend — views, URLs, permissions, metrics, admin
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.2.1 | `StrategiesListCreateView` (GET list + POST upload) | ✅ Done | Multipart parser. `STRATEGY_FILE_*` error codes returned via standard envelope. |
+| 03.2.2 | `StrategyDetailView` (GET / PATCH / DELETE) | ✅ Done | Soft-delete on user strategies. System rows return `STRATEGY_SYSTEM_IMMUTABLE` 403 on modify/delete. |
+| 03.2.3 | `StrategyFileDownloadView` (GET file bytes) | ✅ Done | Content-type per kind (text/plain or application/json). |
+| 03.2.4 | `WebhookConfigView` (GET reveal-once / PUT update) | ✅ Done | First GET creates row + reveals secret. PUT validates schema (Draft 2020-12) and template-vs-schema. |
+| 03.2.5 | `WebhookConfigRotateView` (POST rotate) | ✅ Done | Returns new secret + URL + version. Bumps Prometheus counter. |
+| 03.2.6 | `WebhookConfigDryRunView` (POST validate against saved schema) | ✅ Done | Does NOT touch the M04 webhook ingest (which doesn't exist yet). |
+| 03.2.7 | Permission helpers: `can_user_view`/`modify`/`delete` | ✅ Done | `apps/strategies/permissions.py`. System rows: only staff can edit via Django admin. |
+| 03.2.8 | Prometheus metrics: uploads / rotations / count gauge | ✅ Done | `apps/strategies/metrics.py`. Wired in views. |
+| 03.2.9 | Admin: Strategy + StrategyFile (inline) + WebhookConfig | ✅ Done | `apps/strategies/admin.py`. WebhookConfig admin has `has_add_permission=False`. |
+| 03.2.10 | URLs mounted under `/api/v1/strategies/` | ✅ Done | `apps/strategies/urls.py` replaces the M02 ping stub. M02 sweep test updated to hit `/strategies/` instead. |
+| 03.2.11 | Settings: `STRATEGIES_V1_ENABLED`, `STRATEGY_WEBHOOK_BASE_URL` | ✅ Done | Feature flag returns 503 from all endpoints when False. |
+
+### 03.3 Backend — `load_strategies` management command
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.3.1 | Walks one level deep, idempotent via SHA-256 | ✅ Done | `apps/strategies/management/commands/load_strategies.py`. |
+| 03.3.2 | `--dry-run` flag + grep-friendly summary | ✅ Done | Prints `seeded=N updated=M skipped=K errors=J`. Exit code non-zero on partial failure. |
+| 03.3.3 | Adapts to real Trading Strategies layout | ✅ Done | Globs any `*.pine` + `*description*.txt`. Synthesizes default `_Webhook.json` when missing (uses `services.default_payload_template(slug)`). |
+| 03.3.4 | Integration test with fixture directory | ✅ Done | `LoadStrategiesCommandTests` covers happy path, idempotent rerun, dry-run, webhook synthesis. |
+
+### 03.4 Backend — tests
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.4.1 | Validator unit tests (10 test methods) | ✅ Done | Happy path + 9 rejection branches (filename mismatch, oversize, bad JSON, missing keys, path traversal, null byte, XSS sig, stem regex, schema-invalid, payload-mismatch). |
+| 03.4.2 | View tests for AC-03-2..AC-03-12 | ✅ Done | 27 test methods spanning list/upload/detail/delete/webhook/rotation/dry-run/MFA enforcement/feature flag. |
+| 03.4.3 | Multi-tenant isolation | ✅ Done | User A cannot see/modify/delete user B's strategies. |
+| 03.4.4 | Secret-not-in-logs regression test | ✅ Done | `SecretLeakTests.test_rotation_log_does_not_contain_secret`. |
+| 03.4.5 | Full backend pytest run | ✅ Done | **128/128 passing** (+37 from M03). M02 sweep test in `test_mfa.py` updated for the new `/strategies/` endpoint. |
+
+### 03.5 Frontend — core + abstraction layer
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.5.1 | Domain models | ✅ Done | `core/models/strategies.models.ts` — `Strategy`, `WebhookConfig`, `WebhookRotateResponse`, `StrategyUploadPayload`. |
+| 03.5.2 | API service | ✅ Done | `core/services/strategies.api.ts` — typed HTTP for all 8 endpoints. |
+| 03.5.3 | Signal store | ✅ Done | `abstraction/stores/strategies.store.ts` — counts, upsert, remove, per-strategy webhook config cache, reveal-once secret wipe. |
+| 03.5.4 | Facade | ✅ Done | `abstraction/facades/strategies.facade.ts` — load/upload/toggle/softDelete/loadWebhookConfig/updateWebhookConfig/rotateWebhookSecret/dryRunWebhook. |
+
+### 03.6 Frontend — feature components + routes
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.6.1 | `StrategiesListComponent` at `/strategies` | ✅ Done | System badge + amber "User-uploaded" banner. Inline enable/disable toggle. Configure-webhook + Delete actions per row. |
+| 03.6.2 | `StrategiesUploadComponent` at `/strategies/upload` | ✅ Done | 3-step wizard (single file). Live filename validation. Mandatory acknowledge checkbox before submit. |
+| 03.6.3 | `WebhookConfigModalComponent` | ✅ Done | URL row + reveal-once secret + Rotate (with confirm) + JSON Schema editor + payload-template editor + Test (dry-run) + Copy TradingView template. Monaco lazy-imported via `import('monaco-editor')` so the chunk only loads on modal open; textarea fallback keeps it accessible regardless. |
+| 03.6.4 | `StrategiesDetailComponent` at `/strategies/:id` | ✅ Done | Pine + description previews (escaped via Angular default text binding). |
+| 03.6.5 | Lazy-loaded `STRATEGIES_ROUTES`, mounted in `app.routes.ts` | ✅ Done | All routes guarded by `authGuard`; backend enforces MFA. |
+| 03.6.6 | i18n keys: `strategies.*` + `webhook.*` | ✅ Done | Added to `assets/i18n/en.json`. |
+| 03.6.7 | Frontend test: store unit | ✅ Done | `strategies.store.spec.ts` — counts, upsert, remove, reveal-once wipe. |
+
+### 03.7 Documentation
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.7.1 | ADR-030 — strategy 3-file contract | ✅ Done | `docs/adr/030-strategy-3-file-contract.md`. |
+| 03.7.2 | ADR-031 — webhook HMAC rotation + reveal-once | ✅ Done | `docs/adr/031-webhook-hmac.md`. |
+| 03.7.3 | Runbook — strategy import from Cowork | ✅ Done | `docs/runbooks/strategy-import-from-cowork.md`. |
+| 03.7.4 | Help page — Upload your first strategy | ✅ Done | `frontend/src/assets/help/strategy-upload.html`. |
+| 03.7.5 | Help page — Configure your TradingView alert | ✅ Done | `frontend/src/assets/help/tradingview-alert-config.html`. |
+| 03.7.6 | CHANGELOG entry under `[Unreleased]` | ✅ Done | |
+
+### 03.8 Remaining (deploy + seed + tag)
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 03.8.1 | Frontend: install `monaco-editor` package | ⏳ Pending | `npm install monaco-editor` then `ng build` to verify the chunk size gate. |
+| 03.8.2 | Run `load_strategies` against the real Trading Strategies path | 🔄 In Progress | Path provided: `/Users/yuval3000/Claude Projects/Trading Strategies/Trading Strategies/top-strategies` (10 strategies). |
+| 03.8.3 | Smoke-test on staging via Chrome MCP | ⏳ Pending | Walk upload wizard, open webhook modal, rotate secret, copy TradingView template. |
+| 03.8.4 | Tag `v0.3.0-strategies` | ⏳ Pending | After AC-03-1..12 verified on staging. |
 
 ---
 

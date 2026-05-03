@@ -26,10 +26,11 @@
     "@angular/router": "^19.0.0",
     "@ngx-translate/core": "^15.0.0",
     "@ngx-translate/http-loader": "^8.0.0",
-    "@sentry/angular": "^7.100.0",
+    "@sentry/angular": "^8.55.2",
+    "monaco-editor": "^0.55.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.6.0",
-    "zone.js": "~0.14.0"
+    "zone.js": "^0.15.1"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.0.0",

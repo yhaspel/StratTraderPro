@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Configure your TradingView alert</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Configure your TradingView alert</h1>
+
+<p>Once your strategy is uploaded (or once you've enabled a system
+strategy), open <em>Configure webhook</em> to get the URL and HMAC
+secret you'll need on TradingView's side.</p>
+
+<h2>1. Get your URL + secret</h2>
+
+<ol>
+  <li>From <em>Strategies</em>, click <strong>Configure webhook</strong>
+  next to the strategy you want to fire.</li>
+  <li>The modal shows your unique URL like
+  <code>https://api.strattraderpro.com/hooks/v1/&lt;your-uuid&gt;/&lt;strategy-uuid&gt;/</code>.</li>
+  <li>The HMAC secret is shown <strong>once</strong>, with a yellow
+  border. Copy it immediately.</li>
+</ol>
+
+<div class="warn">
+  Lost the secret? Click <strong>Rotate secret</strong>. This generates a
+  new secret and invalidates the old one — any existing TradingView
+  alerts using the previous secret will stop working until you update
+  them with the new secret.
+</div>
+
+<h2>2. Copy the TradingView template</h2>
+
+<p>The <strong>Copy TradingView alert template</strong> button copies a
+JSON block to your clipboard with TradingView placeholders pre-filled
+and your <code>sig</code> set to the just-revealed secret:</p>
+
+<pre>{
+  "strategy": "{{strategy}}",
+  "action": "{{strategy.order.action}}",
+  "symbol": "{{ticker}}",
+  "qty": "{{strategy.order.contracts}}",
+  "order_type": "MKT",
+  "sig": "your-secret-here",
+  "idempotency_key": "{{strategy.order.id}}-{{time}}"
+}</pre>
+
+<h2>3. Configure the alert in TradingView</h2>
+
+<ol>
+  <li>Open the chart for your symbol.</li>
+  <li>Add your Pine strategy script to the chart.</li>
+  <li>Click the <em>Alerts</em> button → <em>Create alert</em>.</li>
+  <li>In the <em>Condition</em> dropdown, pick the strategy and the
+  signal you want to fire.</li>
+  <li>Open the <em>Notifications</em> tab → enable <em>Webhook URL</em>
+  → paste your StratTraderPro URL.</li>
+  <li>Open the <em>Message</em> tab → paste the JSON template you
+  copied from StratTraderPro. Adjust any fields as needed.</li>
+  <li>Save.</li>
+</ol>
+
+<h2>4. Test it</h2>
+
+<ul>
+  <li>From the Webhook modal, the <strong>Test against schema</strong>
+  button validates your payload template (with current placeholder
+  values) against your saved JSON Schema. It does <em>not</em> place
+  any orders.</li>
+  <li>Once you're confident the JSON is shaped correctly, fire a test
+  alert from TradingView. The order pipeline lands in M04 — until
+  then, the webhook ingest endpoint is not live and alerts will be
+  rejected at the URL.</li>
+</ul>
+
+<h2>Troubleshooting</h2>
+
+<ul>
+  <li><strong>Webhook doesn't fire from TradingView at all.</strong>
+  TradingView may have disabled webhooks for your account tier — check
+  your subscription. Webhooks require Pro+.</li>
+  <li><strong>Alert fires but StratTraderPro rejects it.</strong> The
+  <code>sig</code> field must match your current secret exactly. If
+  you've rotated, update the alert.</li>
+</ul>
+
+</body>
+</html>

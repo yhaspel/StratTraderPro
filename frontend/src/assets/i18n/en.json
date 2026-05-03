@@ -199,5 +199,102 @@
         "UNKNOWN": "Something went wrong. Please try again."
       }
     }
+  },
+  "strategies": {
+    "list": {
+      "title": "Strategies",
+      "upload_button": "Upload strategy",
+      "loading": "Loading strategies…",
+      "empty": "No strategies yet. Upload one to get started.",
+      "untested_banner": "Community-tested: No",
+      "configure_webhook": "Configure webhook",
+      "delete": "Delete",
+      "enable": "Enable",
+      "disable": "Disable",
+      "col": {
+        "name": "Strategy",
+        "type": "Type",
+        "enabled": "Enabled",
+        "webhook": "Webhook"
+      },
+      "badge": {
+        "system": "System",
+        "user": "User-uploaded"
+      },
+      "webhook": {
+        "configured": "Configured",
+        "unconfigured": "Not yet configured"
+      }
+    },
+    "upload": {
+      "title": "Upload a strategy",
+      "subtitle": "Upload your three-file bundle: Pine script, description, and webhook payload.",
+      "next": "Next",
+      "back": "Back",
+      "submit": "Upload strategy",
+      "submitting": "Uploading…",
+      "pine": {
+        "label": "Pine script (.pine)",
+        "hint": "Must start with //@version= within the first 64 bytes. Max 64 KB."
+      },
+      "desc": {
+        "label": "Description (.txt)",
+        "hint": "Filename must be {{stem}}_Description.txt. Max 16 KB."
+      },
+      "webhook": {
+        "label": "Webhook payload template (.json)",
+        "hint": "Filename must be {{stem}}_Webhook.json. Required keys: strategy, action, symbol, qty, order_type."
+      },
+      "review": {
+        "stem": "Strategy stem",
+        "pine_size": "Pine size",
+        "description_preview": "Description preview",
+        "webhook_keys": "Webhook keys"
+      },
+      "warning": {
+        "title": "User-uploaded strategies are not tested by StratTraderPro",
+        "body": "Pine and webhook bytes are stored verbatim and never executed server-side. The shared secret is encrypted at rest. You are responsible for reviewing the strategy before enabling live execution."
+      },
+      "acknowledge": {
+        "label": "I understand uploaded strategies are not tested by StratTraderPro. I accept the risk."
+      }
+    },
+    "detail": {
+      "back": "Back to strategies",
+      "loading": "Loading…",
+      "not_found": "Strategy not found.",
+      "pine": "Pine script",
+      "description": "Description"
+    }
+  },
+  "webhook": {
+    "modal": {
+      "title": "Webhook configuration",
+      "loading": "Loading configuration…",
+      "url": {
+        "label": "Webhook URL"
+      },
+      "secret": {
+        "label": "HMAC secret",
+        "reveal_once": "Copy this secret now — it will not be shown again. Rotate it any time.",
+        "hidden": "Secret is hidden. Click Rotate to generate and reveal a new one."
+      },
+      "schema": {
+        "label": "JSON Schema (Draft 2020-12)"
+      },
+      "template": {
+        "label": "Payload template"
+      },
+      "copy": "Copy",
+      "copy_url": "Copy webhook URL",
+      "copy_tv": "Copy TradingView alert template",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved.",
+      "test": "Test against schema",
+      "rotate": "Rotate secret",
+      "rotating": "Rotating…",
+      "editor_loading": "Loading rich editor…"
+    }
   }
 }
