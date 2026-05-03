@@ -71,7 +71,7 @@ describe('refreshInterceptor', () => {
     controller.expectOne(`${API}/protected`).flush({}, { status: 401, statusText: 'Unauthorized' });
   });
 
-  it('retries the request with new access token after successful refresh', (done) => {
+  it('retries the request with new access token after successful refresh', async () => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
       'old-access', 'refresh-tok'
@@ -81,22 +81,24 @@ describe('refreshInterceptor', () => {
       return true;
     });
 
-    http.get(`${API}/protected`).subscribe({
-      next: (data: any) => {
-        expect(data.ok).toBeTrue();
-        done();
-      },
-      error: done.fail,
-    });
+    let result: any;
+    const sub = http.get(`${API}/protected`).subscribe({ next: (d) => (result = d) });
 
     // First request fails with 401
     const first = controller.expectOne(`${API}/protected`);
     first.flush({}, { status: 401, statusText: 'Unauthorized' });
 
+    // Allow refreshSession() promise + switchMap microtasks to settle
+    await Promise.resolve();
+    await Promise.resolve();
+
     // Interceptor retries — now with new token
     const retry = controller.expectOne(`${API}/protected`);
     expect(retry.request.headers.get('Authorization')).toBe('Bearer new-access');
     retry.flush({ ok: true });
+
+    expect(result?.ok).toBeTrue();
+    sub.unsubscribe();
   });
 
   it('logs out when refresh itself fails', (done) => {

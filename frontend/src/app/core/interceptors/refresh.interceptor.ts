@@ -18,12 +18,12 @@ export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
   // Don't intercept refresh/logout calls themselves
   if (req.url.includes('/auth/refresh/') || req.url.includes('/auth/logout/')) return next(req);
 
+  const facade = inject(AuthFacade);
+  const store = inject(AuthStore);
+
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
       if (err.status !== 401) return throwError(() => err);
-
-      const facade = inject(AuthFacade);
-      const store = inject(AuthStore);
 
       if (!store.refreshToken()) {
         facade.logout();
