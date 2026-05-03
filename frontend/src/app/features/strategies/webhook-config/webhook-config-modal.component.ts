@@ -42,7 +42,8 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
 
         @if (loading()) {
           <p class="text-sm text-gray-500">{{ 'webhook.modal.loading' | translate }}</p>
-        } @else if (config(); as cfg) {
+        }
+        @if (!loading() && config(); as cfg) {
 
           <!-- URL row -->
           <div class="mb-4">

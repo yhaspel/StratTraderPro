@@ -17,7 +17,8 @@ import { Strategy } from '../../../core/models/strategies.models';
 
       @if (loading()) {
         <p class="mt-4 text-sm text-gray-500">{{ 'strategies.detail.loading' | translate }}</p>
-      } @else if (strategy(); as s) {
+      }
+      @if (!loading() && strategy(); as s) {
         <h1 class="text-2xl font-bold mt-2">{{ s.name }}</h1>
         <p class="text-sm text-gray-500">{{ s.description_short }}</p>
 
@@ -32,7 +33,8 @@ import { Strategy } from '../../../core/models/strategies.models';
 
         <h2 class="text-lg font-semibold mt-6 mb-2">{{ 'strategies.detail.description' | translate }}</h2>
         <pre class="bg-gray-50 border rounded p-3 text-xs whitespace-pre-wrap overflow-auto max-h-96"><code>{{ descText() }}</code></pre>
-      } @else {
+      }
+      @if (!loading() && !strategy()) {
         <p class="mt-4 text-sm text-red-700">{{ 'strategies.detail.not_found' | translate }}</p>
       }
     </div>

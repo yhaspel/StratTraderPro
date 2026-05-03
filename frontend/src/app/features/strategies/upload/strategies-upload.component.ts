@@ -10,7 +10,7 @@
  */
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade';
@@ -23,7 +23,7 @@ const MAX_WEBHOOK = 16 * 1024;
 @Component({
   selector: 'app-strategies-upload',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div class="mx-auto max-w-2xl p-6">
       <h1 class="text-2xl font-bold mb-2">{{ 'strategies.upload.title' | translate }}</h1>
@@ -70,7 +70,7 @@ const MAX_WEBHOOK = 16 * 1024;
             <label for="description" class="block text-sm font-medium mb-1">{{ 'strategies.upload.desc.label' | translate }}</label>
             <input id="description" type="file" accept=".txt" (change)="onDescSelected($event)"
                    class="block w-full text-sm" />
-            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.desc.hint' | translate : { stem: stem() || '<stem>' } }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.desc.hint' | translate : { stem: stem() || '&lt;stem&gt;' } }}</p>
             @if (descFile()) {
               <p class="text-xs mt-1" [class.text-red-700]="descWarning()">
                 {{ descFile()!.name }} ({{ formatBytes(descFile()!.size) }})
@@ -83,7 +83,7 @@ const MAX_WEBHOOK = 16 * 1024;
             <label for="webhook" class="block text-sm font-medium mb-1">{{ 'strategies.upload.webhook.label' | translate }}</label>
             <input id="webhook" type="file" accept=".json" (change)="onWebhookSelected($event)"
                    class="block w-full text-sm" />
-            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.webhook.hint' | translate : { stem: stem() || '<stem>' } }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.webhook.hint' | translate : { stem: stem() || '&lt;stem&gt;' } }}</p>
             @if (webhookFile()) {
               <p class="text-xs mt-1" [class.text-red-700]="webhookWarning()">
                 {{ webhookFile()!.name }} ({{ formatBytes(webhookFile()!.size) }})
