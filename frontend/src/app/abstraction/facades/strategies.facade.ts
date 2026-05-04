@@ -117,9 +117,18 @@ export class StrategiesFacade {
   }
 
   async dryRunWebhook(strategyId: string, payload: unknown): Promise<{ ok: boolean; error?: ApiError }> {
-    const res = await firstValueFrom(this.api.dryRunWebhook(strategyId, payload));
-    if (res.error) { return { ok: false, error: res.error }; }
-    return { ok: true };
+    try {
+      const res = await firstValueFrom(this.api.dryRunWebhook(strategyId, payload));
+      if (res.error) { return { ok: false, error: res.error }; }
+      return { ok: true };
+    } catch (err) {
+      // The error interceptor (core/interceptors/error.interceptor.ts) attaches
+      // a normalized `appError` carrying the backend envelope error.code/message.
+      // The 400 STRATEGY_WEBHOOK_INVALID path lives here, not in the success
+      // branch above — without this catch the modal would surface a generic
+      // "Http failure 400" message.
+      return { ok: false, error: this._asError(err) };
+    }
   }
 
   webhookConfig(strategyId: string) {
@@ -132,6 +141,15 @@ export class StrategiesFacade {
 
   // -- helpers --------------------------------------------------------------
   private _asError(err: unknown): ApiError {
-    return { code: 'UNKNOWN', message: (err as Error)?.message ?? 'Unknown error' };
+    // Pull the structured envelope error attached by error.interceptor when
+    // the backend returned a non-2xx with a `{error: {code, message}}` body.
+    const wrapped = err as { appError?: { apiError?: ApiError; message?: string }; message?: string };
+    if (wrapped?.appError?.apiError?.code) {
+      return wrapped.appError.apiError;
+    }
+    return {
+      code: 'UNKNOWN',
+      message: wrapped?.appError?.message ?? wrapped?.message ?? 'Unknown error',
+    };
   }
 }

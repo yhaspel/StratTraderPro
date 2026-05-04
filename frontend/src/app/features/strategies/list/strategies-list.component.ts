@@ -145,5 +145,9 @@ export class StrategiesListComponent implements OnInit {
     for (const s of ms) {
       this.facade.clearRevealedSecret(s.id);
     }
+    // Refresh the list so `has_webhook_config` reflects any config the user
+    // just created or rotated inside the modal. Fire-and-forget — the table
+    // updates in place when the response arrives.
+    void this.facade.load();
   }
 }

@@ -28,11 +28,14 @@ import { Strategy } from '../../../core/models/strategies.models';
           </div>
         }
 
-        <h2 class="text-lg font-semibold mt-6 mb-2">{{ 'strategies.detail.pine' | translate }}</h2>
-        <pre class="bg-gray-50 border rounded p-3 text-xs whitespace-pre-wrap overflow-auto max-h-96"><code>{{ pineText() }}</code></pre>
+        <h2 class="text-lg font-semibold mt-6 mb-2" id="pine-heading">{{ 'strategies.detail.pine' | translate }}</h2>
+        <!-- tabindex=0 + role=region + aria-labelledby satisfies WCAG 2.1.1 (Keyboard) for scrollable content. -->
+        <pre tabindex="0" role="region" aria-labelledby="pine-heading"
+             class="bg-gray-50 border rounded p-3 text-xs whitespace-pre-wrap overflow-auto max-h-96"><code>{{ pineText() }}</code></pre>
 
-        <h2 class="text-lg font-semibold mt-6 mb-2">{{ 'strategies.detail.description' | translate }}</h2>
-        <pre class="bg-gray-50 border rounded p-3 text-xs whitespace-pre-wrap overflow-auto max-h-96"><code>{{ descText() }}</code></pre>
+        <h2 class="text-lg font-semibold mt-6 mb-2" id="desc-heading">{{ 'strategies.detail.description' | translate }}</h2>
+        <pre tabindex="0" role="region" aria-labelledby="desc-heading"
+             class="bg-gray-50 border rounded p-3 text-xs whitespace-pre-wrap overflow-auto max-h-96"><code>{{ descText() }}</code></pre>
       }
       @if (!loading() && !strategy()) {
         <p class="mt-4 text-sm text-red-700">{{ 'strategies.detail.not_found' | translate }}</p>

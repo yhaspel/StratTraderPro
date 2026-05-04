@@ -48,11 +48,11 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
 
           <!-- URL row -->
           <div class="mb-4">
-            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-url-input" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
               {{ 'webhook.modal.url.label' | translate }}
             </label>
             <div class="flex gap-2">
-              <input readonly type="text" [value]="cfg.url"
+              <input id="webhook-url-input" readonly type="text" [value]="cfg.url"
                      class="flex-1 font-mono text-xs border rounded px-2 py-1 bg-gray-50" />
               <button type="button" (click)="copyToClipboard(cfg.url, 'url')"
                       [attr.aria-label]="'webhook.modal.copy_url' | translate"
@@ -64,12 +64,12 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
 
           <!-- Secret row -->
           <div class="mb-4">
-            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-secret-input" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
               {{ 'webhook.modal.secret.label' | translate }} (v{{ cfg.version }})
             </label>
             @if (cfg.secret) {
               <div class="flex gap-2">
-                <input readonly type="text" [value]="cfg.secret"
+                <input id="webhook-secret-input" readonly type="text" [value]="cfg.secret"
                        class="flex-1 font-mono text-xs border-2 border-amber-300 rounded px-2 py-1 bg-amber-50" />
                 <button type="button" (click)="copyToClipboard(cfg.secret!, 'secret')"
                         class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
@@ -80,7 +80,7 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
                 ⚠ {{ 'webhook.modal.secret.reveal_once' | translate }}
               </p>
             } @else {
-              <div class="text-xs text-gray-500 italic">
+              <div id="webhook-secret-input" class="text-xs text-gray-500 italic">
                 {{ 'webhook.modal.secret.hidden' | translate }}
               </div>
             }
@@ -93,10 +93,10 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
 
           <!-- JSON Schema editor -->
           <div class="mb-4">
-            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-schema-editor" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
               {{ 'webhook.modal.schema.label' | translate }}
             </label>
-            <textarea rows="8" [value]="schemaText()" (input)="onSchemaInput($event)"
+            <textarea id="webhook-schema-editor" rows="8" [value]="schemaText()" (input)="onSchemaInput($event)"
                       class="w-full font-mono text-xs border rounded p-2"
                       spellcheck="false" autocomplete="off"></textarea>
             @if (schemaError(); as e) {
@@ -106,10 +106,10 @@ import { Strategy, WebhookConfig } from '../../../core/models/strategies.models'
 
           <!-- Payload template editor -->
           <div class="mb-4">
-            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-template-editor" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
               {{ 'webhook.modal.template.label' | translate }}
             </label>
-            <textarea rows="8" [value]="templateText()" (input)="onTemplateInput($event)"
+            <textarea id="webhook-template-editor" rows="8" [value]="templateText()" (input)="onTemplateInput($event)"
                       class="w-full font-mono text-xs border rounded p-2"
                       spellcheck="false" autocomplete="off"></textarea>
             @if (templateError(); as e) {
@@ -222,17 +222,24 @@ export class WebhookConfigModalComponent implements OnInit {
   }
 
   async onTest() {
+    // 1) Local JSON parse — surface a *parse* error if the textarea contains
+    //    invalid JSON, since the network call would just see a body it can't
+    //    even POST.
+    let payload: unknown;
     try {
-      const payload = JSON.parse(this.templateText());
-      const res = await this.facade.dryRunWebhook(this.strategy.id, payload);
-      this.testResult.set(
-        res.ok
-          ? { ok: true, message: 'Payload validates against the saved schema.' }
-          : { ok: false, message: res.error?.message ?? 'Validation failed.' }
-      );
+      payload = JSON.parse(this.templateText());
     } catch (e) {
-      this.testResult.set({ ok: false, message: `Could not parse JSON: ${(e as Error).message}` });
+      this.testResult.set({ ok: false, message: `Invalid JSON: ${(e as Error).message}` });
+      return;
     }
+    // 2) Server-side schema validation — facade.dryRunWebhook catches the
+    //    HttpErrorResponse internally and returns {ok:false, error:ApiError}.
+    const res = await this.facade.dryRunWebhook(this.strategy.id, payload);
+    this.testResult.set(
+      res.ok
+        ? { ok: true, message: 'Payload validates against the saved schema.' }
+        : { ok: false, message: res.error?.message ?? 'Validation failed.' }
+    );
   }
 
   async onRotate() {
