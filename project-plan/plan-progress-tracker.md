@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-03 — M03 (Strategies & Webhook Config) implementation complete. 128/128 backend tests green at HEAD (+37 from M03). All 12 ACs (AC-03-1..12) implemented and unit/integration-tested. ADR-030, ADR-031, strategy-import runbook, and 2 help pages committed. Frontend: list / upload wizard / webhook-config modal (Monaco lazy chunk) / detail page wired through `StrategiesFacade` + signal store. Pending: pip-install Monaco, deploy to staging, run `load_strategies` against the real Trading Strategies project, smoke-test, tag `v0.3.0-strategies`.
+> **Last updated:** 2026-05-03 — M03 (Strategies & Webhook Config) deployed to staging, real-folder seed populated 10 system strategies, full UI smoke test passed, axe-core a11y audit clean across all 4 surfaces (list / upload / detail / modal — 0 violations after 2 fixes), and 2 polish bugs (list refresh + dry-run error mapping) fixed. 128/128 backend tests green. Three CI failures recovered along the way (NG5002 templates, ruff lint, pnpm-lock drift) — each lesson saved to memory. Pending only the `v0.3.0-strategies` tag.
 
 ## Production Environment
 
@@ -425,7 +425,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 03 — Strategies & Webhook Config
 
-**Status:** 🔄 In Progress (implementation done; staging deploy + seed + tag pending)
+**Status:** 🔄 In Progress (implementation + deploy + seed + smoke + a11y + polish all done; tag pending)
 **Started:** 2026-05-03
 **Completed:** —
 
@@ -509,14 +509,17 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 03.7.5 | Help page — Configure your TradingView alert | ✅ Done | `frontend/src/assets/help/tradingview-alert-config.html`. |
 | 03.7.6 | CHANGELOG entry under `[Unreleased]` | ✅ Done | |
 
-### 03.8 Remaining (deploy + seed + tag)
+### 03.8 Deploy + seed + smoke test (post-implementation)
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 03.8.1 | Frontend: install `monaco-editor` package | ⏳ Pending | `npm install monaco-editor` then `ng build` to verify the chunk size gate. |
-| 03.8.2 | Run `load_strategies` against the real Trading Strategies path | 🔄 In Progress | Path provided: `/Users/yuval3000/Claude Projects/Trading Strategies/Trading Strategies/top-strategies` (10 strategies). |
-| 03.8.3 | Smoke-test on staging via Chrome MCP | ⏳ Pending | Walk upload wizard, open webhook modal, rotate secret, copy TradingView template. |
-| 03.8.4 | Tag `v0.3.0-strategies` | ⏳ Pending | After AC-03-1..12 verified on staging. |
+| 03.8.1 | Monaco npm import → reverted to textarea-only | ✅ Done | `npm install monaco-editor` broke the production build because Angular 19's stock esbuild has no `.ttf` loader for Monaco's codicon CSS chain. Removed from `package.json`. Modal still works via the textarea editor (live JSON-validated). Decision documented in modal docstring + `reference_monaco_angular_esbuild.md` memory. CDN AMD loader is the official fallback path if Monaco UX becomes important in a later milestone. |
+| 03.8.2 | `load_strategies` against real Trading Strategies path | ✅ Done | Path: `/Users/yuval3000/Claude Projects/Trading Strategies/Trading Strategies/top-strategies` — seeded 10 system strategies into staging Postgres on 2026-05-03. All 10 visible via `GET /api/v1/strategies/` and rendered in the list view. |
+| 03.8.3 | Frontend smoke test on staging via Chrome MCP | ✅ Done | All 12 ACs walked through the deployed UI: list shows 10 system rows with **System** badges; webhook modal opens with URL + reveal-once secret + amber warning; Rotate increments V1→V2 with new 64-char secret; Copy TradingView template embeds the live secret in `sig`; dry-run validates good payloads (`"Payload validates against the saved schema."`); auth guard correctly redirects unauthenticated `/strategies` → `/login`; OAuth → MFA challenge → `/dashboard` flow works. |
+| 03.8.4 | A11y audit (WCAG 2.1 AA via axe-core) | ✅ Done | Audited 4 surfaces: list (0 violations), upload wizard (0), detail (1 serious — fixed: `<pre>` blocks needed `tabindex=0` + `role=region` + `aria-labelledby`), webhook modal (1 critical — fixed: 4 form inputs needed `for=`/`id=` label pairing). Final: **0/0 across all 4 surfaces.** |
+| 03.8.5 | Polish bug fixes (post-smoke-test) | ✅ Done | Two bugs found during smoke test, both fixed: (a) list view didn't re-fetch after webhook modal close so `has_webhook_config` was stale — `closeModal()` now calls `void this.facade.load()`; (b) dry-run 400 surfaced "Could not parse JSON: Http failure 400" instead of the real `STRATEGY_WEBHOOK_INVALID` message — `StrategiesFacade.dryRunWebhook` now catches `HttpErrorResponse`, unwraps the `appError` attached by the global error interceptor, and returns the structured envelope error. Modal `onTest()` restructured to disambiguate local JSON parse errors from server-side schema rejections. |
+| 03.8.6 | CI gauntlet additions discovered the hard way | ✅ Done | Three CI failures recovered from in this milestone — each lesson saved to memory: NG5002/NG9 template errors (`feedback_angular_template_check.md` — must run `ngc`, not just `tsc`); ruff lint blocked Backend job (added to `feedback_local_ci_parity.md`); pnpm-lock.yaml drift (also in local-CI-parity memory; CI uses pnpm, NOT npm). |
+| 03.8.7 | Tag `v0.3.0-strategies` | ⏳ Pending | All gates green; ready to tag. See instructions below. |
 
 ---
 
