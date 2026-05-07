@@ -34,9 +34,9 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
-DATABASES = {
+DATABASES = _wrap_db_engines_for_prometheus({
     "default": env.db("DATABASE_URL"),
-}
+})
 
 # ---------------------------------------------------------------------------
 # Logging — JSON format for structured log aggregation

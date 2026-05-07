@@ -124,3 +124,56 @@ Steps once metrics are flowing:
 - **No data in Grafana**: check `grafana-agent` logs for 401 (token wrong) or 404 (URL wrong). Confirm `/metrics` is reachable from the agent service via Railway internal DNS.
 - **Metrics present but `auth_*` missing**: code gap — the `Counter` isn't being incremented in the view. Ping me with the metric name and I'll patch it.
 - **Free-tier quota warnings**: drop scrape_interval to 60s and remove default `python_*` metrics via `metric_relabel_configs` drop rules.
+
+---
+
+## 7. System Health dashboard (M00.7.5b)
+
+> Sibling dashboard to Auth Health. Covers the **infrastructure** layer the Auth Health board doesn't: HTTP request rate / latency / error class breakdown, gunicorn worker resources (CPU / memory / FDs), and Django ORM-side DB metrics. Includes deliberate placeholder rows for subsystems not yet scraped (Postgres / Redis / Celery exporters) and for M04 webhook-ingest + broker round-trip — those panels will populate automatically once the relevant code lands and the metric series start flowing.
+>
+> **Source JSON:** `infra/grafana/system-health-dashboard.json`
+> **UID after import:** `stp-system-health` (loads at `/d/stp-system-health`)
+> **Datasource:** same `grafanacloud-yuval3000-prom` Auth Health uses.
+
+### 7.1 Import procedure
+
+1. Grafana → *Dashboards → New → Import*.
+2. Paste the contents of `infra/grafana/system-health-dashboard.json`. Or upload the file directly.
+3. When prompted for the data source, pick `grafanacloud-yuval3000-prom` (auto-detected via the `${DS_PROMETHEUS}` template variable, same pattern Auth Health uses).
+4. Save into folder **StratTraderPro** (next to Auth Health).
+5. Confirm panels render. Six rows:
+   - **Backend Health** — `up`, request rate by status class, p50/p95/p99 latency, 5xx error rate %.
+   - **Application Activity (per-route breakdown)** — top 10 routes by request rate, top 10 by p95 latency, 4xx responses by view. (Container CPU/memory metrics are deliberately *not* on this dashboard: prometheus_client's `process_*` collector is disabled under multi-process gunicorn, and Railway container metrics aren't scraped — that's M10 §6.5 work.)
+   - **Django DB (ORM-side metrics)** — query duration percentiles, new connections/sec. **Requires** `django_prometheus.db.backends.*` engine wrappers in `DATABASES` (added via `_wrap_db_engines_for_prometheus()` in `backend/config/settings/base.py`). Without the wrapper, panels render "No data". Backend redeploy required after the wrapper change for these to populate.
+   - **Postgres / Redis / Celery — exporter follow-up** — text-only explainer panel listing the exporters that need scraping (postgres_exporter, redis_exporter, celery-exporter). No metrics yet.
+   - **M04 Webhook Ingest (placeholder)** — three panels keyed off `webhook_ingest_total{result}` and `webhook_ingest_latency_seconds_bucket`. "No data" until M04 wires those counters/histograms.
+   - **M04 Broker Round-trip (placeholder)** — `broker_place_order_latency_seconds_bucket` (p95 by broker) and `broker_connection_up{broker}`. "No data" until M04 broker adapters land.
+
+### 7.2 Variables
+
+| Var | Default | Source query | Purpose |
+|---|---|---|---|
+| `DS_PROMETHEUS` | `grafanacloud-yuval3000-prom` | datasource picker | Same convention as Auth Health. |
+| `env` | `All` (multi-select) | `label_values(up{job="backend"}, env)` | Defaults to All so cross-env regressions stand out at a glance. Override to `staging` or `production` for env-specific drill-down. |
+
+### 7.3 Verification (closes 00.7.5b)
+
+- [ ] Dashboard loads in `StratTraderPro` folder; UID is `stp-system-health`.
+- [ ] **Backend Health** row populates with both `staging` and `production` series visible (drive a few requests against `/healthz` if needed). Note: if the URL is opened with `var-env=$__all`, Grafana takes that string literally on first load and panels render empty — click the Env dropdown once to reset to All and the panels populate.
+- [ ] **Application Activity** row shows at least 3 distinct view names in the top-10 lists (auth views like `auth-login`, `auth-mfa-verify`, `users-me` are typical baseline traffic).
+- [ ] **Django DB** row shows non-zero query duration after any DB-touching request. Requires the `django_prometheus.db.backends.*` engine wrappers to be in effect — confirm by curling `/metrics` and grepping for `django_db_query_duration_seconds_bucket`. If absent, the wrapper isn't being used and a backend redeploy is needed.
+- [ ] **Postgres / Redis / Celery** row renders the markdown explainer panel correctly (no broken markdown, links visible).
+- [ ] **M04 placeholder rows** render "No data" rather than errors. (If they error, the PromQL has a typo — check the metric name in the panel definition.)
+- [ ] Mark `00.7.5b` ✅ in `project-plan/plan-progress-tracker.md` with the dashboard URL.
+
+### 7.4 What's deliberately deferred
+
+- **Alert rules.** v1 ships panels-only — Auth Health's existing `auth-health-email` contact point is the sole pager today. Add System Health alerts after a week of watching the panels and pinning realistic thresholds (most likely candidates: `up == 0` for >2min, sustained 5xx rate > 5%, RSS memory crossing 80% of Railway plan limit).
+- **Postgres / Redis / Celery exporters.** Tracked under M10 §6.5 ("Observability polish"). Can be pulled forward piecewise — Celery exporter in particular becomes valuable the moment M04 webhook ingest starts queuing tasks.
+- **Trading Ops, Data Pipelines, Backtest Ops dashboards.** All listed under M10 AC-10-8. Each waits on the milestone that emits the metrics it would plot — building them now would mean stubbed panels that drift before they fill in.
+
+### 7.5 Troubleshooting
+
+- **`No data` on every panel:** the `env` template variable returned no values because no `up{job="backend"}` series exist yet. Confirm grafana-agent is up and the `up` series is non-empty in Explore.
+- **`No data` on M04 placeholder panels only:** expected pre-M04. If still empty after M04 ships, confirm the metric name in the panel matches what `apps/webhooks/metrics.py` (or wherever) emits — the dashboard expects `webhook_ingest_total`, `webhook_ingest_latency_seconds`, `broker_place_order_latency_seconds`, `broker_connection_up`.
+- **Multiple worker pid series cluttering legend:** acceptable noise of multi-process gunicorn. Switch the legend to `Calcs: max` if the table view gets unwieldy.

@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-03 — M03 (Strategies & Webhook Config) deployed to staging, real-folder seed populated 10 system strategies, full UI smoke test passed, axe-core a11y audit clean across all 4 surfaces (list / upload / detail / modal — 0 violations after 2 fixes), and 2 polish bugs (list refresh + dry-run error mapping) fixed. 128/128 backend tests green. Three CI failures recovered along the way (NG5002 templates, ruff lint, pnpm-lock drift) — each lesson saved to memory. Pending only the `v0.3.0-strategies` tag.
+> **Last updated:** 2026-05-07 — Tracker reconciliation: `v0.3.0-strategies` tag points to commit `a4e1e8f` (the M03-completion commit; subsequent `a7f746c` is the tracker-update bookkeeping commit), so M03 is fully done. M00 partially reconciled: GitHub repo is live at `github.com/yhaspel/StratTraderPro` (not the originally-planned `yuval3000/strattraderpro`) and Railway staging + prod are both deployed (URLs in the table below) — M01/M02/M2.5 shipping through them is the proof. Grafana Cloud account is live (`yuval3000.grafana.net`) and hosts the M01 Auth Health dashboard — what's still pending under M00.7.5 is specifically a **System Health** infrastructure dashboard, split out as 00.7.5b. Sentry DSN, branch protection, and the `v0.0.0-scaffold` tag have not been verified in this pass — left as-is.
 
 ## Production Environment
 
@@ -42,7 +42,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 |---|------|--------|-------|
 | 00.1.1 | Create monorepo directory layout (backend/, frontend/, docker/, docs/, etc.) | ✅ Done | Scaffolded locally — push to GitHub next |
 | 00.1.2 | .gitignore (Python, Node, Angular, JetBrains, VS Code, .env*) | ✅ Done | |
-| 00.1.3 | GitHub repo `yuval3000/strattraderpro` created | ⏳ Pending | Manual: `git init` → push to GitHub |
+| 00.1.3 | GitHub repo `yhaspel/StratTraderPro` created | ✅ Done | Live at `github.com/yhaspel/StratTraderPro` (path differs from original plan of `yuval3000/strattraderpro`) |
 | 00.1.4 | Branch protection on `main` (1 review, CI green, no force-push) | ⏳ Pending | Manual: GitHub Settings → Branches |
 | 00.1.5 | Issue templates (bug.yml, feature.yml, tech-debt.yml) | ✅ Done | |
 | 00.1.6 | PR template with DoD checklist | ✅ Done | |
@@ -91,12 +91,12 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 00.5.1 | Create Railway project `strattraderpro-staging` | ⏳ Pending | Manual: Railway dashboard |
-| 00.5.2 | Configure services (backend, worker, beat, llm-worker, frontend) | ⏳ Pending | Manual: Railway dashboard |
-| 00.5.3 | Add Postgres 16 + Redis 7 plugins | ⏳ Pending | Manual: Railway dashboard |
-| 00.5.4 | Set environment variables | ⏳ Pending | Manual: Railway dashboard |
-| 00.5.5 | Health check paths configured | ⏳ Pending | /healthz, /readyz |
-| 00.5.6 | Railway CLI + service account token | ⏳ Pending | Store in GitHub Actions secrets |
+| 00.5.1 | Create Railway project | ✅ Done | Project `17060567-b194-4926-a7c0-7f339e306bdf`; staging + prod environments both live |
+| 00.5.2 | Configure services (backend, worker, beat, frontend) | ✅ Done | Verified during M01.11.9 (7 services Online on staging); prod bootstrapped 2026-05-02 |
+| 00.5.3 | Add Postgres 16 + Redis 7 plugins | ✅ Done | |
+| 00.5.4 | Set environment variables | ✅ Done | |
+| 00.5.5 | Health check paths configured | ✅ Done | /healthz, /readyz |
+| 00.5.6 | Railway CLI + service account token | ✅ Done | Stored in GitHub Actions secrets — staging deploy workflow (`deploy-staging.yml`) is green |
 
 ### 00.6 CI/CD
 
@@ -114,7 +114,8 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 00.7.2 | django-prometheus middleware + /metrics endpoint | ✅ Done | |
 | 00.7.3 | OpenTelemetry distro auto-instrumentation | ✅ Done | Config in settings |
 | 00.7.4 | Sentry JS SDK in Angular | ✅ Done | Skeleton in main.ts |
-| 00.7.5 | Grafana Cloud account + System Health dashboard | ⏳ Pending | Manual: grafana.com signup |
+| 00.7.5a | Grafana Cloud account | ✅ Done | `yuval3000.grafana.net` live since M01.11.5 (2026-05-01); hosts Auth Health dashboard at `/d/stp-auth-health` and the `auth-health-email` contact point. Prometheus scraping `/metrics` from staging + prod backend services. |
+| 00.7.5b | System Health dashboard (infra) | 🔄 In Progress | Dashboard JSON authored at `infra/grafana/system-health-dashboard.json` (15 panels across 6 rows: Backend Health, Process Resources, Django DB, plus placeholder rows for Postgres/Redis/Celery exporters and M04 webhook+broker metrics that auto-populate when those code paths land). Import procedure documented in `setup-guides/grafana-setup.md §7`. Panels-only in v1 (no alert rules). **Pending manual:** import into Grafana via *Dashboards → New → Import* under the StratTraderPro folder; once verified loading at `/d/stp-system-health` with `staging` and `production` series visible, flip this row to ✅. M10 §6.5 still owns the Trading Ops / Data Pipelines / Backtest Ops dashboards. |
 
 ### 00.8 Documentation
 
@@ -134,9 +135,9 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 00.9.1 | Push to GitHub | ⏳ Pending | `git init && git remote add origin ...` |
-| 00.9.2 | Enable branch protection | ⏳ Pending | GitHub Settings |
-| 00.9.3 | Create Railway project + services | ⏳ Pending | Railway dashboard |
+| 00.9.1 | Push to GitHub | ✅ Done | `github.com/yhaspel/StratTraderPro`, origin set |
+| 00.9.2 | Enable branch protection | ⏳ Pending | GitHub Settings — not verified this pass |
+| 00.9.3 | Create Railway project + services | ✅ Done | Staging + prod both running |
 | 00.9.4 | Create Sentry project, get DSN | ⏳ Pending | sentry.io |
 | 00.9.5 | Create Grafana Cloud account + dashboard | ⏳ Pending | grafana.com |
 | 00.9.6 | Run `docker compose up` and verify local stack | ⏳ Pending | First real test |
@@ -425,9 +426,9 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 03 — Strategies & Webhook Config
 
-**Status:** 🔄 In Progress (implementation + deploy + seed + smoke + a11y + polish all done; tag pending)
+**Status:** ✅ Done — tag `v0.3.0-strategies` pushed (commit `a7f746c`)
 **Started:** 2026-05-03
-**Completed:** —
+**Completed:** 2026-05-03
 
 > See `03-strategies-and-webhook-config.md` for full spec.
 
@@ -519,7 +520,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 03.8.4 | A11y audit (WCAG 2.1 AA via axe-core) | ✅ Done | Audited 4 surfaces: list (0 violations), upload wizard (0), detail (1 serious — fixed: `<pre>` blocks needed `tabindex=0` + `role=region` + `aria-labelledby`), webhook modal (1 critical — fixed: 4 form inputs needed `for=`/`id=` label pairing). Final: **0/0 across all 4 surfaces.** |
 | 03.8.5 | Polish bug fixes (post-smoke-test) | ✅ Done | Two bugs found during smoke test, both fixed: (a) list view didn't re-fetch after webhook modal close so `has_webhook_config` was stale — `closeModal()` now calls `void this.facade.load()`; (b) dry-run 400 surfaced "Could not parse JSON: Http failure 400" instead of the real `STRATEGY_WEBHOOK_INVALID` message — `StrategiesFacade.dryRunWebhook` now catches `HttpErrorResponse`, unwraps the `appError` attached by the global error interceptor, and returns the structured envelope error. Modal `onTest()` restructured to disambiguate local JSON parse errors from server-side schema rejections. |
 | 03.8.6 | CI gauntlet additions discovered the hard way | ✅ Done | Three CI failures recovered from in this milestone — each lesson saved to memory: NG5002/NG9 template errors (`feedback_angular_template_check.md` — must run `ngc`, not just `tsc`); ruff lint blocked Backend job (added to `feedback_local_ci_parity.md`); pnpm-lock.yaml drift (also in local-CI-parity memory; CI uses pnpm, NOT npm). |
-| 03.8.7 | Tag `v0.3.0-strategies` | ⏳ Pending | All gates green; ready to tag. See instructions below. |
+| 03.8.7 | Tag `v0.3.0-strategies` | ✅ Done | Pushed to origin at commit `a7f746c` |
 
 ---
 

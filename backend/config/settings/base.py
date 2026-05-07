@@ -143,9 +143,28 @@ TEMPLATES = [
 # ---------------------------------------------------------------------------
 # Database (overridden per environment)
 # ---------------------------------------------------------------------------
-DATABASES = {
+def _wrap_db_engines_for_prometheus(databases):
+    """Swap stock Django DB engines for ``django_prometheus`` wrapper
+    subclasses so ``/metrics`` emits ``django_db_query_duration_seconds``
+    and ``django_db_new_connections_total``. The wrappers are transparent
+    drop-in subclasses — same DSN handling, same query behavior. Without
+    this, the System Health dashboard's Django DB row stays empty
+    (`django_prometheus`'s middleware-side counters work without the
+    wrapper, but the DB-side histogram + connection counter do not).
+    """
+    mapping = {
+        "django.db.backends.postgresql": "django_prometheus.db.backends.postgresql",
+        "django.db.backends.sqlite3": "django_prometheus.db.backends.sqlite3",
+        "django.db.backends.mysql": "django_prometheus.db.backends.mysql",
+    }
+    for conf in databases.values():
+        conf["ENGINE"] = mapping.get(conf["ENGINE"], conf["ENGINE"])
+    return databases
+
+
+DATABASES = _wrap_db_engines_for_prometheus({
     "default": env.db("DATABASE_URL", default="sqlite:///db.sqlite3"),
-}
+})
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------
