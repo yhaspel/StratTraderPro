@@ -1,5 +1,6 @@
 """Development settings — local runserver + docker-compose."""
 from .base import *  # noqa: F401, F403
+from .base import _wrap_db_engines_for_prometheus  # noqa: F401  star-import skips _names
 
 DEBUG = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "backend"]  # nosec B104
