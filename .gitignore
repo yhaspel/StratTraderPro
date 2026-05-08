@@ -100,4 +100,6 @@ frontend/out-tsc/
 *.temp
 .terraform/
 *.tfstate*
+
 .claude/worktrees/
+_tmp_*
