@@ -2,8 +2,13 @@
 
 # ---------- Local dev (docker-compose) ----------
 
+# `make up` boots the full stack including the ngrok tunnel (so AC-00-10 and
+# any TradingView webhook test can hit the local backend). Equivalent to:
+#   docker compose --profile tunnel up -d
+# Add `--build` if you want to force-rebuild images:
+#   docker compose --profile tunnel up --build
 up:
-	docker compose up -d
+	docker compose --profile tunnel up -d
 
 down:
 	docker compose down
