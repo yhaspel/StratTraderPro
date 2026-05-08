@@ -4,6 +4,7 @@ from sentry_sdk.integrations.celery import CeleryIntegration
 from sentry_sdk.integrations.django import DjangoIntegration
 
 from .base import *  # noqa: F401, F403
+from .base import _wrap_db_engines_for_prometheus  # noqa: F401  star-import skips _names
 
 # ---------------------------------------------------------------------------
 # Core
