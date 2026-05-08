@@ -592,6 +592,14 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 > See `10-admin-audit-observability.md` for full spec.
 
+### Carryover items from earlier milestones (slot into §6.5 Observability polish)
+
+| # | Carryover | Source | Notes |
+|---|---|---|---|
+| 10.6.5.a | Move `/metrics` outside Django middleware chain | M00.9.4 Sentry rollout (2026-05-08) | Mount via `prometheus_client.exposition.make_asgi_app()` so allauth's `AccountMiddleware` no longer post-processes scrape responses. Currently mitigated via a `before_send` Sentry filter in `prod.py` that drops the noisy `AttributeError: 'coroutine' object has no attribute 'headers'` — once `/metrics` is outside Django, the filter can be removed. Underlying interaction is gunicorn UvicornWorker → ASGI → `sentry_sdk`'s `SentryASGIMixin` (unawaited coroutine) → allauth's sync `_should_check_dangling_login` (calls `.headers.get(...)`). Functional impact today is zero (grafana-agent scrapes succeed, `up=1`); the filter exists purely to protect Sentry quota (~240 events/hr would otherwise burn the free-tier 5K/month limit in ~21 hours). |
+| 10.6.5.b | Postgres / Redis / Celery exporters | M00.7.5b System Health dashboard | Three exporters need scrape-target wiring before the dashboard's "exporter follow-up" row populates: postgres_exporter, redis_exporter, celery-exporter. Documented in `setup-guides/grafana-setup.md §7` and the dashboard's text panel. |
+| 10.6.5.c | Trading Ops / Data Pipelines / Backtest Ops dashboards | M00.7.5b | Per AC-10-8, the full observability pass needs four dashboards beyond Auth Health + System Health. These wait on the milestones that emit the metrics they would plot. |
+
 ---
 
 ## Phase 11 — Hardening & Load Test

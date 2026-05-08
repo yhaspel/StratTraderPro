@@ -35,7 +35,7 @@ Lay the invariant foundation on which all subsequent milestones are built: repos
 
 | # | Criterion |
 |---|-----------|
-| AC-00-1 | `main` branch is protected: 1 review required, CI green required, no force-push. |
+| AC-00-1 | `main` branch protection **rule configured** (not actively enforced): require PR before merging, require status checks to pass (Backend Lint+Test, Frontend Lint+Test, Trivy Docker Scan, E2E Smoke), require linear history, require branches up to date, force pushes and deletions disallowed. Approval count set to 0 (solo dev, self-mergeable after CI green). *Renegotiated 2026-05-08 from "1 review required" + active enforcement. Active enforcement is a GitHub Team/Enterprise feature; on a personal-private repo the rule saves and is documented as intent but is not blocked by the platform until the repo upgrades or goes public. Rule lives at `github.com/yhaspel/StratTraderPro/settings/branches` and will activate automatically on plan upgrade.* |
 | AC-00-2 | `pnpm install && pnpm run dev` boots the frontend; `docker compose up` boots the full local stack including postgres and redis. |
 | AC-00-3 | `/healthz` on staging backend returns `{"status":"ok","version":"<git_sha>"}` over HTTPS. |
 | AC-00-4 | `/readyz` reports Postgres + Redis connectivity. |
