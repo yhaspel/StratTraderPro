@@ -112,6 +112,37 @@ services:
     profiles:
       - tunnel  # only starts with: docker compose --profile tunnel up
 
+  # ---------- IB Gateway sidecar (M04 Day-1 SPIKE) ----------
+  # Opt-in only: starts with `docker compose --profile ibkr-spike up ib-gateway`.
+  # Validates the four assumptions in docs/adr/040-ibkr-gateway-sidecar.md
+  # before broker-adapter work compounds on top. Throwaway-or-promote.
+  #
+  # Required env (put in .env, gitignored):
+  #   TWS_USERID=<your IBKR paper username>
+  #   TWS_PASSWORD=<your IBKR paper password>
+  # Optional:
+  #   DEBUG_VNC=1   to expose the Gateway GUI on localhost:5900
+  ib-gateway:
+    build:
+      context: .
+      dockerfile: docker/ib-gateway/Dockerfile
+    environment:
+      TWS_USERID: ${TWS_USERID:-}
+      TWS_PASSWORD: ${TWS_PASSWORD:-}
+      TRADING_MODE: paper
+      DEBUG_VNC: ${DEBUG_VNC:-0}
+    ports:
+      - "4002:4002"   # paper API — smoke test connects here
+      - "5900:5900"   # VNC, only useful when DEBUG_VNC=1
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4002"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    profiles:
+      - ibkr-spike
+
 volumes:
   pgdata:
   fe_node_modules:
