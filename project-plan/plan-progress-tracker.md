@@ -2,7 +2,7 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-07 — Tracker reconciliation: `v0.3.0-strategies` tag points to commit `a4e1e8f` (the M03-completion commit; subsequent `a7f746c` is the tracker-update bookkeeping commit), so M03 is fully done. M00 partially reconciled: GitHub repo is live at `github.com/yhaspel/StratTraderPro` (not the originally-planned `yuval3000/strattraderpro`) and Railway staging + prod are both deployed (URLs in the table below) — M01/M02/M2.5 shipping through them is the proof. Grafana Cloud account is live (`yuval3000.grafana.net`) and hosts the M01 Auth Health dashboard — what's still pending under M00.7.5 is specifically a **System Health** infrastructure dashboard, split out as 00.7.5b. Sentry DSN, branch protection, and the `v0.0.0-scaffold` tag have not been verified in this pass — left as-is.
+> **Last updated:** 2026-05-08 — **M00 closed.** All ten AC-00-* criteria pass (two renegotiated and documented in `00-scoping-and-setup.md` and the `v0.0.0-scaffold` tag annotation: AC-00-1 — branch protection rule saved-not-enforced on free-tier private repo; AC-00-8 — `process_resident_memory_bytes` deferred because multi-process gunicorn excludes the prometheus_client `process_*` collector by design). Manual items 00.9.2 (branch protection), 00.9.4 (Sentry DSN — backend project live, both Railway envs configured, AC-00-7 verified), 00.9.6 (docker-compose smoke — all 7 services boot via `make up`, AC-00-2/3/4/5/8/9/10 verified via Chrome MCP), 00.9.7 (staging deploy verified — running 16+ hours, M01–M03 shipped through it), and 00.9.8 (`v0.0.0-scaffold` tag pushed, points to commit `264d90f`) all flipped to ✅. System Health dashboard 00.7.5b live at `https://yuval3000.grafana.net/d/stp-system-health`. Phase 10 carries forward three observability items as §6.5 carryover (move `/metrics` outside Django middleware, exporter wiring, Trading/Data/Backtest dashboards). Tag list on origin: `v0.0.0-scaffold`, `v0.1.0-auth`, `v0.1.1-auth-metrics`, `v0.2.0-mfa`, `v0.2.5-oauth-google`, `v0.3.0-strategies`. **Cleared to start M04.**
 
 ## Production Environment
 
@@ -32,9 +32,9 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 00 — Scoping & Setup
 
-**Status:** 🔄 In Progress
+**Status:** ✅ Done — tag `v0.0.0-scaffold` pushed
 **Started:** 2026-04-16
-**Completed:** —
+**Completed:** 2026-05-08
 
 ### 00.1 Repository & Monorepo Structure
 
@@ -115,7 +115,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 00.7.3 | OpenTelemetry distro auto-instrumentation | ✅ Done | Config in settings |
 | 00.7.4 | Sentry JS SDK in Angular | ✅ Done | Skeleton in main.ts |
 | 00.7.5a | Grafana Cloud account | ✅ Done | `yuval3000.grafana.net` live since M01.11.5 (2026-05-01); hosts Auth Health dashboard at `/d/stp-auth-health` and the `auth-health-email` contact point. Prometheus scraping `/metrics` from staging + prod backend services. |
-| 00.7.5b | System Health dashboard (infra) | 🔄 In Progress | Dashboard JSON authored at `infra/grafana/system-health-dashboard.json` (15 panels across 6 rows: Backend Health, Process Resources, Django DB, plus placeholder rows for Postgres/Redis/Celery exporters and M04 webhook+broker metrics that auto-populate when those code paths land). Import procedure documented in `setup-guides/grafana-setup.md §7`. Panels-only in v1 (no alert rules). **Pending manual:** import into Grafana via *Dashboards → New → Import* under the StratTraderPro folder; once verified loading at `/d/stp-system-health` with `staging` and `production` series visible, flip this row to ✅. M10 §6.5 still owns the Trading Ops / Data Pipelines / Backtest Ops dashboards. |
+| 00.7.5b | System Health dashboard (infra) | ✅ Done | Live at `https://yuval3000.grafana.net/d/stp-system-health`. Dashboard JSON checked in at `infra/grafana/system-health-dashboard.json` (15 panels across 6 rows). v0 had a Process Resources row; replaced with **Application Activity** (top-10 routes by request rate, top-10 by p95 latency, 4xx by view) on 2026-05-08 because multi-process gunicorn excludes the prometheus_client `process_*` collector — same constraint that drove the AC-00-8 renegotiation. Verified via Chrome MCP on 2026-05-08: Backend Health row populates with both `staging` and `production` UP, Application Activity shows real per-route data once user traffic flows, Django DB row populates after the `_wrap_db_engines_for_prometheus` helper rolled out (commit `9d9c4bd`). Postgres/Redis/Celery exporter row + M04 placeholder rows render "No data" gracefully (intentional). Panels-only in v1; alerting deferred. M10 §6.5 carries forward the exporter wiring + the Trading Ops / Data Pipelines / Backtest Ops dashboards (see Phase 10 carryover table). |
 
 ### 00.8 Documentation
 
@@ -136,13 +136,13 @@ Each phase has a status badge and a table of tasks. Statuses:
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 00.9.1 | Push to GitHub | ✅ Done | `github.com/yhaspel/StratTraderPro`, origin set |
-| 00.9.2 | Enable branch protection | ⏳ Pending | GitHub Settings — not verified this pass |
+| 00.9.2 | Enable branch protection | ✅ Done | Classic branch protection rule on `main` configured 2026-05-08: require PR before merging (0 required approvals so solo dev can self-merge), require Backend+Frontend+Trivy+E2E status checks, require branches up to date, require linear history, no force-push, no deletions. **Per AC-00-1 renegotiation, the rule is saved-but-not-enforced** on the personal-private free-tier repo until plan upgrade or repo public visibility — see CHANGELOG `[Unreleased]` entry under "Changed — Plan (M00 AC renegotiations)" and the v0.0.0-scaffold tag annotation. |
 | 00.9.3 | Create Railway project + services | ✅ Done | Staging + prod both running |
-| 00.9.4 | Create Sentry project, get DSN | ⏳ Pending | sentry.io |
-| 00.9.5 | Create Grafana Cloud account + dashboard | ⏳ Pending | grafana.com |
-| 00.9.6 | Run `docker compose up` and verify local stack | ⏳ Pending | First real test |
-| 00.9.7 | Trigger staging deploy and verify AC-00-* | ⏳ Pending | After Railway setup |
-| 00.9.8 | Tag `v0.0.0-scaffold` | ⏳ Pending | After all ACs pass |
+| 00.9.4 | Create Sentry project, get DSN | ✅ Done | Backend Sentry project `strattraderpro-backend` live at `yuval3000.sentry.io`. `SENTRY_DSN` env var set on Railway backend service in both `staging` and `production` environments 2026-05-08; both backends redeployed and confirmed initializing the SDK. AC-00-7 verified via `railway run --service backend --environment staging python -c "..."` issuing a `capture_message` that landed in Sentry within seconds. Frontend Sentry project deferred (skeleton already wired in `frontend/src/main.ts` per M00.7.4; wire the DSN when frontend error capture becomes valuable). One known interaction surfaced during rollout: an `AttributeError: 'coroutine' object has no attribute 'headers'` on every `/metrics` scrape (allauth + ASGI + sentry-sdk's `SentryASGIMixin` mismatch) — mitigated immediately via a `before_send` filter in `prod.py` that drops the noisy event before it counts toward the 5K/month free-tier quota; underlying fix tracked as Phase 10 §6.5 carryover (10.6.5.a). |
+| 00.9.5 | Create Grafana Cloud account + dashboard | ✅ Done | Account live at `yuval3000.grafana.net` (M01.11.5 — Auth Health dashboard). System Health dashboard added 2026-05-08 (see 00.7.5b). |
+| 00.9.6 | Run `docker compose up` and verify local stack | ✅ Done | Smoke test 2026-05-08 via Chrome MCP against `localhost`. All 7 services boot via `make up` (now equivalent to `docker compose --profile tunnel up -d` after the Makefile change in commit `c5a084b`): postgres, redis, backend, worker, beat, frontend, ngrok. AC-00-2/3/4/5/8/9/10 all verified in one pass — `/healthz` `{"status":"ok"}`, `/readyz` `{"checks":{"db":"ok","redis":"ok"}}`, frontend renders the `app.status` translated key, OpenAPI schema returns 29 paths under title "StratTraderPro API", `/metrics` emits `django_http_requests_total_by_view_transport_method_total` plus `django_db_query_duration_seconds_bucket` (django_prometheus engine wrapper confirmed live locally), ngrok tunnel forwards to `http://backend:8777`. README §3 updated to reflect the new `make up` behavior. |
+| 00.9.7 | Trigger staging deploy and verify AC-00-* | ✅ Done | Staging has been running for 16+ hours with M01–M03 all shipped through it. AC-00-3/4/5 verified against the public staging URLs `backend-staging-4b6d.up.railway.app` and `frontend-staging-9011.up.railway.app` throughout the M02/M2.5/M03 verification rounds; re-confirmed during the M00.9.6 smoke 2026-05-08. CI green on the latest commit (#85). |
+| 00.9.8 | Tag `v0.0.0-scaffold` | ✅ Done | Pushed 2026-05-08 to commit `264d90f` (M00 initial scaffold). Annotation documents both the AC-00-1 (branch-protection enforcement) and AC-00-8 (`process_resident_memory_bytes`) renegotiations. Tag object SHA `49adcc91`. Verify with `git ls-remote --tags origin v0.0.0-scaffold`. |
 
 ---
 
