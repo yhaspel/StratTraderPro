@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ---------- Data stores ----------
   postgres:
@@ -130,12 +128,44 @@ services:
       TWS_USERID: ${TWS_USERID:-}
       TWS_PASSWORD: ${TWS_PASSWORD:-}
       TRADING_MODE: paper
-      DEBUG_VNC: ${DEBUG_VNC:-0}
+      # VNC for debug visibility. Set VNC_SERVER_PASSWORD=<anything> in .env
+      # to enable; gnzsnz's run.sh only starts x11vnc when this env var is
+      # non-empty. Connect via `open vnc://localhost:5900` on macOS using
+      # the same password. Leave unset for normal operation — the older
+      # DEBUG_VNC compose var was a misnomer (gnzsnz never read it).
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-}
+      # gnzsnz contract — without these the API hangs after TCP accept:
+      #   TWS_ACCEPT_INCOMING=accept  → auto-confirm the "incoming connection"
+      #     dialog Gateway raises on every new client. Default `manual` blocks
+      #     the API handshake on a modal IBC won't click → 10s ib_insync TO.
+      #   READ_ONLY_API=no            → image default is `yes`; placeOrder
+      #     would silently no-op in step 3 of the smoke even after H3 fixed.
+      #   BYPASS_WARNING=yes          → suppress the "API precautions" modal
+      #     on each connect.
+      #   RELOGIN_AFTER_TWOFA_TIMEOUT=yes → 2FA-friendly auto-recovery.
+      #   EXISTING_SESSION_DETECTED_ACTION=primary → take over a prior session
+      #     instead of waiting on a modal that IBC can't auto-click. Without
+      #     this, IBC stalls forever on the "Existing session detected" dialog
+      #     — service appears Active but API never goes live (ADR-040 gotcha #6).
+      #   TIME_ZONE                    → keeps Gateway clock aligned w/ IBKR;
+      #     mismatched clocks have caused order-routing oddities in past.
+      TWS_ACCEPT_INCOMING: accept
+      READ_ONLY_API: "no"
+      BYPASS_WARNING: "yes"
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      TIME_ZONE: ${TIME_ZONE:-Asia/Jerusalem}
     ports:
-      - "4002:4002"   # paper API — smoke test connects here
+      # gnzsnz indirection: IB Gateway itself binds 127.0.0.1:4002 (only),
+      # and a sidecar `socat` listens on container :4004 forwarding to
+      # 127.0.0.1:4002. We must publish host:4002 → container:4004 so
+      # external clients pass through socat — connecting straight to
+      # container:4002 hits Gateway with the Docker bridge source IP and
+      # IB's TrustedIPs=127.0.0.1 silently drops the API handshake.
+      - "4002:4004"   # paper API — smoke test connects here
       - "5900:5900"   # VNC, only useful when DEBUG_VNC=1
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "4002"]
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/tcp/127.0.0.1/4004' >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 3

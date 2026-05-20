@@ -36,8 +36,26 @@ EXPOSE 8777
 
 # On boot: run migrations (idempotent, safe to repeat) then launch gunicorn.
 # Using `sh -c` so ${PORT} expands at container start, not build time.
-# UvicornWorker requires an ASGI app (config.asgi); using config.wsgi here would
-# raise `WSGIHandler.__call__() missing 1 required positional argument:
-# 'start_response'` on every request. config.asgi.py exposes an ASGI app via
-# django.core.asgi.get_asgi_application — that's what uvicorn expects.
-CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.asgi:application --config /app/gunicorn.conf.py --bind 0.0.0.0:${PORT} --workers 3 --worker-class uvicorn.workers.UvicornWorker --timeout 120 --access-logfile - --error-logfile -"]
+#
+# WSGI hotfix (2026-05-20): switched from `config.asgi:application` +
+# UvicornWorker back to `config.wsgi:application` with gthread workers.
+# Reason: sentry-sdk 1.x DjangoIntegration installs SentryASGIMixin around
+# the ASGI app; when allauth's *sync* AccountMiddleware reaches
+# `_should_check_dangling_login` and calls `response.headers.get(...)`,
+# `response` is the unawaited coroutine from SentryASGIMixin.__call__, so
+# every request raises `AttributeError: 'coroutine' object has no attribute
+# 'headers'` and gunicorn returns 500. The pre-existing /metrics
+# `before_send` Sentry filter only suppressed the *event*, not the 500.
+# Swapping to WSGI sidesteps the SentryASGIMixin entirely.
+#
+# Trade-off: no Channels/WebSocket support until M04 needs it. When ready,
+# upgrade `sentry-sdk` to >=2.x (which has async-aware DjangoIntegration)
+# and restore ASGI:
+#   --worker-class uvicorn.workers.UvicornWorker config.asgi:application
+# Tracked in plan §10.6.5.a (the long-term /metrics mount fix also resolves
+# the underlying allauth/ASGI interaction).
+#
+# `gthread` worker class gives 3 workers × 4 threads = ~12 concurrent
+# requests with the existing memory footprint, comparable to UvicornWorker's
+# previous concurrency profile.
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --config /app/gunicorn.conf.py --bind 0.0.0.0:${PORT} --workers 3 --worker-class gthread --threads 4 --timeout 120 --access-logfile - --error-logfile -"]

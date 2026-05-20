@@ -526,11 +526,47 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ## Phase 04 — Webhook Ingest & IBKR
 
-**Status:** ⏳ Pending
-**Started:** —
+**Status:** 🚧 In Progress (Phase A — spike close-out complete; Phase B–F production code pending)
+**Started:** 2026-05-09
 **Completed:** —
 
 > See `04-webhook-ingest-and-ibkr.md` for full spec.
+> Debug loop for Day-1 spike close-out: `project-plan/debug-and-verifications/`.
+
+### Phase A — Spike close-out (Day 1)
+
+| # | Sub-task | Status | Notes |
+|---|---|---|---|
+| 04.A.1 | IB Gateway sidecar smoke test (STEPS 1-3, connect+place) | ✅ Done | Smoke (clientId 310) completed STEPS 1-3 cleanly during 2026-05-15 RTH after web-login re-auth cleared a 6-day paper-account dormancy. STEP 1 connect in 0.7 s (serverVersion 176); STEP 2 account summary 80 rows on `DUN167649`; STEP 3 order ack with `status=Filled brokerOrderId=5`. The web re-auth dormancy was the actual root cause of the morning's TimeoutError loop — config-render fixes (gotcha #7) plus TIF=DAY workaround (gotcha #8) were necessary but not sufficient until the account was reactivated via SSO. |
+| 04.A.2 | RTH rerun (STEPS 4+5, fill+reconnect) | ✅ Done (with constraint) | STEP 4 fill captured during RTH: AAPL @ $299.15, qty=1, exchange ARCA, execId `0000e0d5.6a071c95.01.01`, commission $1.00. STEP 5 reconnect uncovered a new gnzsnz/ib-gateway:10.45.1e constraint: Gateway allows exactly one TWS-API session per process boot — reconnect (same clientId or rotated, 3-second or 30-second wait) silently drops every time after the first session disconnects. M04 plan §6.2 broker adapter must use container-per-session or Gateway-restart-on-disconnect. Documented in ADR-040 Findings A3 + ADR-041 (forthcoming production design). |
+| 04.A.3 | ADR-040 finalized (Accepted) | ✅ Done | Status flipped to `Accepted (2026-05-15 — see Findings)`. New gotcha #7 captures the gnzsnz/ib-gateway:10.45.1e config-render trap and the sed-based Dockerfile fix; dead-end paths (JAVA_TOOL_OPTIONS clobber, vmoptions `-D` filter, `ENABLEAPI` invalid-for-Gateway) documented inline. Duplicate `## Consequences` header removed; no `TO BE FILLED IN` placeholders remain. |
+| 04.A.4 | Spike artifacts promoted | ✅ Done | Runbook renamed `docs/runbooks/spike-ibkr-gateway.md` → `docs/runbooks/ib-gateway-reauth.md` and rewritten for production ops. Vestigial files (`docker/ib-gateway/entrypoint.sh`, `docker/ib-gateway/ibc-config.ini`) removed. Smoke script docstring updated to drop SPIKE framing. `docker/ib-gateway/README.md` gained a gnzsnz config-render callout. CI gate: `scripts/verify_ibgw_config.sh`. |
+| 04.A.5 | Production env contract locked | ✅ Done | `docker-compose.yml` ib-gateway service has the full env contract. `backend/.env.example` documents the operator-facing subset. Railway setup commands generated in `project-plan/debug-and-verifications/railway-setup-commands.md` (manual user step). |
+
+### Phase B–F — Production code (pending)
+
+Following M04 plan §6.1–§6.8 + §10–§14. Not yet started.
+
+### Decision (2026-05-15): ship Phase B on TWS Socket API + Gateway sidecar; defer dormancy fix to M04A
+
+After today's spike close-out surfaced two account-side constraints — (a) IBKR paper account silently disables headless TWS-API access after ~5–6 days without a web-portal touch, and (b) `gnzsnz/ib-gateway:10.45.1e` allows exactly one TWS-API session per Gateway process boot — we considered three paths forward before committing to Phase B:
+
+1. Continue on TWS Socket API + Gateway as planned (M04 §6.1–§6.2), with **operator-side weekly web-portal login** as the interim dormancy mitigation (already documented in `docs/runbooks/ib-gateway-reauth.md`).
+2. Add an automated browser-based "heartbeat web login" via Playwright on Celery beat (~1 day work).
+3. Skip the gateway path entirely and ship Phase B directly on IBKR's Client Portal Web API with OAuth — i.e. fold **M04A** (already-scoped at `project-plan/04A-IBKR-Web-API.md`) forward into M04.
+
+**Chosen:** Path 1. Rationale:
+
+- `BrokerAdapter` protocol from M04 is unchanged in M04A by design (per `04A-IBKR-Web-API.md` §3). The transport (TWS Socket → REST/WebSocket) is rewritten in M04A, but everything else — contract modelling, order request/ack/fill domain, error handling, broker-status surfacing, observability, the WebSocket dashboard wiring — is identical and ships once. So days spent on TWS-API broker-adapter work in M04 are **not** thrown away when we migrate; the implementation under `apps/brokers/ibkr` is replaced by `apps/brokers/ibkr_webapi`, both implementing the same `BrokerAdapter` protocol.
+- M04A's blocking prerequisite (IBKR developer-portal Web API enrollment + approval — §5 of that plan, 5–10 business-day lead time) hasn't been kicked off. Starting on Path 3 today would block the entire milestone behind IBKR approval timing we don't control.
+- Path 2 (Playwright heartbeat) is brittle to IBKR portal UI changes and adds a Chromium-in-worker-image dependency. Reserved as a fallback if weekly-operator-login proves insufficient during M04 paper-trading.
+- Today's `one-session-per-Gateway-boot` constraint shapes M04 §6.2 by forcing **container-per-session** or **Gateway-restart-on-disconnect** in the broker adapter. Both are workable on Railway (worker-per-deploy makes the former cheap). M04A removes this constraint entirely — REST/WebSocket has no equivalent — which is another reason M04A is the durable answer rather than the urgent answer.
+
+**Tracking:** carryover items to M04A scope (not blocking M04 ship):
+
+- §6.2 broker-adapter dormancy heartbeat is **not** built in M04. The runbook covers it operator-side.
+- §6.2 broker-adapter must implement either container-per-session or Gateway-restart-on-disconnect for `reconnect`. Decision belongs in M04 implementation (probably the lighter Gateway-restart option for dev simplicity; revisit if production paper-trading reveals it's too slow).
+- M04A kickoff (the developer-portal enrollment in `04A-IBKR-Web-API.md` §5.1) should happen as soon as M04 §6.2 lands, so IBKR's 5–10-day approval clock runs in parallel with the rest of M04 instead of gating M04A by itself.
 
 ---
 

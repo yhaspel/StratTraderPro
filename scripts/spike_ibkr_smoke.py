@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-M04 Day-1 SPIKE — IB Gateway sidecar smoke test.
+Manual IBKR connectivity smoke test for the IB Gateway sidecar.
 
-Goal: prove the four assumptions in docs/adr/040-ibkr-gateway-sidecar.md by
-exercising the full happy path against a running ib-gateway container:
+Used by docs/runbooks/ib-gateway-reauth.md as the operator-facing health
+check and by the M04 production CI gate. Originally authored as the
+M04 Day-1 spike harness (ADR-040, Status: Accepted 2026-05-15); kept under
+`scripts/spike_ibkr_smoke.py` because every existing reference points
+here. The "spike" filename is historical.
+
+Exercises the full happy path against a running ib-gateway container:
 
     1. Connect via ib_insync to the Gateway's API port.
     2. Read account summary (proves login + entitlements).
@@ -123,10 +128,16 @@ def run_spike(host: str, port: int, client_id: int, connect_timeout: int) -> Spi
             sys.exit(EXIT_ACCOUNT)
 
         # --- Step 3: place 1-share AAPL MKT --------------------------------
+        # IBKR paper-account preset rejects MKT orders without an explicit TIF
+        # with `Error 10349: Order TIF was set to DAY based on order preset`.
+        # Confirmed on both 2026-05-09 and 2026-05-15 runs. Set TIF=DAY upfront
+        # so Gateway accepts the first send and we can proceed to STEP 4 (fill)
+        # without ib_insync needing to auto-resubmit. The M04 broker adapter
+        # has the same constraint baked in (see ADR-040 Findings A2).
         log.info("STEP 3: place 1-share AAPL MKT (paper)")
         contract = Stock("AAPL", "SMART", "USD")
         ib.qualifyContracts(contract)
-        order = MarketOrder("BUY", 1)
+        order = MarketOrder("BUY", 1, tif="DAY")
         trade = ib.placeOrder(contract, order)
 
         # Wait up to 15s for an ack (status leaves "PendingSubmit").
@@ -172,19 +183,39 @@ def run_spike(host: str, port: int, client_id: int, connect_timeout: int) -> Spi
         )
 
         # --- Step 5: forced reconnect --------------------------------------
-        # Disconnect, wait, reconnect with the SAME client_id. If IB Gateway
-        # holds onto the prior session's reservation we'll get a "client id
-        # already in use" error — that's the failure we're hunting for.
-        log.info("STEP 5: disconnect + reconnect on same clientId")
+        # Disconnect, wait, reconnect. The original contract was "same
+        # clientId reconnect works" — but in gnzsnz/ib-gateway:10.45.1e (and
+        # likely Gateway 10.45.x in general) the prior clientId stays bound
+        # for ~30-60 s after disconnect, so a 3-second wait + same clientId
+        # consistently TimeoutErrors at the API handshake. Production code
+        # must rotate clientIds across reconnects. We test both paths here:
+        # same first (to record the constraint), then clientId+1 if that
+        # fails (to prove reconnect is actually possible at all).
+        log.info("STEP 5: disconnect + reconnect")
         ib.disconnect()
         time.sleep(3)
         try:
-            ib.connect(host, port, clientId=client_id, timeout=15)
+            ib.connect(host, port, clientId=client_id, timeout=10)
             result.reconnect_ok = True
-            log.info("reconnect OK")
-        except Exception as exc:
-            log.error("STEP 5 FAILED: %s", exc)
-            sys.exit(EXIT_RECONNECT)
+            log.info("reconnect OK on same clientId %d", client_id)
+        except Exception as exc_same:
+            log.info(
+                "same-clientId reconnect failed (%s); rotating to %d",
+                exc_same.__class__.__name__, client_id + 1,
+            )
+            if ib.isConnected():
+                ib.disconnect()
+            try:
+                ib.connect(host, port, clientId=client_id + 1, timeout=15)
+                result.reconnect_ok = True
+                log.info(
+                    "reconnect OK on rotated clientId %d "
+                    "(production adapter must rotate)",
+                    client_id + 1,
+                )
+            except Exception as exc_rotated:
+                log.error("STEP 5 FAILED on rotation too: %s", exc_rotated)
+                sys.exit(EXIT_RECONNECT)
     finally:
         if ib.isConnected():
             ib.disconnect()
