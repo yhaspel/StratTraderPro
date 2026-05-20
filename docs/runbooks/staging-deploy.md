@@ -21,14 +21,9 @@ All services are on `main` branch, auto-deploy on push.
 
 ## Automatic Deploy
 
-Pushes to `main` trigger the `deploy-staging.yml` GitHub Actions workflow, which:
+Pushes to `main` trigger **Railway's built-in GitHub auto-deploy** (configured per service in Railway → Source → Branch = `main`). This path injects `RAILWAY_GIT_COMMIT_SHA`, which `base.py` reads to populate `/healthz`'s `version` field.
 
-1. Installs Railway CLI.
-2. Deploys the `backend` service.
-3. Deploys the `frontend` service.
-4. Runs a smoke test against `/healthz`.
-
-> **Note (2026-05-01):** Railway is currently auto-deploying directly from GitHub on push (configured per service in Railway → Source). The GitHub Actions workflow above is redundant unless you need to inject CI gates. The `RAILWAY_TOKEN` secret has not been issued — issue one before relying on the workflow.
+> **Note (2026-05-20):** `.github/workflows/deploy-staging.yml` previously also ran `railway up` on every push. That created a race: Railway's native GitHub deploy and the workflow's CLI deploy would both fire, and the CLI deploy usually won. CLI deploys do NOT inject `RAILWAY_GIT_COMMIT_SHA`, so `/healthz` silently regressed to `"version": "unknown"` every push. The workflow's `on:` trigger was switched to `workflow_dispatch` (manual only) — re-enable on-push only if you first disable Railway's built-in GitHub deploy AND pass `GIT_SHA` to the `railway up` calls.
 
 ## Manual Deploy
 

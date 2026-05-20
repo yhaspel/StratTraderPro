@@ -1,8 +1,17 @@
 name: Deploy to Staging
 
+# Disabled 2026-05-20 — Railway is configured to auto-deploy from GitHub
+# directly (Service → Source → Branch = main). When this workflow also ran
+# on push, both deploys raced and the `railway up` here would overwrite the
+# Railway-native GitHub deploy. The CLI path does NOT inject
+# RAILWAY_GIT_COMMIT_SHA, so /healthz on staging silently regressed to
+# `"version": "unknown"` every time. See docs/runbooks/staging-deploy.md.
+#
+# Re-enable only if you also (a) disable Railway's built-in GitHub deploy
+# for the staging environment, AND (b) make the `railway up` calls below
+# pass GIT_SHA as an env var so /healthz keeps reporting the real commit.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-staging
