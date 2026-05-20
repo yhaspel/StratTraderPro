@@ -26,6 +26,13 @@ ALLOWED_HOSTS: list[str] = []
 # ---------------------------------------------------------------------------
 # Git version (used in /healthz)
 # ---------------------------------------------------------------------------
+# Resolution order:
+#   1. `git rev-parse` — works in local dev where the repo is mounted.
+#   2. `GIT_SHA` env var — explicit override (e.g., baked into a CI image).
+#   3. `RAILWAY_GIT_COMMIT_SHA` — auto-injected by Railway on every deploy;
+#      trimmed to the short form. This is what makes /healthz on Railway
+#      report the real commit instead of "unknown".
+#   4. Literal "unknown".
 try:
     GIT_SHA = (
         subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
@@ -33,7 +40,11 @@ try:
         .strip()
     )
 except Exception:
-    GIT_SHA = env("GIT_SHA", default="unknown")
+    GIT_SHA = (
+        env("GIT_SHA", default="")
+        or env("RAILWAY_GIT_COMMIT_SHA", default="")[:7]
+        or "unknown"
+    )
 
 # ---------------------------------------------------------------------------
 # Installed apps
