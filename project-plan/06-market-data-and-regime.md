@@ -2,8 +2,10 @@
 
 > **Week:** 6
 > **Duration:** 5 working days
-> **Depends on:** M05 (TradeStation + Orders)
+> **Depends on:** M05 (Order Lifecycle + second broker)
 > **Unlocks:** M07 (Sentiment) and M08 (Risk engine uses regime as an input)
+
+> **Review note (2026-07-05, post-Alpaca pivot — ADR-041):** Alpaca's Market Data API now ships with the M04 broker integration for free (Basic plan: real-time IEX feed + 15-min-delayed SIP, historical bars for 5000+ US equities via `StockHistoricalDataClient` in the already-pinned `alpaca-py`). Decision point at M06 kickoff: keep FMP as primary (it uniquely covers the sector-performance, treasury-curve, and economics endpoints the feature pipeline needs) but consider sourcing plain **equities bars** from Alpaca to cut FMP tier cost and add a real-time-capable second source. The `MarketDataProvider` abstraction (§6.13) was designed for exactly this — implement `AlpacaDataProvider` alongside `FMPProvider` if the dev-cost math favors it. FRED (macro) unchanged; cache aggressively per the analysis doc's rate-limit warning.
 
 ## 1. Purpose
 

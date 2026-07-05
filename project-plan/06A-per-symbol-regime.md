@@ -34,7 +34,7 @@ We are **re-implementing the math** against our own `Bar` store from M06 §6.2, 
 
 ### 2.3 Why now — sequencing note
 
-M04 is in progress (Day-1 spike done), M04A is blocked on IBKR consumer approval, M05–M07 are not started. Strictly the dependency graph says this slots after M06 ships. Two safe paths:
+M04 is in progress (Phase A spike done; Phase B+ rescoped to Alpaca per ADR-041 — M04A was scrapped 2026-07-05), M05–M07 are not started. Strictly the dependency graph says this slots after M06 ships. Two safe paths:
 
 - **Path A (default):** Park this plan; pick it up after M06 closes. The 06A label keeps it filed next to its parent.
 - **Path B (interleave):** If we want a per-symbol "tail-heavy filter" surfaced to users before M06's market-wide regime UI lands, the model + API in §6.1–§6.3 below can ship standalone behind `SYMBOL_REGIME_ENABLED=False` and integrated into M08/M04 hooks once those land. Calls out the feature-flag gating in §15.

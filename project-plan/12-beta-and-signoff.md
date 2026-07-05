@@ -90,8 +90,8 @@ Baseline DoD applies, plus:
 
 Write / polish 8 help articles in `frontend/src/assets/help/`:
 1. Create your account + MFA.
-2. Connect your paper broker (IBKR).
-3. Connect your paper broker (TradeStation).
+2. Connect your paper broker (Alpaca).
+3. Connect your paper broker (TradeStation — if the M05 second-broker scope shipped).
 4. Upload a strategy (the 3 files).
 5. Set up a TradingView alert.
 6. Understand your risk profile.

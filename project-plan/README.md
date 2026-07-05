@@ -8,6 +8,9 @@
 1. Milestones are sequential. Each milestone lists its **Depends on** and **Unlocks** so you know the critical path.
 2. Each file is the authoritative spec for that week. When scope changes mid-week, amend the milestone file, not the master plan.
 3. The **Exit Gate Checklist** at the bottom of each file is the go/no-go for moving to the next milestone. Do not advance with open items unless explicitly deferred and logged in the Risk register of the master plan.
+4. **Current status lives in [`PROGRESS.md`](./PROGRESS.md)** (canonical, verified-against-code). `plan-progress-tracker.md` keeps the detailed per-task history tables.
+5. **2026-07-05 broker pivot:** the first execution broker is **Alpaca**, not IBKR — see `docs/adr/041-alpaca-over-ibkr.md`. `04-webhook-ingest-and-ibkr.md` keeps its filename but now specs the Alpaca integration.
+6. **Scrapped plans move to [`archived/`](./archived/)** with a SCRAPPED banner explaining why and what carried over — they are reference material, not work items. Currently there: `04A-IBKR-Web-API.md`.
 
 ## Milestones
 
@@ -17,8 +20,8 @@
 | M01 | [01-auth-foundation.md](./01-auth-foundation.md) | 1 | Auth Foundation | Register, verify, login, JWT, refresh, guards. |
 | M02 | [02-mfa-and-user-profile.md](./02-mfa-and-user-profile.md) | 2 | MFA & User Profile | TOTP, backup codes, profile, password change. |
 | M03 | [03-strategies-and-webhook-config.md](./03-strategies-and-webhook-config.md) | 3 | Strategies & Webhook Config | Strategy upload, seed import, webhook modal. |
-| M04 | [04-webhook-ingest-and-ibkr.md](./04-webhook-ingest-and-ibkr.md) | 4 | Webhook Ingest + IBKR Paper | End-to-end TradingView → IBKR paper fill. |
-| M05 | [05-tradestation-and-order-lifecycle.md](./05-tradestation-and-order-lifecycle.md) | 5 | TradeStation + Order Lifecycle | Second broker, reconciliation, order history. |
+| M04 | [04-webhook-ingest-and-ibkr.md](./04-webhook-ingest-and-ibkr.md) | 4 | Webhook Ingest + Alpaca Paper | End-to-end TradingView → Alpaca paper fill. *(Rescoped from IBKR 2026-07-05, ADR-041; filename kept.)* |
+| M05 | [05-tradestation-and-order-lifecycle.md](./05-tradestation-and-order-lifecycle.md) | 5 | Order Lifecycle + Second Broker | Reconciliation, order types/history; TradeStation if access confirmed. |
 | M06 | [06-market-data-and-regime.md](./06-market-data-and-regime.md) | 6 | Market Data + Regime | FMP client, HMM + rule classifier, regime UI. |
 | M07 | [07-sentiment-pipeline.md](./07-sentiment-pipeline.md) | 7 | Sentiment Pipeline | News ingest, FinBERT, local LLM worker. |
 | M08 | [08-risk-engine-and-kill-switches.md](./08-risk-engine-and-kill-switches.md) | 8 | Risk Engine + Kill Switches | Sizing + all 4 kill-switch levels ≤ 5s. |

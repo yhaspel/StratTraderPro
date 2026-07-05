@@ -2,7 +2,11 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **Last updated:** 2026-05-08 — **M00 closed.** All ten AC-00-* criteria pass (two renegotiated and documented in `00-scoping-and-setup.md` and the `v0.0.0-scaffold` tag annotation: AC-00-1 — branch protection rule saved-not-enforced on free-tier private repo; AC-00-8 — `process_resident_memory_bytes` deferred because multi-process gunicorn excludes the prometheus_client `process_*` collector by design). Manual items 00.9.2 (branch protection), 00.9.4 (Sentry DSN — backend project live, both Railway envs configured, AC-00-7 verified), 00.9.6 (docker-compose smoke — all 7 services boot via `make up`, AC-00-2/3/4/5/8/9/10 verified via Chrome MCP), 00.9.7 (staging deploy verified — running 16+ hours, M01–M03 shipped through it), and 00.9.8 (`v0.0.0-scaffold` tag pushed, points to commit `264d90f`) all flipped to ✅. System Health dashboard 00.7.5b live at `https://yuval3000.grafana.net/d/stp-system-health`. Phase 10 carries forward three observability items as §6.5 carryover (move `/metrics` outside Django middleware, exporter wiring, Trading/Data/Backtest dashboards). Tag list on origin: `v0.0.0-scaffold`, `v0.1.0-auth`, `v0.1.1-auth-metrics`, `v0.2.0-mfa`, `v0.2.5-oauth-google`, `v0.3.0-strategies`. **Cleared to start M04.**
+> **⚠️ Canonical quick-status now lives in [`PROGRESS.md`](./PROGRESS.md)** (verified against code, updated per development milestone — see the project-root `MEMORY.md` for the update rule). This file keeps the detailed per-task history tables; when the two disagree, trust `PROGRESS.md` + the code.
+>
+> **Last updated:** 2026-07-05 — **Broker pivot: M04 rescoped to Alpaca; M04A scrapped.** IBKR Web API consumer approval never cleared for the Interactive Israel account, and the gateway path's operational constraints (weekly dormancy re-auth, one session per Gateway boot) made it a dead end without M04A. Decision recorded in `docs/adr/041-alpaca-over-ibkr.md`; `04-webhook-ingest-and-ibkr.md` rewritten around `AlpacaAdapter` (filename kept); the M04A spec moved to `archived/04A-IBKR-Web-API.md` with a SCRAPPED banner. Phase 04 Phase B–F remain not-started and now target Alpaca.
+>
+> **Previous update:** 2026-05-08 — **M00 closed.** All ten AC-00-* criteria pass (two renegotiated and documented in `00-scoping-and-setup.md` and the `v0.0.0-scaffold` tag annotation: AC-00-1 — branch protection rule saved-not-enforced on free-tier private repo; AC-00-8 — `process_resident_memory_bytes` deferred because multi-process gunicorn excludes the prometheus_client `process_*` collector by design). Manual items 00.9.2 (branch protection), 00.9.4 (Sentry DSN — backend project live, both Railway envs configured, AC-00-7 verified), 00.9.6 (docker-compose smoke — all 7 services boot via `make up`, AC-00-2/3/4/5/8/9/10 verified via Chrome MCP), 00.9.7 (staging deploy verified — running 16+ hours, M01–M03 shipped through it), and 00.9.8 (`v0.0.0-scaffold` tag pushed, points to commit `264d90f`) all flipped to ✅. System Health dashboard 00.7.5b live at `https://yuval3000.grafana.net/d/stp-system-health`. Phase 10 carries forward three observability items as §6.5 carryover (move `/metrics` outside Django middleware, exporter wiring, Trading/Data/Backtest dashboards). Tag list on origin: `v0.0.0-scaffold`, `v0.1.0-auth`, `v0.1.1-auth-metrics`, `v0.2.0-mfa`, `v0.2.5-oauth-google`, `v0.3.0-strategies`. **Cleared to start M04.**
 
 ## Production Environment
 
@@ -524,13 +528,13 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ---
 
-## Phase 04 — Webhook Ingest & IBKR
+## Phase 04 — Webhook Ingest & Broker Adapter (Alpaca — rescoped 2026-07-05)
 
-**Status:** 🚧 In Progress (Phase A — spike close-out complete; Phase B–F production code pending)
+**Status:** 🚧 In Progress (Phase A — IBKR spike close-out complete; Phase B–F production code pending, now targeting **Alpaca** per ADR-041)
 **Started:** 2026-05-09
 **Completed:** —
 
-> See `04-webhook-ingest-and-ibkr.md` for full spec.
+> See `04-webhook-ingest-and-ibkr.md` for the full (rewritten) spec — filename kept for link stability.
 > Debug loop for Day-1 spike close-out: `project-plan/debug-and-verifications/`.
 
 ### Phase A — Spike close-out (Day 1)
@@ -545,7 +549,17 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 ### Phase B–F — Production code (pending)
 
-Following M04 plan §6.1–§6.8 + §10–§14. Not yet started.
+Following the rewritten M04 plan §6.1–§6.9 + §10–§14 (Alpaca). Not yet started.
+
+### Decision (2026-07-05): scrap IBKR entirely; ship Phase B on Alpaca
+
+The 2026-05-15 decision below chose "Gateway now, M04A (IBKR Web API OAuth) later." M04A's blocking prerequisite — IBKR developer-portal consumer approval — never cleared for the Interactive Israel account, which removed the durable IBKR path. Rather than build production code on the interim gateway transport (weekly dormancy re-auth, one session per Gateway boot), the first execution broker is now **Alpaca Trading API**: no application approval gate, free paper accounts, per-user API keys, REST + `trade_updates` WebSocket via `alpaca-py`.
+
+- Full rationale + verified Alpaca facts: `docs/adr/041-alpaca-over-ibkr.md`.
+- `BrokerAdapter` protocol unchanged — the M04A design invariant holds; only the concrete adapter changed.
+- IBKR artifacts parked in-tree (ADR-040, `docker/ib-gateway/` behind a compose profile, re-auth runbook, spike script). `TWS_*` env scrub + credential rotation are M04 §6.9 tasks.
+- The 2026-05-15 "carryover items to M04A" list below is void: dormancy heartbeat and Gateway-restart-reconnect have no Alpaca equivalent; M04A kickoff is cancelled.
+- Open item for live trading later (M12+): confirm Alpaca live-account eligibility for Israeli residents (paper unaffected).
 
 ### Decision (2026-05-15): ship Phase B on TWS Socket API + Gateway sidecar; defer dormancy fix to M04A
 

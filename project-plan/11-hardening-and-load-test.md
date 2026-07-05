@@ -42,7 +42,7 @@ Prepare the platform for external users with a deliberate hardening pass: securi
 | AC-11-3 | Load test: 100 concurrent WS dashboards + 20 webhooks/sec for 10 min sustained; no 5xx; p95 order submit ≤ 1.5s. |
 | AC-11-4 | 50-user simultaneous L1 flatten: all flatten orders submitted within 10s; p99 ≤ 8s. |
 | AC-11-5 | Chaos drill: Redis killed mid-traffic — no data loss; Celery recovers within 60s; at-most-once semantics preserved for orders via idempotency. |
-| AC-11-6 | Chaos drill: IBKR Gateway killed — adapter reports disconnect within 30s; kill switch still works via cached state. |
+| AC-11-6 | Chaos drill: `run_broker_streams` service killed (Alpaca `trade_updates` gone) — broker status flips to DEGRADED within 30s; kill switch still works via REST path; missed fills recovered on restart (M04 AC-04-11 semantics under load). |
 | AC-11-7 | Backup restore: a snapshot restored to a scratch DB reproduces last-known state; queryable via admin. |
 | AC-11-8 | `/api/v1/users/me/export/` produces a ZIP with user's profile, strategies, orders, fills, audit events; delivered via signed URL expiring in 24h. |
 | AC-11-9 | Account delete request marks account for 30-day soft delete then purges PII on schedule; user receives confirmation email. |
@@ -118,7 +118,7 @@ Documented, scheduled, one per day:
 
 - **Day 1:** Kill Redis for 90s; verify recovery, no orphaned orders.
 - **Day 2:** Kill a worker mid-flatten; verify idempotent retry.
-- **Day 3:** IB Gateway sidecar crash-loops; verify kill-switch fallback.
+- **Day 3:** `run_broker_streams` crash-loops (Alpaca stream unavailable); verify kill-switch fallback via REST + fill catch-up on recovery.
 - **Day 4:** Simulated TS 5xx storm; verify backoff + no duplicate orders.
 - **Day 5:** DB failover (Railway + ad-hoc) — measure downtime & reconnect.
 

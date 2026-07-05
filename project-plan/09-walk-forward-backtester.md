@@ -5,6 +5,8 @@
 > **Depends on:** M06 (Market Data), M08 (Risk sizing primitives reused)
 > **Unlocks:** M10 (Admin + Audit + Observability) — backtest reports stream into observability as sanity metrics
 
+> **Review note (2026-07-05):** two blockers from the master-plan analysis must be resolved **before** this milestone starts, not during: (1) **vectorbt licensing** — the community edition is AGPL; running it server-side in a SaaS triggers source-disclosure obligations. Decide: buy vectorbt Pro, or swap the sweep stage to a permissively-licensed engine; record as ADR. (2) **Resource caps** — add a hard CPU-time budget per run (default ≤30 min, hard-kill + user-visible error) and a Celery priority lane so big sweeps can't starve small runs. Also: tearsheets must carry a non-removable "past performance" disclaimer + PBO warning block (compliance), and backtest model artifacts go to object storage via joblib — never pickles in the DB (analysis CRITICAL-04 applies to M06's HMM too).
+
 ## 1. Purpose
 
 Deliver a two-stage walk-forward backtesting subsystem: vectorbt for fast parameter sweeps and backtrader for realistic, path-dependent execution validation. Produce an authoritative tearsheet (PDF + HTML + JSON) for any strategy on demand. Make the backtester a first-class citizen so strategies earn the right to trade live by demonstrating stable out-of-sample performance.

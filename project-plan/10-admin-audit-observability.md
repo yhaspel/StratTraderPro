@@ -109,7 +109,7 @@ Lazy-loaded feature behind `adminGuard`. Pages:
 A simple Redis-backed flag store (read-through with 30s local cache) keyed by flag name. API + admin UI expose toggles. All known flags listed in `settings.FEATURE_FLAGS_REGISTRY` with defaults + descriptions.
 
 Flags exposed:
-- `AUTH_V1_ENABLED`, `MFA_ENABLED`, `STRATEGIES_V1_ENABLED`, `WEBHOOK_V1_ENABLED`, `BROKER_IBKR_ENABLED`, `BROKER_TRADESTATION_ENABLED`, `SIZING_V1_ENABLED`, `KILL_SWITCHES_ENABLED`, `ENABLE_REGIME_UI`, `SENTIMENT_ENABLED`, `LLM_WORKER_ENABLED`, `BACKTEST_ENABLED`, `ENABLE_LIVE_TRADING` (admin-only).
+- `AUTH_V1_ENABLED`, `MFA_ENABLED`, `STRATEGIES_V1_ENABLED`, `WEBHOOK_V1_ENABLED`, `BROKER_ALPACA_ENABLED`, `BROKER_TRADESTATION_ENABLED`, `SIZING_V1_ENABLED`, `KILL_SWITCHES_ENABLED`, `ENABLE_REGIME_UI`, `SENTIMENT_ENABLED`, `LLM_WORKER_ENABLED`, `BACKTEST_ENABLED`, `ENABLE_LIVE_TRADING` (admin-only). *(Broker flag renamed from `BROKER_IBKR_ENABLED` per ADR-041.)*
 
 ### 6.5 Observability polish
 
@@ -178,7 +178,7 @@ Paths per §6.2 + §6.4.
 
 - Admin logs in → sees KPI dashboard.
 - Admin searches audit by user & event type; CSV export contains expected columns.
-- Flag flip: `BROKER_IBKR_ENABLED=false` via admin → IBKR option hidden in user UI within 60s.
+- Flag flip: `BROKER_ALPACA_ENABLED=false` via admin → Alpaca option hidden in user UI within 60s.
 
 ### 10.4 Performance
 

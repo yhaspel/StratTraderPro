@@ -1,4 +1,24 @@
-# Milestone 04A — IBKR Client Portal Web API (OAuth) Migration
+# [ARCHIVED] Milestone 04A — IBKR Client Portal Web API (OAuth) Migration
+
+> **Status: ❌ SCRAPPED 2026-07-05 — never started; do not implement.**
+> Superseded by the Alpaca pivot: `docs/adr/041-alpaca-over-ibkr.md` and the rewritten
+> `project-plan/04-webhook-ingest-and-ibkr.md` (M04, now targeting Alpaca paper).
+>
+> **Why scrapped:** blocked on §5.1 — IBKR developer-portal consumer/application approval,
+> which never cleared for the project's Interactive Israel account. Combined with the
+> gateway spike findings (ADR-040: weekly paper-account dormancy re-auth, one TWS-API
+> session per Gateway boot), IBKR transports were dropped entirely.
+>
+> **What carried over into the rewritten M04:** the BrokerAdapter-protocol invariant
+> (adapters swappable, protocol unchanged); credential-hygiene ACs (`TWS_*` env scrub,
+> CI grep gate, IBKR password rotation — now M04 §6.9 / AC-04-13); encrypted-token-store,
+> no-secrets-in-logs, and stream-reconnect/catch-up test patterns (M04 §6.5, §10).
+>
+> If IBKR is ever revisited, start from this spec plus ADR-040's findings — the adapter
+> surface it must implement is unchanged. Original file history:
+> `git log --follow project-plan/archived/04A-IBKR-Web-API.md`.
+
+---
 
 > **Slot:** Between M04 and M05 (sub-milestone, refactor)
 > **Duration:** 5–7 working days (after IBKR consumer approval clears — see §5)

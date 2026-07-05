@@ -2,8 +2,15 @@
 
 > **Week:** 5
 > **Duration:** 5 working days
-> **Depends on:** M04 (Webhook + IBKR)
+> **Depends on:** M04 (Webhook + Alpaca paper)
 > **Unlocks:** M06 (Market Data + Regime)
+
+> **Review note (2026-07-05, post-Alpaca pivot — see `docs/adr/041-alpaca-over-ibkr.md`):**
+>
+> 1. The first broker is now **Alpaca**, not IBKR. All broker-pair references below are updated; the parity suite runs `[ALPACA, TRADESTATION]`.
+> 2. **Gate before starting:** TradeStation API access is itself account/approval-gated (API key request, no official Python SDK). Confirm sim credentials are actually obtainable **before** this milestone starts — this is the failure mode that killed both IBKR paths. If TS access isn't confirmed within a week of kickoff, descope M05 to "Order Lifecycle" only (reconciliation, extended order types, orders page — all broker-agnostic, buildable on Alpaca + Fake) and defer the second broker.
+> 3. **Futures cannot ship on Alpaca** (no futures support). AC-05-5 is split accordingly: options on both brokers (verify the paper account's options approval level on Alpaca), futures TradeStation-only.
+> 4. Build the broker-agnostic order-lifecycle half first regardless of item 2.
 
 ## 1. Purpose
 
@@ -32,9 +39,9 @@ Prove out the broker-adapter abstraction by shipping a second implementation (Tr
 |---|-----------|
 | AC-05-1 | A user can complete TradeStation OAuth flow from the dashboard; refresh tokens stored encrypted; account list populated. |
 | AC-05-2 | Sending a TV webhook routes to the user's chosen broker (default or alert-specified); order is placed on that broker only. |
-| AC-05-3 | Both IBKR paper and TradeStation sim can be connected simultaneously by the same user. |
+| AC-05-3 | Both Alpaca paper and TradeStation sim can be connected simultaneously by the same user. |
 | AC-05-4 | Order types MKT / LMT / STP / STP_LMT round-trip correctly on both brokers and are reflected in `Order.status` transitions. |
-| AC-05-5 | Options alerts (`asset_class=OPTION`, `symbol=AAPL_240119C00150000` OPRA) and futures alerts (`ES-NQ-YM-RTY` root, expiry) place correctly on both brokers. |
+| AC-05-5 | Options alerts (`asset_class=OPTION`, `symbol=AAPL_240119C00150000` OPRA) place correctly on both brokers; futures alerts (`ES-NQ-YM-RTY` root, expiry) place correctly on TradeStation and are rejected on Alpaca with `ORDER_UNSUPPORTED_ASSET`. |
 | AC-05-6 | Reconciliation task runs every 5 min; detects a deliberately-injected drift and emits a `RECON_DRIFT` audit event + heals toward broker truth. |
 | AC-05-7 | Orders page lists orders with pagination, filters, and deep-linking; exports CSV on demand. |
 | AC-05-8 | `BrokerAccount.mode` switch to `LIVE` is rejected (403 + `LIVE_TRADING_DISABLED`) until feature flag is on AND user has accepted a versioned disclaimer. |
@@ -107,7 +114,7 @@ Celery beat every 5 min:
 ### 6.5 Broker picker in webhook modal
 
 - Per-strategy default broker dropdown added to M03's modal.
-- Alert payload may include `"broker": "IBKR"` to override at alert time.
+- Alert payload may include `"broker": "ALPACA"` (or `"TRADESTATION"`) to override at alert time.
 
 ### 6.6 Feature flag — live mode
 
@@ -146,14 +153,14 @@ GET  /api/v1/reconciliation/events/?from&to
 
 ### 10.1 Unit tests
 
-- Order symbol conversion: canonical ↔ IBKR ↔ TradeStation for stocks, ETFs, options, futures with tricky cases (BRK.B, root `ES` Dec 2026).
+- Order symbol conversion: canonical ↔ Alpaca ↔ TradeStation for stocks, ETFs, options (futures TradeStation-only) with tricky cases (BRK.B, root `ES` Dec 2026).
 - OAuth refresh: expired token triggers refresh, succeeds transparently.
 - OAuth refresh permanent failure surfaces `BROKER_REAUTH_REQUIRED`.
 - Reconcile diff detection & healing logic.
 
 ### 10.2 Integration (parameterized across both adapters)
 
-For each `adapter in [IBKR, TradeStation]`:
+For each `adapter in [ALPACA, TRADESTATION]`:
 - `place_order_market_buy_goes_to_filled`
 - `place_order_limit_stays_open_until_price`
 - `cancel_order`
@@ -228,7 +235,8 @@ For each `adapter in [IBKR, TradeStation]`:
 | TS rate limit hit during burst alerts | Med | Med | Client-side token bucket; retry with jitter; surface rate-limit to user. |
 | Adapter symbology mismatch (esp. options) | Med | High | Extensive unit tests; canonical format documented in ADR. |
 | Reconcile triggers oscillation (heal → broker updates → drift again) | Low | Med | Two-consecutive-cycle confirmation before heal. |
-| Refresh token revoked silently by TS | Low | Med | Sentry alert + UI banner "Reconnect TradeStation"; non-blocking for IBKR users. |
+| Refresh token revoked silently by TS | Low | Med | Sentry alert + UI banner "Reconnect TradeStation"; non-blocking for Alpaca users. |
+| TS API access not granted in time (account/approval gate) | Med | High | Confirm sim credentials before milestone start; descope to Order-Lifecycle-only per the 2026-07-05 review note. |
 
 ## 17. Exit Gate Checklist
 

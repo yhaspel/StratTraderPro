@@ -1,8 +1,19 @@
 # ADR-040 — IB Gateway sidecar on Railway
 
 **Date:** 2026-05-09 (spike); 2026-05-15 (close-out — see Findings)
-**Status:** Accepted (2026-05-15 — see Findings)
-**Milestone:** M04 — Webhook Ingest + IBKR Paper
+**Status:** Superseded by ADR-041 (2026-07-05) — was: Accepted (2026-05-15 — see Findings)
+**Milestone:** M04 — Webhook Ingest + IBKR Paper (rescoped to Alpaca 2026-07-05)
+
+> **Supersession note (2026-07-05):** the IBKR execution path — both this
+> gateway substrate and the M04A Web API migration it deferred to — was
+> dropped in favor of Alpaca (`docs/adr/041-alpaca-over-ibkr.md`). M04A's
+> blocking IBKR consumer approval never cleared for the Interactive Israel
+> account. References below to M04A / `04A-IBKR-Web-API.md` as the
+> "durable fix" are historical; that plan is archived at
+> `project-plan/archived/04A-IBKR-Web-API.md`. The sidecar
+> assets this ADR describes stay parked in-tree (compose profile `ibkr`)
+> as a working reference. Findings remain valid and were an input to the
+> pivot decision.
 
 > Closed out by the M04 Phase A spike rerun on 2026-05-15. Assumptions
 > A1, A2 (including real fill capture during RTH at 17:15 IST — AAPL @
