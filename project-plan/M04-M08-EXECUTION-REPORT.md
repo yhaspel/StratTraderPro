@@ -187,9 +187,9 @@
 
 ## M08 — Risk Engine, Sizing & Kill Switches
 
-- **Branch:** `feature/m08-risk-killswitch`
-- **PR / merge:** _(opened after frontend + gauntlet)_
-- **Release tag (local, unpushed):** `v0.8.0-risk`
+- **Branch:** `feature/m08-risk-killswitch` (merged + deleted)
+- **PR / merge:** [#26](https://github.com/yhaspel/StratTraderPro/pull/26) — ✅ **Merged** (squash, admin) — merge commit `d5b4d31`. All 5 CI checks green (Backend, Frontend, E2E smoke, block-legacy-ibkr-creds, Trivy). Independent adversarial review recorded on the PR; the blocking **HIGH** (L2 daily-loss halt permanently unreleasable) + 4 MEDIUM findings fixed in `5147cb8`.
+- **Release tag (local, unpushed):** `v0.8.0-risk` → `d5b4d31`
 
 ### AC coverage
 | AC | Status | Evidence |
@@ -202,10 +202,10 @@
 | AC-08-6 BEAR+LONG+strict → reject | **Met** | `SizingTests.test_strict_mode_side_mismatch` |
 | AC-08-7 L0 strategy toggle isolates | **Met** | `test_is_blocked_truth_table` + `test_killswitch_strategy_toggle` |
 | AC-08-8 L1 flatten all ≤5s | **Met (local) / Deferred-staging** | `test_flatten_latency_and_flat` (<5s vs FakeBroker); staging p99 deferred |
-| AC-08-9 L2 daily-loss auto + lock | **Met** | `DailyLossTests.test_two_poll_breach_trips_l2` + `test_l2_release_locked_until_next_day` |
+| AC-08-9 L2 daily-loss auto + lock + next-day release | **Met** | `test_two_poll_breach_trips_l2`, `test_l2_release_locked_until_next_day`, `test_expired_l2_auto_released_next_trading_day` (watcher sweep releases after UTC-05 rollover — review-fix) |
 | AC-08-10 L3 platform halt | **Met** | `test_platform_halt_blocks_everyone` + admin-only API |
 | AC-08-11 50-user L1 load | **Deferred-staging** | logic in place; load test needs a deployed env |
-| AC-08-12 soft-stop ×0.5 | **Met** | `SizingTests.test_soft_stop_halves` |
+| AC-08-12 soft-stop ×0.5 | **Met (algorithm) / feed live-deferred** | `test_soft_stop_halves`; the live `intraday_dd_pct` feed (peak-equity watcher, plan §6.5) is not yet wired to `apply_sizing` — documented in ADR-080 "honest limits" |
 
 ### New surface
 - **Models/migrations:** `risk.{RiskProfile, SizingDecision, RiskEvent}` (`risk.0001`); `brokers.TradingHalt` extended with `level`/`auto`/nullable-`user` (`brokers.0003`).
@@ -215,7 +215,7 @@
 - **Metrics:** 5. **Risk Ops** Grafana JSON committed. **Frontend:** `/risk` + dashboard halt button/banner.
 
 ### Local gauntlet
-- ruff ✓ · bandit ✓ · pytest (M04–M08, all pass) ✓ · makemigrations --check ✓ · prod-import ✓ · frontend ngc+build _(close-out)_.
+- ruff ✓ · bandit ✓ · pytest **306 passed** (M04–M08, SQLite) ✓ · makemigrations --check ✓ · prod-import ✓ · frontend `ngc --noEmit` + `pnpm build` ✓ (risk-component lazy chunk emitted).
 
 ### Decisions logged (autonomous)
 - **Kill switches built ON `brokers.TradingHalt`** (extended, no parallel `KillSwitchState`) per the mission — M04's ingest gate already reads it. Made `user` nullable for the L3 platform scope.
@@ -223,6 +223,13 @@
 - **Flatten latency measured locally** against `FakeBrokerAdapter` (<5s); the staging p99 measurement + Redis-kill chaos drill are documented for the operator.
 - **Daily-loss uses cached Position marks** (conservative fallback) + a two-poll confirmation to avoid stale-mark false positives (review-note-3).
 - **Kelly damper deferred** — needs the M09 `TradeHistory`.
+
+### Adversarial-review fixes (`5147cb8`, all with regression tests)
+- **HIGH — L2 auto-release:** a tripped daily-loss halt had no caller of `release_halt`, so it locked the user out permanently (broke AC-08-9). Added `killswitch.release_expired_l2_halts()`; the `daily_loss_watcher` (30s beat) now sweeps and releases L2 halts after the UTC-05 trading-day rollover.
+- **MEDIUM — sizing clamp:** the +10% sentiment boost was applied after the position clamp and could breach `max_position_pct`; re-clamp to `max_qty_by_pos` after all multipliers.
+- **MEDIUM — breach-event spam:** `check_daily_loss` re-emitted the `DAILY_LOSS_BREACH` event + metric on every poll after the trip; now short-circuits when an active L2 halt exists.
+- **MEDIUM — fail-closed sizing:** `apply_sizing` was unguarded in `process_alert`; an exception left the order stuck at PENDING_SUBMIT. Wrapped → `SIZING_ERROR` reject.
+- **MEDIUM (fe) — L2 UI:** the L2 auto halt rendered in the USER card with a Release button that silently no-op'd; now shows an "auto — releases next trading day" lock note (+ `LL2`→`L2` badge fix, `level:string` typing).
 
 ### Deferred (need externals / staging)
 - Flatten p99 ≤5s measured on staging (AC-08-8) + the 50-user L1 load test (AC-08-11); the Risk Ops dashboard "live" verification; the monthly kill-switch drill (runbook committed).
@@ -244,7 +251,14 @@
 - **Confirm Alpaca live-trading eligibility for Israeli residents** with Alpaca support *before any live scope* (M12+). Paper is unaffected.
 
 ### Release tags created locally but NOT pushed (each vX push triggers prod deploy)
-- `v0.4.0-alpaca-paper` — push when ready to deploy M04.
+Push in order, one at a time, only when ready to deploy that milestone to prod:
+- `v0.4.0-alpaca-paper` → `88e74a7` (M04)
+- `v0.5.0-tradestation` → `73128b3` (M05)
+- `v0.6.0-regime` → `5fb9de4` (M06)
+- `v0.7.0-sentiment` → `ee81f63` (M07)
+- `v0.8.0-risk` → `d5b4d31` (M08)
+- Pre-existing debt: `v0.1.1-auth-metrics` was also never pushed (tracker 01.11.15).
+- Push a tag with e.g. `git push origin v0.4.0-alpaca-paper`. All tags point at squash-merge commits already on `origin/main`, so pushing a tag deploys code that is already merged.
 
 ### PRs left open (if `--admin` merge was blocked)
-- _(recorded at close-out)_
+- **None.** All five PRs (#22 M04, #23 M05, #24 M06, #25 M07, #26 M08) were squash-merged with `--admin` after CI went green and review findings were addressed. Feature branches deleted.
