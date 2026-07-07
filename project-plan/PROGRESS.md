@@ -21,7 +21,8 @@
 | **M05** | **Order lifecycle + TradeStation (descoped)** | ✅ **Implemented (2026-07-07)** — order-lifecycle half full; TS behind flag OFF; live TS OAuth deferred | `v0.5.0-tradestation` (tag pending) |
 | **M06** | **Market data + regime classifier** | ✅ **Implemented (2026-07-07)** — FMP/FRED + Bar store + rule/HMM/ensemble; live keys/backfill/retrain deferred | `v0.6.0-regime` (tag pending) |
 | **M07** | **Sentiment pipeline** | ✅ **Implemented (2026-07-07)** — fetchers/tagger/tiered scorers (fakes)/EWMA/API; model weights + benchmark deferred | `v0.7.0-sentiment` (tag pending) |
-| M08–M12 | Risk engine, backtester, admin/audit, hardening, beta | ⏳ Not started | — |
+| **M08** | **Risk engine, sizing & kill switches** | ✅ **Implemented (2026-07-08)** — sizing + 4-level kill switches on `TradingHalt`; staging p99 + Risk Ops "live" deferred | `v0.8.0-risk` (tag pending) |
+| M09–M12 | Backtester, admin/audit, hardening, beta | ⏳ Not started | — |
 
 **M04 truth (updated 2026-07-07):** Phase A (IB Gateway spike) done 2026-05-15 (ADR-040). **Phase B–F now implemented** on `feature/m04-webhook-alpaca-paper`: public webhook endpoint + `AlertMessage` + `process_alert`; `BrokerAdapter` protocol + `FakeBrokerAdapter` + `AlpacaAdapter` (paper) with `BrokerAccount`/`TradingHalt`/`BrokerCallAudit`; `Order`/`Fill`/`Position` + `ingest_fill_event` (dedup on `broker_exec_id`); Redis-Stream fill transport + `run_broker_streams` supervisor; Channels `/ws/dashboard/` consumer; `/settings/brokers` + `/dashboard` frontend; `alpaca-py` + `channels`/`daphne` in requirements. Backend gauntlet green (ruff/bandit/191 pytest/migrations/prod-import); CI grep gate + pivot hygiene done. **Deferred (needs externals):** the §10.4 live-Alpaca-paper smoke (runbook committed; operator runs with real keys), the Grafana Trading Ops "live on staging" panel (dashboard JSON committed), and the IBKR password rotation + Railway/GitHub secret deletion (operator step).
 

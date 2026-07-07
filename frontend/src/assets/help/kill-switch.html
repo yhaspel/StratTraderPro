@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Using the kill switch</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  .danger { background: #fff1f0; border: 1px solid #ffa39e; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Using the kill switch</h1>
+
+<p>The <strong>kill switch</strong> is your emergency brake. It lets you stop
+trading and get out of the market fast — either everything at once, or just one
+strategy. There's also an automatic version that watches your daily losses and
+steps in for you.</p>
+
+<h2>The big red "Halt my trading" button</h2>
+
+<p>On your dashboard, the big red <strong>Halt my trading</strong> button is the
+one to reach for when you want out <em>now</em>. When you confirm it:</p>
+
+<ul>
+  <li>we <strong>flatten every position</strong> across all your connected
+  brokers — sending the orders to close them out;</li>
+  <li>we <strong>reject any new alerts</strong> for your account until you turn the
+  halt back off;</li>
+  <li>a banner appears across the top of your dashboard so it's obvious trading is
+  halted.</li>
+</ul>
+
+<div class="warn">
+  <strong>You'll be asked for your MFA code.</strong> Because halting your trading
+  is a serious action, we ask for a fresh code from your authenticator app first —
+  the same one you use to sign in. This makes sure it's really you, even if someone
+  else got hold of your browser session. Have your phone handy.
+</div>
+
+<p>Flattening is fast — the whole thing normally finishes in a few seconds. When
+you're ready to trade again, turn the halt off from the same button or the Risk
+page, and new alerts start flowing again. (Positions you closed stay closed; the
+kill switch doesn't re-open them.)</p>
+
+<h2>Per-strategy toggle</h2>
+
+<p>Sometimes you only want to pause <em>one</em> strategy, not everything. On the
+Strategies page each strategy has its own kill-switch toggle:</p>
+
+<ul>
+  <li>Toggle it on and new alerts for <strong>that strategy</strong> are turned
+  away — your other strategies keep running normally.</li>
+  <li>No MFA code is needed for a single-strategy toggle; it's a lighter-weight
+  control.</li>
+  <li>Toggle it back off to resume that strategy.</li>
+</ul>
+
+<div class="tip">
+  Use the per-strategy toggle when one strategy is misbehaving but the rest of
+  your book is fine. Use the big red button when you want out of everything.
+</div>
+
+<h2>The automatic daily-loss halt</h2>
+
+<p>You don't have to be watching. If your losses for the day reach the
+<strong>daily loss limit</strong> you set in your risk profile (a dollar amount or
+a percentage), StratTraderPro trips the halt <strong>for you</strong>: it flattens
+your positions and stops new trades — exactly like pressing the big red button.</p>
+
+<div class="danger">
+  <strong>The daily-loss halt locks until tomorrow.</strong> Once it trips, you
+  <em>can't</em> turn it back on yourself for the rest of that trading day — that's
+  the point of a circuit breaker. It releases automatically at the start of the
+  next trading day, and you're back to normal.
+</div>
+
+<p>To avoid tripping on a momentary bad price quote, we require the loss to be
+confirmed on two checks in a row (about 30 seconds apart) before we act — a single
+odd reading won't set it off. When it does trip, you'll see a
+<strong>Daily loss breach</strong> entry in your Risk events feed with the loss we
+measured.</p>
+
+<h2>How the levels stack up</h2>
+
+<table>
+  <tr><th>Control</th><th>What it stops</th><th>MFA?</th><th>How to undo</th></tr>
+  <tr>
+    <td>Per-strategy toggle</td>
+    <td>New alerts for one strategy</td>
+    <td>No</td>
+    <td>Toggle it back off anytime</td>
+  </tr>
+  <tr>
+    <td>Halt my trading (big red button)</td>
+    <td>Flattens everything + rejects all your new alerts</td>
+    <td>Yes</td>
+    <td>Turn the halt off anytime</td>
+  </tr>
+  <tr>
+    <td>Daily-loss auto-halt</td>
+    <td>Same as the red button, triggered automatically</td>
+    <td>—</td>
+    <td>Unlocks by itself next trading day</td>
+  </tr>
+</table>
+
+<p>There's also a platform-wide halt that our operators can use in a system-wide
+emergency — if that's ever active you'll see a banner telling you trading is
+paused for everyone. It's rare and not something you control.</p>
+
+<h2>Seeing what happened</h2>
+
+<p>Every halt, release, flatten, and daily-loss trip is recorded in the
+<strong>Risk events</strong> feed on the Risk page, with a timestamp and the
+details — so you can always see exactly when trading was stopped, why, and what got
+flattened.</p>
+
+</body>
+</html>

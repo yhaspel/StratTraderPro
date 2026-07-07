@@ -524,5 +524,102 @@
       "REAL_ESTATE": "Real Estate",
       "COMMUNICATION_SERVICES": "Communication Services"
     }
+  },
+  "risk": {
+    "title": "Risk management",
+    "save": "Save",
+    "defaults": "Reset to defaults",
+    "halt_my_trading": "Halt my trading",
+    "halt_confirm": "This immediately stops new orders and flattens your open positions. Enter your authenticator code to confirm.",
+    "halt_banner": "Trading is halted — a kill switch is active. New orders are blocked.",
+    "mfa_prompt": "Authenticator code",
+    "profile": {
+      "title": "Risk profile",
+      "saved": "Risk profile saved.",
+      "risk_per_trade_pct": "Risk per trade (%)",
+      "risk_per_trade_pct_help": "Maximum account equity risked on a single trade.",
+      "max_position_pct": "Max position size (%)",
+      "max_position_pct_help": "Cap on any single position as a share of equity.",
+      "max_concurrent": "Max concurrent positions",
+      "max_concurrent_help": "Maximum number of positions open at once.",
+      "daily_loss_usd": "Daily loss limit ($)",
+      "daily_loss_usd_help": "Halt trading once realized losses reach this amount in a day.",
+      "daily_loss_pct": "Daily loss limit (%)",
+      "daily_loss_pct_help": "Halt trading once realized losses reach this share of equity in a day.",
+      "leverage_cap": "Leverage cap",
+      "leverage_cap_help": "Maximum gross exposure relative to equity.",
+      "soft_stop_pct": "Soft stop (%)",
+      "soft_stop_pct_help": "First protective stop, as a share of entry price.",
+      "hard_stop_pct": "Hard stop (%)",
+      "hard_stop_pct_help": "Final protective stop; must be wider than the soft stop.",
+      "atr_factor": "ATR factor",
+      "atr_factor_help": "Multiplier applied to ATR when sizing stops.",
+      "strict_mode": "Strict mode",
+      "strict_mode_help": "Reject any order that breaches a limit instead of clamping it.",
+      "permitted_asset_classes": "Permitted asset classes",
+      "asset_class": {
+        "STOCK": "Stocks",
+        "ETF": "ETFs",
+        "OPTION": "Options",
+        "FUTURE": "Futures"
+      }
+    },
+    "event": {
+      "DAILY_LOSS_BREACH": "Daily loss breach",
+      "KILL_SWITCH_ON": "Kill switch armed",
+      "KILL_SWITCH_OFF": "Kill switch released",
+      "SOFT_STOP": "Soft stop",
+      "SIZING_REJECT": "Sizing rejected",
+      "FLATTEN": "Positions flattened"
+    },
+    "switch": {
+      "title": "Active kill switches",
+      "STRATEGY": "Strategy halt",
+      "USER": "Personal halt (L1)",
+      "PLATFORM": "Platform halt",
+      "active": "Active",
+      "inactive": "Not halted",
+      "since": "since",
+      "halt": "Halt trading",
+      "release": "Release",
+      "flatten": "Also flatten open positions",
+      "auto": "Auto",
+      "auto_locked": "Auto daily-loss halt — releases at the next trading day",
+      "confirm_halt": "Confirm halt",
+      "mfa_placeholder": "6-digit code"
+    },
+    "reason": {
+      "REGIME_CRISIS": "Crisis regime — trading paused",
+      "REGIME_SIDE_MISMATCH": "Order side conflicts with the current regime",
+      "SIZING_ZERO": "Computed size rounded to zero",
+      "SIZING_ERROR": "Sizing failed — order rejected for safety",
+      "DAILY_LOSS_BREACH": "Daily loss limit reached",
+      "KILL_SWITCH_ACTIVE": "A kill switch is active",
+      "LIMIT_POSITION_PCT": "Position-size limit exceeded"
+    },
+    "error": {
+      "HALT_LOCKED": "This halt is locked by an automatic (L2) kill switch and can't be released manually.",
+      "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code to confirm.",
+      "FORBIDDEN": "You don't have permission to change this kill switch.",
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again.",
+      "UNKNOWN": "Something went wrong. Please try again."
+    },
+    "events": {
+      "title": "Risk events",
+      "empty": "No risk events yet."
+    },
+    "sizing": {
+      "title": "Sizing decisions",
+      "empty": "No sizing decisions yet.",
+      "ok": "Accepted",
+      "reject": "Rejected",
+      "col": {
+        "time": "Time",
+        "symbol": "Symbol",
+        "requested": "Requested",
+        "computed": "Computed",
+        "result": "Result"
+      }
+    }
   }
 }

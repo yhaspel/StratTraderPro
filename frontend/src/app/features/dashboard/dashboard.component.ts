@@ -7,30 +7,47 @@
  */
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { environment } from '../../../environments/environment';
+import { ApiError } from '../../core/models/auth.models';
 import { StreamStatus } from '../../core/models/brokers.models';
 import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
 import { RegimeFacade } from '../../abstraction/facades/regime.facade';
+import { RiskFacade } from '../../abstraction/facades/risk.facade';
 import { SentimentFacade } from '../../abstraction/facades/sentiment.facade';
 import { RegimeBadgeComponent } from './regime-badge.component';
 import { SentimentPanelComponent } from './sentiment-panel.component';
 
+/** Risk error codes with a dedicated translated message. */
+const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', 'UNKNOWN']);
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent],
+  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent],
   template: `
+    <!-- ========== Halt banner (any active kill switch) ========== -->
+    @if (risk.haltActive()) {
+      <div class="bg-red-600 text-white px-4 py-3 text-sm font-semibold text-center" role="alert">
+        {{ 'risk.halt_banner' | translate }}
+      </div>
+    }
+
     <div class="mx-auto max-w-6xl p-6 space-y-8">
       <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold">{{ 'dashboard.title' | translate }}</h1>
-        <div class="flex items-center gap-2 text-sm">
+        <div class="flex items-center gap-3 text-sm">
           <span class="inline-flex items-center gap-1">
             <span class="w-2 h-2 rounded-full"
                   [class.bg-green-500]="facade.connected()"
                   [class.bg-gray-400]="!facade.connected()"></span>
             {{ (facade.connected() ? 'dashboard.live' : 'dashboard.offline') | translate }}
           </span>
+          <button type="button" (click)="openHalt()"
+                  class="bg-red-600 text-white font-semibold px-4 py-2 rounded hover:bg-red-700">
+            {{ 'risk.halt_my_trading' | translate }}
+          </button>
         </div>
       </div>
 
@@ -138,16 +155,63 @@ import { SentimentPanelComponent } from './sentiment-panel.component';
         </section>
       }
     </div>
+
+    <!-- ========== Halt-my-trading confirm + MFA prompt ========== -->
+    @if (haltOpen()) {
+      <div class="fixed inset-0 bg-black/40 z-40" (click)="cancelHalt()"></div>
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
+          <h2 class="text-lg font-bold text-red-700">{{ 'risk.halt_my_trading' | translate }}</h2>
+          <p class="text-sm text-gray-600">{{ 'risk.halt_confirm' | translate }}</p>
+          <form [formGroup]="mfaForm" (ngSubmit)="confirmHalt()" class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">{{ 'risk.mfa_prompt' | translate }}</label>
+              <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
+                     autocomplete="one-time-code"
+                     class="w-full border rounded px-3 py-2 font-mono text-sm" />
+            </div>
+            @if (haltError(); as err) {
+              <p class="text-sm text-red-700">
+                @if (knownRiskError(err.code)) {
+                  {{ ('risk.error.' + err.code) | translate }}
+                } @else {
+                  {{ err.message }}
+                }
+              </p>
+            }
+            <div class="flex gap-3 justify-end">
+              <button type="button" (click)="cancelHalt()"
+                      class="px-4 py-2 rounded border text-sm hover:bg-gray-50">
+                {{ 'common.cancel' | translate }}
+              </button>
+              <button type="submit" [disabled]="mfaForm.invalid"
+                      class="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
+                {{ 'risk.halt_my_trading' | translate }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
   `,
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   facade = inject(DashboardFacade);
   regime = inject(RegimeFacade);
   sentiment = inject(SentimentFacade);
+  risk = inject(RiskFacade);
+  private fb = inject(FormBuilder);
 
   readonly isProd = environment.production;
   toast = signal(false);
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  haltOpen = signal(false);
+  haltError = signal<ApiError | null>(null);
+
+  mfaForm = this.fb.nonNullable.group({
+    mfa_code: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(6)]],
+  });
 
   ngOnInit(): void {
     void this.facade.loadSnapshot();
@@ -157,6 +221,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     void this.regime.loadModel();
     void this.sentiment.loadMarket();
     void this.sentiment.loadArticles();
+    void this.risk.loadKillswitches();
   }
 
   ngOnDestroy(): void {
@@ -187,6 +252,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const n = Number(value);
     if (!isFinite(n)) { return value; }
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(n);
+  }
+
+  openHalt(): void {
+    this.haltError.set(null);
+    this.mfaForm.reset();
+    this.haltOpen.set(true);
+  }
+
+  cancelHalt(): void {
+    this.haltOpen.set(false);
+    this.mfaForm.reset();
+  }
+
+  async confirmHalt(): Promise<void> {
+    if (this.mfaForm.invalid) { return; }
+    this.haltError.set(null);
+    const { mfa_code } = this.mfaForm.getRawValue();
+    const res = await this.risk.triggerHalt('USER', { flatten: true, mfa_code });
+    if (res.ok) {
+      this.haltOpen.set(false);
+      this.mfaForm.reset();
+    } else {
+      // MFA_REQUIRED (wrong/expired code) or HALT_LOCKED — keep prompt open.
+      this.haltError.set(res.error);
+    }
+  }
+
+  knownRiskError(code: string): boolean {
+    return KNOWN_RISK_ERRORS.has(code);
   }
 
   /** Dev stub — no backend dependency; just flashes a confirmation. */

@@ -33,7 +33,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
-from apps.brokers.services import active_halt_reason
+from apps.risk.killswitch import is_blocked
 from apps.strategies.models import WebhookConfig
 from apps.strategies.services import decrypt_secret
 
@@ -181,8 +181,8 @@ class WebhookView(View):
                 WEBHOOK_RECEIVED_TOTAL.labels(result=R_DUPLICATE).inc()
                 return _json({"data": {"duplicate": True}}, 200)
 
-        # 10. halt gate
-        reason = active_halt_reason(user_id=wc.user_id, strategy_id=wc.strategy_id)
+        # 10. halt gate (kill-switch engine — platform / user / strategy)
+        reason = is_blocked(wc.user_id, wc.strategy_id)
         if reason:
             AlertMessage.objects.create(
                 user=wc.user,

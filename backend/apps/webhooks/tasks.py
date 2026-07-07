@@ -81,6 +81,18 @@ def process_alert(self, alert_id):
         alert.save(update_fields=["status", "reject_reason", "processed_at"])
         return {"rejected": "NO_BROKER_CONNECTED"}
 
+    # Belt-and-suspenders kill-switch re-check (the webhook may have raced a
+    # halt toggle between accept and processing — §6.3 / M08 §6.3).
+    from apps.risk.killswitch import is_blocked
+
+    blocked = is_blocked(alert.user_id, alert.strategy_id)
+    if blocked:
+        alert.status = AlertMessage.Status.REJECTED
+        alert.reject_reason = blocked
+        alert.processed_at = timezone.now()
+        alert.save(update_fields=["status", "reject_reason", "processed_at"])
+        return {"rejected": blocked}
+
     # --- parse the alert into order intent -------------------------------
     action = str(body.get("action", "")).lower()
     symbol = str(body.get("symbol", "")).upper().strip()
@@ -214,22 +226,41 @@ def process_alert(self, alert_id):
         side=order_side,
     )
 
-    req = OrderRequest(
-        symbol=symbol,
-        side=side,
-        qty=qty,
-        order_type=otype,
-        limit_price=limit_price,
-        stop_price=stop_price,
-        time_in_force=tif,
-        asset_class=asset_raw,
-        option=option,
-        future=future,
-    )
+    def _build_req(q):
+        return OrderRequest(
+            symbol=symbol, side=side, qty=q, order_type=otype, limit_price=limit_price,
+            stop_price=stop_price, time_in_force=tif, asset_class=asset_raw,
+            option=option, future=future,
+        )
+
+    req = _build_req(qty)
+
+    # --- build adapter ---------------------------------------------------
+    try:
+        adapter = build_adapter(account)
+    except BrokerError as exc:
+        return _reject(order, alert, exc.code)
+
+    # --- sizing (M08 §6.2 — only when the user has a RiskProfile) ---------
+    from apps.risk.integration import apply_sizing
+
+    try:
+        sizing = apply_sizing(
+            alert=alert, order=order, account=account, adapter=adapter,
+            requested_qty=qty, side=order_side, symbol=symbol, price_hint=limit_price,
+        )
+    except Exception:  # noqa: BLE001 — sizing must fail closed, never leave the order stuck at PENDING_SUBMIT
+        logger.exception("process_alert.sizing_error", extra={"order": str(order.id)})
+        return _reject(order, alert, "SIZING_ERROR")
+    if sizing is not None:
+        if not sizing.ok:
+            return _reject(order, alert, sizing.reason)
+        qty = sizing.qty
+        Order.objects.filter(id=order.id).update(qty=qty)
+        req = _build_req(qty)
 
     # --- place -----------------------------------------------------------
     try:
-        adapter = build_adapter(account)
         t0 = time.monotonic()
         ack = adapter.place_order(req, client_order_id)
         ORDER_SUBMIT_LATENCY.labels(broker=str(account.broker).lower()).observe(time.monotonic() - t0)
