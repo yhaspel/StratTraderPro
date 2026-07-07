@@ -10,10 +10,10 @@
 
 ## M04 — Webhook Ingest + Broker Adapter + Alpaca Paper
 
-- **Branch:** `feature/m04-webhook-alpaca-paper`
-- **PR:** _(opened after frontend + full gauntlet)_
-- **Merge status:** _pending_
-- **Release tag (created locally, NOT pushed):** `v0.4.0-alpaca-paper` _(created at close-out)_
+- **Branch:** `feature/m04-webhook-alpaca-paper` (merged + deleted)
+- **PR:** https://github.com/yhaspel/StratTraderPro/pull/22
+- **Merge status:** ✅ **Merged** (squash, admin override) — merge commit `88e74a7`. All 5 CI checks green (Backend, Frontend, E2E smoke, block-legacy-ibkr-creds, Trivy). Self-review recorded on the PR; all MEDIUM+ review findings addressed in `aac97ee`.
+- **Release tag (created locally, NOT pushed):** `v0.4.0-alpaca-paper` → `88e74a7`
 
 ### AC coverage
 
