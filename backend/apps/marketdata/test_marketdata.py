@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 from django.core.cache import cache
 from django.test import TestCase
 
-from apps.marketdata.fmp import FMPCircuitOpen, FMPClient, FMPError, FMPRateLimited
+from apps.marketdata.fmp import (
+    FMPCircuitOpen,
+    FMPClient,
+    FMPError,
+    FMPRateLimited,
+    FMPServerError,
+)
 from apps.marketdata.models import Bar
 from apps.marketdata.services import missing_bars, upsert_bars
 
@@ -91,6 +97,39 @@ class FMPClientTests(TestCase):
         # circuit now open — next call short-circuits (still raises, no cache)
         with self.assertRaises((FMPCircuitOpen, FMPError, FMPRateLimited)):
             client.get("/quote", {"symbol": "Y"})
+
+    def test_transport_outage_falls_back_to_cache(self):
+        import httpx
+
+        client = FMPClient(api_key="k", http=_FakeHttp([_FakeResp(200, {"v": 1})]))
+        self.assertEqual(client.get("/quote", {"symbol": "SPY"}), {"v": 1})  # caches
+
+        class _Boom:
+            def get(self, url, params=None):
+                raise httpx.ConnectError("connection refused")
+
+        client._http = _Boom()  # transport outage on the same client
+        self.assertEqual(client.get("/quote", {"symbol": "SPY"}), {"v": 1})  # cache-fallback (H1)
+
+    def test_transport_outage_raises_without_cache(self):
+        import httpx
+
+        class _Boom:
+            def get(self, url, params=None):
+                raise httpx.ConnectTimeout("timeout")
+
+        client = FMPClient(api_key="k", http=_Boom())
+        with self.assertRaises(FMPServerError):
+            client.get("/quote", {"symbol": "NEVER_CACHED"})
+
+    def test_normalize_bars_skips_partial_rows(self):
+        http = _FakeHttp([_FakeResp(200, {"historical": [
+            {"date": "2026-01-02", "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 100},
+            {"date": "2026-01-03", "open": None, "high": None, "low": None, "close": None},
+        ]})])
+        client = FMPClient(api_key="k", http=http)
+        rows = client.daily_bars("SPY")
+        self.assertEqual(len(rows), 1)  # partial row dropped (L1)
 
     def test_normalize_bars(self):
         http = _FakeHttp([_FakeResp(200, {"historical": [

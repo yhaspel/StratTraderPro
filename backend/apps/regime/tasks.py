@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
@@ -43,6 +44,13 @@ def retrain_hmm(self):
         logger.exception("hmm.retrain.failed")
         HMM_RETRAIN_TOTAL.labels(result="fit_failed").inc()
         return {"error": "fit_failed"}
+
+    # A degenerate fit can yield a non-finite LL without raising. Reject it —
+    # activating a NaN-LL model would make every future swap comparison False
+    # (NaN semantics) and lock out all subsequent retrains (M2).
+    if not (np.isfinite(train_ll) and np.isfinite(holdout_ll)):
+        HMM_RETRAIN_TOTAL.labels(result="non_finite_ll").inc()
+        return {"error": "non_finite_ll"}
 
     labels = label_states(model)
     now = timezone.now()

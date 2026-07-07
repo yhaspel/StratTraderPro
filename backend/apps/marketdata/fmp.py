@@ -24,15 +24,19 @@ _CB_OPEN_KEY = "fmp:cb:open"
 
 
 class FMPError(Exception):
-    pass
+    """Base. A bare FMPError is a NON-retryable client error (4xx)."""
 
 
 class FMPRateLimited(FMPError):
-    pass
+    """429 or the client-side per-minute cap. Retryable."""
+
+
+class FMPServerError(FMPError):
+    """5xx or a transport outage (connect/timeout/DNS). Retryable."""
 
 
 class FMPCircuitOpen(FMPError):
-    pass
+    """Breaker is open — short-circuit without a network call."""
 
 
 class FMPClient:
@@ -83,17 +87,22 @@ class FMPClient:
 
         client = self._http or httpx.Client(timeout=15.0)
         q = {**params, "apikey": self.api_key}
-        resp = client.get(f"{self.base}{path}", params=q)
+        try:
+            resp = client.get(f"{self.base}{path}", params=q)
+        except httpx.RequestError as exc:
+            # Transport outage (connect/timeout/DNS). Re-raise as a retryable
+            # server error WITHOUT the original (whose URL carries the apikey).
+            raise FMPServerError(f"transport: {type(exc).__name__}") from None
         if resp.status_code == 429:
             raise FMPRateLimited("429")
         if resp.status_code >= 500:
-            raise FMPError(f"{resp.status_code}")
-        if resp.status_code >= 400:
+            raise FMPServerError(str(resp.status_code))
+        if resp.status_code >= 400:  # 4xx — bad key / symbol; do NOT retry
             raise FMPError(f"HTTP {resp.status_code}")
         return resp.json()
 
     @retry(
-        retry=retry_if_exception_type((FMPRateLimited, FMPError)),
+        retry=retry_if_exception_type((FMPRateLimited, FMPServerError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential_jitter(initial=0.1, max=2.0),
         reraise=True,
@@ -117,8 +126,11 @@ class FMPClient:
             MARKETDATA_REQUESTS.labels(endpoint=path.strip("/").split("/")[0] or "root", result="ok").inc()
             cache.set(ck, data, timeout=max(cache_ttl, 30))
             return data
-        except (FMPRateLimited, FMPCircuitOpen, FMPError):
-            self._record_failure()
+        except FMPError as exc:  # all FMP* errors (incl. transport) → cache-fallback
+            # Only genuine vendor failures trip the breaker — not our own throttle
+            # and not an already-open breaker (which would re-arm its cooldown).
+            if not isinstance(exc, (FMPCircuitOpen, FMPRateLimited)):
+                self._record_failure()
             MARKETDATA_REQUESTS.labels(
                 endpoint=path.strip("/").split("/")[0] or "root", result="fail"
             ).inc()
@@ -153,10 +165,11 @@ def _normalize_bars(data) -> list[dict]:
     out = []
     for r in rows or []:
         ts = r.get("date") or r.get("datetime") or r.get("timestamp")
-        if ts is None:
+        o, h, low, c = r.get("open"), r.get("high"), r.get("low"), r.get("close")
+        if ts is None or None in (o, h, low, c):  # skip partial rows
             continue
         out.append({
-            "ts": ts, "open": r.get("open"), "high": r.get("high"),
-            "low": r.get("low"), "close": r.get("close"), "volume": r.get("volume", 0),
+            "ts": ts, "open": o, "high": h, "low": low, "close": c,
+            "volume": r.get("volume", 0),
         })
     return out
