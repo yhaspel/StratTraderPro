@@ -35,13 +35,20 @@ def _open_drift(account, symbol):
     )
 
 
-@transaction.atomic
 def reconcile_account(account) -> list[ReconEvent]:
-    """Reconcile one BrokerAccount. Returns the ReconEvents created this run."""
+    """Reconcile one BrokerAccount. Returns the ReconEvents created this run.
+
+    The broker fetch (network) happens OUTSIDE the DB transaction so a slow
+    broker round-trip doesn't hold a Postgres connection open."""
     from apps.brokers.services import build_adapter
 
     adapter = build_adapter(account)
     broker_positions = {p.symbol: p for p in adapter.list_positions()}
+    return _apply_reconcile(account, broker_positions)
+
+
+@transaction.atomic
+def _apply_reconcile(account, broker_positions) -> list[ReconEvent]:
     our_positions = {
         p.symbol: p for p in Position.objects.select_for_update().filter(broker_account=account)
     }

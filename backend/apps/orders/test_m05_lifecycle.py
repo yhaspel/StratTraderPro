@@ -196,6 +196,20 @@ class OrdersApiTests(TestCase):
         self.assertEqual(resp["Content-Type"], "text/csv")
         self.assertIn("AAPL", resp.content.decode())
 
+    def test_bad_strategy_filter_no_500(self):
+        # Non-UUID free-text strategy filter must not 500 (review M1).
+        resp = self.client.get("/api/v1/orders/?strategy=some-name", **auth_headers(self.user))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["meta"]["total"], 0)
+
+    def test_csv_formula_injection_neutralized(self):
+        Order.objects.create(
+            user=self.user, broker_account=self.account, client_order_id="csv-inj",
+            symbol="=CMD()", side=Order.Side.BUY, qty=Decimal("1"), status=Order.Status.FILLED,
+        )
+        resp = self.client.get("/api/v1/orders/export.csv", **auth_headers(self.user))
+        self.assertIn("'=CMD()", resp.content.decode())
+
     def test_recon_events_endpoint(self):
         ReconEvent.objects.create(
             user=self.user, broker_account=self.account, symbol="AAPL",

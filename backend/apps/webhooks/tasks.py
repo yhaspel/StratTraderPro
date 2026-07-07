@@ -96,6 +96,17 @@ def process_alert(self, alert_id):
         "buy_to_close": Side.BUY,
         "sell_to_close": Side.SELL,
     }.get(action)
+    # Our Order preserves the richer open/close side even though the broker
+    # OrderRequest collapses to BUY/SELL (adapters map the semantics).
+    order_side = {
+        "buy": Order.Side.BUY,
+        "sell": Order.Side.SELL,
+        "exit": Order.Side.SELL,
+        "buy_to_open": Order.Side.BUY_TO_OPEN,
+        "sell_to_open": Order.Side.SELL_TO_OPEN,
+        "buy_to_close": Order.Side.BUY_TO_CLOSE,
+        "sell_to_close": Order.Side.SELL_TO_CLOSE,
+    }.get(action, Order.Side.BUY)
     try:
         qty = Decimal(str(body.get("qty")))
     except (InvalidOperation, TypeError):
@@ -121,7 +132,7 @@ def process_alert(self, alert_id):
             "broker_account": account,
             "raw_alert": alert,
             "symbol": symbol,
-            "side": side or Order.Side.BUY,
+            "side": order_side,
             "qty": qty if qty > 0 else Decimal("0"),
             "order_type": Order.OrderType.MKT,
             "time_in_force": Order.TimeInForce.DAY,
@@ -200,7 +211,7 @@ def process_alert(self, alert_id):
         option_right=(option.right if option else ""),
         future_root=(future.root if future else ""),
         future_expiry=(future.expiry if future else ""),
-        side=side.value,
+        side=order_side,
     )
 
     req = OrderRequest(

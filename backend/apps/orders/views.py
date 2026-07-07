@@ -13,6 +13,7 @@ carry a ``meta`` page block.
 from __future__ import annotations
 
 import csv
+import uuid
 
 from django.http import HttpResponse
 from django.utils.dateparse import parse_datetime
@@ -36,13 +37,26 @@ _PAGE_SIZE = 25
 _MAX_EXPORT = 5000
 
 
+def _csv_safe(value):
+    """Neutralize spreadsheet formula injection: prefix a leading =+-@ with '."""
+    s = "" if value is None else str(value)
+    if s and s[0] in ("=", "+", "-", "@"):
+        return "'" + s
+    return s
+
+
 def _filtered_orders(request):
     qs = Order.objects.filter(user=request.user).select_related("strategy", "broker_account").order_by("-created_at")
     p = request.query_params
     if p.get("status"):
         qs = qs.filter(status=p["status"].upper())
     if p.get("strategy"):
-        qs = qs.filter(strategy_id=p["strategy"])
+        # Guard against a non-UUID free-text value (would raise ValidationError
+        # → unhandled 500). An unparseable strategy matches nothing.
+        try:
+            qs = qs.filter(strategy_id=uuid.UUID(str(p["strategy"])))
+        except (ValueError, AttributeError, TypeError):
+            qs = qs.none()
     if p.get("broker"):
         qs = qs.filter(broker_account__broker=p["broker"].upper())
     if p.get("symbol"):
@@ -121,9 +135,9 @@ class OrderCsvExportView(APIView):
             writer.writerow([
                 o.created_at.isoformat() if o.created_at else "",
                 o.broker_account.broker if o.broker_account_id else "",
-                o.strategy.slug if o.strategy_id else "",
-                o.symbol, o.asset_class, o.side, o.qty, o.filled_qty,
-                o.order_type, o.status, o.reason,
+                _csv_safe(o.strategy.slug if o.strategy_id else ""),
+                _csv_safe(o.symbol), o.asset_class, o.side, o.qty, o.filled_qty,
+                o.order_type, o.status, _csv_safe(o.reason),
             ])
         return resp
 
