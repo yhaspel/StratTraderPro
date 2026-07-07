@@ -834,11 +834,71 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/risk/events/:
+    get:
+      operationId: risk_events
+      tags:
+      - risk
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/killswitches/:
+    get:
+      operationId: risk_killswitches_list
+      description: GET active kill switches; POST to trigger/release (AC-08-7/8/9/10).
+      tags:
+      - risk
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: risk_killswitches_set
+      description: GET active kill switches; POST to trigger/release (AC-08-7/8/9/10).
+      tags:
+      - risk
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/risk/ping/:
     get:
       operationId: v1_risk_ping_retrieve
       tags:
       - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/profile/:
+    get:
+      operationId: risk_profile_get
+      tags:
+      - risk
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: risk_profile_put
+      tags:
+      - risk
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/sizing-decisions/:
+    get:
+      operationId: risk_sizing_decisions
+      tags:
+      - risk
       security:
       - jwtAuth: []
       responses:

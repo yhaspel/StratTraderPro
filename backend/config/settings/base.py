@@ -449,6 +449,16 @@ SENTIMENT_ALIAS_TAGGING = env.bool("SENTIMENT_ALIAS_TAGGING", default=True)
 LLAMA_GGUF_PATH = env("LLAMA_GGUF_PATH", default="/models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
 
 # ---------------------------------------------------------------------------
+# Risk engine + kill switches (M08)
+# ---------------------------------------------------------------------------
+# When off, process_alert uses the alert-provided qty directly (M04 behavior).
+SIZING_V1_ENABLED = env.bool("SIZING_V1_ENABLED", default=True)
+# When off, only the plain per-strategy on/off toggle is honored (plan §15).
+KILL_SWITCHES_ENABLED = env.bool("KILL_SWITCHES_ENABLED", default=True)
+# Conservative equity fallback when a fresh broker account read times out.
+RISK_DEFAULT_EQUITY = env("RISK_DEFAULT_EQUITY", default="100000")
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -525,6 +535,11 @@ CELERY_BEAT_SCHEDULE = {
     "sentiment-aggregate": {
         "task": "apps.sentiment.tasks.aggregate_sentiment",
         "schedule": env.float("SENTIMENT_AGG_INTERVAL_SECONDS", default=300.0),
+    },
+    # M08 — daily-loss circuit-breaker watcher (every 30s during market hours).
+    "risk-daily-loss-watcher": {
+        "task": "apps.risk.tasks.daily_loss_watcher",
+        "schedule": env.float("DAILY_LOSS_INTERVAL_SECONDS", default=30.0),
     },
 }
 

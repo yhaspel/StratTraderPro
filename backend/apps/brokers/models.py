@@ -75,18 +75,30 @@ class BrokerAccount(models.Model):
 
 
 class TradingHalt(models.Model):
-    """Kill-switch flag. Active while ``released_at`` is NULL.
+    """Kill-switch flag (the single kill-switch table — M08 builds ON this, no
+    parallel model). Active while ``released_at`` is NULL.
 
-    ``strategy=NULL`` → user-level halt (all strategies).
-    ``strategy=<row>`` → strategy-level halt (that strategy only).
-    M08 extends this table with severity levels + auto-flatten semantics.
+    Levels (M08):
+      L0 STRATEGY  — user + strategy set.
+      L1 USER      — user set, strategy NULL (global halt for that user).
+      L2 DAILY_LOSS— user set, strategy NULL, ``auto=True`` (circuit breaker).
+      L3 PLATFORM  — user NULL (admin-triggered, affects everyone).
     """
+
+    class Level(models.TextChoices):
+        L0 = "L0", "Strategy"
+        L1 = "L1", "User (global)"
+        L2 = "L2", "Daily-loss circuit breaker"
+        L3 = "L3", "Platform"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="trading_halts",
+        help_text="NULL = platform-wide (L3).",
     )
     strategy = models.ForeignKey(
         "strategies.Strategy",
@@ -96,6 +108,8 @@ class TradingHalt(models.Model):
         related_name="trading_halts",
         help_text="NULL = user-level halt (all strategies).",
     )
+    level = models.CharField(max_length=2, choices=Level.choices, default=Level.L1, db_index=True)
+    auto = models.BooleanField(default=False)  # True for L2 auto-trigger
     reason = models.CharField(max_length=255)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -119,6 +133,7 @@ class TradingHalt(models.Model):
         indexes = [
             models.Index(fields=["user", "released_at"]),
             models.Index(fields=["strategy", "released_at"]),
+            models.Index(fields=["level", "released_at"]),
         ]
 
     @property
@@ -127,6 +142,8 @@ class TradingHalt(models.Model):
 
     @property
     def scope(self) -> str:
+        if self.user_id is None:
+            return "PLATFORM"
         return "STRATEGY" if self.strategy_id else "USER"
 
     def __str__(self) -> str:
