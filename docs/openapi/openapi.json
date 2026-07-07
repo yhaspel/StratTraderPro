@@ -626,6 +626,27 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/brokers/{id}/mode/:
+    post:
+      operationId: brokers_set_mode
+      description: |-
+        PAPER ↔ LIVE mode switch (M05 §6.6 / AC-05-8). LIVE is rejected until the
+        global flag is on AND the user has opted in — server-enforced regardless of
+        UI. M05 always rejects LIVE (ENABLE_LIVE_TRADING defaults False).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/brokers/{id}/status/:
     get:
       operationId: brokers_status
@@ -670,6 +691,26 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/brokers/tradestation/oauth/callback/:
+    get:
+      operationId: v1_brokers_tradestation_oauth_callback_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/tradestation/oauth/start/:
+    get:
+      operationId: v1_brokers_tradestation_oauth_start_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/fills/:
     get:
       operationId: fills_list
@@ -690,6 +731,33 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/orders/{id}/:
+    get:
+      operationId: orders_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/orders/export.csv:
+    get:
+      operationId: orders_export_csv
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/orders/ping/:
     get:
       operationId: v1_orders_ping_retrieve
@@ -703,6 +771,16 @@ paths:
   /api/v1/positions/:
     get:
       operationId: positions_list
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/reconciliation/events/:
+    get:
+      operationId: reconciliation_events
       tags:
       - orders
       security:

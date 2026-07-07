@@ -31,6 +31,10 @@ def encrypt_key(raw: str) -> bytes:
 
 
 def decrypt_key(blob: bytes) -> str:
+    # Empty for brokers that don't use an api-key pair (e.g. TradeStation, which
+    # authenticates with OAuth tokens instead).
+    if not blob:
+        return ""
     try:
         return _fernet().decrypt(bytes(blob)).decode("ascii")
     except FernetInvalidToken as exc:  # pragma: no cover — operational
@@ -57,6 +61,12 @@ def build_adapter(account: BrokerAccount) -> BrokerAdapter:
         from .alpaca.adapter import AlpacaAdapter
 
         return AlpacaAdapter(ctx)
+    if account.broker == BrokerAccount.Broker.TRADESTATION:
+        if not getattr(settings, "BROKER_TRADESTATION_ENABLED", False):
+            raise BrokerError(BrokerErrorCode.DISABLED, "TradeStation is disabled by ops.")
+        from .tradestation.adapter import TradeStationPaperAdapter
+
+        return TradeStationPaperAdapter(account)
     raise BrokerError(BrokerErrorCode.UNAVAILABLE, f"Unknown broker {account.broker!r}.")
 
 

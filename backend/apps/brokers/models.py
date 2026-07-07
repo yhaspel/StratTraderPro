@@ -21,9 +21,11 @@ from django.db import models
 class BrokerAccount(models.Model):
     class Broker(models.TextChoices):
         ALPACA = "ALPACA", "Alpaca"
+        TRADESTATION = "TRADESTATION", "TradeStation"
 
     class Mode(models.TextChoices):
         PAPER = "PAPER", "Paper"
+        LIVE = "LIVE", "Live"
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
@@ -48,6 +50,12 @@ class BrokerAccount(models.Model):
     is_default = models.BooleanField(default=False)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     last_connected_at = models.DateTimeField(null=True, blank=True)
+    # TradeStation OAuth2 tokens (M05) — Fernet-wrapped, same KEK as api keys.
+    # Null for Alpaca (which uses the api_key/secret pair above).
+    ts_access_token_enc = models.BinaryField(null=True, blank=True)
+    ts_refresh_token_enc = models.BinaryField(null=True, blank=True)
+    ts_expires_at = models.DateTimeField(null=True, blank=True)
+    ts_scope = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

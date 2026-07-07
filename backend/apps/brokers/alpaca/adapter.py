@@ -33,7 +33,9 @@ logger = logging.getLogger(__name__)
 
 PAPER_BASE_URL = "https://paper-api.alpaca.markets"
 _MAX_RETRIES = 3
-_SUPPORTED_ASSET_CLASSES = ("us_equity",)
+# Alpaca supports US equities/ETFs and options (by OCC symbol). No futures.
+_SUPPORTED_ASSET_CLASSES = ("STOCK", "ETF", "OPTION", "us_equity")
+_SUPPORTED_ORDER_TYPES = (OrderType.MKT, OrderType.LMT, OrderType.STP, OrderType.STP_LMT)
 
 
 class AlpacaAdapter:
@@ -135,10 +137,10 @@ class AlpacaAdapter:
                 BrokerErrorCode.UNSUPPORTED_ASSET,
                 "Only US stocks and ETFs are supported in this milestone.",
             )
-        if req.order_type not in (OrderType.MKT, OrderType.LMT):
+        if req.order_type not in _SUPPORTED_ORDER_TYPES:
             raise BrokerError(
                 BrokerErrorCode.UNSUPPORTED_ORDER_TYPE,
-                f"Order type {req.order_type} not supported until M05.",
+                f"Order type {req.order_type} is not supported.",
             )
         order_data = mapping.build_order_request(req, client_order_id)
 

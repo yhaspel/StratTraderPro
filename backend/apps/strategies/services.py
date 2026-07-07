@@ -84,7 +84,10 @@ def default_json_schema() -> dict:
             "action": {"type": "string", "enum": ["buy", "sell", "exit"]},
             "symbol": {"type": "string"},
             "qty": {"type": "number"},
-            "order_type": {"type": "string", "enum": ["MKT", "LMT", "STP"]},
+            # Extended order types + asset classes land in M05; STP_LMT + the
+            # option/future descriptors flow through additionalProperties.
+            "order_type": {"type": "string", "enum": ["MKT", "LMT", "STP", "STP_LMT"]},
+            "asset_class": {"type": "string", "enum": ["STOCK", "ETF", "OPTION", "FUTURE"]},
             "sig": {"type": "string"},
             "idempotency_key": {"type": "string"},
         },

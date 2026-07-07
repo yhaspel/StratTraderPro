@@ -31,7 +31,14 @@ def _reject(order, alert, reason: str):
 def process_alert(self, alert_id):
     """Hydrate an alert, size (verbatim qty in M04), place via the user's
     default broker, persist the order, and push realtime events."""
-    from apps.brokers.base import OrderRequest, OrderType, Side, TimeInForce
+    from apps.brokers.base import (
+        FutureContract,
+        OptionContract,
+        OrderRequest,
+        OrderType,
+        Side,
+        TimeInForce,
+    )
     from apps.brokers.errors import BrokerError
     from apps.brokers.models import BrokerAccount
     from apps.brokers.services import build_adapter
@@ -55,6 +62,18 @@ def process_alert(self, alert_id):
         BrokerAccount.objects.filter(user=alert.user, is_default=True).first()
         or BrokerAccount.objects.filter(user=alert.user).order_by("created_at").first()
     )
+    # Broker routing (AC-05-2): an alert may specify "broker" to override the
+    # user's default. Falls back to default/oldest if the named broker isn't
+    # connected.
+    broker_pref = str(body.get("broker", "")).upper().strip()
+    if broker_pref:
+        override = (
+            BrokerAccount.objects.filter(user=alert.user, broker=broker_pref)
+            .order_by("-is_default", "created_at")
+            .first()
+        )
+        if override is not None:
+            account = override
     if account is None:
         alert.status = AlertMessage.Status.REJECTED
         alert.reject_reason = "NO_BROKER_CONNECTED"
@@ -66,7 +85,17 @@ def process_alert(self, alert_id):
     action = str(body.get("action", "")).lower()
     symbol = str(body.get("symbol", "")).upper().strip()
     ot_raw = str(body.get("order_type", "MKT")).upper().strip()
-    side = {"buy": Side.BUY, "sell": Side.SELL, "exit": Side.SELL}.get(action)
+    asset_raw = str(body.get("asset_class", "STOCK")).upper().strip() or "STOCK"
+    tif_raw = str(body.get("tif", body.get("time_in_force", "DAY"))).upper().strip()
+    side = {
+        "buy": Side.BUY,
+        "sell": Side.SELL,
+        "exit": Side.SELL,
+        "buy_to_open": Side.BUY,
+        "sell_to_open": Side.SELL,
+        "buy_to_close": Side.BUY,
+        "sell_to_close": Side.SELL,
+    }.get(action)
     try:
         qty = Decimal(str(body.get("qty")))
     except (InvalidOperation, TypeError):
@@ -108,29 +137,83 @@ def process_alert(self, alert_id):
         return _reject(order, alert, "INVALID_ACTION")
     if qty <= 0:
         return _reject(order, alert, "INVALID_QTY")
-    if not symbol or "/" in symbol:  # crypto pairs use SYM/SYM → out of scope
+    if not symbol:
+        return _reject(order, alert, "ORDER_UNSUPPORTED_ASSET")
+    if asset_raw not in ("STOCK", "ETF", "OPTION", "FUTURE"):
+        return _reject(order, alert, "ORDER_UNSUPPORTED_ASSET")
+    # Crypto pairs (SYM/SYM) are out of scope for equities/options; only futures
+    # may carry a non-equity symbol shape.
+    if "/" in symbol and asset_raw != "FUTURE":
         return _reject(order, alert, "ORDER_UNSUPPORTED_ASSET")
 
-    limit_price = None
-    if ot_raw == "LMT":
-        raw_price = body.get("limit_price", body.get("price"))
+    ot_map = {
+        "MKT": OrderType.MKT,
+        "LMT": OrderType.LMT,
+        "STP": OrderType.STP,
+        "STP_LMT": OrderType.STP_LMT,
+    }
+    otype = ot_map.get(ot_raw)
+    if otype is None:
+        return _reject(order, alert, "ORDER_UNSUPPORTED_TYPE")
+
+    limit_price = stop_price = None
+    if otype in (OrderType.LMT, OrderType.STP_LMT):
         try:
-            limit_price = Decimal(str(raw_price))
+            limit_price = Decimal(str(body.get("limit_price", body.get("price"))))
         except (InvalidOperation, TypeError):
             return _reject(order, alert, "ORDER_INVALID_LIMIT")
-        Order.objects.filter(id=order.id).update(
-            order_type=Order.OrderType.LMT, limit_price=limit_price
+    if otype in (OrderType.STP, OrderType.STP_LMT):
+        try:
+            stop_price = Decimal(str(body.get("stop_price")))
+        except (InvalidOperation, TypeError):
+            return _reject(order, alert, "ORDER_INVALID_STOP")
+
+    tif = {"DAY": TimeInForce.DAY, "GTC": TimeInForce.GTC, "IOC": TimeInForce.IOC}.get(
+        tif_raw, TimeInForce.DAY
+    )
+
+    option = future = None
+    if asset_raw == "OPTION" and body.get("option_expiry") and body.get("option_strike"):
+        try:
+            option = OptionContract(
+                expiry=str(body["option_expiry"]),
+                strike=Decimal(str(body["option_strike"])),
+                right=str(body.get("option_right", "CALL")).upper(),
+            )
+        except (InvalidOperation, TypeError):
+            option = None
+    if asset_raw == "FUTURE":
+        future = FutureContract(
+            root=str(body.get("future_root", symbol)).upper(),
+            expiry=str(body.get("future_expiry", "")),
         )
-    elif ot_raw != "MKT":
-        return _reject(order, alert, "ORDER_UNSUPPORTED_TYPE")
+
+    # Persist the resolved intent on the order row.
+    Order.objects.filter(id=order.id).update(
+        order_type=ot_raw,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        time_in_force=tif.value,
+        asset_class=asset_raw,
+        option_expiry=option.expiry if option else None,
+        option_strike=option.strike if option else None,
+        option_right=(option.right if option else ""),
+        future_root=(future.root if future else ""),
+        future_expiry=(future.expiry if future else ""),
+        side=side.value,
+    )
 
     req = OrderRequest(
         symbol=symbol,
         side=side,
         qty=qty,
-        order_type=OrderType.LMT if ot_raw == "LMT" else OrderType.MKT,
+        order_type=otype,
         limit_price=limit_price,
-        time_in_force=TimeInForce.DAY,
+        stop_price=stop_price,
+        time_in_force=tif,
+        asset_class=asset_raw,
+        option=option,
+        future=future,
     )
 
     # --- place -----------------------------------------------------------

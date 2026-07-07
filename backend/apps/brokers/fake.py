@@ -140,7 +140,13 @@ class FakeBrokerAdapter:
         if step and (step.fills or step.leave_working):
             fills = step.fills
         else:
-            price = req.limit_price if req.limit_price is not None else self._default_price
+            price = (
+                req.limit_price
+                if req.limit_price is not None
+                else req.stop_price
+                if req.stop_price is not None
+                else self._default_price
+            )
             fills = [ScriptedFill(qty=req.qty, price=Decimal(price))]
 
         # Emit a `new` acknowledgement first (order state → SUBMITTED).

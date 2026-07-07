@@ -392,6 +392,29 @@ ALPACA_PAPER_KEY_ID = env("ALPACA_PAPER_KEY_ID", default="")
 ALPACA_PAPER_SECRET_KEY = env("ALPACA_PAPER_SECRET_KEY", default="")
 
 # ---------------------------------------------------------------------------
+# Order lifecycle + second broker (M05)
+# ---------------------------------------------------------------------------
+# TradeStation is approval-gated (API access + no official Python SDK). The
+# adapter + OAuth2/PKCE code path ship behind this flag, OFF by default; the
+# live OAuth flow + real sim fills are verified later once access is granted.
+BROKER_TRADESTATION_ENABLED = env.bool("BROKER_TRADESTATION_ENABLED", default=False)
+TRADESTATION_CLIENT_ID = env("TRADESTATION_CLIENT_ID", default="")
+TRADESTATION_CLIENT_SECRET = env("TRADESTATION_CLIENT_SECRET", default="")
+TRADESTATION_REDIRECT_URI = env(
+    "TRADESTATION_REDIRECT_URI",
+    default="http://localhost:8777/api/v1/brokers/tradestation/oauth/callback/",
+)
+# Sim (paper) base URL in M05; the live URL is never used until the M12 gate.
+TRADESTATION_API_BASE = env("TRADESTATION_API_BASE", default="https://sim-api.tradestation.com/v3")
+TRADESTATION_OAUTH_BASE = env("TRADESTATION_OAUTH_BASE", default="https://signin.tradestation.com")
+# OAuth `state` single-use TTL (Redis-backed).
+TRADESTATION_OAUTH_STATE_TTL = env.int("TRADESTATION_OAUTH_STATE_TTL", default=600)
+
+# Live trading requires BOTH this global flag AND per-user opt-in + a signed
+# versioned disclaimer. False until the M12 gate (AC-05-8 enforcement).
+LIVE_TRADING_DISCLAIMER_VERSION = env("LIVE_TRADING_DISCLAIMER_VERSION", default="v1")
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -441,6 +464,11 @@ CELERY_BEAT_SCHEDULE = {
     "fill-ingestor": {
         "task": "apps.orders.tasks.fill_ingestor",
         "schedule": env.float("FILL_INGESTOR_INTERVAL_SECONDS", default=5.0),
+    },
+    # M05 — reconcile positions against broker truth every 5 minutes.
+    "reconcile-positions": {
+        "task": "apps.orders.tasks.reconcile_positions_task",
+        "schedule": env.float("RECONCILE_INTERVAL_SECONDS", default=300.0),
     },
 }
 
