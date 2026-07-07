@@ -788,6 +788,52 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/regime/current/:
+    get:
+      operationId: regime_current
+      tags:
+      - regime
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/history/:
+    get:
+      operationId: regime_history
+      tags:
+      - regime
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/model/:
+    get:
+      operationId: regime_model
+      tags:
+      - regime
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/symbol/{sym}/:
+    get:
+      operationId: regime_symbol
+      parameters:
+      - in: path
+        name: sym
+        schema:
+          type: string
+        required: true
+      tags:
+      - regime
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/risk/ping/:
     get:
       operationId: v1_risk_ping_retrieve

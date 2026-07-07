@@ -83,4 +83,5 @@ urlpatterns = [
     path("api/v1/reconciliation/events/", ReconEventListView.as_view(), name="reconciliation-events"),
     path("api/v1/risk/", include("apps.risk.urls")),
     path("api/v1/strategies/", include("apps.strategies.urls")),
+    path("api/v1/regime/", include("apps.regime.urls")),
 ]

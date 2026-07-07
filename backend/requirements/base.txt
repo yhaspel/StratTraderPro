@@ -73,3 +73,13 @@ alpaca-py>=0.43,<0.44
 channels>=4.1,<4.2
 channels-redis>=4.2,<4.3
 daphne>=4.1,<4.2
+
+# Market data + regime classifier (M06)
+# numpy/pandas for the feature pipeline; hmmlearn (GaussianHMM) for the nightly
+# regime model; tenacity for FMP retry/backoff. FRED credit spreads are fetched
+# over plain httpx (already pinned) to avoid the heavier fredapi/pandas-datareader
+# stack. All live calls are fixture-mocked in CI (no FMP/FRED keys required).
+numpy>=1.26,<2.2
+pandas>=2.1,<2.3
+hmmlearn>=0.3.2,<0.4
+tenacity>=8.2
