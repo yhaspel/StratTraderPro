@@ -145,9 +145,9 @@
 
 ## M07 — Sentiment Pipeline
 
-- **Branch:** `feature/m07-sentiment`
-- **PR / merge:** _(opened after frontend + gauntlet)_
-- **Release tag (local, unpushed):** `v0.7.0-sentiment`
+- **Branch:** `feature/m07-sentiment` (merged + deleted)
+- **PR / merge:** [#25](https://github.com/yhaspel/StratTraderPro/pull/25) — ✅ **Merged** (squash, admin) — merge commit `ee81f63`. All 5 CI checks green (Trivy confirms the feedparser-only base stayed lean). Self-review recorded; the blocking MEDIUM (aggregation double-count) + M2/M3/LOW fixed in `062e9a0`.
+- **Release tag (local, unpushed):** `v0.7.0-sentiment` → `ee81f63`
 
 ### AC coverage
 | AC | Status | Evidence |
