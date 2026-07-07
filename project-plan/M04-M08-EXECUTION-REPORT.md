@@ -144,7 +144,46 @@
 - FMP premium key + FRED key; the 10-year `backfill_bars` run; the real overnight HMM retrain + intraday freshness on staging; Data Pipelines dashboard "live" verification.
 
 ## M07 — Sentiment Pipeline
-_Not started._
+
+- **Branch:** `feature/m07-sentiment`
+- **PR / merge:** _(opened after frontend + gauntlet)_
+- **Release tag (local, unpushed):** `v0.7.0-sentiment`
+
+### AC coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC-07-1 fetchers + dedup | **Met (fixtures) / Deferred-live** | `IngestTests.test_dedup`; live feeds need ToS review |
+| AC-07-2 tagger precision/recall | **Met (representative) / Deferred-full** | `TaggerTests` (registry/cashtag/alias + stopword precision); full 200-article eval deferred |
+| AC-07-3 FinBERT within 60s | **Met (fake) / Deferred-live** | `score_pending_articles`; real FinBERT latency needs weights |
+| AC-07-4 Tier-2 routing + structured output | **Met (fake)** | `RoutingTests` (material + low-conf → Llama); JSON-schema-validated |
+| AC-07-5 EWMA per-symbol + market | **Met** | `AggregationTests` (half-life + aggregate) |
+| AC-07-6 dashboard market score + history | **Met** | sentiment-panel component |
+| AC-07-7 per-symbol drill-down + articles | **Met** | `/sentiment/symbol` + `/articles` + `test_end_to_end` |
+| AC-07-8 Llama 200/day no lag | **Deferred-live** | benchmark on real worker deferred |
+| AC-07-9 queue backlog alert | **Met** | `queue_backlog()` + `sentiment_queue_depth` |
+| AC-07-10 LLM down → FinBERT-only | **Met** | `test_degraded_finbert_only` + UI degraded chip |
+| AC-07-11 retention policy | **Deferred** | documented; rollup job is a follow-up |
+| AC-07-12 no article text logged | **Met** | `LogScanTests.test_no_article_text_at_info` |
+
+### New surface
+- **Models/migration:** `sentiment.{NewsArticle, ArticleScore, SentimentScore, TickerRegistry, AliasTable, LLMInferenceLog}`; `sentiment.0001`.
+- **Modules:** `fetchers`, `tagger`, `scorers` (Fake + lazy real), `routing`, `aggregator`, `services`, `metrics`, `views`; `prompts/v1.md`.
+- **Tasks/beat:** `ingest_news` (15 min), `score_pending_articles` (2 min), `aggregate_sentiment` (5 min).
+- **Endpoints:** `/api/v1/sentiment/{market,symbol/{sym},articles}/`.
+- **Flags:** `SENTIMENT_ENABLED` (on), `LLM_WORKER_ENABLED`/`FINBERT_ENABLED` (off), `SENTIMENT_FAKE_SCORERS` (on).
+- **Metrics:** 6. **Deps:** `feedparser` (base); heavy stacks in `requirements/ml-worker.txt`.
+
+### Local gauntlet
+- ruff ✓ · bandit ✓ · pytest (M04–M07, all pass) ✓ · makemigrations --check ✓ · prod-import ✓ · frontend ngc+build _(close-out)_.
+
+### Decisions logged (autonomous)
+- **Heavy model deps kept OUT of the base image** (`requirements/ml-worker.txt`, volume-mounted per plan §5). CI/local score with canned `FakeFinBert`/`FakeLlama` behind `SENTIMENT_FAKE_SCORERS`, so torch/llama-cpp never bloat the backend image or the Trivy scan — the same reason M06's ML deps passed Trivy.
+- **`symbols_text` denormalization** — SQLite has no JSONField `contains` lookup, so a space-padded text column powers a cross-DB exact-symbol filter (CI runs SQLite).
+- **spaCy NER is lazy + flag-gated** (`SENTIMENT_SPACY_NER` off); the regex/registry/alias tagger is the deterministic default.
+- **Data Pipelines Grafana sentiment panels** — metrics emit; adding the panels to the existing dashboard JSON is a documented follow-up.
+
+### Deferred (need externals)
+- Download `ProsusAI/finbert` + the gated Meta-Llama-3.1-8B-Q4_K_M GGUF (HF/Meta license); the Day-1 tokens/sec benchmark on the real Railway worker (if p95 >5s/article → FinBERT-only fallback the plan already specifies); per-source ToS review (Benzinga/Finnhub/Yahoo); the full 200-article tagger precision/recall eval; the retention rollup job (AC-07-11).
 
 ## M08 — Risk Engine & Kill Switches
 _Not started._

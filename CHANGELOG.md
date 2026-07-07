@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — M07 (Sentiment Pipeline)
+- **News ingestion** — `sentiment` app: FMP-news + RSS (EDGAR / Nasdaq-halts / Benzinga / Finnhub) fetchers via `feedparser` (injectable), dedup on `sha256(url+title)`, server-side HTML strip, material-flagging (8-K / halt / guidance).
+- **Symbol tagger** — regex-against-`TickerRegistry` (high precision) + `$cashtags` + `AliasTable` (company→ticker); spaCy NER is a lazy flag-gated enhancement.
+- **Tiered scoring** — a `SentimentScorer` abstraction: canned `FakeFinBert`/`FakeLlama` as the CI/default (deterministic, no weights), with real FinBERT (`transformers[torch]`) + Llama (`llama-cpp-python`, GGUF) imported **lazily behind `FINBERT_ENABLED`/`LLM_WORKER_ENABLED`**; versioned prompt (`prompts/v1.md`) with prompt-injection wrapping + JSON-schema validation (never eval'd). FinBERT scores all articles; Llama scores material / FinBERT-confidence<0.7 articles; **FinBERT-only graceful degradation** when the LLM worker is off (AC-07-10). No article text/model output is logged (AC-07-12).
+- **Aggregation + API** — per-symbol EWMA (6h half-life) + market-wide score; `GET /api/v1/sentiment/{market,symbol/{sym},articles}/`; beat (ingest/score/aggregate). Backlog helper for the AC-07-9 alert.
+- **Frontend** — market sentiment spark + "recent impactful news" feed + degraded chip on the dashboard.
+- **Observability** — `news_articles_ingested_total`, `news_articles_deduped_total`, `sentiment_articles_scored_total`, `sentiment_queue_depth`, `llm_inference_latency_seconds`, `llm_invalid_responses_total`.
+- **Deps** — `feedparser` only (base image); the heavy model stacks (transformers[torch] / llama-cpp-python / spaCy) live in `requirements/ml-worker.txt` (volume-mounted worker deps, NOT the base image → Trivy-lean). **Flags** `SENTIMENT_ENABLED`, `LLM_WORKER_ENABLED`, `FINBERT_ENABLED`, `SENTIMENT_FAKE_SCORERS`. **Migration** `sentiment.0001`.
+- **Deferred (externals)** — FinBERT + gated Llama-3.1-8B GGUF weights (HF license), the Day-1 tokens/sec benchmark, and per-source ToS review.
+
 ### Added — M06 (Market Data + Regime Classifier)
 - **Market-data plane** — `marketdata` app: `Bar`/`MacroSeries` store with idempotent upserts + gap detection; FMP client (token-bucket rate limit, tenacity retry on 429/5xx, circuit breaker, response cache with **cache-fallback so a rate-limit/outage never surfaces a 5xx** — AC-06-9); FRED client; `backfill_bars` management command. All live calls fixture-mocked (FMP/FRED keys are deferred externals).
 - **Regime classifier stack** — feature pipeline (breadth/stress/credit/macro → z-scored vector + reproducibility content-hash, AC-06-10); weighted **rule classifier** (score 0–100 → RISK_ON/NEUTRAL/RISK_OFF/PANIC + top-3 reason codes); **Gaussian HMM** (`hmmlearn`, 4 states, seeded training with restarts, state→label ranking, JSON param serialization, online decode + Viterbi); **ensemble** decision table; orchestration persisting `RegimeObservation`; nightly `retrain_hmm` with a **non-regression swap guard** (activate only if holdout LL ≥ prior or within 1%); rule-only degradation when the model is >48h stale (AC-06-8).
