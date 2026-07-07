@@ -15,8 +15,11 @@ def daily_loss_watcher(self):
     two-poll-confirmed breach (AC-08-9)."""
     if not getattr(settings, "KILL_SWITCHES_ENABLED", True):
         return {"skipped": "disabled"}
-    from .killswitch import check_daily_loss
+    from .killswitch import check_daily_loss, release_expired_l2_halts
     from .models import RiskProfile
+
+    # Auto-release yesterday's L2 circuit breakers once the trading day rolls over (AC-08-9).
+    released = release_expired_l2_halts()
 
     tripped = 0
     for profile in RiskProfile.objects.select_related("user").all():
@@ -25,4 +28,4 @@ def daily_loss_watcher(self):
                 tripped += 1
         except Exception:  # pragma: no cover — one user must not stop the sweep
             logger.warning("daily_loss.check_error", extra={"user": profile.user_id})
-    return {"tripped": tripped}
+    return {"tripped": tripped, "released": released}

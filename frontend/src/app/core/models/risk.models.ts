@@ -47,7 +47,7 @@ export type KillSwitchScope = 'STRATEGY' | 'USER' | 'PLATFORM';
 export interface KillSwitch {
   id: number;
   scope: KillSwitchScope;
-  level: number;
+  level: string; // wire value "L0".."L3"
   auto: boolean;
   strategy: string | null;
   reason: string | null;

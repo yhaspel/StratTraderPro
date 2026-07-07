@@ -244,10 +244,14 @@ def process_alert(self, alert_id):
     # --- sizing (M08 §6.2 — only when the user has a RiskProfile) ---------
     from apps.risk.integration import apply_sizing
 
-    sizing = apply_sizing(
-        alert=alert, order=order, account=account, adapter=adapter,
-        requested_qty=qty, side=order_side, symbol=symbol, price_hint=limit_price,
-    )
+    try:
+        sizing = apply_sizing(
+            alert=alert, order=order, account=account, adapter=adapter,
+            requested_qty=qty, side=order_side, symbol=symbol, price_hint=limit_price,
+        )
+    except Exception:  # noqa: BLE001 — sizing must fail closed, never leave the order stuck at PENDING_SUBMIT
+        logger.exception("process_alert.sizing_error", extra={"order": str(order.id)})
+        return _reject(order, alert, "SIZING_ERROR")
     if sizing is not None:
         if not sizing.ok:
             return _reject(order, alert, sizing.reason)

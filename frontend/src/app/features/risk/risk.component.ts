@@ -160,11 +160,17 @@ const KNOWN_ERRORS = new Set([
                 <p class="text-sm text-gray-500">{{ 'risk.switch.inactive' | translate }}</p>
               }
             </div>
-            @if (userHalt()) {
-              <button type="button" (click)="onReleaseUser()"
-                      class="px-3 py-2 rounded border border-gray-300 text-sm hover:bg-white">
-                {{ 'risk.switch.release' | translate }}
-              </button>
+            @if (userHalt(); as ks) {
+              @if (ks.auto) {
+                <span class="px-3 py-2 rounded bg-amber-100 text-amber-800 text-xs shrink-0 text-right">
+                  {{ 'risk.switch.auto_locked' | translate }}
+                </span>
+              } @else {
+                <button type="button" (click)="onReleaseUser()"
+                        class="px-3 py-2 rounded border border-gray-300 text-sm hover:bg-white">
+                  {{ 'risk.switch.release' | translate }}
+                </button>
+              }
             } @else if (!userMfaOpen()) {
               <button type="button" (click)="openUserHalt()"
                       class="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700">
@@ -218,7 +224,7 @@ const KNOWN_ERRORS = new Set([
                   <div>
                     <p class="font-medium">
                       {{ ('risk.switch.' + ks.scope) | translate }}
-                      <span class="ml-1 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">L{{ ks.level }}</span>
+                      <span class="ml-1 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{{ ks.level }}</span>
                       @if (ks.auto) {
                         <span class="ml-1 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">
                           {{ 'risk.switch.auto' | translate }}

@@ -93,6 +93,9 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
     if soft_applied:
         qty *= 0.5
 
+    # max_position_pct is a hard ceiling — the sentiment boost must not breach it.
+    qty = min(qty, max_qty_by_pos)
+
     qty = _round_to_lot(qty, float(inp.lot_size or 1))
     meta = {
         "regime_label": label, "regime_scale": scale, "risk_pct": round(risk_pct, 4),

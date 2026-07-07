@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import timedelta
 from decimal import Decimal
 
 import pyotp
@@ -83,6 +84,11 @@ class SizingTests(TestCase):
         self.assertGreaterEqual(boosted, base)
         self.assertLessEqual(cut, base)
 
+    def test_sentiment_boost_respects_position_clamp(self):
+        # The +10% sentiment boost must not breach max_position_pct (200 here).
+        r = compute_size(self._inp(sentiment_polarity=0.9), self.profile)
+        self.assertLessEqual(r.qty, Decimal("200"))
+
     def test_soft_stop_halves(self):
         normal = compute_size(self._inp(intraday_dd_pct=0.0), self.profile).qty
         stopped = compute_size(self._inp(intraday_dd_pct=6.0), self.profile).qty  # >5% soft stop
@@ -119,6 +125,18 @@ class KillSwitchEngineTests(TestCase):
         self.assertFalse(killswitch.release_halt(h.id))  # locked same trading day
         self.assertTrue(TradingHalt.objects.get(id=h.id).is_active)
 
+    def test_expired_l2_auto_released_next_trading_day(self):
+        # AC-08-9: the watcher's sweep releases an L2 halt once the day rolls over.
+        h = killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L2,
+                                    reason="daily loss", auto=True)
+        self.assertEqual(killswitch.release_expired_l2_halts(), 0)  # same day → still locked
+        self.assertTrue(TradingHalt.objects.get(id=h.id).is_active)
+        # simulate the halt having been created two days ago
+        TradingHalt.objects.filter(id=h.id).update(created_at=timezone.now() - timedelta(days=2))
+        self.assertEqual(killswitch.release_expired_l2_halts(), 1)
+        self.assertFalse(TradingHalt.objects.get(id=h.id).is_active)
+        self.assertIsNone(killswitch.is_blocked(self.user.id, None))
+
     def test_flatten_latency_and_flat(self):
         account = create_broker_account(self.user)
         Position.objects.create(user=self.user, broker_account=account, symbol="AAPL",
@@ -153,6 +171,19 @@ class DailyLossTests(TestCase):
             TradingHalt.objects.filter(user=self.user, level=TradingHalt.Level.L2, released_at__isnull=True).exists()
         )
         self.assertTrue(RiskEvent.objects.filter(type="DAILY_LOSS_BREACH").exists())
+
+    def test_breach_event_not_duplicated_after_trip(self):
+        # Once L2 is tripped, further polls must not re-emit the breach event/metric.
+        Position.objects.create(user=self.user, broker_account=self.account, symbol="AAPL",
+                                qty=Decimal("100"), avg_cost=Decimal("100"), market_price=Decimal("90"))
+        from unittest import mock
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            killswitch.check_daily_loss(self.user)  # poll 1
+            killswitch.check_daily_loss(self.user)  # poll 2 → trip
+            killswitch.check_daily_loss(self.user)  # poll 3 → already tripped, no-op
+            killswitch.check_daily_loss(self.user)  # poll 4 → no-op
+        self.assertEqual(RiskEvent.objects.filter(type="DAILY_LOSS_BREACH").count(), 1)
 
 
 class ProcessAlertSizingTests(TestCase):

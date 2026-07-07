@@ -584,6 +584,7 @@
       "release": "Release",
       "flatten": "Also flatten open positions",
       "auto": "Auto",
+      "auto_locked": "Auto daily-loss halt — releases at the next trading day",
       "confirm_halt": "Confirm halt",
       "mfa_placeholder": "6-digit code"
     },
@@ -591,6 +592,7 @@
       "REGIME_CRISIS": "Crisis regime — trading paused",
       "REGIME_SIDE_MISMATCH": "Order side conflicts with the current regime",
       "SIZING_ZERO": "Computed size rounded to zero",
+      "SIZING_ERROR": "Sizing failed — order rejected for safety",
       "DAILY_LOSS_BREACH": "Daily loss limit reached",
       "KILL_SWITCH_ACTIVE": "A kill switch is active",
       "LIMIT_POSITION_PCT": "Position-size limit exceeded"

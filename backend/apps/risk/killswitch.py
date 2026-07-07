@@ -173,6 +173,11 @@ def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
     profile = RiskProfile.objects.filter(user=user).first()
     if profile is None:
         return False
+    # Already tripped today — don't re-emit the breach event/metric on every poll.
+    if TradingHalt.objects.filter(
+        user=user, level=TradingHalt.Level.L2, auto=True, released_at__isnull=True
+    ).exists():
+        return False
     pnl, equity = user_daily_pnl(user)
     loss_usd = pnl <= -abs(profile.daily_loss_usd)
     loss_pct = equity > 0 and (pnl / equity * 100) <= -abs(profile.daily_loss_pct)
@@ -196,3 +201,16 @@ def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
     trigger_halt(user_id=user.id, level=TradingHalt.Level.L2, reason="DAILY_LOSS_BREACH",
                  auto=True, flatten=True)
     return True
+
+
+def release_expired_l2_halts() -> int:
+    """Auto-release L2 daily-loss halts once the trading day (UTC-05) has rolled
+    over (AC-08-9). ``release_halt`` returns False for still-locked same-day halts,
+    so only genuinely expired ones are counted."""
+    released = 0
+    for halt in TradingHalt.objects.filter(
+        level=TradingHalt.Level.L2, auto=True, released_at__isnull=True
+    ):
+        if release_halt(halt.id):
+            released += 1
+    return released
