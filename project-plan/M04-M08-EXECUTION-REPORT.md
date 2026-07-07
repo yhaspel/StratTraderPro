@@ -104,9 +104,9 @@
 
 ## M06 — Market Data + Regime Classifier
 
-- **Branch:** `feature/m06-market-data-regime`
-- **PR / merge:** _(opened after frontend + gauntlet)_
-- **Release tag (local, unpushed):** `v0.6.0-regime`
+- **Branch:** `feature/m06-market-data-regime` (merged + deleted)
+- **PR / merge:** [#24](https://github.com/yhaspel/StratTraderPro/pull/24) — ✅ **Merged** (squash, admin) — merge commit `5fb9de4`. All 5 CI checks green **(incl. Trivy on the new numpy/scipy/hmmlearn deps — no HIGH/CRITICAL CVE)**. Self-review recorded; the blocking HIGH (FMP transport-outage resilience) + M1/M2/L1/L2 fixed in `5f7e2eb`.
+- **Release tag (local, unpushed):** `v0.6.0-regime` → `5fb9de4`
 
 ### AC coverage
 | AC | Status | Evidence |
