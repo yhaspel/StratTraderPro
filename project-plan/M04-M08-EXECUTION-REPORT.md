@@ -102,8 +102,46 @@
 - **default webhook JSON schema** enum extended to include `STP_LMT` + `asset_class` (M05 supported types).
 - Migration numbering: `orders.0003` (plan named `0002_extended_order_types`, but M04 already used `orders.0002`).
 
-## M06 — Market Data + Regime
-_Not started._
+## M06 — Market Data + Regime Classifier
+
+- **Branch:** `feature/m06-market-data-regime`
+- **PR / merge:** _(opened after frontend + gauntlet)_
+- **Release tag (local, unpushed):** `v0.6.0-regime`
+
+### AC coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC-06-1 FMP daily bars, idempotent | **Met (fixtures) / Deferred-live** | `BarStoreTests.test_upsert_idempotent`; real 10y backfill needs FMP key |
+| AC-06-2 intraday features ≤10 min | **Deferred-live** | beat task wired; needs live FMP feed on staging |
+| AC-06-3 rule classifier + explainable | **Met** | `RuleClassifierTests` (buckets + top features) |
+| AC-06-4 nightly HMM, non-regression swap | **Met (seeded) / Deferred-live** | `test_retrain_task_trains_and_activates`, `test_activate_model_swap_guard`; real overnight retrain deferred |
+| AC-06-5 online decode + Viterbi | **Met** | `HMMTests.test_serialize_roundtrip_and_decode` |
+| AC-06-6 deterministic ensemble | **Met** | `EnsembleTests` (decision table + determinism) |
+| AC-06-7 dashboard badge + chart | **Met** | regime-badge component + 90-day strip |
+| AC-06-8 model >48h → rule-only warning | **Met** | `test_compute_observation_rule_only_when_no_model`; UI degraded chip |
+| AC-06-9 FMP rate-limit → backoff + cache, no 5xx | **Met** | `FMPClientTests` (retry, rate-limit fallback, circuit breaker) |
+| AC-06-10 reproducible features (hash) | **Met** | `FeatureTests.test_reproducible` |
+
+### New surface
+- **Apps/models:** `marketdata.{Bar, MacroSeries}`, `regime.{FeatureVectorSnapshot, HMMModel, RegimeObservation}`. Migrations `marketdata.0001`, `regime.0001`.
+- **Modules:** marketdata `{fmp, fred, services, metrics}`; regime `{features, rule_classifier, hmm_model, ensemble, services, metrics}`.
+- **Tasks/beat:** `regime.retrain_hmm` (nightly ~03:00 ET), `regime.compute_features_daily`.
+- **Commands:** `backfill_bars`.
+- **Endpoints:** `/api/v1/regime/{current,history,model}/`, `/symbol/{sym}/` (501).
+- **Flags:** `ENABLE_REGIME_UI` (default on). **Deps:** numpy/pandas/hmmlearn/tenacity.
+- **Metrics:** 6 (marketdata + regime); **Data Pipelines** Grafana JSON committed.
+
+### Local gauntlet
+- ruff ✓ · bandit ✓ · pytest (M04–M06, all pass) ✓ · makemigrations --check ✓ · prod-import ✓ · frontend ngc+build _(close-out)_.
+
+### Decisions logged (autonomous)
+- **Bar Postgres month-partitioning deferred** — implemented as a plain indexed table (SQLite-testable, correct at MVP scale); ADR-061 documents the deferral. Avoided the `django-postgres-partition` dep.
+- **FRED over plain httpx** (not `fredapi`) to avoid a heavier pandas-datareader stack.
+- **HMM training seeded** (`REGIME_HMM_SEED`) for deterministic CI; tests train on synthetic seeded data.
+- **Regime endpoints MFA-enforced** (consistent with `/api/v1/*`) despite being public market data — they're only consumed by the authenticated dashboard.
+
+### Deferred (need externals)
+- FMP premium key + FRED key; the 10-year `backfill_bars` run; the real overnight HMM retrain + intraday freshness on staging; Data Pipelines dashboard "live" verification.
 
 ## M07 — Sentiment Pipeline
 _Not started._

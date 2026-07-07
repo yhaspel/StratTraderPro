@@ -8,6 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -415,6 +416,21 @@ TRADESTATION_OAUTH_STATE_TTL = env.int("TRADESTATION_OAUTH_STATE_TTL", default=6
 LIVE_TRADING_DISCLAIMER_VERSION = env("LIVE_TRADING_DISCLAIMER_VERSION", default="v1")
 
 # ---------------------------------------------------------------------------
+# Market data + regime classifier (M06)
+# ---------------------------------------------------------------------------
+ENABLE_REGIME_UI = env.bool("ENABLE_REGIME_UI", default=True)
+# FMP (equities/sector/treasury) + FRED (credit spreads). Keys are deferred
+# externals — empty by default; all live calls are fixture-mocked in CI.
+FMP_API_KEY = env("FMP_API_KEY", default="")
+FMP_BASE_URL = env("FMP_BASE_URL", default="https://financialmodelingprep.com/stable")
+FMP_RATE_LIMIT_PER_MIN = env.int("FMP_RATE_LIMIT_PER_MIN", default=750)
+FRED_API_KEY = env("FRED_API_KEY", default="")
+# Rule-classifier weight overrides (feature → signed weight); empty = defaults.
+REGIME_RULE_WEIGHTS: dict = {}
+# HMM retrain seed (deterministic training in CI).
+REGIME_HMM_SEED = env.int("REGIME_HMM_SEED", default=42)
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -469,6 +485,15 @@ CELERY_BEAT_SCHEDULE = {
     "reconcile-positions": {
         "task": "apps.orders.tasks.reconcile_positions_task",
         "schedule": env.float("RECONCILE_INTERVAL_SECONDS", default=300.0),
+    },
+    # M06 — nightly HMM retrain (~03:00 ET) + authoritative daily feature vector.
+    "regime-retrain-hmm": {
+        "task": "apps.regime.tasks.retrain_hmm",
+        "schedule": crontab(hour=7, minute=0),
+    },
+    "regime-compute-features-daily": {
+        "task": "apps.regime.tasks.compute_features_daily",
+        "schedule": crontab(hour=22, minute=30),
     },
 }
 

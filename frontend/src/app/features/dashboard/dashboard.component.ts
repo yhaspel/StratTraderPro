@@ -11,11 +11,13 @@ import { TranslateModule } from '@ngx-translate/core';
 import { environment } from '../../../environments/environment';
 import { StreamStatus } from '../../core/models/brokers.models';
 import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
+import { RegimeFacade } from '../../abstraction/facades/regime.facade';
+import { RegimeBadgeComponent } from './regime-badge.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, TranslateModule, DatePipe],
+  imports: [CommonModule, TranslateModule, DatePipe, RegimeBadgeComponent],
   template: `
     <div class="mx-auto max-w-6xl p-6 space-y-8">
       <div class="flex items-center justify-between">
@@ -29,6 +31,9 @@ import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
           </span>
         </div>
       </div>
+
+      <!-- ========== Market regime (M06) ========== -->
+      <app-regime-badge />
 
       @if (facade.error(); as err) {
         <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" role="alert">
@@ -132,6 +137,7 @@ import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   facade = inject(DashboardFacade);
+  regime = inject(RegimeFacade);
 
   readonly isProd = environment.production;
   toast = signal(false);
@@ -140,6 +146,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     void this.facade.loadSnapshot();
     this.facade.start();
+    void this.regime.loadCurrent();
+    void this.regime.loadHistory({ scope: 'MARKET' });
+    void this.regime.loadModel();
   }
 
   ngOnDestroy(): void {

@@ -618,11 +618,13 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 06 — Market Data & Regime
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (2026-07-07) — FMP/FRED + Bar store + rule/HMM/ensemble against fixtures + seeded HMM; live keys/backfill/overnight-retrain deferred (externals)
+**Started:** 2026-07-07
+**Completed:** 2026-07-07 (backend + frontend + docs; branch `feature/m06-market-data-regime`, tag `v0.6.0-regime` local/unpushed)
 
-> See `06-market-data-and-regime.md` for full spec.
+> See `06-market-data-and-regime.md` for full spec; per-AC status in `M04-M08-EXECUTION-REPORT.md`.
+>
+> Built: marketdata (`Bar`/`MacroSeries`, FMP client w/ rate-limit+circuit+cache-fallback, FRED, `backfill_bars`), regime (feature pipeline w/ reproducibility hash, rule classifier, `hmmlearn` GaussianHMM seeded train/decode/Viterbi + non-regression swap, ensemble, API, nightly retrain, rule-only degradation), regime badge + 90-day strip, ADR-060/061, runbooks, Data Pipelines Grafana JSON. **Bar Postgres partitioning deferred** (plain indexed table). **Deferred externals:** FMP/FRED keys, 10y backfill, overnight staging retrain.
 
 ---
 

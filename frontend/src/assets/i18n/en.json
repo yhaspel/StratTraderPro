@@ -462,5 +462,42 @@
         "RESOLVED": "Resolved"
       }
     }
+  },
+  "regime": {
+    "title": "Market regime",
+    "top_features": "Top contributing features",
+    "history": "90-day history",
+    "no_data": "No regime data yet.",
+    "degraded": "Rule-based only",
+    "label": {
+      "BULL": "Bull",
+      "CHOP": "Chop",
+      "BEAR": "Bear",
+      "CRISIS": "Crisis",
+      "NEUTRAL": "Neutral"
+    },
+    "rule": {
+      "RISK_ON": "Risk-on",
+      "NEUTRAL": "Neutral",
+      "RISK_OFF": "Risk-off",
+      "PANIC": "Panic"
+    },
+    "feature": {
+      "pct_above_50sma": "% above 50-day MA",
+      "pct_above_200sma": "% above 200-day MA",
+      "ad_ratio": "Advance/decline ratio",
+      "nh_nl_diff": "New highs − new lows",
+      "mcclellan_osc": "McClellan oscillator",
+      "vix": "VIX",
+      "vix_term_ratio": "VIX term structure",
+      "move": "MOVE (bond volatility)",
+      "hy_oas": "High-yield OAS",
+      "ig_oas": "Investment-grade OAS",
+      "mom_50": "50-day momentum",
+      "mom_200": "200-day momentum",
+      "rsi_14": "RSI (14)",
+      "yield_spread": "Yield-curve spread",
+      "dxy": "US dollar index"
+    }
   }
 }
