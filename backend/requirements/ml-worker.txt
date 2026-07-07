@@ -1,0 +1,18 @@
+# Sentiment ML worker deps (M07) — NOT installed in the base backend image.
+#
+# These are the heavy model stacks for the sentiment tiers. They are installed
+# ONLY in the dedicated sentiment/llm worker image (plan §5: "model weights
+# volume-mounted, not baked in"). The application code imports them lazily
+# behind FINBERT_ENABLED / LLM_WORKER_ENABLED, and CI scores with a canned
+# FakeScorer + the regex tagger — so torch never enters the base image or the
+# Trivy scan.
+#
+# DEFERRED (manual): FinBERT (ProsusAI/finbert) + Llama-3.1-8B-Instruct-Q4_K_M
+# GGUF weights (accept the HF/Meta license, download to the mounted volume),
+# and the Day-1 tokens/sec benchmark on the real worker size.
+-r base.txt
+
+transformers[torch]>=4.44,<5.0
+llama-cpp-python>=0.2.90,<0.4
+spacy>=3.7,<3.9
+# python -m spacy download en_core_web_sm   (done in the worker image build)

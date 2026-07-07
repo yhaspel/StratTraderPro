@@ -45,3 +45,7 @@ CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
 # Celery. Integration tests that exercise the real Redis Stream transport
 # override this to False.
 FILLS_INLINE = True
+
+# M07 — Tier-2 (Llama) available in tests, backed by the canned FakeLlama
+# (SENTIMENT_FAKE_SCORERS defaults True). The degradation test overrides this.
+LLM_WORKER_ENABLED = True

@@ -499,5 +499,30 @@
       "yield_spread": "Yield-curve spread",
       "dxy": "US dollar index"
     }
+  },
+  "sentiment": {
+    "title": "Market sentiment",
+    "market": "Market",
+    "degraded": "Rule-based / LLM degraded",
+    "recent_news": "Recent impactful news",
+    "no_data": "No sentiment data yet.",
+    "positive": "Positive",
+    "neutral": "Neutral",
+    "negative": "Negative",
+    "impact": "Impact",
+    "source": "Source",
+    "sector": {
+      "TECHNOLOGY": "Technology",
+      "HEALTHCARE": "Health Care",
+      "FINANCIALS": "Financials",
+      "ENERGY": "Energy",
+      "INDUSTRIALS": "Industrials",
+      "MATERIALS": "Materials",
+      "UTILITIES": "Utilities",
+      "CONSUMER_DISCRETIONARY": "Consumer Discretionary",
+      "CONSUMER_STAPLES": "Consumer Staples",
+      "REAL_ESTATE": "Real Estate",
+      "COMMUNICATION_SERVICES": "Communication Services"
+    }
   }
 }

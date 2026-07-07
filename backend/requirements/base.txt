@@ -83,3 +83,12 @@ numpy>=1.26,<2.2
 pandas>=2.1,<2.3
 hmmlearn>=0.3.2,<0.4
 tenacity>=8.2
+
+# Sentiment pipeline (M07)
+# feedparser is a tiny pure-Python RSS/Atom parser for the news fetchers. The
+# heavy model stacks (transformers[torch] + FinBERT, llama-cpp-python + GGUF,
+# spaCy en_core_web_sm) are DELIBERATELY NOT pinned here — they are volume-
+# mounted worker-only deps (plan §5), imported lazily behind LLM_WORKER_ENABLED /
+# FINBERT_ENABLED. CI scores with a canned FakeScorer + the regex tagger, so the
+# backend image stays lean and Trivy-clean; see requirements/ml-worker.txt.
+feedparser>=6.0,<7.0

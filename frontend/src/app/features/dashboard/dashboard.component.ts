@@ -12,12 +12,14 @@ import { environment } from '../../../environments/environment';
 import { StreamStatus } from '../../core/models/brokers.models';
 import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
 import { RegimeFacade } from '../../abstraction/facades/regime.facade';
+import { SentimentFacade } from '../../abstraction/facades/sentiment.facade';
 import { RegimeBadgeComponent } from './regime-badge.component';
+import { SentimentPanelComponent } from './sentiment-panel.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, TranslateModule, DatePipe, RegimeBadgeComponent],
+  imports: [CommonModule, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent],
   template: `
     <div class="mx-auto max-w-6xl p-6 space-y-8">
       <div class="flex items-center justify-between">
@@ -31,6 +33,9 @@ import { RegimeBadgeComponent } from './regime-badge.component';
           </span>
         </div>
       </div>
+
+      <!-- ========== Market sentiment (M07) ========== -->
+      <app-sentiment-panel />
 
       <!-- ========== Market regime (M06) ========== -->
       <app-regime-badge />
@@ -138,6 +143,7 @@ import { RegimeBadgeComponent } from './regime-badge.component';
 export class DashboardComponent implements OnInit, OnDestroy {
   facade = inject(DashboardFacade);
   regime = inject(RegimeFacade);
+  sentiment = inject(SentimentFacade);
 
   readonly isProd = environment.production;
   toast = signal(false);
@@ -149,6 +155,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     void this.regime.loadCurrent();
     void this.regime.loadHistory({ scope: 'MARKET' });
     void this.regime.loadModel();
+    void this.sentiment.loadMarket();
+    void this.sentiment.loadArticles();
   }
 
   ngOnDestroy(): void {

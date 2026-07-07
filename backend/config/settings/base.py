@@ -431,6 +431,24 @@ REGIME_RULE_WEIGHTS: dict = {}
 REGIME_HMM_SEED = env.int("REGIME_HMM_SEED", default=42)
 
 # ---------------------------------------------------------------------------
+# Sentiment pipeline (M07)
+# ---------------------------------------------------------------------------
+SENTIMENT_ENABLED = env.bool("SENTIMENT_ENABLED", default=True)
+# Tier-2 LLM (Llama) is behind its own flag — off drops to FinBERT-only
+# (AC-07-10). Default OFF; enabled only on the dedicated llm-worker service.
+LLM_WORKER_ENABLED = env.bool("LLM_WORKER_ENABLED", default=False)
+# Real FinBERT (transformers[torch]) is off by default; the base image ships
+# the FakeFinBert. The sentiment worker image sets FINBERT_ENABLED=true.
+FINBERT_ENABLED = env.bool("FINBERT_ENABLED", default=False)
+# When True (default), scorers are the deterministic canned fakes — no model
+# weights required. The worker image sets this False to use the real models.
+SENTIMENT_FAKE_SCORERS = env.bool("SENTIMENT_FAKE_SCORERS", default=True)
+SENTIMENT_SPACY_NER = env.bool("SENTIMENT_SPACY_NER", default=False)
+SENTIMENT_ALIAS_TAGGING = env.bool("SENTIMENT_ALIAS_TAGGING", default=True)
+# GGUF path on the mounted volume (llm-worker image). Deferred external.
+LLAMA_GGUF_PATH = env("LLAMA_GGUF_PATH", default="/models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -494,6 +512,19 @@ CELERY_BEAT_SCHEDULE = {
     "regime-compute-features-daily": {
         "task": "apps.regime.tasks.compute_features_daily",
         "schedule": crontab(hour=22, minute=30),
+    },
+    # M07 — news ingest (15 min) → score pending → aggregate.
+    "sentiment-ingest-news": {
+        "task": "apps.sentiment.tasks.ingest_news",
+        "schedule": env.float("SENTIMENT_INGEST_INTERVAL_SECONDS", default=900.0),
+    },
+    "sentiment-score-pending": {
+        "task": "apps.sentiment.tasks.score_pending_articles",
+        "schedule": env.float("SENTIMENT_SCORE_INTERVAL_SECONDS", default=120.0),
+    },
+    "sentiment-aggregate": {
+        "task": "apps.sentiment.tasks.aggregate_sentiment",
+        "schedule": env.float("SENTIMENT_AGG_INTERVAL_SECONDS", default=300.0),
     },
 }
 

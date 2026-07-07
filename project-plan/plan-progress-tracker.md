@@ -630,9 +630,9 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 07 — Sentiment Pipeline
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (2026-07-07) — fetchers/tagger/tiered scorers (canned fakes)/EWMA/API; real FinBERT/Llama weights + benchmark deferred (externals)
+**Started:** 2026-07-07
+**Completed:** 2026-07-07 (backend + frontend + docs; branch `feature/m07-sentiment`, tag `v0.7.0-sentiment` local/unpushed). Heavy model deps kept out of base image (requirements/ml-worker.txt). Deferred: FinBERT + gated Llama GGUF weights, tokens/sec benchmark, per-source ToS.
 
 > See `07-sentiment-pipeline.md` for full spec.
 
