@@ -86,6 +86,48 @@ services:
       redis:
         condition: service_healthy
 
+  # ---------- Broker fill streams (M04 §6.5) ----------
+  # One TradingStream per connected paper account; writes fills to Redis.
+  streams:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: python manage.py run_broker_streams
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Websocket ASGI server (M04 §6.6) ----------
+  # Serves /ws/dashboard/ via daphne (the HTTP backend stays WSGI/gunicorn).
+  ws:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: daphne -b 0.0.0.0 -p 8788 config.asgi:application
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+    ports:
+      - "8788:8788"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # ---------- Frontend ----------
   frontend:
     image: node:20-alpine
@@ -111,7 +153,8 @@ services:
       - tunnel  # only starts with: docker compose --profile tunnel up
 
   # ---------- IB Gateway sidecar (M04 Day-1 SPIKE) ----------
-  # Opt-in only: starts with `docker compose --profile ibkr-spike up ib-gateway`.
+  # Opt-in only (PARKED — Alpaca pivot, ADR-041): starts with
+  # `docker compose --profile ibkr up ib-gateway`. Not booted by `make up`.
   # Validates the four assumptions in docs/adr/040-ibkr-gateway-sidecar.md
   # before broker-adapter work compounds on top. Throwaway-or-promote.
   #
@@ -171,7 +214,7 @@ services:
       retries: 3
       start_period: 180s
     profiles:
-      - ibkr-spike
+      - ibkr
 
 volumes:
   pgdata:
