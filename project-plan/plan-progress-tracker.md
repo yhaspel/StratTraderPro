@@ -547,9 +547,21 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 04.A.4 | Spike artifacts promoted | ✅ Done | Runbook renamed `docs/runbooks/spike-ibkr-gateway.md` → `docs/runbooks/ib-gateway-reauth.md` and rewritten for production ops. Vestigial files (`docker/ib-gateway/entrypoint.sh`, `docker/ib-gateway/ibc-config.ini`) removed. Smoke script docstring updated to drop SPIKE framing. `docker/ib-gateway/README.md` gained a gnzsnz config-render callout. CI gate: `scripts/verify_ibgw_config.sh`. |
 | 04.A.5 | Production env contract locked | ✅ Done | `docker-compose.yml` ib-gateway service has the full env contract. `backend/.env.example` documents the operator-facing subset. Railway setup commands generated in `project-plan/debug-and-verifications/railway-setup-commands.md` (manual user step). |
 
-### Phase B–F — Production code (pending)
+### Phase B–F — Production code
 
-Following the rewritten M04 plan §6.1–§6.9 + §10–§14 (Alpaca). Not yet started.
+Following the rewritten M04 plan §6.1–§6.9 + §10–§14 (Alpaca).
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 04.B.1 | Webhook ingest core (`apps/webhooks`) | ✅ Done (2026-07-07) | `POST /hooks/v1/{user}/{strategy}/`: rate-limit-before-body, 16 KB cap, constant-time `sig` compare, JSON-Schema, `SETNX` idempotency, halt gate. `AlertMessage` audit row (sig stripped). `process_alert` task. |
+| 04.B.2 | Broker adapter + Alpaca (`apps/brokers`) | ✅ Done | `BrokerAdapter` protocol + DTOs, `FakeBrokerAdapter`, `AlpacaAdapter` (paper-only, live-key reject, retry/jitter, `BrokerCallAudit`). `BrokerAccount`/`TradingHalt`. |
+| 04.C.1 | Orders + fill pipeline (`apps/orders`) | ✅ Done | `Order`/`Fill`/`Position`, `ingest_fill_event` (dedup on `broker_exec_id`), Redis-Stream transport + `FillIngestor`, `run_broker_streams` supervisor + catch-up. |
+| 04.D.1 | Channels + frontend | ✅ Done | `/ws/dashboard/` consumer (JWT+MFA); `/settings/brokers` + `/dashboard` Angular. |
+| 04.E.1 | Pivot hygiene + CI grep gate | ✅ Done | `.env.example` scrub, `ibkr` compose profile, `block-legacy-ibkr-creds` job, stray-file removal. |
+| 04.F.1 | Docs + observability | ✅ Done | ADR-042 + ADR-031 amendment, 2 runbooks, user help, 7 Prometheus metrics, Trading Ops Grafana JSON. |
+| 04.G.1 | Live-paper smoke (§10.4) | ⏳ Deferred | Needs operator run with real keys during RTH (runbook committed). |
+
+Backend gauntlet green (ruff/bandit/191 pytest/migrations/prod-import). Branch `feature/m04-webhook-alpaca-paper`; tag `v0.4.0-alpaca-paper` created locally (unpushed).
 
 ### Decision (2026-07-05): scrap IBKR entirely; ship Phase B on Alpaca
 
