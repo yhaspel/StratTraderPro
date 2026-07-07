@@ -34,5 +34,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
   },
+  // Orders (M05): /orders — lifecycle browser + reconciliation events
+  {
+    path: 'orders',
+    canMatch: [authGuard],
+    loadComponent: () =>
+      import('./features/orders/orders.component').then(m => m.OrdersComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

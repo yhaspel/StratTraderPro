@@ -9,7 +9,12 @@ from decimal import Decimal, InvalidOperation
 
 from alpaca.trading.enums import OrderSide
 from alpaca.trading.enums import TimeInForce as AlpacaTIF
-from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
+from alpaca.trading.requests import (
+    LimitOrderRequest,
+    MarketOrderRequest,
+    StopLimitOrderRequest,
+    StopOrderRequest,
+)
 
 from ..base import (
     Account,
@@ -20,9 +25,21 @@ from ..base import (
     OrderType,
     PositionDTO,
     Side,
+    TimeInForce,
 )
 
-_SIDE_TO_ALPACA = {Side.BUY: OrderSide.BUY, Side.SELL: OrderSide.SELL}
+# Open/close option sides collapse to plain BUY/SELL at Alpaca.
+_SIDE_TO_ALPACA = {
+    Side.BUY: OrderSide.BUY,
+    Side.SELL: OrderSide.SELL,
+}
+_BUY_SIDES = {"BUY", "BUY_TO_OPEN", "BUY_TO_CLOSE"}
+
+_TIF_TO_ALPACA = {
+    TimeInForce.DAY: AlpacaTIF.DAY,
+    TimeInForce.GTC: AlpacaTIF.GTC,
+    TimeInForce.IOC: AlpacaTIF.IOC,
+}
 
 # Alpaca order status strings → our OrderStatus.
 _STATUS_MAP = {
@@ -78,17 +95,30 @@ def _enum_value(v) -> str:
 # ---------------------------------------------------------------------------
 # Request construction
 # ---------------------------------------------------------------------------
+def _alpaca_side(side) -> OrderSide:
+    raw = getattr(side, "value", side)
+    return OrderSide.BUY if str(raw) in _BUY_SIDES else OrderSide.SELL
+
+
 def build_order_request(req: OrderRequest, client_order_id: str):
-    """OrderRequest → alpaca-py request model. Only MKT/LMT (DAY) in M04."""
+    """OrderRequest → alpaca-py request model. MKT/LMT/STP/STP_LMT + DAY/GTC/IOC
+    (M05). Options are passed by OPRA/OCC symbol; futures are rejected upstream."""
+    tif = _TIF_TO_ALPACA.get(req.time_in_force, AlpacaTIF.DAY)
     common = {
         "symbol": req.symbol,
         "qty": float(req.qty),
-        "side": _SIDE_TO_ALPACA[req.side],
-        "time_in_force": AlpacaTIF.DAY,
+        "side": _alpaca_side(req.side),
+        "time_in_force": tif,
         "client_order_id": client_order_id,
     }
     if req.order_type == OrderType.LMT:
         return LimitOrderRequest(limit_price=float(req.limit_price), **common)
+    if req.order_type == OrderType.STP:
+        return StopOrderRequest(stop_price=float(req.stop_price), **common)
+    if req.order_type == OrderType.STP_LMT:
+        return StopLimitOrderRequest(
+            stop_price=float(req.stop_price), limit_price=float(req.limit_price), **common
+        )
     return MarketOrderRequest(**common)
 
 

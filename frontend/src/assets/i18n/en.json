@@ -328,6 +328,17 @@
       "submit": "Connect",
       "success": "Broker connected"
     },
+    "connect_tradestation": {
+      "title": "Connect TradeStation",
+      "help": "Authorize StratTraderPro to trade through your TradeStation account via OAuth.",
+      "button": "Connect TradeStation"
+    },
+    "mode": {
+      "label": "Mode",
+      "paper": "Paper",
+      "live": "Live",
+      "live_soon": "Live trading coming soon"
+    },
     "error": {
       "BROKER_LIVE_KEYS_FORBIDDEN": "Live trading keys are not allowed. Please use Alpaca paper trading keys.",
       "BROKER_AUTH_FAILED": "Alpaca rejected those credentials. Double-check the API Key ID and Secret.",
@@ -337,7 +348,8 @@
       "BROKER_ALREADY_CONNECTED": "This Alpaca account is already connected.",
       "BROKER_DISABLED": "Broker connections are temporarily disabled by the operator.",
       "BROKER_UNAVAILABLE": "Alpaca is temporarily unavailable. Please try again shortly.",
-      "VALIDATION_ERROR": "Please check the highlighted fields and try again."
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again.",
+      "LIVE_TRADING_DISABLED": "Live trading is not enabled yet. Your broker stays in paper mode."
     }
   },
   "dashboard": {
@@ -366,6 +378,89 @@
     "dev": {
       "send_test_alert": "Send test alert",
       "alert_sent": "Test alert sent"
+    }
+  },
+  "orders": {
+    "title": "Orders",
+    "empty": "No orders match these filters.",
+    "export": "Export CSV",
+    "filters": {
+      "broker": "Broker",
+      "strategy": "Strategy",
+      "status": "Status",
+      "from": "From",
+      "to": "To",
+      "all": "All",
+      "apply": "Apply"
+    },
+    "col": {
+      "time": "Time",
+      "broker": "Broker",
+      "strategy": "Strategy",
+      "symbol": "Symbol",
+      "side": "Side",
+      "qty": "Qty",
+      "type": "Type",
+      "status": "Status",
+      "filled": "Filled"
+    },
+    "status": {
+      "PENDING_SUBMIT": "Pending submit",
+      "SUBMITTED": "Submitted",
+      "PARTIAL": "Partially filled",
+      "FILLED": "Filled",
+      "CANCELLED": "Cancelled",
+      "REJECTED": "Rejected"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{pages}} · {{total}} total",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "detail": {
+      "title": "Order detail",
+      "close": "Close",
+      "fills": "Fills (lifecycle)",
+      "no_fills": "No fills yet.",
+      "field": {
+        "asset_class": "Asset class",
+        "side": "Side",
+        "type": "Order type",
+        "tif": "Time in force",
+        "qty": "Quantity",
+        "filled": "Filled",
+        "limit_price": "Limit price",
+        "stop_price": "Stop price",
+        "option_expiry": "Option expiry",
+        "option_strike": "Option strike",
+        "option_right": "Option right",
+        "future_root": "Future root",
+        "future_expiry": "Future expiry",
+        "broker": "Broker",
+        "strategy": "Strategy",
+        "client_order_id": "Client order ID",
+        "broker_order_id": "Broker order ID",
+        "reason": "Reason",
+        "created": "Created",
+        "updated": "Updated"
+      }
+    },
+    "recon": {
+      "title": "Reconciliation events",
+      "empty": "No reconciliation events.",
+      "col": {
+        "time": "Time",
+        "symbol": "Symbol",
+        "kind": "Kind",
+        "our_qty": "Our qty",
+        "broker_qty": "Broker qty",
+        "detail": "Detail"
+      },
+      "kind": {
+        "DRIFT": "Drift detected",
+        "HEAL": "Healed toward broker",
+        "RESOLVED": "Resolved"
+      }
     }
   }
 }

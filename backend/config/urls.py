@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from apps.orders.views import FillListView, PositionListView
+from apps.orders.views import FillListView, PositionListView, ReconEventListView
 from apps.webhooks.views import WebhookView
 from config.settings.base import GIT_SHA
 
@@ -80,6 +80,7 @@ urlpatterns = [
     path("api/v1/orders/", include("apps.orders.urls")),
     path("api/v1/positions/", PositionListView.as_view(), name="positions-list"),
     path("api/v1/fills/", FillListView.as_view(), name="fills-list"),
+    path("api/v1/reconciliation/events/", ReconEventListView.as_view(), name="reconciliation-events"),
     path("api/v1/risk/", include("apps.risk.urls")),
     path("api/v1/strategies/", include("apps.strategies.urls")),
 ]

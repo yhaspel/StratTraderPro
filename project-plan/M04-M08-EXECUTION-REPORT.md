@@ -61,8 +61,46 @@
 
 ---
 
-## M05 — Order Lifecycle + TradeStation
-_Not started._
+## M05 — Order Lifecycle + TradeStation (descoped)
+
+- **Branch:** `feature/m05-order-lifecycle`
+- **PR / merge:** _(opened after frontend + gauntlet)_
+- **Release tag (local, unpushed):** `v0.5.0-tradestation`
+- **Descope (per plan 2026-07-05 review note):** TradeStation API access is approval-gated and could not be obtained. The broker-agnostic order-lifecycle half is built in full; the TradeStation adapter + OAuth2/PKCE ship behind `BROKER_TRADESTATION_ENABLED=false` with stubbed/recorded tests; **live TS OAuth + real sim fills are deferred.**
+
+### AC coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC-05-1 TS OAuth flow | **Met (stubbed) / Deferred-live** | `TSOAuthViewTests` (start behind flag, callback creates account via stubbed exchange), PKCE + single-use state tested; live handshake needs TS access |
+| AC-05-2 route to chosen broker | **Met** | `BrokerRoutingTests` (alert `broker` override + default fallback) |
+| AC-05-3 both brokers connected | **Met** | model supports multiple accounts; routing test connects ALPACA + TRADESTATION |
+| AC-05-4 MKT/LMT/STP/STP_LMT round-trip | **Met** | `ExtendedOrderTypeTests`; Alpaca mapping (Stop/StopLimit request models) |
+| AC-05-5 options both / futures TS-only | **Met (fake+alpaca) / Deferred-live** | `AssetClassTests` (option accepted, future rejected on Alpaca); real options fills live-deferred |
+| AC-05-6 reconciliation drift + heal | **Met** | `ReconciliationTests` (drift → 2nd-cycle heal; no-drift no-event) |
+| AC-05-7 Orders page pagination/filters/CSV | **Met** | `OrdersApiTests` (pagination, broker filter, detail+fills, CSV, recon events) + `/orders` frontend |
+| AC-05-8 LIVE mode rejected | **Met** | `LiveModeGateTests` (LIVE → 403 LIVE_TRADING_DISABLED; PAPER ok) |
+| AC-05-9 flatten one broker only | **Met** | M04 flatten is per-BrokerAccount (user+account scoped) |
+| AC-05-10 multi-broker parallel fills | **Met (fake)** | routing + per-account isolation; real dual-broker demo live-deferred (TS) |
+| AC-05-11 TS WS reconnect storm no dup | **Met (logic) / Deferred-live** | backoff + `broker_exec_id` dedup reused from M04; live TS WS deferred |
+
+### New surface
+- **Models/migrations:** `orders.0003` (extended order types, asset/option/future descriptors, `ReconEvent`), `brokers.0002` (TradeStation + LIVE mode + OAuth token fields).
+- **Adapters/services:** `apps/brokers/tradestation/` (adapter, `TSClient`, mapping, oauth, views); Alpaca STP/STP_LMT + TIF mapping; `apps/orders/reconcile.py`.
+- **Tasks/beat:** `reconcile_positions_task` (5-min `reconcile-positions` beat entry).
+- **Endpoints:** `/api/v1/brokers/tradestation/oauth/{start,callback}/`, `POST /api/v1/brokers/{id}/mode/`, `GET /api/v1/orders/{id}/`, `GET /api/v1/orders/export.csv`, `GET /api/v1/reconciliation/events/`, paginated `GET /api/v1/orders/`.
+- **Flags (defaults):** `BROKER_TRADESTATION_ENABLED=false`, `ENABLE_LIVE_TRADING=false`.
+- **Metrics:** reconcile drifts/heals, oauth refresh, order state transitions, ws reconnects.
+- **Frontend:** `/orders` page + broker mode control + Connect TradeStation.
+
+### Local gauntlet
+- ruff ✓ · bandit ✓ · pytest (M04+M05, all pass) ✓ · makemigrations --check ✓ · prod-import ✓ · frontend ngc + build _(close-out)_.
+
+### Decisions logged (autonomous)
+- **`TradeStation` symbology** (options OCC→"AAPL 240119C150", futures ES+YYYY-MM→"ESZ26") is documented + unit-tested but **live-unverified** (approval-gated); ADR-050 records the canonical format.
+- **Reconcile heal** never places corrective orders (position-snap only); per plan §6.3.
+- **`decrypt_key` returns "" for empty blobs** so TradeStation accounts (OAuth, no api-key pair) build cleanly.
+- **default webhook JSON schema** enum extended to include `STP_LMT` + `asset_class` (M05 supported types).
+- Migration numbering: `orders.0003` (plan named `0002_extended_order_types`, but M04 already used `orders.0002`).
 
 ## M06 — Market Data + Regime
 _Not started._

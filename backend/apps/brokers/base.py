@@ -33,10 +33,21 @@ class Side(str, Enum):
 class OrderType(str, Enum):
     MKT = "MKT"
     LMT = "LMT"
+    STP = "STP"
+    STP_LMT = "STP_LMT"
 
 
 class TimeInForce(str, Enum):
     DAY = "DAY"
+    GTC = "GTC"
+    IOC = "IOC"
+
+
+class AssetClass(str, Enum):
+    STOCK = "STOCK"
+    ETF = "ETF"
+    OPTION = "OPTION"
+    FUTURE = "FUTURE"
 
 
 class OrderStatus(str, Enum):
@@ -85,6 +96,19 @@ class PositionDTO:
 
 
 @dataclass(frozen=True)
+class OptionContract:
+    expiry: str  # ISO date YYYY-MM-DD
+    strike: Decimal
+    right: str  # CALL | PUT
+
+
+@dataclass(frozen=True)
+class FutureContract:
+    root: str  # e.g. ES
+    expiry: str  # e.g. 2026-12 or contract month code
+
+
+@dataclass(frozen=True)
 class OrderRequest:
     """What the caller wants placed. ``client_order_id`` is passed separately
     to ``place_order`` so the idempotency anchor is explicit."""
@@ -94,8 +118,11 @@ class OrderRequest:
     qty: Decimal
     order_type: OrderType = OrderType.MKT
     limit_price: Decimal | None = None
+    stop_price: Decimal | None = None
     time_in_force: TimeInForce = TimeInForce.DAY
-    asset_class: str = "us_equity"
+    asset_class: str = AssetClass.STOCK.value
+    option: OptionContract | None = None
+    future: FutureContract | None = None
 
 
 @dataclass(frozen=True)

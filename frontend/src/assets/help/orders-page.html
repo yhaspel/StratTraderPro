@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Reading the Orders page</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Reading the Orders page</h1>
+
+<p>The <strong>Orders</strong> page is the record of every order your strategies
+placed — across all your connected brokers. Each row is one order; open it to
+see its full lifecycle and every fill. This is where you go to answer "did that
+alert actually trade, and how?"</p>
+
+<div class="tip">
+  Orders here come from your strategies firing (a TradingView alert into your
+  webhook), so a new row appears within a few seconds of an alert. If you expect
+  an order and don't see one, check the strategy's activity view for a rejection
+  reason first.
+</div>
+
+<h2>The columns</h2>
+
+<table>
+  <tr><th>Column</th><th>Meaning</th></tr>
+  <tr><td><strong>Time</strong></td><td>When the order was created (your alert fired).</td></tr>
+  <tr><td><strong>Broker</strong></td><td>Which broker it routed to — <em>Alpaca</em> or <em>TradeStation</em>.</td></tr>
+  <tr><td><strong>Strategy</strong></td><td>The strategy that placed it.</td></tr>
+  <tr><td><strong>Symbol</strong></td><td>The instrument (a stock/ETF ticker, or an option/future contract).</td></tr>
+  <tr><td><strong>Side</strong></td><td>Buy or Sell (options also show open/close, e.g. <em>Buy to open</em>).</td></tr>
+  <tr><td><strong>Qty</strong></td><td>Quantity ordered.</td></tr>
+  <tr><td><strong>Type</strong></td><td>Order type — <code>MKT</code>, <code>LMT</code>, <code>STP</code>, or <code>STP_LMT</code>.</td></tr>
+  <tr><td><strong>Status</strong></td><td>Where the order is in its life (see below).</td></tr>
+  <tr><td><strong>Fills</strong></td><td>How much has filled so far.</td></tr>
+  <tr><td><strong>P&amp;L</strong></td><td>Profit/loss for the resulting position, where available.</td></tr>
+</table>
+
+<h2>What the statuses mean</h2>
+
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><code>PENDING_SUBMIT</code></td><td>We've accepted the order and are sending it to the broker.</td></tr>
+  <tr><td><code>SUBMITTED</code></td><td>The broker has it and is working it (a limit/stop order waiting for its price sits here).</td></tr>
+  <tr><td><code>PARTIAL</code></td><td>Partially filled — some quantity has executed, the rest is still working.</td></tr>
+  <tr><td><code>FILLED</code></td><td>Fully executed.</td></tr>
+  <tr><td><code>CANCELLED</code></td><td>Cancelled before fully filling (by you, or expired).</td></tr>
+  <tr><td><code>REJECTED</code></td><td>The broker (or a pre-trade check) refused it — the reason is on the detail drawer.</td></tr>
+</table>
+
+<div class="warn">
+  <strong>A market order that sits at <code>SUBMITTED</code> and doesn't fill</strong>
+  is almost always because it was sent outside US market hours — market orders
+  queue at the broker until the next open. This is expected, not a bug.
+</div>
+
+<h2>Filtering the list</h2>
+
+<p>Use the filters above the table to narrow it down. They combine, and the CSV
+export (below) respects whatever filters are active:</p>
+
+<ul>
+  <li><strong>Date range</strong> — defaults to today; widen it to look back.</li>
+  <li><strong>Broker</strong> — Alpaca or TradeStation.</li>
+  <li><strong>Strategy</strong> — a single strategy.</li>
+  <li><strong>Status</strong> — e.g. only <code>REJECTED</code> to hunt down
+  problems, or only <code>FILLED</code>.</li>
+</ul>
+
+<p>The table is paginated (25 orders per page); page through with the controls at
+the bottom. An order's link is shareable — opening it deep-links straight to that
+order's detail.</p>
+
+<h2>The detail drawer</h2>
+
+<p>Click any row to open its detail drawer, which shows the order's whole
+story:</p>
+
+<ul>
+  <li><strong>Lifecycle events</strong> in order — submitted &rarr; acknowledged
+  by the broker &rarr; partial fill(s) &rarr; filled / complete (or cancelled /
+  rejected). This is the timeline of what happened and when.</li>
+  <li><strong>Fills</strong> — each execution with its quantity and price, so a
+  partially-filled order shows exactly how it filled.</li>
+  <li><strong>Broker codes</strong> — the broker's own order id and any status /
+  rejection code, useful if you need to cross-check in the broker's dashboard or
+  contact support.</li>
+  <li><strong>Raw payload (masked)</strong> — the underlying request/response for
+  reference. Secrets and full account numbers are <strong>masked</strong> — the
+  drawer never shows sensitive values.</li>
+</ul>
+
+<h2>Exporting to CSV</h2>
+
+<p>Click <strong>Export CSV</strong> to download the currently-filtered set of
+orders. The file uses ISO-8601 timestamps and includes, per order: created time,
+broker, strategy, symbol, asset class, side, quantity, filled quantity, order
+type, status, and any reject reason. Because it follows your active filters,
+narrow the list first (e.g. one strategy, this month) to export exactly what you
+want.</p>
+
+<div class="tip">
+  The export is capped at a large number of rows per download — if you're pulling
+  a very long history, tighten the date range and export in chunks.
+</div>
+
+<h2>Good to know</h2>
+
+<ul>
+  <li>Orders from <strong>all</strong> your brokers show in one list — use the
+  <em>Broker</em> column/filter to tell Alpaca and TradeStation apart.</li>
+  <li>The <em>Positions</em> widget on your dashboard is the live holdings view;
+  the Orders page is the historical record of how you got there.</li>
+  <li>If your dashboard positions ever look out of step with your broker, the app
+  reconciles them automatically in the background toward the broker's numbers.</li>
+</ul>
+
+</body>
+</html>

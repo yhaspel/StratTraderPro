@@ -6,6 +6,7 @@ import {
   BrokerConnectPayload,
   BrokerConnectResult,
   BrokerFlattenResult,
+  BrokerMode,
   BrokerTestConnectionResult,
 } from '../../core/models/brokers.models';
 import { BrokersApi } from '../../core/services/brokers.api';
@@ -78,6 +79,29 @@ export class BrokersFacade {
   async flatten(id: string): Promise<Result<BrokerFlattenResult>> {
     try {
       const res = await firstValueFrom(this.api.flatten(id));
+      if (res.error) { return { ok: false, error: res.error }; }
+      return { ok: true, value: res.data! };
+    } catch (err) {
+      return { ok: false, error: this._asError(err) };
+    }
+  }
+
+  /** Switch a broker's PAPER/LIVE mode. LIVE returns 403 LIVE_TRADING_DISABLED
+   *  until the operator flag is on — the caller surfaces the mapped message. */
+  async setMode(id: string, mode: BrokerMode): Promise<Result<{ id: string; mode: string }>> {
+    try {
+      const res = await firstValueFrom(this.api.setMode(id, mode));
+      if (res.error) { return { ok: false, error: res.error }; }
+      return { ok: true, value: res.data! };
+    } catch (err) {
+      return { ok: false, error: this._asError(err) };
+    }
+  }
+
+  /** Kicks off the TradeStation OAuth flow; 503 BROKER_DISABLED when the flag is off. */
+  async tradestationOauthStart(): Promise<Result<{ authorize_url: string }>> {
+    try {
+      const res = await firstValueFrom(this.api.tradestationOauthStart());
       if (res.error) { return { ok: false, error: res.error }; }
       return { ok: true, value: res.data! };
     } catch (err) {

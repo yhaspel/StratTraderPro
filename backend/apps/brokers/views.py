@@ -207,6 +207,35 @@ class BrokerStatusView(APIView):
         )
 
 
+class BrokerModeView(APIView):
+    """PAPER ↔ LIVE mode switch (M05 §6.6 / AC-05-8). LIVE is rejected until the
+    global flag is on AND the user has opted in — server-enforced regardless of
+    UI. M05 always rejects LIVE (ENABLE_LIVE_TRADING defaults False)."""
+
+    permission_classes = [IsAuthenticatedAndMFAEnforced]
+    mfa_required = True
+
+    @extend_schema(operation_id="brokers_set_mode", tags=["brokers"])
+    def post(self, request, pk):
+        account = get_object_or_404(BrokerAccount, pk=pk, user=request.user)
+        mode = str(request.data.get("mode", "")).upper().strip()
+        if mode not in (BrokerAccount.Mode.PAPER, BrokerAccount.Mode.LIVE):
+            return fail("VALIDATION_ERROR", "mode must be PAPER or LIVE.", status=400)
+        if mode == BrokerAccount.Mode.LIVE:
+            enabled = getattr(settings, "ENABLE_LIVE_TRADING", False) and getattr(
+                request.user, "live_trading_enabled", False
+            )
+            if not enabled:
+                return fail(
+                    "LIVE_TRADING_DISABLED",
+                    "Live trading is not available yet.",
+                    status=403,
+                )
+        account.mode = mode
+        account.save(update_fields=["mode", "updated_at"])
+        return ok({"id": str(account.id), "mode": account.mode})
+
+
 class BrokerFlattenView(APIView):
     """Admin-gated debug flatten in M04 (full kill-switch engine in M08)."""
 
