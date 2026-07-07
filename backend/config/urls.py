@@ -84,4 +84,5 @@ urlpatterns = [
     path("api/v1/risk/", include("apps.risk.urls")),
     path("api/v1/strategies/", include("apps.strategies.urls")),
     path("api/v1/regime/", include("apps.regime.urls")),
+    path("api/v1/sentiment/", include("apps.sentiment.urls")),
 ]

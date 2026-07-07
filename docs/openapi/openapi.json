@@ -844,6 +844,42 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/sentiment/articles/:
+    get:
+      operationId: sentiment_articles
+      tags:
+      - sentiment
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sentiment/market/:
+    get:
+      operationId: sentiment_market
+      tags:
+      - sentiment
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sentiment/symbol/{sym}/:
+    get:
+      operationId: sentiment_symbol
+      parameters:
+      - in: path
+        name: sym
+        schema:
+          type: string
+        required: true
+      tags:
+      - sentiment
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/strategies/:
     get:
       operationId: strategies_list
