@@ -45,15 +45,21 @@ def _score_tier2(article: NewsArticle) -> None:
     llama = get_llama()
     if llama is None:  # worker disabled/down → FinBERT-only (AC-07-10)
         return
-    t0 = time.monotonic()
-    try:
-        res = llama.score(article.title, article.body)
-    except Exception:  # pragma: no cover — worker error → keep FinBERT
-        logger.warning("llm.score.error", extra={"article": article.pk})
-        SENTIMENT_SCORED.labels(tier="2", result="error").inc()
-        return
-    latency_ms = int((time.monotonic() - t0) * 1000)
-    LLM_INFERENCE_LATENCY.observe(time.monotonic() - t0)
+    # Invalid JSON → retry once; a second failure falls back to FinBERT (§6.4).
+    res = None
+    latency_ms = 0
+    for _attempt in range(2):
+        t0 = time.monotonic()
+        try:
+            res = llama.score(article.title, article.body)
+        except Exception:  # pragma: no cover — worker error → keep FinBERT
+            logger.warning("llm.score.error", extra={"article": article.pk})
+            SENTIMENT_SCORED.labels(tier="2", result="error").inc()
+            return
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        LLM_INFERENCE_LATENCY.observe(time.monotonic() - t0)
+        if res.valid:
+            break
     LLMInferenceLog.objects.create(
         article=article, prompt_version=PROMPT_VERSION, valid=res.valid, latency_ms=latency_ms
     )

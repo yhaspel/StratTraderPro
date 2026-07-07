@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -12,6 +13,7 @@ from apps.sentiment.fetchers import RawArticle
 from apps.sentiment.models import (
     AliasTable,
     ArticleScore,
+    LLMInferenceLog,
     NewsArticle,
     TickerRegistry,
 )
@@ -116,6 +118,38 @@ class RoutingTests(TestCase):
         score_article(art)
         self.assertTrue(ArticleScore.objects.filter(article=art, model="FINBERT").exists())
         self.assertFalse(ArticleScore.objects.filter(article=art, model="LLAMA").exists())
+
+    def test_llama_retry_once_then_valid(self):
+        from apps.sentiment.scorers import LlamaResult
+
+        calls = {"n": 0}
+
+        class _Flaky:
+            def score(self, title, body):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    return LlamaResult("NEUTRAL", 0, 0, "", valid=False)
+                return LlamaResult("POSITIVE", 8, 5, "ok", valid=True)
+
+        with mock.patch("apps.sentiment.routing.get_llama", return_value=_Flaky()):
+            art = NewsArticle.objects.create(source="EDGAR", title="8-K", dedup_hash="rt1", material=True)
+            score_article(art)
+        self.assertEqual(calls["n"], 2)  # retried once
+        self.assertTrue(ArticleScore.objects.filter(article=art, model="LLAMA").exists())
+
+    def test_llama_invalid_twice_falls_back(self):
+        from apps.sentiment.scorers import LlamaResult
+
+        class _Bad:
+            def score(self, title, body):
+                return LlamaResult("NEUTRAL", 0, 0, "", valid=False)
+
+        with mock.patch("apps.sentiment.routing.get_llama", return_value=_Bad()):
+            art = NewsArticle.objects.create(source="EDGAR", title="8-K", dedup_hash="rt2", material=True)
+            score_article(art)
+        self.assertFalse(ArticleScore.objects.filter(article=art, model="LLAMA").exists())
+        self.assertTrue(ArticleScore.objects.filter(article=art, model="FINBERT").exists())
+        self.assertEqual(LLMInferenceLog.objects.filter(article=art, valid=False).count(), 1)
 
 
 class AggregationTests(TestCase):
