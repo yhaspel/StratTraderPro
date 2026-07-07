@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — M06 (Market Data + Regime Classifier)
+- **Market-data plane** — `marketdata` app: `Bar`/`MacroSeries` store with idempotent upserts + gap detection; FMP client (token-bucket rate limit, tenacity retry on 429/5xx, circuit breaker, response cache with **cache-fallback so a rate-limit/outage never surfaces a 5xx** — AC-06-9); FRED client; `backfill_bars` management command. All live calls fixture-mocked (FMP/FRED keys are deferred externals).
+- **Regime classifier stack** — feature pipeline (breadth/stress/credit/macro → z-scored vector + reproducibility content-hash, AC-06-10); weighted **rule classifier** (score 0–100 → RISK_ON/NEUTRAL/RISK_OFF/PANIC + top-3 reason codes); **Gaussian HMM** (`hmmlearn`, 4 states, seeded training with restarts, state→label ranking, JSON param serialization, online decode + Viterbi); **ensemble** decision table; orchestration persisting `RegimeObservation`; nightly `retrain_hmm` with a **non-regression swap guard** (activate only if holdout LL ≥ prior or within 1%); rule-only degradation when the model is >48h stale (AC-06-8).
+- **Regime API** — `GET /api/v1/regime/{current,history,model}/`; `/symbol/{sym}/` → 501 (per-symbol later).
+- **Frontend** — regime badge (color + label + top-features popover + "rule-based only" degraded chip) and a 90-day history strip on the dashboard.
+- **Observability** — `marketdata_requests_total`, `marketdata_ratelimit_waits_total`, `marketdata_bars_ingested_total`, `regime_compute_latency_seconds`, `regime_model_age_seconds`, `hmm_retrain_total`; **Data Pipelines** Grafana dashboard.
+- **Deps** — numpy/pandas/hmmlearn/tenacity. **Flag** `ENABLE_REGIME_UI`. **Beat** nightly HMM retrain. Bar Postgres month-partitioning deferred (documented in ADR-061 — plain indexed table at MVP scale).
+- **Migrations** — `marketdata.0001` (Bar, MacroSeries), `regime.0001` (FeatureVectorSnapshot, HMMModel, RegimeObservation).
+
 ### Added — M05 (Order Lifecycle + TradeStation, descoped)
 - **Extended order types** — MKT/LMT/STP/STP_LMT + TIF DAY/GTC/IOC across the unified `OrderRequest`; asset classes STOCK/ETF/OPTION/FUTURE with option (OCC symbol) + future descriptors on `Order`. `process_alert` parses them; futures are rejected on Alpaca (`ORDER_UNSUPPORTED_ASSET`), options route by OCC symbol.
 - **Broker routing** — an alert may set `"broker"` to override the user's default; falls back to default/oldest.
