@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — M05 (Order Lifecycle + TradeStation, descoped)
+- **Extended order types** — MKT/LMT/STP/STP_LMT + TIF DAY/GTC/IOC across the unified `OrderRequest`; asset classes STOCK/ETF/OPTION/FUTURE with option (OCC symbol) + future descriptors on `Order`. `process_alert` parses them; futures are rejected on Alpaca (`ORDER_UNSUPPORTED_ASSET`), options route by OCC symbol.
+- **Broker routing** — an alert may set `"broker"` to override the user's default; falls back to default/oldest.
+- **Reconciliation** — `apps/orders/reconcile.py` + `ReconEvent` + 5-min beat: drift detected against broker `list_positions()`, healed toward broker truth on the second consecutive cycle (never places corrective orders); `GET /api/v1/reconciliation/events/`.
+- **Orders page API** — server pagination + broker/strategy/status/date filters, order detail (order + fills), `GET /api/v1/orders/export.csv`.
+- **Live-mode gate** — `POST /api/v1/brokers/{id}/mode/` rejects `LIVE` with `LIVE_TRADING_DISABLED` (403) until the global flag + per-user opt-in are on; server-enforced.
+- **TradeStation adapter (behind `BROKER_TRADESTATION_ENABLED=false`)** — `TradeStationPaperAdapter` + thin `httpx` client (REST + transparent OAuth2 refresh on 401), symbology (options OCC→TS space format, futures ES→`ESZ26`), OAuth2 authorization_code + PKCE with single-use signed `state`; `oauth/start` + `oauth/callback` views. **Live OAuth + real sim fills are deferred** (TradeStation API access is approval-gated).
+- **Frontend** — `/orders` page (paginated table, filters, detail drawer with lifecycle + fills, CSV export, reconciliation events); broker mode control (LIVE disabled) + Connect TradeStation on `/settings/brokers`.
+- **Observability** — `reconcile_drifts_total`, `reconcile_heals_total`, `oauth_refresh_total`, `order_state_transitions_total`, `broker_ws_reconnects_total`.
+- **Migrations** — `brokers.0002` (TradeStation + LIVE mode + OAuth token fields), `orders.0003` (extended order types + asset descriptors + `ReconEvent`).
+
 ### Added — M04 (Webhook Ingest + Broker Adapter + Alpaca Paper)
 - **Public webhook ingest** — `POST /hooks/v1/{user}/{strategy}/` (mounted outside `/api/v1`, no JWT layer). Per-user rate limit before body read, 16 KB body cap, `application/json`-only, constant-time static-bearer `sig` compare (ADR-042), JSON-Schema validation, 24h `SETNX` idempotency, and a `TradingHalt` gate. `AlertMessage` is the ingest audit row (`sig` stripped before persistence). `process_alert` Celery task maps the alert → `OrderRequest` and places it.
 - **Broker adapter layer** — broker-neutral `BrokerAdapter` protocol + DTOs, `FakeBrokerAdapter` (scripted fills/partials/rejects for tests), and `AlpacaAdapter` (paper-only: `TradingClient(paper=True)` hard-coded, live keys `AK`/`BK` rejected with `BROKER_LIVE_KEYS_FORBIDDEN`, 429/5xx retry-with-jitter, idempotent submit-retry guard, per-call `BrokerCallAudit` with no bodies/keys). `alpaca-py>=0.43,<0.44`.
