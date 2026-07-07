@@ -36,3 +36,12 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
 # Loosen rate limits for unit tests; specific tests opt-in by overriding.
 RATELIMIT_ENABLE = False
+
+# M04 — in-memory channel layer (no Redis needed for consumer tests).
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+
+# M04 — apply fills inline (no Redis Stream / consumer group) so the full
+# webhook→order→fill→position→WS path runs synchronously under SQLite + eager
+# Celery. Integration tests that exercise the real Redis Stream transport
+# override this to False.
+FILLS_INLINE = True

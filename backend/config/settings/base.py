@@ -85,13 +85,19 @@ LOCAL_APPS = [
     "apps.risk",
     "apps.brokers",
     "apps.orders",
+    "apps.dashboard",  # M04 — Channels dashboard consumer
     "apps.backtest",
     "apps.marketdata",
     "apps.audit",
     "apps.admin_portal",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# M04 — Django Channels. ``daphne`` MUST precede django.contrib.staticfiles so
+# its ASGI runserver takes over in dev; ``channels`` provides the consumer /
+# routing / layer machinery. Prod HTTP is still served by gunicorn/WSGI
+# (docker/backend.Dockerfile); websockets are served by a dedicated ASGI
+# process (docker-compose `ws` service running `daphne config.asgi`).
+INSTALLED_APPS = ["daphne"] + DJANGO_APPS + ["channels"] + THIRD_PARTY_APPS + LOCAL_APPS
 
 # ---------------------------------------------------------------------------
 # Middleware
@@ -349,6 +355,43 @@ STRATEGY_WEBHOOK_BASE_URL = env(
 )
 
 # ---------------------------------------------------------------------------
+# Webhook ingest + Broker execution (M04)
+# ---------------------------------------------------------------------------
+# Master rollback flags (plan §15): flip either OFF without a redeploy.
+#   WEBHOOK_V1_ENABLED=false  → the public webhook returns 503.
+#   BROKER_ALPACA_ENABLED=false → Alpaca hidden from the picker; connect /
+#                                 place_order return 503; streams exit cleanly.
+WEBHOOK_V1_ENABLED = env.bool("WEBHOOK_V1_ENABLED", default=True)
+BROKER_ALPACA_ENABLED = env.bool("BROKER_ALPACA_ENABLED", default=True)
+
+# Hard paper-only default in M04. Live keys are rejected by validation and the
+# Alpaca adapter hard-codes the paper endpoint, so this flag alone cannot turn
+# on live trading in M04 — it is the master gate later milestones read.
+ENABLE_LIVE_TRADING = env.bool("ENABLE_LIVE_TRADING", default=False)
+
+# Webhook hardening (§6.3 / §11). Rate limit is applied BEFORE the body is read.
+WEBHOOK_RATE_LIMIT_PER_MIN = env.int("WEBHOOK_RATE_LIMIT_PER_MIN", default=60)
+WEBHOOK_MAX_BODY_BYTES = env.int("WEBHOOK_MAX_BODY_BYTES", default=16 * 1024)
+WEBHOOK_IDEMPOTENCY_TTL_SECONDS = env.int("WEBHOOK_IDEMPOTENCY_TTL_SECONDS", default=86400)
+# Optional TradingView source-IP allowlist — empty = disabled (default).
+WEBHOOK_IP_ALLOWLIST = env.list("WEBHOOK_IP_ALLOWLIST", default=[])
+
+# Fill transport. When True, publish_fill applies fills inline/synchronously
+# (no Redis Stream, no consumer group) so the whole webhook→fill→position→WS
+# path runs under SQLite + eager Celery in tests. Prod/staging keep this False
+# and use the real Redis Stream `fills:user:{id}` + the FillIngestor consumer.
+FILLS_INLINE = env.bool("FILLS_INLINE", default=False)
+
+# Streams service heartbeat freshness (seconds) before a broker flips DEGRADED.
+BROKER_STREAM_HEARTBEAT_TTL = env.int("BROKER_STREAM_HEARTBEAT_TTL", default=45)
+
+# Optional platform-level Alpaca paper keys — LOCAL SMOKE ONLY. Production
+# users always bring their own keys via the UI (stored encrypted per-user).
+# Read by the `alpaca_smoke` management command; empty by default.
+ALPACA_PAPER_KEY_ID = env("ALPACA_PAPER_KEY_ID", default="")
+ALPACA_PAPER_SECRET_KEY = env("ALPACA_PAPER_SECRET_KEY", default="")
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -366,6 +409,12 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Trading bot platform API — webhook-driven, regime-aware, multi-broker.",
     "VERSION": "0.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Keep the default enum hook and append the M04 webhook-path injector
+    # (the webhook is a plain Django view outside DRF — see apps.webhooks.schema).
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "apps.webhooks.schema.add_webhook_path",
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -385,6 +434,16 @@ CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULER = "redbeat.RedBeatScheduler"
 CELERY_REDBEAT_REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
+# Beat schedule. `fill_ingestor` drains the Redis fill streams (no-op under
+# FILLS_INLINE, so inert in tests). run_broker_streams is deployed as its own
+# always-on service, not a beat task.
+CELERY_BEAT_SCHEDULE = {
+    "fill-ingestor": {
+        "task": "apps.orders.tasks.fill_ingestor",
+        "schedule": env.float("FILL_INGESTOR_INTERVAL_SECONDS", default=5.0),
+    },
+}
+
 # ---------------------------------------------------------------------------
 # Caches
 # ---------------------------------------------------------------------------
@@ -392,6 +451,16 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": env("REDIS_URL", default="redis://localhost:6379/1"),
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Channels (M04 — realtime dashboard)
+# ---------------------------------------------------------------------------
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [env("REDIS_URL", default="redis://localhost:6379/0")]},
     }
 }
 

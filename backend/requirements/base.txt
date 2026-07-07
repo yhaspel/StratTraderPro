@@ -55,3 +55,19 @@ requests-oauthlib>=1.3,<2.0
 # JSON Schema Draft 2020-12 validation for user-uploaded webhook payload
 # templates. Used in apps.strategies.validators.
 jsonschema>=4.21,<5.0
+
+# Broker execution (M04 — Alpaca paper trading)
+# Official Alpaca SDK (Apache-2.0). pydantic request models
+# (MarketOrderRequest/LimitOrderRequest) + TradingStream websocket for
+# trade_updates. Paper endpoint is hard-coded in AlpacaAdapter (plan §6.2);
+# the live URL is unreachable by construction in M04.
+alpaca-py>=0.43,<0.44
+
+# Realtime / WebSocket (M04 — Channels dashboard consumer)
+# Django Channels 4 powers the /ws/dashboard/ consumer. channels-redis is the
+# cross-process channel layer in dev/prod; tests use the in-memory layer. The
+# HTTP path is unchanged (gunicorn still serves config.wsgi); websockets are
+# served by a dedicated ASGI process (docker-compose `ws` service).
+channels>=4.1,<4.2
+channels-redis>=4.2,<4.3
+daphne>=4.1,<4.2
