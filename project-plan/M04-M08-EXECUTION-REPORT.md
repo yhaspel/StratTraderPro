@@ -261,4 +261,5 @@ Push in order, one at a time, only when ready to deploy that milestone to prod:
 - Push a tag with e.g. `git push origin v0.4.0-alpaca-paper`. All tags point at squash-merge commits already on `origin/main`, so pushing a tag deploys code that is already merged.
 
 ### PRs left open (if `--admin` merge was blocked)
-- **None.** All five PRs (#22 M04, #23 M05, #24 M06, #25 M07, #26 M08) were squash-merged with `--admin` after CI went green and review findings were addressed. Feature branches deleted.
+- **None from this mission.** All five milestone PRs (#22 M04, #23 M05, #24 M06, #25 M07, #26 M08) were squash-merged with `--admin` after CI went green and review findings were addressed. Feature branches deleted.
+- **Pre-existing (not mine):** 5 Dependabot PRs (#1–#5, opened 2026-04-18) bump `node`/`nginx` base images and 3 GitHub Actions. Untouched — out of M04–M08 scope. Review + merge at your discretion (they only affect CI/Docker infra, not app code).
