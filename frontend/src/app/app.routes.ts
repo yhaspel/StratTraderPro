@@ -32,8 +32,7 @@ export const routes: Routes = [
     path: 'dashboard',
     canMatch: [authGuard],
     loadComponent: () =>
-      import('./features/landing/landing.component').then(m => m.LandingComponent),
-    // TODO(M03+): replace with real dashboard component
+      import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
   },
   { path: '**', redirectTo: '' },
 ];

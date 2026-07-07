@@ -296,5 +296,76 @@
       "rotating": "Rotating…",
       "editor_loading": "Loading rich editor…"
     }
+  },
+  "brokers": {
+    "title": "Broker connections",
+    "status": {
+      "connected": "Connected",
+      "degraded": "Degraded",
+      "down": "Down"
+    },
+    "connected": {
+      "title": "Connected brokers",
+      "empty": "No brokers connected yet. Connect an Alpaca paper account below.",
+      "default": "Default",
+      "last_connected": "Last connected",
+      "account_number": "Account",
+      "buying_power": "Buying power",
+      "test": "Test connection",
+      "remove": "Remove",
+      "flatten": "Flatten all",
+      "mfa_placeholder": "6-digit code",
+      "confirm_remove": "Confirm remove"
+    },
+    "connect": {
+      "title": "Connect Alpaca Paper",
+      "help": "Paper trading only. Live keys are rejected.",
+      "help_link": "How to get Alpaca paper API keys",
+      "api_key_id": "API Key ID",
+      "api_secret": "API Secret",
+      "nickname": "Nickname",
+      "optional": "optional",
+      "submit": "Connect",
+      "success": "Broker connected"
+    },
+    "error": {
+      "BROKER_LIVE_KEYS_FORBIDDEN": "Live trading keys are not allowed. Please use Alpaca paper trading keys.",
+      "BROKER_AUTH_FAILED": "Alpaca rejected those credentials. Double-check the API Key ID and Secret.",
+      "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code to confirm removal.",
+      "BROKER_RATE_LIMITED": "Alpaca is rate-limiting requests. Wait a moment and try again.",
+      "NO_BROKER_CONNECTED": "No broker is connected. Connect an Alpaca paper account first.",
+      "BROKER_ALREADY_CONNECTED": "This Alpaca account is already connected.",
+      "BROKER_DISABLED": "Broker connections are temporarily disabled by the operator.",
+      "BROKER_UNAVAILABLE": "Alpaca is temporarily unavailable. Please try again shortly.",
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "live": "Live",
+    "offline": "Offline",
+    "broker_status": {
+      "title": "Broker status",
+      "empty": "No broker connected."
+    },
+    "positions": {
+      "title": "Open positions",
+      "empty": "No open positions.",
+      "col": {
+        "symbol": "Symbol",
+        "qty": "Qty",
+        "avg_cost": "Avg cost",
+        "mark": "Mark",
+        "pnl": "Unrealized P&L"
+      }
+    },
+    "fills": {
+      "title": "Today's fills",
+      "empty": "No fills yet today."
+    },
+    "dev": {
+      "send_test_alert": "Send test alert",
+      "alert_sent": "Test alert sent"
+    }
   }
 }

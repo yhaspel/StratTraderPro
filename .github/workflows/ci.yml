@@ -146,6 +146,34 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # ---------- Legacy IBKR credential guard (M04 §6.9 / AC-04-13) ----------
+  # After the Alpaca pivot (ADR-041) the IBKR TWS_* / DEBUG_VNC env vars must
+  # not reappear in active code or config. They are allowed ONLY in the parked
+  # reference paths (the ib-gateway sidecar, the compose profile, and the
+  # historical docs / plans that document the spike).
+  block-legacy-ibkr-creds:
+    name: Guard — no legacy IBKR creds
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Grep for TWS_ / DEBUG_VNC outside the allowlist
+        run: |
+          MATCHES=$(git grep -nE "TWS_|DEBUG_VNC" -- \
+            ':!.github/workflows/ci.yml' \
+            ':!docker/ib-gateway' \
+            ':!docker-compose.yml' \
+            ':!docs' \
+            ':!project-plan' \
+            ':!MEMORY.md' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::Legacy IBKR credentials (TWS_/DEBUG_VNC) found outside the allowlist:"
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "No legacy IBKR credentials in active code/config."
+
   # ---------- Image Scan ----------
   image-scan:
     name: Trivy — Docker Image Scan

@@ -204,6 +204,21 @@ def decode_mfa_token(raw: str) -> str:
     return str(user_id)
 
 
+def verify_mfa_code(user, code: str) -> bool:
+    """Step-up re-prompt check for sensitive actions (broker removal — M04;
+    L1 kill-switch — M08). Accepts a TOTP code or a single-use backup code for
+    an MFA-enrolled user. Returns False for non-enrolled users or bad codes.
+    """
+    from .models import MFADevice
+
+    if not code or not getattr(user, "mfa_enabled", False):
+        return False
+    device = MFADevice.objects.filter(user=user, verified=True).first()
+    if device is not None and verify_totp(decrypt_secret(device.secret_encrypted), code):
+        return True
+    return consume_backup_code(user, code)
+
+
 __all__ = [
     "encrypt_secret",
     "decrypt_secret",
@@ -213,6 +228,7 @@ __all__ = [
     "verify_totp",
     "generate_backup_codes",
     "consume_backup_code",
+    "verify_mfa_code",
     "issue_mfa_token",
     "decode_mfa_token",
 ]

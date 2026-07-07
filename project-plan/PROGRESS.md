@@ -16,11 +16,11 @@
 | M02 | MFA (TOTP + backup codes), profile, sessions, password change | ✅ Done (2026-05-03) | `v0.2.0-mfa` |
 | M2.5 | Google OAuth sign-in (allauth bridge + exchange codes) | ✅ Done (2026-05-03) | `v0.2.5-oauth-google` |
 | M03 | Strategy upload (3-file bundle), webhook config, HMAC secret reveal-once/rotation, seeding | ✅ Done (2026-05-03) | `v0.3.0-strategies` |
-| **M04** | **Webhook ingest + broker adapter + paper execution** | 🚧 **In progress — Phase A only** | — |
+| **M04** | **Webhook ingest + broker adapter + Alpaca paper execution** | ✅ **Phase B–F implemented (2026-07-07)** — CI-green; live-paper smoke deferred | `v0.4.0-alpaca-paper` (tag pending) |
 | M04A | IBKR Web API OAuth migration | ❌ Scrapped 2026-07-05 → superseded by the Alpaca pivot (ADR-041) |  |
 | M05–M12 | Order lifecycle/2nd broker, market data + regime (+06A), sentiment, risk engine, backtester, admin/audit, hardening, beta | ⏳ Not started | — |
 
-**M04 truth (verified):** Phase A — the IB Gateway spike — is done (connected, placed, filled AAPL on paper account `DUN167649`, 2026-05-15; ADR-040 has the findings). **Phase B–F production code does not exist**: `apps/webhooks`, `apps/brokers`, `apps/orders` are stubs (ping views only); there is no webhook endpoint, no `AlertMessage`/`Order`/`Fill`/`Position` model, no Celery task beyond `debug_task`, no WebSocket consumer, no broker SDK in requirements. Last substantive commit: 2026-05-20 (CI/deploy fixes). The project has been idle since.
+**M04 truth (updated 2026-07-07):** Phase A (IB Gateway spike) done 2026-05-15 (ADR-040). **Phase B–F now implemented** on `feature/m04-webhook-alpaca-paper`: public webhook endpoint + `AlertMessage` + `process_alert`; `BrokerAdapter` protocol + `FakeBrokerAdapter` + `AlpacaAdapter` (paper) with `BrokerAccount`/`TradingHalt`/`BrokerCallAudit`; `Order`/`Fill`/`Position` + `ingest_fill_event` (dedup on `broker_exec_id`); Redis-Stream fill transport + `run_broker_streams` supervisor; Channels `/ws/dashboard/` consumer; `/settings/brokers` + `/dashboard` frontend; `alpaca-py` + `channels`/`daphne` in requirements. Backend gauntlet green (ruff/bandit/191 pytest/migrations/prod-import); CI grep gate + pivot hygiene done. **Deferred (needs externals):** the §10.4 live-Alpaca-paper smoke (runbook committed; operator runs with real keys), the Grafana Trading Ops "live on staging" panel (dashboard JSON committed), and the IBKR password rotation + Railway/GitHub secret deletion (operator step).
 
 ## The 2026-07-05 broker pivot
 

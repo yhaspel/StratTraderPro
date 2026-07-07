@@ -4,6 +4,8 @@ from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from apps.orders.views import FillListView, PositionListView
+from apps.webhooks.views import WebhookView
 from config.settings.base import GIT_SHA
 
 
@@ -64,14 +66,20 @@ urlpatterns = [
     # Prometheus metrics
     path("", include("django_prometheus.urls")),
 
+    # M04 — public webhook receiver. Mounted OUTSIDE /api/v1 so no JWT auth
+    # middleware runs; the in-body `sig` secret is the only credential (ADR-042).
+    path(
+        "hooks/v1/<uuid:user_id>/<uuid:strategy_id>/",
+        WebhookView.as_view(),
+        name="webhook-ingest",
+    ),
+
     # API v1
     path("api/v1/", include("apps.users.urls")),
-    # M02 — MFA-protected scaffold endpoints. Real viewsets ship in
-    # later milestones; the ping/ routes exist so AC-02-6 ("calling
-    # /api/v1/brokers/ without MFA returns 403 MFA_REQUIRED") can be
-    # exercised against a real URL.
     path("api/v1/brokers/", include("apps.brokers.urls")),
     path("api/v1/orders/", include("apps.orders.urls")),
+    path("api/v1/positions/", PositionListView.as_view(), name="positions-list"),
+    path("api/v1/fills/", FillListView.as_view(), name="fills-list"),
     path("api/v1/risk/", include("apps.risk.urls")),
     path("api/v1/strategies/", include("apps.strategies.urls")),
 ]

@@ -17,4 +17,9 @@ export const SETTINGS_ROUTES: Routes = [
     canMatch: [authGuard],
     loadComponent: () => import('./mfa-setup/mfa-setup.component').then(m => m.MfaSetupComponent),
   },
+  {
+    path: 'settings/brokers',
+    canMatch: [authGuard],
+    loadComponent: () => import('./brokers/brokers.component').then(m => m.BrokersComponent),
+  },
 ];

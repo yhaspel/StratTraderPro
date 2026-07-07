@@ -17,8 +17,18 @@
 <h1>Configure your TradingView alert</h1>
 
 <p>Once your strategy is uploaded (or once you've enabled a system
-strategy), open <em>Configure webhook</em> to get the URL and HMAC
-secret you'll need on TradingView's side.</p>
+strategy), open <em>Configure webhook</em> to get the URL and webhook
+secret you'll need on TradingView's side. The webhook endpoint is now
+<strong>live</strong> — a correctly-configured alert places a real
+(paper) order through your connected Alpaca account.</p>
+
+<div class="warn">
+  <strong>Before you start:</strong> connect an Alpaca paper account under
+  <em>Settings &rarr; Brokers</em> first (see <em>Connect your Alpaca paper
+  account</em>). Without a connected broker, an alert is accepted at the URL
+  but rejected downstream with <code>NO_BROKER_CONNECTED</code> and no order
+  is placed.
+</div>
 
 <h2>1. Get your URL + secret</h2>
 
@@ -27,8 +37,10 @@ secret you'll need on TradingView's side.</p>
   next to the strategy you want to fire.</li>
   <li>The modal shows your unique URL like
   <code>https://api.strattraderpro.com/hooks/v1/&lt;your-uuid&gt;/&lt;strategy-uuid&gt;/</code>.</li>
-  <li>The HMAC secret is shown <strong>once</strong>, with a yellow
-  border. Copy it immediately.</li>
+  <li>The webhook secret is shown <strong>once</strong>, with a yellow
+  border. Copy it immediately. StratTraderPro puts this secret in the
+  alert's <code>sig</code> field and checks that inbound alerts carry the
+  matching value — think of it as a password on your webhook URL.</li>
 </ol>
 
 <div class="warn">
@@ -76,11 +88,21 @@ and your <code>sig</code> set to the just-revealed secret:</p>
   button validates your payload template (with current placeholder
   values) against your saved JSON Schema. It does <em>not</em> place
   any orders.</li>
-  <li>Once you're confident the JSON is shaped correctly, fire a test
-  alert from TradingView. The order pipeline lands in M04 — until
-  then, the webhook ingest endpoint is not live and alerts will be
-  rejected at the URL.</li>
+  <li>Once you're confident the JSON is shaped correctly, fire a live
+  alert from TradingView. The endpoint
+  <code>POST /hooks/v1/&lt;your-uuid&gt;/&lt;strategy-uuid&gt;/</code> is
+  live: a valid alert is queued and an order is placed on your connected
+  Alpaca paper account. Watch your <em>Dashboard</em> — the order and its
+  fill appear within a few seconds.</li>
 </ul>
+
+<div class="warn">
+  <strong>Fire during US market hours.</strong> Market orders sent when the
+  US market is closed <em>queue</em> at the broker and don't fill until the
+  next open — so you won't see an immediate fill on your dashboard. Test with
+  a market order during regular US trading hours (9:30&nbsp;AM&ndash;4:00&nbsp;PM
+  Eastern), or use a limit order.
+</div>
 
 <h2>Troubleshooting</h2>
 
@@ -91,6 +113,11 @@ and your <code>sig</code> set to the just-revealed secret:</p>
   <li><strong>Alert fires but StratTraderPro rejects it.</strong> The
   <code>sig</code> field must match your current secret exactly. If
   you've rotated, update the alert.</li>
+  <li><strong>Alert accepted (200) but no order shows up.</strong> Usually
+  <code>NO_BROKER_CONNECTED</code> (connect an Alpaca paper account first),
+  <code>ORDER_UNSUPPORTED_ASSET</code> (this release supports US stocks and
+  ETFs only), or the market is closed so a market order is queued. Check the
+  strategy's activity/orders view for the reason.</li>
 </ul>
 
 </body>
