@@ -63,9 +63,9 @@
 
 ## M05 — Order Lifecycle + TradeStation (descoped)
 
-- **Branch:** `feature/m05-order-lifecycle`
-- **PR / merge:** _(opened after frontend + gauntlet)_
-- **Release tag (local, unpushed):** `v0.5.0-tradestation`
+- **Branch:** `feature/m05-order-lifecycle` (merged + deleted)
+- **PR / merge:** [#23](https://github.com/yhaspel/StratTraderPro/pull/23) — ✅ **Merged** (squash, admin) — merge commit `73128b3`. All 5 CI checks green. Self-review recorded; the one blocking MEDIUM (orders strategy-filter 500) + L2/L4/N3 fixed in `58fe52e`.
+- **Release tag (local, unpushed):** `v0.5.0-tradestation` → `73128b3`
 - **Descope (per plan 2026-07-05 review note):** TradeStation API access is approval-gated and could not be obtained. The broker-agnostic order-lifecycle half is built in full; the TradeStation adapter + OAuth2/PKCE ship behind `BROKER_TRADESTATION_ENABLED=false` with stubbed/recorded tests; **live TS OAuth + real sim fills are deferred.**
 
 ### AC coverage
