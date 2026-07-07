@@ -18,7 +18,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Celery app wiring** — `config/__init__.py` now imports the Celery app (was missing since M00), so `@shared_task.delay()` resolves to the configured app (`task_always_eager` in tests).
 
 ### Fixed — pivot hygiene (Alpaca over IBKR, ADR-041)
-- Scrubbed `TWS_USERID`/`TWS_PASSWORD`/`DEBUG_VNC` from `backend/.env.example`; moved the `ib-gateway` compose service behind the opt-in `ibkr` profile (not booted by `make up`); added a CI `block-legacy-ibkr-creds` grep gate; removed stray `gateway-*.png` + `_tmp_14_*` files.
+- Scrubbed the legacy IBKR gateway credentials (TWS user/password + the VNC debug flag) from `backend/.env.example`; moved the `ib-gateway` compose service behind the opt-in `ibkr` profile (not booted by `make up`); added a CI `block-legacy-ibkr-creds` grep gate; removed stray `gateway-*.png` + `_tmp_14_*` files.
 
 ### Changed — Plan (M00 AC renegotiations)
 - **M00 AC-00-8 renegotiated** to drop the `process_resident_memory_bytes` requirement that conflicted with M01.11.13's switch to multi-process gunicorn Prometheus aggregation. The standard `prometheus_client` `process_*` collector is incompatible with the multi-process aggregator and is auto-removed when `PROMETHEUS_MULTIPROC_DIR` is set. Updated criterion accepts `django_http_requests_total_by_view_transport_method_total` as the request counter, with the process-level metric explicitly deferred to M10 §6.5 (Railway container metrics or postgres/redis exporters). See `reference_strattraderpro_metrics_gotchas` memory note for the underlying reason. Edit landed in `project-plan/00-scoping-and-setup.md`.

@@ -109,6 +109,11 @@ if SENTRY_DSN:
         integrations=[DjangoIntegration(), CeleryIntegration()],
         traces_sample_rate=0.1,
         send_default_pii=False,
+        # Never serialize stack-frame locals into events. Broker adapters
+        # construct `TradingClient(api_key=..., secret_key=...)` with plaintext
+        # keys as call args; with frame locals on, any exception escaping that
+        # frame would ship the keys to Sentry (AC-04-12). Off = no creds leak.
+        include_local_variables=False,
         environment=env(
             "SENTRY_ENVIRONMENT",
             default=env("RAILWAY_ENVIRONMENT_NAME", default="production"),

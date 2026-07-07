@@ -168,6 +168,18 @@ class AlpacaAdapter:
         except BrokerError:
             return None
 
+    def get_order_status(self, broker_order_id: str) -> str | None:
+        """Fetch the broker's authoritative status for one order (used by the
+        reconnect catch-up to resolve closed orders without assuming FILLED).
+        Returns our ``Order.Status`` string, or None if unavailable."""
+        try:
+            raw = self._call(
+                "get_order_by_id", lambda: self.client.get_order_by_id(broker_order_id)
+            )
+        except BrokerError:
+            return None
+        return mapping.map_order_ack(raw).status.value
+
     def cancel_order(self, broker_order_id: str) -> None:
         self._call(
             "cancel_order_by_id",

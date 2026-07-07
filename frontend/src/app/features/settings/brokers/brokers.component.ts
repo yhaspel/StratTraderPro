@@ -19,7 +19,17 @@ import {
 import { BrokersFacade } from '../../../abstraction/facades/brokers.facade';
 
 /** Error codes that have a dedicated translated message. */
-const KNOWN_ERRORS = new Set(['BROKER_LIVE_KEYS_FORBIDDEN', 'BROKER_AUTH_FAILED', 'MFA_REQUIRED']);
+const KNOWN_ERRORS = new Set([
+  'BROKER_LIVE_KEYS_FORBIDDEN',
+  'BROKER_AUTH_FAILED',
+  'MFA_REQUIRED',
+  'BROKER_RATE_LIMITED',
+  'NO_BROKER_CONNECTED',
+  'BROKER_ALREADY_CONNECTED',
+  'BROKER_DISABLED',
+  'BROKER_UNAVAILABLE',
+  'VALIDATION_ERROR',
+]);
 
 @Component({
   selector: 'app-brokers',

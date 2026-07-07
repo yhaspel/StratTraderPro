@@ -1,6 +1,7 @@
 """Celery tasks for webhook alert processing (M04 §6.3)."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from decimal import Decimal, InvalidOperation
@@ -71,7 +72,18 @@ def process_alert(self, alert_id):
     except (InvalidOperation, TypeError):
         qty = Decimal("0")
 
-    client_order_id = f"stp-{alert.id}"
+    # Derive the client_order_id from the idempotency key (when present) so
+    # Alpaca's unique-client_order_id constraint is a real second guard for
+    # AC-04-4: a duplicate idempotency_key maps to the SAME coid even if the
+    # Redis SETNX was lost, so both our Order.get_or_create and the broker
+    # reject the duplicate. Falls back to the alert id otherwise. 36 chars,
+    # under Alpaca's client_order_id length limit.
+    idem_key = str(body.get("idempotency_key", "")).strip()
+    if idem_key:
+        digest = hashlib.sha256(f"{alert.user_id}:{idem_key}".encode()).hexdigest()[:32]
+        client_order_id = f"stp-{digest}"
+    else:
+        client_order_id = f"stp-{alert.id}"
     order, created = Order.objects.get_or_create(
         client_order_id=client_order_id,
         defaults={

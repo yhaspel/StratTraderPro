@@ -331,7 +331,13 @@
     "error": {
       "BROKER_LIVE_KEYS_FORBIDDEN": "Live trading keys are not allowed. Please use Alpaca paper trading keys.",
       "BROKER_AUTH_FAILED": "Alpaca rejected those credentials. Double-check the API Key ID and Secret.",
-      "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code to confirm removal."
+      "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code to confirm removal.",
+      "BROKER_RATE_LIMITED": "Alpaca is rate-limiting requests. Wait a moment and try again.",
+      "NO_BROKER_CONNECTED": "No broker is connected. Connect an Alpaca paper account first.",
+      "BROKER_ALREADY_CONNECTED": "This Alpaca account is already connected.",
+      "BROKER_DISABLED": "Broker connections are temporarily disabled by the operator.",
+      "BROKER_UNAVAILABLE": "Alpaca is temporarily unavailable. Please try again shortly.",
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again."
     }
   },
   "dashboard": {

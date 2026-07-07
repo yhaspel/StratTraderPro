@@ -42,9 +42,11 @@ django-ratelimit>=4.1,<4.2
 # Auth (M02 — MFA)
 pyotp>=2.9,<3.0
 qrcode[pil]>=7.4,<8.0
-# cryptography 46.0.5+ clears CVE-2026-26007 (HIGH, missing subgroup validation
-# for SECT curves). Trivy in CI fails on HIGH/CRITICAL with a fixed version.
-cryptography>=46.0.5,<47.0
+# cryptography 48.0.1+ clears GHSA-537c-gmf6-5ccf (HIGH — vulnerable OpenSSL
+# bundled in the cryptography wheels) on top of the earlier CVE-2026-26007
+# (SECT-curve subgroup validation). Trivy in CI fails on HIGH/CRITICAL when a
+# fixed version exists.
+cryptography>=48.0.1,<49.0
 
 # Auth (M2.5 — Google OAuth via django-allauth)
 django-allauth>=0.61,<0.62

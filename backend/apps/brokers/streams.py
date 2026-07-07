@@ -64,13 +64,27 @@ def catch_up_account(account: BrokerAccount, adapter) -> dict:
         broker_account=account,
         status__in=[Order.Status.SUBMITTED, Order.Status.PARTIAL, Order.Status.PENDING_SUBMIT],
     )
+    resolved = 0
+    getter = getattr(adapter, "get_order_status", None)
     for order in our_open:
         if order.broker_order_id and order.broker_order_id not in open_by_id:
-            # No longer open at the broker — best-effort mark filled/closed.
-            Order.objects.filter(id=order.id).exclude(
-                status__in=[Order.Status.FILLED, Order.Status.CANCELLED, Order.Status.REJECTED]
-            ).update(status=Order.Status.FILLED)
-    return {"strategy": "position_snap", "positions_changed": changed}
+            # No longer open at the broker. Resolve the REAL terminal status —
+            # never assume FILLED, a closed order may be cancelled/rejected/
+            # expired. Position truth is already snapped above; if we can't fetch
+            # the status, leave the order and let the reconnected stream (or M05
+            # reconciliation) resolve it rather than mislabel it.
+            status = None
+            if callable(getter):
+                try:
+                    status = getter(order.broker_order_id)
+                except Exception:  # pragma: no cover — broker hiccup; leave as-is
+                    status = None
+            if status:
+                Order.objects.filter(id=order.id).exclude(
+                    status__in=[Order.Status.FILLED, Order.Status.CANCELLED, Order.Status.REJECTED]
+                ).update(status=status)
+                resolved += 1
+    return {"strategy": "position_snap", "positions_changed": changed, "orders_resolved": resolved}
 
 
 class StreamSupervisor:

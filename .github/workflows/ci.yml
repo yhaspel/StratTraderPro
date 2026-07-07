@@ -161,6 +161,7 @@ jobs:
       - name: Grep for TWS_ / DEBUG_VNC outside the allowlist
         run: |
           MATCHES=$(git grep -nE "TWS_|DEBUG_VNC" -- \
+            ':!.github/workflows/ci.yml' \
             ':!docker/ib-gateway' \
             ':!docker-compose.yml' \
             ':!docs' \

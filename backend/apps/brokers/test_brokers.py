@@ -8,6 +8,8 @@ AC map:
 """
 from __future__ import annotations
 
+import json
+import logging
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest import mock
@@ -29,7 +31,12 @@ from apps.brokers.base import (
 from apps.brokers.errors import BrokerError, BrokerErrorCode
 from apps.brokers.fake import FakeBrokerAdapter, ScriptedFill, ScriptStep
 from apps.brokers.models import BrokerAccount, BrokerCallAudit, TradingHalt
-from apps.brokers.services import active_halt_reason, get_stream_status, set_heartbeat
+from apps.brokers.services import (
+    active_halt_reason,
+    encrypt_key,
+    get_stream_status,
+    set_heartbeat,
+)
 from apps.brokers.streams import backoff_delay, catch_up_account
 from apps.m04_testutils import (
     auth_headers,
@@ -38,6 +45,7 @@ from apps.m04_testutils import (
     create_user,
     create_webhook_config,
     fake_factory,
+    valid_alert,
 )
 from apps.orders.models import Fill, Order, Position
 from apps.users.mfa import encrypt_secret
@@ -373,6 +381,24 @@ class StreamCatchUpTests(TestCase):
         self.assertEqual(Fill.objects.filter(order=order).count(), 1)
         self.assertEqual(Position.objects.get(symbol="AAPL").qty, Decimal("4"))
 
+    def test_catch_up_position_snap_resolves_real_status(self):
+        # Adapter WITHOUT recent_fills → the Alpaca position-snap branch. A
+        # closed order must take the broker's REAL terminal status, never a
+        # blind FILLED (M3).
+        order = Order.objects.create(
+            user=self.user, broker_account=self.account, client_order_id="c-snap",
+            broker_order_id="bo-snap", symbol="AAPL", side=Order.Side.BUY,
+            qty=Decimal("5"), status=Order.Status.SUBMITTED,
+        )
+        adapter = mock.Mock(spec=["list_positions", "list_open_orders", "get_order_status"])
+        adapter.list_positions.return_value = []       # broker reports flat
+        adapter.list_open_orders.return_value = []     # order no longer open
+        adapter.get_order_status.return_value = "CANCELLED"
+        res = catch_up_account(self.account, adapter)
+        self.assertEqual(res["strategy"], "position_snap")
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.CANCELLED)  # not blindly FILLED
+
 
 # ===========================================================================
 # Secret hygiene (AC-04-12) + halt gate unit
@@ -391,6 +417,64 @@ class SecretHygieneTests(TestCase):
         field_names = {f.name for f in BrokerCallAudit._meta.get_fields()}
         for banned in ("body", "request_body", "response_body", "api_key", "secret"):
             self.assertNotIn(banned, field_names)
+
+    def test_log_scan_no_secrets_leak(self):
+        """AC-04-12: automated log scan. Drive the webhook (accept + bad-sig),
+        the broker connect/encryption path, and fill ingest while capturing ALL
+        log records (message + args + extras), then assert no secret / API key /
+        API secret substring appears anywhere."""
+        cache.clear()
+        secret_sig = "logscan-sig-SECRET-9f8e7d"  # noqa: S105 — test fixture
+        api_key = "PKLOGSCANKEY0001"
+        api_secret = "logscan-api-SECRET-a1b2c3"  # noqa: S105 — test fixture
+
+        captured: list[logging.LogRecord] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record):
+                captured.append(record)
+
+        handler = _Capture()
+        root = logging.getLogger()
+        root.addHandler(handler)
+        prev = root.level
+        root.setLevel(logging.DEBUG)
+        try:
+            user = create_user(email="logscan@example.com")
+            strat = create_strategy(user, slug="logscan")
+            create_webhook_config(user, strat, secret=secret_sig)
+            BrokerAccount.objects.create(
+                user=user,
+                broker=BrokerAccount.Broker.ALPACA,
+                mode=BrokerAccount.Mode.PAPER,
+                api_key_id_enc=encrypt_key(api_key),
+                api_secret_enc=encrypt_key(api_secret),
+                account_number="PALOGSCAN",
+                is_default=True,
+                status=BrokerAccount.Status.CONNECTED,
+            )
+            url = f"/hooks/v1/{user.id}/{strat.id}/"
+            with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+                self.client.post(
+                    url,
+                    data=json.dumps(valid_alert(secret=secret_sig, idempotency_key="ls-1")),
+                    content_type="application/json",
+                )
+            # bad sig → logs a warning
+            self.client.post(
+                url,
+                data=json.dumps(valid_alert(sig="wrong-secret", idempotency_key="ls-2")),
+                content_type="application/json",
+            )
+        finally:
+            root.removeHandler(handler)
+            root.setLevel(prev)
+
+        blob = "\n".join(
+            f"{r.getMessage()} args={r.args!r} extra={r.__dict__!r}" for r in captured
+        )
+        for forbidden in (secret_sig, api_key, api_secret):
+            self.assertNotIn(forbidden, blob)
 
 
 class HaltGateUnitTests(TestCase):
