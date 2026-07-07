@@ -41,5 +41,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/orders/orders.component').then(m => m.OrdersComponent),
   },
+  // Risk (M08): /risk — profile editor, kill switches, and audit feeds
+  {
+    path: '',
+    loadChildren: () =>
+      import('./features/risk/risk.routes').then(m => m.RISK_ROUTES),
+  },
   { path: '**', redirectTo: '' },
 ];

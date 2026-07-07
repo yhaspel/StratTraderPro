@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Setting your risk profile</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Setting your risk profile</h1>
+
+<p>Your <strong>risk profile</strong> is how StratTraderPro decides <em>how big</em>
+each trade should be — and when to stop trading to protect your account. Until
+you set one up, alerts trade exactly the quantity your strategy asks for. Once you
+save a profile, every alert is automatically sized to fit these limits before it
+reaches your broker.</p>
+
+<div class="tip">
+  You're always in control: nothing here places trades on its own. These settings
+  only ever make a trade <strong>smaller</strong> or hold it back — they never make
+  it bigger than your strategy asked for.
+</div>
+
+<h2>The fields, in plain terms</h2>
+
+<table>
+  <tr><th>Setting</th><th>What it does</th></tr>
+  <tr>
+    <td><strong>Risk per trade (%)</strong></td>
+    <td>The most of your account you're willing to put at risk on a single trade —
+    from just above 0% up to 5%. We combine this with your stop distance (below)
+    to work out the position size. A smaller number means smaller, safer positions.</td>
+  </tr>
+  <tr>
+    <td><strong>Max position (%)</strong></td>
+    <td>A ceiling on how much of your account any one position can take, up to 50%.
+    Even if the risk math would buy more, we clamp the position to this share so
+    you're never over-concentrated in one name.</td>
+  </tr>
+  <tr>
+    <td><strong>Max concurrent</strong></td>
+    <td>The most positions you want open at the same time (at least 1).</td>
+  </tr>
+  <tr>
+    <td><strong>Daily loss limit ($ and %)</strong></td>
+    <td>Your line in the sand for one day. If your losses for the day reach either
+    the dollar amount or the percentage, the <strong>daily-loss circuit breaker</strong>
+    trips: we flatten your positions and stop new trades for the rest of the day
+    (it unlocks the next trading day). The percentage caps at 25%.</td>
+  </tr>
+  <tr>
+    <td><strong>Leverage cap</strong></td>
+    <td>How much borrowing (leverage) you'll allow. Leave it at 1.0 to trade with
+    your own capital only.</td>
+  </tr>
+  <tr>
+    <td><strong>Permitted asset classes</strong></td>
+    <td>Which kinds of instruments you allow — Stocks, ETFs, Options, Futures. Must
+    have at least one. Alerts for anything not on this list are turned away.</td>
+  </tr>
+  <tr>
+    <td><strong>Soft stop (%)</strong></td>
+    <td>An early caution level. If your account is down this much for the day,
+    new trades are automatically sized to <strong>half</strong> — you keep trading,
+    just smaller, while things are rough.</td>
+  </tr>
+  <tr>
+    <td><strong>Hard stop (%)</strong></td>
+    <td>Your deeper drawdown limit. It must be a <em>larger</em> number than your
+    soft stop — soft stop trims you first, hard stop is the outer boundary.</td>
+  </tr>
+  <tr>
+    <td><strong>Strict mode</strong></td>
+    <td>An extra guard for falling markets. With strict mode on, new <em>buy</em>
+    (long) trades are turned away while the market regime is <strong>BEAR</strong>
+    or <strong>CRISIS</strong> — you won't be sized into new longs into a
+    downturn. Leave it off to size those trades down instead of blocking them.</td>
+  </tr>
+  <tr>
+    <td><strong>ATR factor</strong></td>
+    <td>How wide to set the stop we size against, as a multiple of ATR (see below).
+    A larger factor means a wider stop, which means smaller positions.</td>
+  </tr>
+</table>
+
+<h2>What is ATR?</h2>
+
+<p><strong>ATR</strong> stands for <em>Average True Range</em> — a simple measure
+of how much a stock typically moves in a day, averaged over the last two weeks. A
+calm, steady stock has a small ATR; a jumpy, volatile one has a large ATR.</p>
+
+<p>We use it to place a sensible stop: your <strong>ATR factor</strong> multiplied
+by the stock's ATR is roughly how far the price would have to move against you
+before the trade is stopped out. A wider stop (bigger ATR or bigger factor) means
+we buy <em>fewer</em> shares for the same risk, so a volatile stock automatically
+gets a smaller position than a calm one. If we don't have enough recent data to
+compute ATR for a symbol, we fall back to a conservative stop of 2% of the price.</p>
+
+<h2>How your settings shape each trade</h2>
+
+<p>When an alert comes in, we start from your <strong>risk per trade</strong> and
+the current market <strong>regime</strong> (calmer markets get your full risk,
+choppy or falling markets get a reduced share, and a full-blown crisis pauses new
+trades entirely). We size the position against your ATR-based stop, then apply
+your caps and adjustments in order:</p>
+
+<ul>
+  <li>the <strong>max position</strong> clamp keeps any one trade from getting too big;</li>
+  <li>a small <strong>sentiment</strong> tilt nudges long trades up slightly when
+  news is strongly positive, or down when it's clearly negative;</li>
+  <li>the <strong>soft stop</strong> halves new trades if you're already down for the day.</li>
+</ul>
+
+<p>Every decision is recorded — you can open any order and see exactly how its
+size was worked out, which inputs were used, and why. If a trade was turned away
+you'll see the reason (for example <code>REGIME_CRISIS</code> in a crisis, or
+<code>REGIME_SIDE_MISMATCH</code> for a new long in a downturn with strict mode on).</p>
+
+<div class="warn">
+  Changing your risk profile requires your account to have two-factor
+  authentication enabled, and applies to <strong>new</strong> alerts from that
+  point on — it doesn't resize positions you already hold.
+</div>
+
+<h2>Good to know</h2>
+
+<ul>
+  <li>Invalid combinations are rejected as you save — for example a risk-per-trade
+  above 5%, a max position above 50%, or a soft stop that isn't smaller than your
+  hard stop.</li>
+  <li>The <strong>Defaults</strong> button resets every field to sensible starting
+  values if you want to begin fresh.</li>
+  <li>Your daily-loss breaker and kill switches share the same controls — see
+  <em>Using the kill switch</em> for how to halt trading yourself at any time.</li>
+</ul>
+
+</body>
+</html>
