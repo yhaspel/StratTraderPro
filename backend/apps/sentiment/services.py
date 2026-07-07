@@ -42,8 +42,9 @@ def dedup_hash(url: str, title: str) -> str:
 
 
 def symbols_text(symbols) -> str:
-    """Space-padded ' AAPL MSFT ' for a cross-DB exact-symbol text filter."""
-    return " " + " ".join(symbols) + " " if symbols else ""
+    """Space-padded ' AAPL MSFT ' for a cross-DB exact-symbol text filter. Capped
+    to keep within the field width (avoids a Postgres DataError + mid-symbol cut)."""
+    return " " + " ".join(symbols[:24]) + " " if symbols else ""
 
 
 def is_material(source: str, title: str, body: str) -> bool:

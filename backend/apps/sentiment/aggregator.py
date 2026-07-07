@@ -20,20 +20,25 @@ def ewma(samples: list[tuple[float, float]]) -> float:
 
 
 def _symbol_samples(symbol: str, now):
+    """ONE polarity sample per article (M1): prefer the LLAMA row when present,
+    else FinBERT — never both, so Tier-2 articles aren't double-counted and the
+    two polarity scales aren't blended. Impact is the Llama channel."""
     since = now - timezone.timedelta(minutes=WINDOW_MINUTES)
-    rows = (
-        ArticleScore.objects.filter(
-            article__symbols_text__contains=f" {symbol} ", article__fetched_at__gte=since
-        )
-        .select_related("article")
-        .order_by("-created_at")
+    articles = (
+        NewsArticle.objects.filter(symbols_text__contains=f" {symbol} ", fetched_at__gte=since)
+        .prefetch_related("scores")
     )
     samples, impacts = [], []
-    for s in rows:
-        age_h = (now - s.article.fetched_at).total_seconds() / 3600.0
-        samples.append((s.polarity, age_h))
-        if s.impact is not None:
-            impacts.append(s.impact)
+    for art in articles:
+        by_model = {s.model: s for s in art.scores.all()}
+        chosen = by_model.get(ArticleScore.Model.LLAMA) or by_model.get(ArticleScore.Model.FINBERT)
+        if chosen is None:
+            continue
+        age_h = (now - art.fetched_at).total_seconds() / 3600.0
+        samples.append((chosen.polarity, age_h))
+        llama = by_model.get(ArticleScore.Model.LLAMA)
+        if llama is not None and llama.impact is not None:
+            impacts.append(llama.impact)
     return samples, impacts
 
 

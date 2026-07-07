@@ -50,7 +50,8 @@ def tag_symbols(text: str, *, hint_symbols=None) -> list[str]:
 
         lower = text.lower()
         for alias, symbol in AliasTable.objects.values_list("alias", "symbol"):
-            if alias and alias in lower:
+            # Word-boundary match so a short alias ("so") doesn't hit "also".
+            if alias and re.search(rf"\b{re.escape(alias)}\b", lower):
                 symbols.add(symbol)
 
     # Optional spaCy NER (worker-image only; lazy).

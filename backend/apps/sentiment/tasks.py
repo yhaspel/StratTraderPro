@@ -40,14 +40,20 @@ def ingest_news(self):
 @shared_task(bind=True, ignore_result=True)
 def score_pending_articles(self, limit: int = 200):
     """FinBERT (+ routed Tier-2) for unscored articles (AC-07-3/4)."""
-    from .metrics import SENTIMENT_QUEUE_DEPTH
+    from .metrics import SENTIMENT_QUEUE_DEPTH, SENTIMENT_SCORED
     from .models import NewsArticle
     from .routing import score_article
 
     scored = 0
     for art in NewsArticle.objects.filter(tier1_scored=False).order_by("fetched_at")[:limit]:
-        score_article(art)
-        scored += 1
+        try:
+            score_article(art)
+            scored += 1
+        except Exception:  # per-article isolation — a poison article must not stall the sweep (M2)
+            logger.warning("sentiment.score.error", extra={"article": art.pk})
+            # Mark scored so it doesn't re-poison the next run.
+            NewsArticle.objects.filter(pk=art.pk).update(tier1_scored=True)
+            SENTIMENT_SCORED.labels(tier="1", result="error").inc()
     SENTIMENT_QUEUE_DEPTH.labels(queue="finbert").set(
         NewsArticle.objects.filter(tier1_scored=False).count()
     )

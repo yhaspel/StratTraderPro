@@ -159,6 +159,20 @@ class AggregationTests(TestCase):
         v = aggregator.ewma([(2.0, 0.0), (0.0, 6.0)])
         self.assertAlmostEqual(v, (2 * 1 + 0 * 0.5) / 1.5, places=3)
 
+    def test_both_tiers_single_sample(self):
+        # An article scored by BOTH tiers must contribute ONE EWMA sample (Llama
+        # preferred), not two on mixed scales (M1).
+        art = NewsArticle.objects.create(
+            source="EDGAR", title="8-K", dedup_hash="bt", symbols=["AAPL"],
+            symbols_text=" AAPL ", material=True,
+        )
+        ArticleScore.objects.create(article=art, model="FINBERT", polarity=0.5, confidence=0.9)
+        ArticleScore.objects.create(article=art, model="LLAMA", polarity=0.9, impact=8)
+        samples, impacts = aggregator._symbol_samples("AAPL", timezone.now())
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0][0], 0.9)  # Llama preferred
+        self.assertEqual(impacts, [8])
+
     def test_aggregate_symbol_and_market(self):
         art = NewsArticle.objects.create(
             source="FMP", title="AAPL surges", dedup_hash="ha", symbols=["AAPL"], symbols_text=" AAPL "
