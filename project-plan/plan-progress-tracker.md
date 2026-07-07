@@ -598,11 +598,21 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 05 — TradeStation & Order Lifecycle
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (2026-07-07) — **descoped** (TradeStation approval-gated; adapter behind `BROKER_TRADESTATION_ENABLED=false`, live OAuth + sim fills deferred)
+**Started:** 2026-07-07
+**Completed:** 2026-07-07 (backend + frontend + docs; branch `feature/m05-order-lifecycle`, tag `v0.5.0-tradestation` local/unpushed)
 
-> See `05-tradestation-and-order-lifecycle.md` for full spec.
+> See `05-tradestation-and-order-lifecycle.md` for full spec; per-AC status in `M04-M08-EXECUTION-REPORT.md`.
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 05.1 | Extended order types + TIF + asset classes | ✅ Done | MKT/LMT/STP/STP_LMT, DAY/GTC/IOC, STOCK/ETF/OPTION/FUTURE on Order + OrderRequest. |
+| 05.2 | Broker routing + reconciliation | ✅ Done | alert `broker` override; `reconcile.py` drift→heal + `ReconEvent` + 5-min beat. |
+| 05.3 | Orders API + page | ✅ Done | pagination/filters/detail/CSV/recon-events; `/orders` frontend. |
+| 05.4 | Live-mode gate | ✅ Done | `POST /brokers/{id}/mode/` → 403 `LIVE_TRADING_DISABLED`. |
+| 05.5 | TradeStation adapter + OAuth2/PKCE | ✅ Built (flag OFF) | adapter + `TSClient` + symbology + PKCE/state; stubbed tests. |
+| 05.6 | ADR-050/051 + runbooks + help | ✅ Done | broker-abstraction + reconciliation ADRs; TS-OAuth + drift runbooks. |
+| 05.7 | Live TS OAuth + real sim fills | ⏳ Deferred | TradeStation API access approval-gated. |
 
 ---
 
