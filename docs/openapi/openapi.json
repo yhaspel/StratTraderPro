@@ -183,6 +183,51 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/auth/oauth/exchange/:
+    post:
+      operationId: auth_oauth_exchange
+      description: |-
+        POST /api/v1/auth/oauth/exchange/
+
+        Body: ``{"exchange": "<code>"}``
+        Returns either:
+          * ``{"access": "...", "refresh": "...", "user": {...}}`` — same as login
+          * ``{"mfa_required": true, "mfa_token": "..."}`` — MFA-enrolled user
+
+        The exchange code is consumed (single-use) regardless of whether the
+        response includes tokens or an MFA challenge — the user proceeds to
+        /auth/mfa/verify/ with the mfa_token to complete login.
+      summary: Swap an OAuth exchange code for a JWT pair (or MFA challenge).
+      tags:
+      - oauth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/oauth/google/start/:
+    get:
+      operationId: auth_oauth_google_start
+      description: |-
+        GET /api/v1/auth/oauth/google/start/
+
+        302s to Google's authorize URL via allauth's stock ``oauth2_login`` view.
+        The frontend does ``window.location.assign('.../start/')`` — a top-level
+        navigation, NOT an XHR. This is critical: the browser sets the session
+        cookie that allauth uses to stash the OAuth state token, and that cookie
+        must travel back when Google redirects to our /callback/. A cross-origin
+        XHR followed by ``window.location`` drops that cookie and the callback
+        rejects with ``PermissionDenied`` from ``verify_and_unstash_state``.
+      summary: Redirect the browser to Google's OAuth authorize URL.
+      tags:
+      - oauth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/v1/auth/password/reset/:
     post:
       operationId: auth_password_reset
@@ -511,12 +556,135 @@ paths:
                       message: Token is invalid or expired.
                   summary: Token invalid or expired
           description: ''
+  /api/v1/brokers/:
+    get:
+      operationId: brokers_list
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: brokers_connect
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/:
+    get:
+      operationId: brokers_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: brokers_remove
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/brokers/{id}/flatten/:
+    post:
+      operationId: brokers_flatten
+      description: Admin-gated debug flatten in M04 (full kill-switch engine in M08).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/status/:
+    get:
+      operationId: brokers_status
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/test-connection/:
+    post:
+      operationId: brokers_test_connection
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/brokers/ping/:
     get:
       operationId: v1_brokers_ping_retrieve
-      description: 200 OK iff caller is authenticated AND has MFA enabled.
       tags:
       - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/fills/:
+    get:
+      operationId: fills_list
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/orders/:
+    get:
+      operationId: orders_list
+      tags:
+      - orders
       security:
       - jwtAuth: []
       responses:
@@ -532,6 +700,16 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/positions/:
+    get:
+      operationId: positions_list
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/risk/ping/:
     get:
       operationId: v1_risk_ping_retrieve
@@ -542,11 +720,159 @@ paths:
       responses:
         '200':
           description: No response body
-  /api/v1/strategies/ping/:
+  /api/v1/strategies/:
     get:
-      operationId: v1_strategies_ping_retrieve
+      operationId: strategies_list
       tags:
-      - v1
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: strategies_upload
+      summary: Upload a 3-file strategy bundle.
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/:
+    get:
+      operationId: strategies_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: strategies_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: strategies_delete
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/strategies/{id}/files/{kind}/:
+    get:
+      operationId: strategies_file_download
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: kind
+        schema:
+          type: string
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/webhook-config/:
+    get:
+      operationId: strategies_webhook_get
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: strategies_webhook_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/webhook-config/dry-run/:
+    post:
+      operationId: strategies_webhook_dryrun
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/webhook-config/rotate/:
+    post:
+      operationId: strategies_webhook_rotate
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
       security:
       - jwtAuth: []
       responses:
@@ -627,6 +953,84 @@ paths:
       responses:
         '200':
           description: No response body
+  /hooks/v1/{user_id}/{strategy_id}/:
+    post:
+      operationId: webhook_ingest
+      tags:
+      - webhooks
+      summary: TradingView webhook ingest (secret-authenticated in body).
+      description: Public endpoint mounted outside `/api/v1` — no JWT auth. Authentication
+        is a constant-time match of the static bearer `sig` secret embedded in the
+        alert body (see ADR-042). Hardened with a per-user rate limit (before body
+        read), a 16 KB body cap, `application/json`-only, 24h idempotency, and a halt
+        gate.
+      security: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: strategy_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - strategy
+              - action
+              - symbol
+              - qty
+              - order_type
+              - sig
+              properties:
+                strategy:
+                  type: string
+                action:
+                  type: string
+                  enum:
+                  - buy
+                  - sell
+                  - exit
+                symbol:
+                  type: string
+                qty:
+                  type: number
+                order_type:
+                  type: string
+                  enum:
+                  - MKT
+                  - LMT
+                limit_price:
+                  type: number
+                sig:
+                  type: string
+                  description: Static bearer secret.
+                idempotency_key:
+                  type: string
+      responses:
+        '200':
+          description: Accepted / duplicate / halted (see body).
+        '400':
+          description: Invalid JSON or schema validation failure.
+        '401':
+          description: Missing/invalid secret (generic — no oracle).
+        '413':
+          description: Payload exceeds 16 KB.
+        '415':
+          description: Content-Type is not application/json.
+        '429':
+          description: Per-user rate limit exceeded.
+        '503':
+          description: Webhook ingest disabled by ops.
 components:
   schemas:
     ApiError:

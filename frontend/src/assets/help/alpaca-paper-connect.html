@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Connect your Alpaca paper account</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Connect your Alpaca paper account</h1>
+
+<p>StratTraderPro routes your strategy's orders to a broker. In this release the
+broker is <strong>Alpaca</strong>, in <strong>paper (simulated) trading</strong>
+mode. You connect Alpaca by generating your own API keys on Alpaca's dashboard
+and pasting them into StratTraderPro — we never take custody of your funds, and
+your keys are encrypted at rest.</p>
+
+<div class="tip">
+  <strong>Paper trading is free.</strong> You don't need to fund an account or
+  wait for approval to trade paper. Every order in this release is simulated
+  against Alpaca's paper endpoint <code>https://paper-api.alpaca.markets</code> —
+  no real money moves.
+</div>
+
+<h2>1. Create a free Alpaca account</h2>
+
+<ol>
+  <li>Go to <a href="https://alpaca.markets/">alpaca.markets</a> and sign up.
+  It's free.</li>
+  <li>Verify your email and log in to the Alpaca dashboard.</li>
+</ol>
+
+<h2>2. Generate your PAPER API keys</h2>
+
+<ol>
+  <li>In the Alpaca dashboard, switch to <strong>Paper Trading</strong> using
+  the account toggle. Make sure you are in the <em>Paper</em> view, not Live.</li>
+  <li>Open the <strong>API Keys</strong> panel under the paper account and click
+  <strong>Generate</strong> (or <strong>Regenerate</strong>).</li>
+  <li>Alpaca shows two values: an <strong>API Key ID</strong> and a
+  <strong>Secret Key</strong>. Copy both now.</li>
+</ol>
+
+<div class="warn">
+  <strong>The Secret Key is shown once.</strong> Copy it before you close the
+  dialog. And note: <strong>regenerating your keys invalidates the previous
+  pair</strong>. If you regenerate later, the keys you pasted into
+  StratTraderPro stop working and your broker status flips to <em>Error</em> —
+  you'll need to come back here and paste the new pair.
+</div>
+
+<h2>3. Paste the keys into StratTraderPro</h2>
+
+<ol>
+  <li>In StratTraderPro, go to <strong>Settings → Brokers</strong>
+  (<code>/settings/brokers</code>).</li>
+  <li>Click <strong>Connect Alpaca Paper</strong>.</li>
+  <li>Paste your <strong>API Key ID</strong> and <strong>Secret Key</strong>
+  into the two fields and save.</li>
+</ol>
+
+<p>Your Secret Key is <strong>write-only</strong> — once saved, it is never
+shown back to you or sent to your browser again. It's stored encrypted with the
+same key-management we use for your two-factor and webhook secrets.</p>
+
+<h2>4. Test the connection</h2>
+
+<p>Click <strong>Test connection</strong>. StratTraderPro asks Alpaca for your
+account details and shows your <strong>paper account number</strong> and
+<strong>buying power</strong>. When that appears, you're connected and the
+broker shows a <em>Connected</em> badge.</p>
+
+<h2>Errors you might see</h2>
+
+<table>
+  <tr><th>Message</th><th>What it means</th></tr>
+  <tr>
+    <td><code>BROKER_AUTH_FAILED</code></td>
+    <td>Alpaca rejected the keys. Usually a typo, or you regenerated the keys in
+    Alpaca after pasting them here. Regenerate and re-paste both values.</td>
+  </tr>
+  <tr>
+    <td><code>BROKER_LIVE_KEYS_FORBIDDEN</code></td>
+    <td>You pasted <em>live</em> keys. This release is paper-only. Generate keys
+    from Alpaca's <strong>Paper</strong> section instead.</td>
+  </tr>
+</table>
+
+<h2>Good to know</h2>
+
+<ul>
+  <li><strong>US stocks &amp; ETFs only</strong> in this release. Options,
+  crypto, and futures alerts are rejected.</li>
+  <li>If your broker badge turns to <strong>Error</strong> later, the most
+  common cause is regenerating your Alpaca keys — just paste the new pair.</li>
+  <li>Removing a broker asks for your two-factor code and stops order routing
+  for that account.</li>
+</ul>
+
+<p>Next: point a TradingView alert at your strategy — see
+<em>Configure your TradingView alert</em>.</p>
+
+</body>
+</html>

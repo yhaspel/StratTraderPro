@@ -4,6 +4,25 @@
 **Status:** Accepted
 **Milestone:** M03 — Strategies & Webhook Config
 
+## Amendment (2026-07-07, M04 / ADR-042)
+
+The Context below says "TradingView signs the alert body and we verify the
+signature," and this ADR is titled "HMAC". **That wording is imprecise and is
+corrected by `docs/adr/042-webhook-secret-in-body.md`.** TradingView alert
+messages are static templates with placeholder substitution only — TradingView
+**cannot compute a per-payload HMAC** and does **not** sign anything. The
+secret this ADR generates is embedded in the alert template's `sig` field as a
+**static bearer secret**; M04 verifies it with a constant-time
+`hmac.compare_digest` of the presented value against the stored secret (the
+`hmac` module is used only for its timing-safe comparator, not to compute a MAC
+over the body). A genuine computed-HMAC mode (`sig_mode=hmac256`) is specified
+but deferred for API-capable senders — see ADR-042.
+
+Everything else in this ADR (server-side generation, Fernet-at-rest, reveal-
+once UX, destructive rotation, log scrubbing) stands unchanged and is reused
+verbatim by M04. Only the "signs the body / HMAC verify" characterization of
+the **verification** step is corrected.
+
 ## Context
 
 Each user/strategy pair gets a unique webhook URL plus an HMAC shared
