@@ -185,8 +185,47 @@
 ### Deferred (need externals)
 - Download `ProsusAI/finbert` + the gated Meta-Llama-3.1-8B-Q4_K_M GGUF (HF/Meta license); the Day-1 tokens/sec benchmark on the real Railway worker (if p95 >5s/article → FinBERT-only fallback the plan already specifies); per-source ToS review (Benzinga/Finnhub/Yahoo); the full 200-article tagger precision/recall eval; the retention rollup job (AC-07-11).
 
-## M08 — Risk Engine & Kill Switches
-_Not started._
+## M08 — Risk Engine, Sizing & Kill Switches
+
+- **Branch:** `feature/m08-risk-killswitch`
+- **PR / merge:** _(opened after frontend + gauntlet)_
+- **Release tag (local, unpushed):** `v0.8.0-risk`
+
+### AC coverage
+| AC | Status | Evidence |
+|----|--------|----------|
+| AC-08-1 configure RiskProfile | **Met** | `RiskApiTests.test_profile_put_ok`; `/risk` editor |
+| AC-08-2 invalid profile rejected | **Met** | `test_profile_validation` (risk>5, soft≥hard) |
+| AC-08-3 process_alert sizing | **Met** | `ProcessAlertSizingTests.test_sizing_applied_when_profile_exists` |
+| AC-08-4 SizingDecision per order | **Met** | same + `SizingDecisionsView` |
+| AC-08-5 CRISIS → 0 / REGIME_CRISIS | **Met** | `test_regime_crisis_zero` + `test_crisis_rejects` |
+| AC-08-6 BEAR+LONG+strict → reject | **Met** | `SizingTests.test_strict_mode_side_mismatch` |
+| AC-08-7 L0 strategy toggle isolates | **Met** | `test_is_blocked_truth_table` + `test_killswitch_strategy_toggle` |
+| AC-08-8 L1 flatten all ≤5s | **Met (local) / Deferred-staging** | `test_flatten_latency_and_flat` (<5s vs FakeBroker); staging p99 deferred |
+| AC-08-9 L2 daily-loss auto + lock | **Met** | `DailyLossTests.test_two_poll_breach_trips_l2` + `test_l2_release_locked_until_next_day` |
+| AC-08-10 L3 platform halt | **Met** | `test_platform_halt_blocks_everyone` + admin-only API |
+| AC-08-11 50-user L1 load | **Deferred-staging** | logic in place; load test needs a deployed env |
+| AC-08-12 soft-stop ×0.5 | **Met** | `SizingTests.test_soft_stop_halves` |
+
+### New surface
+- **Models/migrations:** `risk.{RiskProfile, SizingDecision, RiskEvent}` (`risk.0001`); `brokers.TradingHalt` extended with `level`/`auto`/nullable-`user` (`brokers.0003`).
+- **Modules:** `risk/{sizing, killswitch, integration, serializers, views, tasks, metrics}`.
+- **Endpoints:** `/api/v1/risk/{profile,events,sizing-decisions,killswitches}/`.
+- **Tasks/beat:** `daily_loss_watcher` (30s). **Flags:** `SIZING_V1_ENABLED`, `KILL_SWITCHES_ENABLED` (both on).
+- **Metrics:** 5. **Risk Ops** Grafana JSON committed. **Frontend:** `/risk` + dashboard halt button/banner.
+
+### Local gauntlet
+- ruff ✓ · bandit ✓ · pytest (M04–M08, all pass) ✓ · makemigrations --check ✓ · prod-import ✓ · frontend ngc+build _(close-out)_.
+
+### Decisions logged (autonomous)
+- **Kill switches built ON `brokers.TradingHalt`** (extended, no parallel `KillSwitchState`) per the mission — M04's ingest gate already reads it. Made `user` nullable for the L3 platform scope.
+- **Sizing gated on RiskProfile existence** — with no profile, `process_alert` uses the raw alert qty, preserving every M04/M05 test unchanged; sizing only engages once a user configures risk.
+- **Flatten latency measured locally** against `FakeBrokerAdapter` (<5s); the staging p99 measurement + Redis-kill chaos drill are documented for the operator.
+- **Daily-loss uses cached Position marks** (conservative fallback) + a two-poll confirmation to avoid stale-mark false positives (review-note-3).
+- **Kelly damper deferred** — needs the M09 `TradeHistory`.
+
+### Deferred (need externals / staging)
+- Flatten p99 ≤5s measured on staging (AC-08-8) + the 50-user L1 load test (AC-08-11); the Risk Ops dashboard "live" verification; the monthly kill-switch drill (runbook committed).
 
 ---
 

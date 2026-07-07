@@ -640,9 +640,9 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 08 — Risk Engine & Kill Switches
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (2026-07-08) — sizing + 4-level kill switches on `brokers.TradingHalt`; staging p99/load + Risk Ops "live" deferred
+**Started:** 2026-07-08
+**Completed:** 2026-07-08 (backend + frontend + docs; branch `feature/m08-risk-killswitch`, tag `v0.8.0-risk` local/unpushed). Kill switches built ON TradingHalt (no parallel model). Deferred: flatten p99 on staging, 50-user L1 load, Risk Ops live, Kelly damper (→M09).
 
 > See `08-risk-engine-and-kill-switches.md` for full spec.
 

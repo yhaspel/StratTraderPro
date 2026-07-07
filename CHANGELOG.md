@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — M08 (Risk Engine, Position Sizing & Kill Switches)
+- **Position sizing** — `apps/risk/sizing.py::compute_size` is a pure, deterministic function: regime scale (CRISIS=0/`REGIME_CRISIS`, BEAR=0.3, CHOP/NEUTRAL=0.6, BULL=1.0), strict-mode BEAR/CRISIS+LONG → `REGIME_SIDE_MISMATCH`, ATR-based stop (else 2%-of-price fallback), dollar-risk sizing, position-% clamp, sentiment adjustment (>0.7→×1.10, <-0.5→×0.70), soft-stop ×0.5, round-to-lot, `SIZING_ZERO`. Wired into `process_alert` **only when the user has a RiskProfile** (else raw alert qty — M04 behavior preserved), persisting a `SizingDecision` per path (AC-08-4).
+- **Four-level kill switches on `brokers.TradingHalt`** (extended with `level` L0–L3 + `auto` + nullable `user` — a single kill-switch table, **no parallel model**): L0 strategy, L1 user-global, L2 daily-loss auto, L3 platform. `killswitch.is_blocked` (platform→user→strategy) is consulted at the webhook AND in `process_alert`; `trigger`/`release` use `SELECT FOR UPDATE`; L2 auto halts lock until the next trading day (UTC-05); flatten goes through the broker adapter's `flatten_all` with measured latency (AC-08-8 ≤5s local vs FakeBroker); daily-loss watcher (30s beat) trips L2 on a **two-poll-confirmed** breach off conservative cached marks.
+- **RiskProfile** CRUD with validators (AC-08-2); sizing-decisions / events / kill-switches API; **L1/L3 kill-switch MFA re-prompt** (§11); platform switch admin-only.
+- **Frontend** — `/risk` page (profile editor + kill-switch panel + events + sizing-decisions feeds) + a dashboard "Halt my trading" (L1) button (confirm + MFA) and a halt banner.
+- **Observability** — `sizing_decisions_total`, `sizing_reject_reason_total`, `killswitch_trigger_total`, `killswitch_flatten_latency_seconds`, `daily_loss_breach_total`; **Risk Ops** Grafana dashboard.
+- **Flags** `SIZING_V1_ENABLED`, `KILL_SWITCHES_ENABLED`. **Migrations** `brokers.0003` (TradingHalt levels), `risk.0001`.
+- **Deferred** — the "flatten p99 ≤5s measured on staging" + "Risk Ops dashboard live on staging" (need a deployed env; latency measured locally + chaos drill documented); the Kelly damper (needs the M09 `TradeHistory`).
+
 ### Added — M07 (Sentiment Pipeline)
 - **News ingestion** — `sentiment` app: FMP-news + RSS (EDGAR / Nasdaq-halts / Benzinga / Finnhub) fetchers via `feedparser` (injectable), dedup on `sha256(url+title)`, server-side HTML strip, material-flagging (8-K / halt / guidance).
 - **Symbol tagger** — regex-against-`TickerRegistry` (high precision) + `$cashtags` + `AliasTable` (company→ticker); spaCy NER is a lazy flag-gated enhancement.
