@@ -14,6 +14,7 @@ import { ApiError } from '../../../core/models/auth.models';
 import {
   BrokerAccount,
   BrokerConnectResult,
+  BrokerMode,
   BrokerTestConnectionResult,
 } from '../../../core/models/brokers.models';
 import { BrokersFacade } from '../../../abstraction/facades/brokers.facade';
@@ -29,6 +30,7 @@ const KNOWN_ERRORS = new Set([
   'BROKER_DISABLED',
   'BROKER_UNAVAILABLE',
   'VALIDATION_ERROR',
+  'LIVE_TRADING_DISABLED',
 ]);
 
 @Component({
@@ -103,6 +105,25 @@ const KNOWN_ERRORS = new Set([
                           class="text-amber-700 hover:underline">
                     {{ 'brokers.connected.flatten' | translate }}
                   </button>
+                </div>
+
+                <!-- Mode control (PAPER active; LIVE disabled until enabled) -->
+                <div class="mt-3 flex items-center gap-2 text-xs">
+                  <span class="text-gray-500">{{ 'brokers.mode.label' | translate }}:</span>
+                  <div class="inline-flex rounded border overflow-hidden">
+                    <button type="button" (click)="onSetMode(acct, 'PAPER')"
+                            [class.bg-blue-600]="acct.mode === 'PAPER'"
+                            [class.text-white]="acct.mode === 'PAPER'"
+                            class="px-3 py-1">
+                      {{ 'brokers.mode.paper' | translate }}
+                    </button>
+                    <button type="button" (click)="onSetMode(acct, 'LIVE')"
+                            [attr.aria-disabled]="true"
+                            [title]="'brokers.mode.live_soon' | translate"
+                            class="px-3 py-1 border-l text-gray-400 cursor-not-allowed">
+                      {{ 'brokers.mode.live' | translate }}
+                    </button>
+                  </div>
                 </div>
 
                 <!-- Test-connection result -->
@@ -198,6 +219,25 @@ const KNOWN_ERRORS = new Set([
           </p>
         }
       </section>
+
+      <!-- ========== Connect TradeStation ========== -->
+      <section class="border rounded-lg p-6">
+        <h2 class="text-lg font-semibold mb-1">{{ 'brokers.connect_tradestation.title' | translate }}</h2>
+        <p class="text-sm text-gray-600 mb-4">{{ 'brokers.connect_tradestation.help' | translate }}</p>
+        <button type="button" (click)="onConnectTradeStation()"
+                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+          {{ 'brokers.connect_tradestation.button' | translate }}
+        </button>
+        @if (tsError(); as err) {
+          <p class="mt-4 text-sm text-red-700">
+            @if (knownError(err.code)) {
+              {{ ('brokers.error.' + err.code) | translate }}
+            } @else {
+              {{ err.message }}
+            }
+          </p>
+        }
+      </section>
     </div>
   `,
 })
@@ -207,6 +247,7 @@ export class BrokersComponent implements OnInit {
 
   connectResult = signal<BrokerConnectResult | null>(null);
   connectError = signal<ApiError | null>(null);
+  tsError = signal<ApiError | null>(null);
   testResults = signal<Record<string, BrokerTestConnectionResult>>({});
   rowErrors = signal<Record<string, ApiError>>({});
   removingId = signal<string | null>(null);
@@ -294,6 +335,25 @@ export class BrokersComponent implements OnInit {
     const res = await this.facade.flatten(id);
     if (!res.ok) {
       this._setRowError(id, res.error);
+    }
+  }
+
+  /** Switch a broker's mode. LIVE 403s with LIVE_TRADING_DISABLED (mapped below). */
+  async onSetMode(acct: BrokerAccount, mode: BrokerMode): Promise<void> {
+    this._clearRowError(acct.id);
+    const res = await this.facade.setMode(acct.id, mode);
+    if (!res.ok) {
+      this._setRowError(acct.id, res.error);
+    }
+  }
+
+  async onConnectTradeStation(): Promise<void> {
+    this.tsError.set(null);
+    const res = await this.facade.tradestationOauthStart();
+    if (res.ok) {
+      window.location.href = res.value.authorize_url;
+    } else {
+      this.tsError.set(res.error);
     }
   }
 

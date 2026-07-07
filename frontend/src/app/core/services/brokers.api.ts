@@ -9,6 +9,7 @@ import {
   BrokerConnectPayload,
   BrokerConnectResult,
   BrokerFlattenResult,
+  BrokerMode,
   BrokerStatus,
   BrokerTestConnectionResult,
 } from '../models/brokers.models';
@@ -47,5 +48,13 @@ export class BrokersApi {
 
   flatten(id: string): Observable<ApiEnvelope<BrokerFlattenResult>> {
     return this.http.post<ApiEnvelope<BrokerFlattenResult>>(`${BASE}/${id}/flatten/`, {});
+  }
+
+  setMode(id: string, mode: BrokerMode): Observable<ApiEnvelope<{ id: string; mode: string }>> {
+    return this.http.post<ApiEnvelope<{ id: string; mode: string }>>(`${BASE}/${id}/mode/`, { mode });
+  }
+
+  tradestationOauthStart(): Observable<ApiEnvelope<{ authorize_url: string }>> {
+    return this.http.get<ApiEnvelope<{ authorize_url: string }>>(`${BASE}/tradestation/oauth/start/`);
   }
 }

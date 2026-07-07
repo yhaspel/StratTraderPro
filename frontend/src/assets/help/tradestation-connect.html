@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Connect your TradeStation account</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Connect your TradeStation account</h1>
+
+<div class="warn">
+  <strong>Coming soon.</strong> TradeStation support is built into
+  StratTraderPro but is <strong>not switched on yet</strong> — TradeStation
+  requires us to be granted API access before we can enable it. Until then,
+  <em>Connect TradeStation</em> is hidden or disabled on the Brokers page, and
+  your strategies route through <strong>Alpaca</strong>. This page explains how
+  connecting TradeStation will work once it's available, so nothing is a
+  surprise on the day.
+</div>
+
+<p>Unlike Alpaca — where you paste your own API keys — TradeStation uses a
+<strong>"Connect with TradeStation"</strong> consent flow. You log in on
+TradeStation's own site and approve StratTraderPro; we never see or store your
+TradeStation password. We only receive a secure token that lets us place your
+strategy's orders, and that token is encrypted at rest.</p>
+
+<div class="tip">
+  <strong>Paper (simulated) trading.</strong> As with Alpaca in this release,
+  TradeStation will connect in <strong>simulated</strong> mode — no real money
+  moves. Live trading stays switched off across the whole app until a later
+  release.
+</div>
+
+<h2>How connecting will work</h2>
+
+<ol>
+  <li>Go to <strong>Settings &rarr; Brokers</strong>
+  (<code>/settings/brokers</code>) and click
+  <strong>Connect TradeStation</strong>.</li>
+  <li>Your browser is sent to <strong>TradeStation's own login and consent
+  page</strong>. Sign in there with your TradeStation credentials.</li>
+  <li>TradeStation asks whether you allow StratTraderPro to view your accounts
+  and place orders. Click <strong>Allow</strong>.</li>
+  <li>You're sent back to StratTraderPro. Your TradeStation account(s) appear on
+  the Brokers page with a <em>Connected</em> badge — no keys to copy or paste.</li>
+</ol>
+
+<p>Because you approve access on TradeStation's site and we only keep an
+encrypted token, you can <strong>revoke</strong> StratTraderPro at any time from
+TradeStation's own connected-apps settings, and removing the broker here stops
+order routing for that account.</p>
+
+<h2>Staying connected</h2>
+
+<p>The access we're granted refreshes itself quietly in the background, so you
+won't be asked to log in again for a long time (well beyond a normal trading
+routine). You only ever need to reconnect if you (or TradeStation) explicitly
+revoke access.</p>
+
+<div class="warn">
+  <strong>If you see "Reconnect TradeStation".</strong> This means the
+  permission you granted was withdrawn or expired — for example, you revoked
+  StratTraderPro in TradeStation's settings, or it timed out from long disuse.
+  Just click <strong>Reconnect TradeStation</strong> on the Brokers page and
+  approve access again. <em>Your Alpaca account is unaffected</em> — orders keep
+  routing to Alpaca the whole time.
+</div>
+
+<h2>What you'll be able to trade</h2>
+
+<ul>
+  <li><strong>Stocks &amp; ETFs</strong>, same as Alpaca.</li>
+  <li><strong>Options</strong>, by their standard OCC option symbol.</li>
+  <li><strong>Futures</strong> — TradeStation only. (Alpaca has no futures, so a
+  futures alert sent to an Alpaca account is rejected with
+  <code>ORDER_UNSUPPORTED_ASSET</code>.)</li>
+</ul>
+
+<p>Once both brokers are connected, you can pick which one a strategy routes to,
+and even run the same alert into different brokers for different accounts — see
+<em>Reading the Orders page</em> to follow where each order went.</p>
+
+<h2>Errors you might see</h2>
+
+<table>
+  <tr><th>Message</th><th>What it means</th></tr>
+  <tr>
+    <td>TradeStation is not enabled / <code>BROKER_DISABLED</code></td>
+    <td>The feature isn't switched on yet in your release. Nothing to do — it'll
+    appear once we've been granted access.</td>
+  </tr>
+  <tr>
+    <td>Reconnect TradeStation / <code>BROKER_REAUTH_REQUIRED</code></td>
+    <td>The access you granted was revoked or expired. Click
+    <strong>Reconnect TradeStation</strong> and approve again. Alpaca is
+    unaffected.</td>
+  </tr>
+  <tr>
+    <td>Couldn't complete the connection (returned to Brokers with an error)</td>
+    <td>The consent step didn't finish — for example the approval expired, or you
+    closed the TradeStation window partway. Just click
+    <strong>Connect TradeStation</strong> and try again.</td>
+  </tr>
+</table>
+
+<p>Next: point a strategy at your connected broker and watch its orders in
+<em>Reading the Orders page</em>.</p>
+
+</body>
+</html>
