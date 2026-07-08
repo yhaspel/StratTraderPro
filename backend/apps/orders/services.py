@@ -9,6 +9,7 @@ a seen execution creates no duplicate ``Fill`` and no double-counted position
 from __future__ import annotations
 
 import logging
+from datetime import timezone as dt_timezone
 from decimal import Decimal
 
 from django.db import transaction
@@ -35,7 +36,9 @@ def _parse_ts(ts):
     if parsed is None:
         return timezone.now()
     if timezone.is_naive(parsed):
-        parsed = timezone.make_aware(parsed, timezone.utc)
+        # django.utils.timezone.utc was removed in Django 5 — use datetime's
+        # (FIX-M1). The old ref raised AttributeError, dropping the fill.
+        parsed = timezone.make_aware(parsed, dt_timezone.utc)
     return parsed
 
 
@@ -83,20 +86,30 @@ def fill_to_wire(fill: Fill) -> dict:
 # ---------------------------------------------------------------------------
 # Position math
 # ---------------------------------------------------------------------------
+# Buy-side set — options carry BUY_TO_OPEN / BUY_TO_CLOSE, which are NOT
+# Order.Side.BUY; testing membership (not equality) stops those fills from
+# decrementing the position (FIX-H5).
+_BUY_SIDES = {Order.Side.BUY, Order.Side.BUY_TO_OPEN, Order.Side.BUY_TO_CLOSE}
+
+
 def _apply_fill_to_position(order: Order, side: str, qty: Decimal, price: Decimal) -> Position:
     pos, _ = Position.objects.select_for_update().get_or_create(
         broker_account=order.broker_account,
         symbol=order.symbol,
         defaults={"user": order.user, "qty": Decimal("0"), "avg_cost": Decimal("0")},
     )
-    signed = qty if side == Order.Side.BUY else -qty
+    signed = qty if side in _BUY_SIDES else -qty
     new_qty = pos.qty + signed
     if pos.qty == 0 or new_qty == 0:
         pos.avg_cost = price if new_qty != 0 else Decimal("0")
     elif (pos.qty > 0) == (signed > 0):
         # same direction — weighted average
         pos.avg_cost = ((pos.avg_cost * abs(pos.qty)) + (price * qty)) / abs(new_qty)
-    # reducing → basis unchanged
+    elif (pos.qty > 0) != (new_qty > 0):
+        # flipped through zero (long→short or short→long) — the residual's basis
+        # is the flip fill price, not the old average (FIX-L1).
+        pos.avg_cost = price
+    # else: reducing same side → basis unchanged
     pos.qty = new_qty
     pos.market_price = price  # M04: mark = latest fill price
     pos.save()
@@ -114,6 +127,8 @@ _ORDER_STATUS_FROM_EVENT = {
 @transaction.atomic
 def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
     """Apply one normalized broker event. Idempotent on ``broker_exec_id``."""
+    from apps.brokers.metrics import FILLS_INGESTED_TOTAL, ORDER_STATE_TRANSITIONS_TOTAL
+
     order = (
         Order.objects.select_for_update()
         .filter(client_order_id=fill.client_order_id)
@@ -129,13 +144,20 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
         logger.info("fill.no_order", extra={"coid": fill.client_order_id, "event": fill.event_type})
         return {"ignored": True}
 
+    prev_status = order.status
+    broker_label = (order.broker_account.broker if order.broker_account_id else "unknown").lower()
+
     if fill.broker_order_id and order.broker_order_id != fill.broker_order_id:
         order.broker_order_id = fill.broker_order_id
 
     position_changed = False
     fill_row = None
     if fill.event_type in ("fill", "partial_fill") and fill.qty > 0:
+        # Dedup is scoped per broker account (FIX-M2): synthetic fallback exec
+        # ids (f"{order_id}:{event}:{qty}") share one namespace across brokers,
+        # so a global-unique broker_exec_id could swallow a second account's fill.
         fill_row, created = Fill.objects.get_or_create(
+            broker_account=order.broker_account,
             broker_exec_id=fill.broker_exec_id,
             defaults={
                 "order": order,
@@ -148,6 +170,7 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
             _apply_fill_to_position(order, order.side, fill.qty, fill.price)
             order.filled_qty = (order.filled_qty or Decimal("0")) + fill.qty
             position_changed = True
+            FILLS_INGESTED_TOTAL.labels(broker=broker_label).inc()  # FIX-C1
         else:
             fill_row = None  # already ingested — dedup, emit nothing
 
@@ -168,6 +191,9 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
         ):
             order.status = mapped
     order.save()
+
+    if order.status != prev_status:  # FIX-C1 — order state transition
+        ORDER_STATE_TRANSITIONS_TOTAL.labels(broker=broker_label, to=order.status).inc()
 
     push_to_user(user_id, ORDER_UPDATED, order_to_wire(order))
     if fill_row is not None:
