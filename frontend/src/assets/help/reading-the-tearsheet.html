@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Reading the tearsheet</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  .disclaimer { background: #fbeaea; border: 1px solid #e0a3a3; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Reading the tearsheet</h1>
+
+<p>The tearsheet is the report a completed backtest produces, in three formats —
+<strong>JSON</strong> (the canonical, hashable numbers), a self-contained
+<strong>HTML</strong> report, and a print-ready <strong>PDF</strong>. All of the
+metrics below are computed on the <strong>out-of-sample</strong> curve — the
+stitched-together test windows the strategy never trained on — so they reflect how
+the strategy did on unseen data, not on the data it was tuned against.</p>
+
+<div class="tip">
+  <strong>One report, per symbol.</strong> Every symbol in the run gets its own
+  metrics block and its own curves. There's no blended portfolio number — each
+  symbol stands on its own.
+</div>
+
+<h2>The metrics</h2>
+
+<table>
+  <tr><th>Metric</th><th>What it means</th></tr>
+  <tr>
+    <td><strong>Total return</strong></td>
+    <td>The out-of-sample equity's overall gain or loss, as a fraction of the
+    starting cash. <code>+0.25</code> = up 25% across the whole test span.</td>
+  </tr>
+  <tr>
+    <td><strong>CAGR</strong></td>
+    <td>Compound annual growth rate — total return expressed as a smooth per-year
+    rate (annualized on 252 trading days). Lets you compare runs of different
+    lengths.</td>
+  </tr>
+  <tr>
+    <td><strong>Sharpe</strong></td>
+    <td>Return per unit of <em>total</em> volatility (mean daily return ÷ standard
+    deviation, annualized). Higher is better; a Sharpe below ~1 is generally weak.
+    Rewards smooth returns, penalizes choppiness in both directions.</td>
+  </tr>
+  <tr>
+    <td><strong>Sortino</strong></td>
+    <td>Like Sharpe but only penalizes <em>downside</em> volatility. Usually higher
+    than Sharpe; a big gap between the two means the wobble is mostly upside.</td>
+  </tr>
+  <tr>
+    <td><strong>MAR</strong></td>
+    <td>CAGR ÷ the absolute maximum drawdown. A pain-adjusted return: "how much did
+    I earn per unit of worst-case loss." Above 0.5 is decent; above 1 is strong.</td>
+  </tr>
+  <tr>
+    <td><strong>Max drawdown</strong></td>
+    <td>The deepest peak-to-trough drop in equity, as a fraction. <code>-0.30</code>
+    means at its worst the account was down 30% from a prior high. This is the
+    stomach test.</td>
+  </tr>
+  <tr>
+    <td><strong>% win</strong></td>
+    <td>Share of closed trades that made money. High isn't automatically good — a
+    strategy can win often and still lose overall if the losses are big (check
+    profit factor and expectancy alongside it).</td>
+  </tr>
+  <tr>
+    <td><strong>Profit factor</strong></td>
+    <td>Gross profit ÷ gross loss. Above 1 is profitable; 1.5+ is solid. Shown as
+    blank when there were no losing trades to divide by.</td>
+  </tr>
+  <tr>
+    <td><strong>Avg win / Avg loss</strong></td>
+    <td>The average dollar P&amp;L of winning trades and of losing trades. The ratio
+    between them is the reward-to-risk of a typical trade.</td>
+  </tr>
+  <tr>
+    <td><strong>Expectancy</strong></td>
+    <td>Average P&amp;L per trade across all trades (wins and losses together). The
+    single "what do I make per trade on average" number. Negative expectancy = the
+    strategy loses money per trade regardless of win rate.</td>
+  </tr>
+  <tr>
+    <td><strong>Exposure %</strong></td>
+    <td>Fraction of bars the strategy was actually holding a position. Low exposure
+    with a good return means the edge is concentrated; 100% means it's always in
+    the market.</td>
+  </tr>
+  <tr>
+    <td><strong>Turnover</strong></td>
+    <td>Total traded notional relative to average equity — how much the strategy
+    churns. High turnover makes results more sensitive to the cost assumptions on
+    the cover.</td>
+  </tr>
+  <tr>
+    <td><strong>Trades</strong></td>
+    <td>Number of closed trades. Very few trades means the metrics above rest on a
+    small sample — treat them with more caution.</td>
+  </tr>
+  <tr>
+    <td><strong>PBO</strong></td>
+    <td>Probability of Backtest Overfitting — the overfitting risk score. See
+    <em>Interpreting PBO</em>; above 0.5 gets a warning badge.</td>
+  </tr>
+  <tr>
+    <td><strong>Sharpe stability<br>(mean / σ)</strong></td>
+    <td>The mean and standard deviation of Sharpe <em>across the walk-forward
+    windows</em>. A high mean with a low σ means the edge showed up consistently
+    window after window. A high mean with a large σ means one or two lucky windows
+    carried it — far less trustworthy than a single headline Sharpe suggests.</td>
+  </tr>
+</table>
+
+<h2>The charts</h2>
+
+<ul>
+  <li><strong>Out-of-sample equity curve</strong> — the stitched test-window
+  equity over time. Smooth and rising is the goal; a staircase with long flat or
+  falling stretches tells you where the edge disappeared.</li>
+  <li><strong>Drawdown</strong> — how far below the prior peak the curve was, over
+  time. Depth and duration both matter.</li>
+  <li><strong>Monthly returns heatmap</strong> — return by calendar month; makes
+  seasonal patterns and bad stretches obvious.</li>
+  <li><strong>Per-window Sharpe</strong> — one bar per walk-forward window. This is
+  the picture behind Sharpe stability: you want a row of similar bars, not one
+  giant bar and a lot of small ones.</li>
+</ul>
+
+<h2>The past-performance disclaimer</h2>
+
+<div class="disclaimer">
+  <strong>This disclaimer is always on the report — it cannot be turned off.</strong>
+  Past performance is not indicative of future results. A tearsheet is a
+  <em>historical simulation</em> on the strategy and cost assumptions shown, not
+  actual trading. Simulated results have inherent limitations, don't capture every
+  real-world friction (liquidity, borrow, halts, corporate actions), and can be
+  over-fit to the sample period. Nothing here is investment advice. Do not trade
+  capital you cannot afford to lose.
+</div>
+
+<p>Read the tearsheet as evidence, not a promise. The most useful signals of
+robustness aren't the headline return — they're <strong>low PBO</strong>,
+<strong>stable per-window Sharpe</strong>, and a drawdown you could actually live
+through. Next: <em>Interpreting PBO</em>.</p>
+
+</body>
+</html>
