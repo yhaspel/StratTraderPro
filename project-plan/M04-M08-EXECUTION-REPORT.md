@@ -273,10 +273,19 @@ Push in order, one at a time, only when ready to deploy that milestone to prod:
   that CI did not catch. Remediation only — no new features, smallest correct
   change per finding, a regression test for every behavioural change (existing
   tests that codified the wrong behaviour were corrected).
-- **Gauntlet (local, CI-parity):** ruff ✓ · bandit (medium+) ✓ · pytest **361 passed**
+- **Gauntlet (local, CI-parity):** ruff ✓ · bandit (medium+) ✓ · pytest **370 passed**
   (+4 subtests) ✓ · `makemigrations --check` ✓ · prod-import smoke ✓ ·
   frontend `ngc --noEmit` ✓ · `pnpm build` ✓.
 - **Migration added:** `orders.0004` (Fill dedup scoped to `(broker_account, broker_exec_id)`).
+- **Self-review + security-review** (adversarial finder agents on `git diff main...HEAD`)
+  found and fixed **8 defects in the remediation's own new code**, each with a test:
+  regime MOVE always-degraded + raw-history pollution; a 0 daily-loss threshold
+  tripping on any flat day; unguarded NaN in limit/stop/strike; the dead Alpaca
+  broker-quote tier (added a real `get_quote`); stream heartbeat masking a clean-
+  return thrash + starving a quiet stream; a TradeStation DTO zero-equity regression;
+  an ingest per-fill query; and (security, MEDIUM) `parse_date` raising `ValueError`
+  on an invalid calendar date ("2026-02-30") → crashed `process_alert` / stuck order.
+  Remaining review notes are prompt-specified tradeoffs (L2 market-hours gate, LOW).
 
 ## FIX-id → status + evidence
 
