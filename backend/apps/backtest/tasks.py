@@ -83,6 +83,12 @@ def run_backtest(self, run_id):
         _fail(run, DISABLED, "Backtesting is disabled.")
         return
 
+    # Cancelled while still QUEUED (before the worker picked it up) → honor it and
+    # never start executing (AC-09-9).
+    if run.status == BacktestRun.Status.CANCELLING:
+        _terminal(run, BacktestRun.Status.CANCELLED, events.CANCELLED)
+        return
+
     # Queue-wait metric (enqueue → start).
     if run.created_at:
         BACKTEST_QUEUE_WAIT.observe(max(0.0, (timezone.now() - run.created_at).total_seconds()))

@@ -95,3 +95,27 @@ class FullWalkForwardTests(TestCase):
         self.assertEqual(run.status, BacktestRun.Status.FAILED)
         self.assertEqual(run.error_code, "BACKTEST_INSUFFICIENT_DATA")
         self.assertFalse(hasattr(run, "report") and run.report.json is not None)
+
+    def test_cooperative_cancellation_ends_cancelled_no_report(self):
+        # A run already flagged CANCELLING must exit cleanly as CANCELLED with no
+        # report (the worker checks the flag between symbols/windows) — AC-09-9.
+        from apps.backtest.models import BacktestReport
+        from apps.backtest.tasks import run_backtest
+
+        config = {
+            "strategy_id": str(self.strategy.id), "strategy_slug": self.strategy.slug,
+            "symbols": ["AAA"], "start": "2020-01-01", "end": "2021-01-01", "tf": "1d",
+            "train_window_days": 180, "test_window_days": 60, "step_days": 60, "mode": "rolling",
+            "metric": "sharpe", "initial_cash": 100000,
+            "param_grid": {"fast": [5, 10, 15], "slow": [20, 30, 40, 50]},
+            "costs": {"slippage_bps": 5, "per_order_usd": 0, "per_share_usd": 0, "volume_participation_pct": 10},
+            "sizing_mode": "fixed_qty_1", "retention_days": 90,
+        }
+        run = BacktestRun.objects.create(
+            user=self.user, strategy=self.strategy, config=config,
+            status=BacktestRun.Status.CANCELLING,
+        )
+        run_backtest.apply(args=[str(run.id)])
+        run.refresh_from_db()
+        self.assertEqual(run.status, BacktestRun.Status.CANCELLED)
+        self.assertFalse(BacktestReport.objects.filter(run=run).exists())

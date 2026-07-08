@@ -48,6 +48,24 @@ class SweepMetricTests(SimpleTestCase):
         self.assertEqual(len(combos), 12)
 
 
+class WalkForwardCancelTests(SimpleTestCase):
+    def test_should_cancel_halts_before_any_window(self):
+        from apps.backtest.replay_engine import ReplayConfig
+        from apps.backtest.wf import WFConfig, walk_forward
+
+        frame = _frame(260)
+        cfg = WFConfig(date(2019, 10, 1), date(2019, 10, 1) + timedelta(days=250), 120, 40, 40, False)
+        result = walk_forward(
+            adapter=SmaCrossAdapter(), bars=frame, symbol="AAA", cfg=cfg,
+            sweep_engine=VectorbtSweepEngine(),
+            replay_cfg=ReplayConfig(100000, 5, 0, 0, 10, "fixed_qty_1"),
+            metric="sharpe", grid=SmaCrossAdapter().param_grid(),
+            costs={"slippage_bps": 5, "initial_cash": 100000},
+            should_cancel=lambda: True,  # cooperative cancel → no windows processed
+        )
+        self.assertEqual(len(result.windows), 0)
+
+
 class RegistryGuardTests(SimpleTestCase):
     def test_adapter_without_slug_rejected(self):
         with self.assertRaises(ValueError):
