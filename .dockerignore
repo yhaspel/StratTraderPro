@@ -1,0 +1,29 @@
+# Never ship local build artifacts into the image (backend.Dockerfile does
+# `COPY backend/ .`, so anything here would otherwise be baked in).
+
+# Python virtualenvs (local spike/dev envs) — huge + carry package test keys
+# that trip the Trivy secret scanner.
+**/.venv/
+**/venv/
+**/env/
+
+# Python caches / test + lint artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/htmlcov/
+**/.coverage
+**/coverage.xml
+
+# Node
+**/node_modules/
+
+# Git + local
+.git/
+.gitignore
+**/db.sqlite3
+**/*.log
+.DS_Store
