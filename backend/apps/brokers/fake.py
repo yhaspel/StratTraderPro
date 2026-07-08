@@ -30,6 +30,9 @@ from .base import (
 )
 from .errors import BrokerError, BrokerErrorCode
 
+# Open/close option sides collapse to a buy for position math (FIX-H5).
+_BUY_SIDES = {"BUY", "BUY_TO_OPEN", "BUY_TO_CLOSE"}
+
 
 @dataclass
 class ScriptedFill:
@@ -64,14 +67,23 @@ class FakeBrokerAdapter:
         script: list[ScriptStep] | None = None,
         account_number: str = "DUFAKE0001",
         buying_power: Decimal = Decimal("100000"),
+        equity: Decimal = Decimal("100000"),
+        last_equity: Decimal | None = None,
         default_price: Decimal = Decimal("100.00"),
+        quote_price: Decimal | None = Decimal("100.00"),
         publish=None,
     ) -> None:
         self.ctx = ctx or BrokerContext(account_id="fake", user_id="fake")
         self._script = list(script or [])
         self._account_number = account_number
         self._buying_power = Decimal(buying_power)
+        self._equity = Decimal(equity)
+        # Previous trading-day close; defaults to flat-on-the-day (== equity).
+        self._last_equity = Decimal(equity if last_equity is None else last_equity)
         self._default_price = Decimal(default_price)
+        # Latest-quote source for sizing (FIX-H3). ``None`` simulates "no quote
+        # available" so the SIZING_NO_PRICE fallback path is testable.
+        self._quote_price = None if quote_price is None else Decimal(quote_price)
         self._positions: dict[str, PositionDTO] = {}
         self._open_orders: list[OrderAck] = []
         self._emitted_fills: list[FillEvent] = []
@@ -98,7 +110,13 @@ class FakeBrokerAdapter:
             buying_power=self._buying_power,
             cash=self._buying_power,
             is_paper=True,
+            equity=self._equity,
+            last_equity=self._last_equity,
         )
+
+    def get_quote(self, symbol: str) -> Decimal | None:
+        """Latest tradeable price for sizing. ``None`` when no quote is available."""
+        return self._quote_price
 
     def list_positions(self) -> list[PositionDTO]:
         return [p for p in self._positions.values() if p.qty != 0]
@@ -256,7 +274,8 @@ class FakeBrokerAdapter:
         self._publish(self.ctx.user_id, event)
 
     def _apply_position(self, symbol: str, side: Side, qty: Decimal, price: Decimal) -> None:
-        signed = qty if side == Side.BUY else -qty
+        # Membership, not equality, so open/close option sides count as buys (FIX-H5).
+        signed = qty if str(getattr(side, "value", side)) in _BUY_SIDES else -qty
         cur = self._positions.get(symbol)
         if cur is None or cur.qty == 0:
             self._positions[symbol] = PositionDTO(
@@ -269,6 +288,9 @@ class FakeBrokerAdapter:
         elif (cur.qty > 0) == (signed > 0):
             # same direction — weighted average cost
             avg = ((cur.avg_cost * abs(cur.qty)) + (price * qty)) / abs(new_qty)
+        elif (cur.qty > 0) != (new_qty > 0):
+            # flipped through zero — residual takes the flip fill price (FIX-L1)
+            avg = price
         else:
             avg = cur.avg_cost  # reducing — keep basis
         self._positions[symbol] = PositionDTO(

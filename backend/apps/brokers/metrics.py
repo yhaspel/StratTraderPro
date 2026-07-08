@@ -25,6 +25,8 @@ BROKER_STREAM_HEARTBEAT_AGE = Gauge(
     "broker_stream_heartbeat_age_seconds",
     "Age of the most recent stream heartbeat per account.",
     labelnames=("account_id",),
+    # Explicit mode required under multi-process gunicorn (FIX-C1).
+    multiprocess_mode="livemax",
 )
 
 # M05 — order lifecycle + reconciliation + OAuth.

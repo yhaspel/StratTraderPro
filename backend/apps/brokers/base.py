@@ -84,6 +84,11 @@ class Account:
     currency: str = "USD"
     status: str = "ACTIVE"
     is_paper: bool = True
+    # Account equity (net liquidation) and the previous trading-day close.
+    # ``equity`` is the true sizing base (buying_power is 2–4× levered);
+    # ``equity - last_equity`` is broker-truth daily P&L (FIX-B1 / FIX-H1).
+    equity: Decimal = Decimal("0")
+    last_equity: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True)

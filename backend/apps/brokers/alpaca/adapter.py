@@ -12,6 +12,8 @@ import logging
 import random
 import time
 
+from requests.adapters import HTTPAdapter
+
 from ..audit import record_broker_call
 from ..base import (
     Account,
@@ -33,6 +35,32 @@ logger = logging.getLogger(__name__)
 
 PAPER_BASE_URL = "https://paper-api.alpaca.markets"
 _MAX_RETRIES = 3
+# Bound every Alpaca HTTP call so a black-holed TCP connection can't wedge a
+# Celery worker or the streams catch-up forever (FIX-H7). Mirrors the TS client.
+ALPACA_HTTP_TIMEOUT = 10.0
+
+
+class _TimeoutHTTPAdapter(HTTPAdapter):
+    """Injects a default request timeout — ``requests`` has no session-level one."""
+
+    def __init__(self, *args, timeout=ALPACA_HTTP_TIMEOUT, **kwargs):
+        self._timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._timeout
+        return super().send(request, **kwargs)
+
+
+def _apply_timeout(client, timeout: float = ALPACA_HTTP_TIMEOUT):
+    """Mount a timeout adapter on the alpaca-py client's ``requests`` session."""
+    session = getattr(client, "_session", None)
+    if session is not None:
+        adapter = _TimeoutHTTPAdapter(timeout=timeout)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+    return client
 # Alpaca supports US equities/ETFs and options (by OCC symbol). No futures.
 _SUPPORTED_ASSET_CLASSES = ("STOCK", "ETF", "OPTION", "us_equity")
 _SUPPORTED_ORDER_TYPES = (OrderType.MKT, OrderType.LMT, OrderType.STP, OrderType.STP_LMT)
@@ -52,10 +80,12 @@ class AlpacaAdapter:
         if self._client is None:
             from alpaca.trading.client import TradingClient
 
-            self._client = TradingClient(
-                api_key=self.ctx.api_key_id,
-                secret_key=self.ctx.api_secret,
-                paper=True,
+            self._client = _apply_timeout(
+                TradingClient(
+                    api_key=self.ctx.api_key_id,
+                    secret_key=self.ctx.api_secret,
+                    paper=True,
+                )
             )
         return self._client
 

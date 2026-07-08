@@ -455,8 +455,8 @@ LLAMA_GGUF_PATH = env("LLAMA_GGUF_PATH", default="/models/Meta-Llama-3.1-8B-Inst
 SIZING_V1_ENABLED = env.bool("SIZING_V1_ENABLED", default=True)
 # When off, only the plain per-strategy on/off toggle is honored (plan §15).
 KILL_SWITCHES_ENABLED = env.bool("KILL_SWITCHES_ENABLED", default=True)
-# Conservative equity fallback when a fresh broker account read times out.
-RISK_DEFAULT_EQUITY = env("RISK_DEFAULT_EQUITY", default="100000")
+# NOTE: sizing never falls back to a constant equity — a failed broker read
+# fails CLOSED with a SIZING_NO_EQUITY reject (FIX-H2). No RISK_DEFAULT_EQUITY.
 
 # ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
@@ -500,6 +500,14 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULER = "redbeat.RedBeatScheduler"
 CELERY_REDBEAT_REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+# Backstop so a task blocked on a black-holed broker HTTP call can't wedge a
+# worker forever (FIX-H7). Soft raises SoftTimeLimitExceeded for cleanup; hard
+# kills the worker process. Keep soft < hard.
+CELERY_TASK_SOFT_TIME_LIMIT = env.int("CELERY_TASK_SOFT_TIME_LIMIT", default=30)
+CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=45)
+# Prometheus scrape port for long-lived task processes (streams/worker/beat),
+# which don't sit behind gunicorn's /metrics. 0 = disabled (FIX-C1).
+TASK_METRICS_PORT = env.int("TASK_METRICS_PORT", default=0)
 
 # Beat schedule. `fill_ingestor` drains the Redis fill streams (no-op under
 # FILLS_INLINE, so inert in tests). run_broker_streams is deployed as its own

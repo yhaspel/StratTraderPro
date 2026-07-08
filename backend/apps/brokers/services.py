@@ -129,6 +129,10 @@ def get_stream_status(account: BrokerAccount) -> str:
     except (KeyError, ValueError):  # pragma: no cover — defensive
         return BrokerConnState.DOWN.value
     age = (datetime.now(timezone.utc) - ts).total_seconds()
+    # Surface the heartbeat age as a metric (FIX-C1 — previously never .set()).
+    from .metrics import BROKER_STREAM_HEARTBEAT_AGE
+
+    BROKER_STREAM_HEARTBEAT_AGE.labels(account_id=str(account.id)).set(age)
     ttl = getattr(settings, "BROKER_STREAM_HEARTBEAT_TTL", 45)
     if age > ttl:
         return BrokerConnState.DEGRADED.value

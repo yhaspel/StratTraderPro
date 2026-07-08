@@ -133,6 +133,8 @@ def map_account(acct) -> Account:
         currency=str(getattr(acct, "currency", "USD") or "USD"),
         status=_enum_value(getattr(acct, "status", "ACTIVE")).upper() or "ACTIVE",
         is_paper=True,
+        equity=_dec(getattr(acct, "equity", None)),
+        last_equity=_dec(getattr(acct, "last_equity", None)),
     )
 
 

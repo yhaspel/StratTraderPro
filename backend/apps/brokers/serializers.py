@@ -56,6 +56,21 @@ class BrokerConnectSerializer(serializers.Serializer):
             raise serializers.ValidationError("Only Alpaca is supported in this milestone.")
         return value
 
+    def _require_ascii(self, value, field):
+        # Keys are stored via encrypt_key(raw.encode("ascii")); a non-ASCII paste
+        # (e.g. a Unicode dash) raised UnicodeEncodeError → 500. Reject → 400 (FIX-L5).
+        try:
+            value.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise serializers.ValidationError(f"{field} must be ASCII.") from exc
+        return value
+
+    def validate_api_key_id(self, value):
+        return self._require_ascii(value, "api_key_id")
+
+    def validate_api_secret(self, value):
+        return self._require_ascii(value, "api_secret")
+
 
 class BrokerRemoveSerializer(serializers.Serializer):
     """MFA re-prompt on broker removal (AC-04-6 / §6.7)."""
