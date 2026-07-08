@@ -73,7 +73,8 @@ class SentimentArticlesView(_Base):
         if not self._enabled():
             return self._disabled()
         p = request.query_params
-        qs = NewsArticle.objects.order_by("-published_at", "-fetched_at")
+        # prefetch scores → no per-row query in the loop below (FIX-L4).
+        qs = NewsArticle.objects.order_by("-published_at", "-fetched_at").prefetch_related("scores")
         if p.get("symbol"):
             qs = qs.filter(symbols_text__contains=f" {p['symbol'].upper()} ")
         if p.get("from") and parse_datetime(p["from"]):
@@ -89,8 +90,10 @@ class SentimentArticlesView(_Base):
         # Summary-only (no full body republish — §11 copyright).
         data = []
         for a in rows:
-            fb = a.scores.filter(model=ArticleScore.Model.FINBERT).first()
-            llama = a.scores.filter(model=ArticleScore.Model.LLAMA).first()
+            # Iterate the prefetched scores (no per-row query — FIX-L4).
+            by_model = {s.model: s for s in a.scores.all()}
+            fb = by_model.get(ArticleScore.Model.FINBERT)
+            llama = by_model.get(ArticleScore.Model.LLAMA)
             data.append({
                 "id": a.id, "source": a.source, "title": a.title, "url": a.url,
                 "symbols": a.symbols, "material": a.material,

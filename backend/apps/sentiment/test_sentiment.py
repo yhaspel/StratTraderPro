@@ -66,6 +66,47 @@ class TaggerTests(TestCase):
     def test_hint_symbols_included(self):
         self.assertIn("NVDA", tag_symbols("chip news", hint_symbols=["nvda"]))
 
+    def test_common_word_tickers_not_tagged_unless_cashtagged(self):
+        # FIX-M7: ALL/ON/T are real tickers but must not tag as bare words.
+        for sym in ("ALL", "ON", "T"):
+            TickerRegistry.objects.get_or_create(symbol=sym)
+        self.assertEqual(tag_symbols("ALL EYES ON T MOBILE TONIGHT"), [])
+        # A deliberate cashtag still tags (registry-verified)…
+        self.assertIn("AAPL", tag_symbols("Buying $AAPL now"))
+        # …but an unknown cashtag no longer bypasses the registry.
+        self.assertNotIn("ZZZ", tag_symbols("Pump $ZZZ hard"))
+
+
+class FetcherAndPublishedTests(TestCase):
+    def test_rss_fetcher_uses_timeout_and_user_agent(self):
+        # FIX-M4: RSS fetch must set an explicit timeout + descriptive UA.
+        from apps.sentiment.fetchers import RSSFetcher
+
+        fetcher = RSSFetcher("BENZINGA", "https://example.com/feed")
+        with mock.patch("httpx.Client") as HC:
+            client = HC.return_value.__enter__.return_value
+            client.get.return_value = mock.Mock(content=b"<rss></rss>", raise_for_status=mock.Mock())
+            fetcher.fetch_since()
+        kwargs = HC.call_args.kwargs
+        self.assertEqual(kwargs.get("timeout"), 10.0)
+        self.assertIn("StratTraderPro", kwargs.get("headers", {}).get("User-Agent", ""))
+
+    def test_build_fetchers_excludes_finnhub_json_endpoint(self):
+        # FIX-M6: Finnhub's JSON endpoint is not a parseable feed → excluded.
+        from apps.sentiment.fetchers import build_fetchers
+
+        urls = [getattr(f, "feed_url", "") for f in build_fetchers()]
+        self.assertFalse(any("finnhub.io/api" in u for u in urls))
+
+    def test_rfc822_published_at_parsed_aware(self):
+        # FIX-M5: RFC-822 dates parse to a tz-aware datetime (were all NULL).
+        from apps.sentiment.services import _parse_published
+
+        dt = _parse_published("Mon, 07 Jul 2026 19:00:00 GMT")
+        self.assertIsNotNone(dt)
+        self.assertFalse(timezone.is_naive(dt))
+        self.assertEqual((dt.year, dt.month, dt.day), (2026, 7, 7))
+
 
 class ScorerTests(TestCase):
     def test_fake_finbert_directional(self):
@@ -184,6 +225,23 @@ class AggregationTests(TestCase):
         m = aggregator.aggregate_market(now)
         self.assertEqual(m.scope, "MARKET")
 
+    def test_market_equal_weighted_not_pk_skewed(self):
+        # FIX-M3: two symbols with opposite polarity but very different registry
+        # PKs must average to ~0 (equal-weighted), not skew toward the higher id.
+        TickerRegistry.objects.create(symbol="LOWID")
+        for i in range(20):  # inflate the id gap
+            TickerRegistry.objects.create(symbol=f"FILL{i}")
+        TickerRegistry.objects.create(symbol="HIGHID")
+        now = timezone.now()
+        for sym, pol in (("LOWID", 0.8), ("HIGHID", -0.8)):
+            art = NewsArticle.objects.create(
+                source="FMP", title=f"{sym} news", dedup_hash=f"m-{sym}",
+                symbols=[sym], symbols_text=f" {sym} ",
+            )
+            ArticleScore.objects.create(article=art, model="FINBERT", polarity=pol, confidence=0.9)
+        m = aggregator.aggregate_market(now)
+        self.assertAlmostEqual(m.polarity, 0.0, places=3)
+
 
 class E2EAndApiTests(TestCase):
     def setUp(self):
@@ -217,6 +275,25 @@ class E2EAndApiTests(TestCase):
         body = resp.json()["data"]
         self.assertEqual(len(body["articles"]), 25)
         self.assertEqual(body["meta"]["total"], 30)
+
+    def test_articles_list_no_n_plus_one(self):
+        # FIX-L4: prefetch scores → query count independent of article count.
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def _query_count(n):
+            NewsArticle.objects.all().delete()
+            for i in range(n):
+                art = NewsArticle.objects.create(
+                    source="FMP", title=f"n{i}", dedup_hash=f"q{i}",
+                    symbols=["AAPL"], symbols_text=" AAPL ",
+                )
+                ArticleScore.objects.create(article=art, model="FINBERT", polarity=0.5, confidence=0.9)
+            with CaptureQueriesContext(connection) as ctx:
+                self.client.get("/api/v1/sentiment/articles/?symbol=AAPL", **auth_headers(self.user))
+            return len(ctx.captured_queries)
+
+        self.assertEqual(_query_count(2), _query_count(6))
 
     def test_requires_mfa(self):
         self.assertIn(self.client.get("/api/v1/sentiment/market/").status_code, (401, 403))
