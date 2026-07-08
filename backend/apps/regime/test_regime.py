@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from unittest import mock
 
 import numpy as np
 from django.test import TestCase, override_settings
@@ -168,6 +169,104 @@ class ServiceTests(TestCase):
         result = retrain_hmm()
         self.assertIn("version", result)
         self.assertTrue(HMMModel.objects.filter(active=True).exists())
+
+    def test_activate_rescores_incumbent_on_new_holdout(self):
+        # FIX-M9: the incumbent must be RESCORED on the candidate's holdout window
+        # (its stored LL came from a different window and isn't comparable).
+        from apps.regime.hmm_model import (
+            deserialize_model,
+            label_states,
+            serialize_model,
+            train_hmm,
+        )
+
+        X = _synthetic_matrix(n=200, seed=11)
+        model, _ = train_hmm(X, n_restarts=3, seed=11)
+        params = serialize_model(model, label_states(model))
+        current = HMMModel.objects.create(
+            version="cur", params=params, holdout_ll=-9_999.0,  # bogus stored LL
+            trained_at=timezone.now(), active=True,
+        )
+        hold_X = _synthetic_matrix(n=60, seed=12)
+        current_ll = float(deserialize_model(params).score(hold_X))
+        margin = abs(current_ll) * 0.05 + 10  # clear the within-1% band
+
+        worse = HMMModel.objects.create(version="worse", holdout_ll=current_ll - margin,
+                                        trained_at=timezone.now())
+        self.assertFalse(activate_model(worse, hold_X=hold_X))          # rejected vs RESCORED LL
+        self.assertTrue(HMMModel.objects.get(pk=current.pk).active)
+
+        better = HMMModel.objects.create(version="better", holdout_ll=current_ll + margin,
+                                         trained_at=timezone.now())
+        self.assertTrue(activate_model(better, hold_X=hold_X))
+        self.assertFalse(HMMModel.objects.get(pk=current.pk).active)
+
+
+# ---------------------------------------------------------------------------
+# Missing-input degradation (FIX-M13) + daily pipeline (FIX-H10)
+# ---------------------------------------------------------------------------
+class MissingInputDegradationTests(TestCase):
+    def test_missing_stress_inputs_neutralize_not_risk_on(self):
+        # A history where VIX/HY vary (non-zero sd) so a fabricated raw 0 would
+        # z-score strongly negative and (negative weights) pin the score RISK_ON.
+        vix_hist = [15.0 + (i % 10) for i in range(250)]
+        hy_hist = [3.0 + (i % 5) * 0.5 for i in range(250)]
+        history = {"vix": vix_hist, "hy_oas": hy_hist}
+        inputs = {"spy_closes": [100.0] * 60}  # no vix / hy_oas / move / ig_oas
+        raw = features.compute_raw_features(inputs)
+        missing = features.missing_critical_inputs(inputs)
+        self.assertIn("vix", missing)
+        self.assertIn("hy_oas", missing)
+
+        # Old behavior: fabricated 0 → strong negative z → RISK_ON (the bug).
+        std_bug = features.standardize(raw, history)
+        self.assertEqual(rule_classifier.classify(std_bug).bucket, "RISK_ON")
+        # Fixed: missing inputs neutralize → not RISK_ON.
+        std_fixed = features.standardize(
+            raw, history, neutral_keys=features.neutral_feature_keys(missing)
+        )
+        self.assertEqual(std_fixed["vix"], 0.0)
+        self.assertEqual(std_fixed["hy_oas"], 0.0)
+        self.assertNotEqual(rule_classifier.classify(std_fixed).bucket, "RISK_ON")
+
+        obs = compute_observation(ts=timezone.now(), std_features=std_fixed, data_degraded=bool(missing))
+        self.assertTrue(obs.model_degraded)
+        self.assertNotEqual(obs.label, "BULL")
+
+
+class DailyPipelineTests(TestCase):
+    def _inputs(self):
+        rng = list(range(1, 60))
+        return {
+            "spy_closes": [100 + i * 0.1 for i in rng],
+            "vix": 15.0, "hy_oas": 3.5, "ig_oas": 1.2, "y10": 4.2, "y2": 4.0, "dxy": 103.0,
+        }
+
+    def test_pipeline_produces_snapshot_and_observation(self):
+        # FIX-H10: with fixture inputs injected, one run produces both rows.
+        from apps.regime.tasks import run_daily_feature_pipeline
+
+        res = run_daily_feature_pipeline(inputs=self._inputs())
+        self.assertTrue(FeatureVectorSnapshot.objects.filter(id=res["snapshot"]).exists())
+        self.assertTrue(RegimeObservation.objects.filter(id=res["observation"]).exists())
+
+    def test_no_source_configured_skips_without_error(self):
+        from apps.regime.tasks import compute_features_daily
+
+        with override_settings(FMP_API_KEY="", FRED_API_KEY=""):
+            res = compute_features_daily()
+        self.assertEqual(res.get("skipped"), "no_market_data_source_configured")
+
+    def test_source_configured_runs_pipeline(self):
+        # FIX-H10: the guard is a real key check, not an unconditional stub — with
+        # keys present the task runs the pipeline (inputs stubbed, no live calls).
+        from apps.regime import tasks
+
+        with override_settings(FMP_API_KEY="k", FRED_API_KEY="k"), \
+             mock.patch.object(tasks, "gather_daily_inputs", return_value=self._inputs()):
+            res = tasks.compute_features_daily()
+        self.assertIn("snapshot", res)
+        self.assertTrue(RegimeObservation.objects.filter(id=res["observation"]).exists())
 
 
 # ---------------------------------------------------------------------------

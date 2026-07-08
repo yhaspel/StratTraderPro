@@ -32,8 +32,11 @@ def model_degraded(model) -> bool:
     return age > MODEL_STALE_HOURS * 3600
 
 
-def compute_observation(*, ts, std_features: dict, history_matrix=None, scope="MARKET"):
-    """Run rule + HMM + ensemble on one standardized vector; persist + return."""
+def compute_observation(*, ts, std_features: dict, history_matrix=None, scope="MARKET", data_degraded=False):
+    """Run rule + HMM + ensemble on one standardized vector; persist + return.
+
+    ``data_degraded`` (a critical stress/macro input was missing this cycle)
+    marks the observation degraded so the UI flags it (FIX-M13)."""
     t0 = time.monotonic()
     rule = rule_classifier.classify(std_features)
 
@@ -66,7 +69,7 @@ def compute_observation(*, ts, std_features: dict, history_matrix=None, scope="M
             "hmm_probs": hmm_probs,
             "top_features": rule.top_features,
             "model_version": model.version if model else "",
-            "model_degraded": degraded,
+            "model_degraded": degraded or data_degraded,
             "ensemble_version": ensemble.ENSEMBLE_VERSION,
         },
     )[0]
@@ -74,15 +77,27 @@ def compute_observation(*, ts, std_features: dict, history_matrix=None, scope="M
     return obs
 
 
-def activate_model(new: HMMModel) -> bool:
+def activate_model(new: HMMModel, hold_X=None) -> bool:
     """AC-06-4 swap: activate ``new`` only if its holdout LL is ≥ the current
-    active model's (or within 1%). Returns whether it was activated."""
+    active model's (or within 1%). Returns whether it was activated.
+
+    The incumbent's *stored* LL came from a different training-time holdout, so
+    it is not comparable to the candidate's. When ``hold_X`` (the new holdout
+    window) is provided, rescore the incumbent on it and compare like-for-like
+    — otherwise the guard reacts to data drift, not model quality (FIX-M9)."""
     current = get_active_model()
     activate = True
     if current is not None and current.holdout_ll is not None and new.holdout_ll is not None:
-        better = new.holdout_ll >= current.holdout_ll
-        within_1pct = abs(new.holdout_ll - current.holdout_ll) <= 0.01 * abs(current.holdout_ll)
-        activate = better or within_1pct
+        current_ll = current.holdout_ll
+        if hold_X is not None and current.params:
+            try:
+                current_ll = float(deserialize_model(current.params).score(hold_X))
+            except Exception:  # pragma: no cover — undecodable incumbent → use stored LL
+                current_ll = current.holdout_ll
+        if current_ll is not None and np.isfinite(current_ll):
+            better = new.holdout_ll >= current_ll
+            within_1pct = abs(new.holdout_ll - current_ll) <= 0.01 * abs(current_ll)
+            activate = better or within_1pct
     if activate:
         HMMModel.objects.filter(active=True).exclude(pk=new.pk).update(active=False)
         new.active = True
