@@ -47,5 +47,11 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/risk/risk.routes').then(m => m.RISK_ROUTES),
   },
+  // Backtest (M09): /backtest — walk-forward launcher + runs list, /backtest/:id detail
+  {
+    path: '',
+    loadChildren: () =>
+      import('./features/backtest/backtest.routes').then(m => m.BACKTEST_ROUTES),
+  },
   { path: '**', redirectTo: '' },
 ];

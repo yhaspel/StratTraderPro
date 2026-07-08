@@ -306,6 +306,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backtest/runs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backtest_runs_list"];
+        put?: never;
+        post: operations["backtest_runs_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtest/runs/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backtest_runs_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtest/runs/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["backtest_runs_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtest/runs/{id}/report.html": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backtest_report_html"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtest/runs/{id}/report.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backtest_report_json"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtest/runs/{id}/report.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["backtest_report_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backtest/strategies/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Picker source: backtestable strategies + whether an adapter is registered. */
+        get: operations["backtest_strategies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/brokers/": {
         parameters: {
             query?: never;
@@ -986,6 +1099,57 @@ export interface components {
             is_verified: boolean;
             mfa_enabled?: boolean;
         };
+        BacktestRunCreate: {
+            /** Format: uuid */
+            strategy: string;
+            symbols: string[];
+            /** Format: date */
+            start: string;
+            /** Format: date */
+            end: string;
+            /** @default 1d */
+            tf: string;
+            train_window_days: number;
+            test_window_days: number;
+            step_days: number;
+            /** @default rolling */
+            mode: components["schemas"]["ModeEnum"];
+            /** @default sharpe */
+            metric: components["schemas"]["MetricEnum"];
+            /**
+             * Format: double
+             * @default 100000
+             */
+            initial_cash: number;
+            param_grid?: unknown;
+            costs?: components["schemas"]["Costs"];
+            /** @default fixed_qty_1 */
+            sizing_mode: components["schemas"]["SizingModeEnum"];
+            /** @default 90 */
+            retention_days: number;
+        };
+        Costs: {
+            /**
+             * Format: double
+             * @default 5
+             */
+            slippage_bps: number;
+            /**
+             * Format: double
+             * @default 0
+             */
+            per_order_usd: number;
+            /**
+             * Format: double
+             * @default 0
+             */
+            per_share_usd: number;
+            /**
+             * Format: double
+             * @default 10
+             */
+            volume_participation_pct: number;
+        };
         CurrentUserEnvelope: {
             data: components["schemas"]["_CurrentUserData"];
         };
@@ -1000,6 +1164,20 @@ export interface components {
         Logout: {
             refresh: string;
         };
+        /**
+         * @description * `sharpe` - sharpe
+         *     * `sortino` - sortino
+         *     * `total_return` - total_return
+         *     * `mar` - mar
+         * @enum {string}
+         */
+        MetricEnum: "sharpe" | "sortino" | "total_return" | "mar";
+        /**
+         * @description * `anchored` - anchored
+         *     * `rolling` - rolling
+         * @enum {string}
+         */
+        ModeEnum: "anchored" | "rolling";
         PasswordReset: {
             /** Format: email */
             email: string;
@@ -1030,6 +1208,12 @@ export interface components {
             /** Format: email */
             email: string;
         };
+        /**
+         * @description * `production` - production
+         *     * `fixed_qty_1` - fixed_qty_1
+         * @enum {string}
+         */
+        SizingModeEnum: "production" | "fixed_qty_1";
         StatusData: {
             status: string;
         };
@@ -1486,6 +1670,166 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
+            };
+        };
+    };
+    backtest_runs_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_runs_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BacktestRunCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["BacktestRunCreate"];
+                "multipart/form-data": components["schemas"]["BacktestRunCreate"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_runs_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_runs_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_report_html: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_report_json: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_report_pdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    backtest_strategies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
