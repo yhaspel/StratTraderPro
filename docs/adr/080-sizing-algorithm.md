@@ -141,10 +141,15 @@ stores, assembled by `apply_sizing`:
 
 - **regime** ← latest `RegimeObservation(scope="MARKET")`,
 - **sentiment** ← latest `SentimentScore` for the symbol, then market,
-- **equity** ← a fresh `adapter.get_account().buying_power` read, with a
-  conservative configured fallback (`RISK_DEFAULT_EQUITY`) on a broker hiccup,
-- **price / ATR** ← our own `Bar` rows (ATR14 computed from the last 15 daily
-  bars).
+- **equity** ← a fresh `adapter.get_account().equity` read (amended — FIX-H1:
+  was `buying_power`, which is 2–4× levered and oversized every trade). A failed
+  read **fails closed** → `SIZING_NO_EQUITY` reject (amended — FIX-H2: was a
+  hardcoded `$100k` fallback that would size a $5k account as $100k; the
+  `RISK_DEFAULT_EQUITY` setting is deleted). Never size off a constant.
+- **price** ← the limit-price hint → a fresh broker quote (`adapter.get_quote`)
+  → last daily `Bar.close`; if none is trusted, **reject** `SIZING_NO_PRICE`
+  (amended — FIX-H3: was a fabricated `$100`/share for every MKT order).
+- **ATR** ← our own `Bar` rows (ATR14 computed from the last 15 daily bars).
 
 The alert contributes only the *base request* — `symbol`, `side`, and the
 requested `qty` (which sizing recomputes anyway). There is no field on the alert

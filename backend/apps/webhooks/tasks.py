@@ -62,9 +62,10 @@ def process_alert(self, alert_id):
         BrokerAccount.objects.filter(user=alert.user, is_default=True).first()
         or BrokerAccount.objects.filter(user=alert.user).order_by("created_at").first()
     )
-    # Broker routing (AC-05-2): an alert may specify "broker" to override the
-    # user's default. Falls back to default/oldest if the named broker isn't
-    # connected.
+    # Broker routing (AC-05-2): an alert that names a "broker" must place on THAT
+    # broker only. Silently rerouting a real order to the default broker is worse
+    # than a reject — so an unconnected named broker is rejected, not fallen
+    # through (FIX-H9). Only a broker-less alert uses the default/oldest.
     broker_pref = str(body.get("broker", "")).upper().strip()
     if broker_pref:
         override = (
@@ -72,8 +73,13 @@ def process_alert(self, alert_id):
             .order_by("-is_default", "created_at")
             .first()
         )
-        if override is not None:
-            account = override
+        if override is None:
+            alert.status = AlertMessage.Status.REJECTED
+            alert.reject_reason = "BROKER_NOT_CONNECTED"
+            alert.processed_at = timezone.now()
+            alert.save(update_fields=["status", "reject_reason", "processed_at"])
+            return {"rejected": "BROKER_NOT_CONNECTED"}
+        account = override
     if account is None:
         alert.status = AlertMessage.Status.REJECTED
         alert.reject_reason = "NO_BROKER_CONNECTED"
@@ -121,6 +127,10 @@ def process_alert(self, alert_id):
     }.get(action, Order.Side.BUY)
     try:
         qty = Decimal(str(body.get("qty")))
+        # "NaN"/"Infinity" parse without error but later comparisons raise and
+        # strand the alert — treat non-finite as zero → clean INVALID_QTY (FIX-M16).
+        if not qty.is_finite():
+            qty = Decimal("0")
     except (InvalidOperation, TypeError):
         qty = Decimal("0")
 
@@ -185,10 +195,15 @@ def process_alert(self, alert_id):
             limit_price = Decimal(str(body.get("limit_price", body.get("price"))))
         except (InvalidOperation, TypeError):
             return _reject(order, alert, "ORDER_INVALID_LIMIT")
+        # NaN/Infinity parse without raising — reject them too (FIX-M16).
+        if not limit_price.is_finite() or limit_price <= 0:
+            return _reject(order, alert, "ORDER_INVALID_LIMIT")
     if otype in (OrderType.STP, OrderType.STP_LMT):
         try:
             stop_price = Decimal(str(body.get("stop_price")))
         except (InvalidOperation, TypeError):
+            return _reject(order, alert, "ORDER_INVALID_STOP")
+        if not stop_price.is_finite() or stop_price <= 0:
             return _reject(order, alert, "ORDER_INVALID_STOP")
 
     tif = {"DAY": TimeInForce.DAY, "GTC": TimeInForce.GTC, "IOC": TimeInForce.IOC}.get(
@@ -197,14 +212,31 @@ def process_alert(self, alert_id):
 
     option = future = None
     if asset_raw == "OPTION" and body.get("option_expiry") and body.get("option_strike"):
+        from django.utils.dateparse import parse_date
+
+        # option_expiry lands in a DateField — validate it parses (FIX-M16) so a
+        # bad string is a clean reject, not a DB error / stuck order. parse_date
+        # returns None on a malformed string but RAISES ValueError on a
+        # well-formed-but-invalid calendar date ("2026-02-30") — catch both.
+        expiry_str = str(body["option_expiry"])
         try:
-            option = OptionContract(
-                expiry=str(body["option_expiry"]),
-                strike=Decimal(str(body["option_strike"])),
-                right=str(body.get("option_right", "CALL")).upper(),
-            )
+            parsed_expiry = parse_date(expiry_str)
+        except ValueError:
+            parsed_expiry = None
+        if parsed_expiry is None:
+            return _reject(order, alert, "ORDER_INVALID_OPTION")
+        try:
+            strike = Decimal(str(body["option_strike"]))
         except (InvalidOperation, TypeError):
-            option = None
+            return _reject(order, alert, "ORDER_INVALID_OPTION")
+        # A NaN/Infinity strike parses without raising — reject it (FIX-M16).
+        if not strike.is_finite() or strike <= 0:
+            return _reject(order, alert, "ORDER_INVALID_OPTION")
+        option = OptionContract(
+            expiry=expiry_str,
+            strike=strike,
+            right=str(body.get("option_right", "CALL")).upper(),
+        )
     if asset_raw == "FUTURE":
         future = FutureContract(
             root=str(body.get("future_root", symbol)).upper(),

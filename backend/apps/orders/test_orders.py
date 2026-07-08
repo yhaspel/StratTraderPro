@@ -93,6 +93,75 @@ class IngestFillTests(TestCase):
         self.assertTrue(res.get("ignored"))
         self.assertEqual(Fill.objects.count(), 0)
 
+    def test_fills_ingested_metric_increments(self):
+        # FIX-C1: fills_ingested_total was defined but never .inc()'d.
+        from apps.brokers.metrics import FILLS_INGESTED_TOTAL
+
+        before = FILLS_INGESTED_TOTAL.labels(broker="alpaca")._value.get()
+        _order(self.user, self.account, self.strategy)
+        ingest_fill_event(_fill("c1", "x1", "5", "150"), user_id=self.user.id)
+        self.assertEqual(FILLS_INGESTED_TOTAL.labels(broker="alpaca")._value.get(), before + 1)
+
+    def test_order_state_transition_metric_increments(self):
+        # FIX-C1: order_state_transitions_total was defined but never .inc()'d.
+        from apps.brokers.metrics import ORDER_STATE_TRANSITIONS_TOTAL
+
+        before = ORDER_STATE_TRANSITIONS_TOTAL.labels(broker="alpaca", to="FILLED")._value.get()
+        _order(self.user, self.account, self.strategy)
+        ingest_fill_event(_fill("c1", "x1", "5", "150"), user_id=self.user.id)
+        self.assertEqual(
+            ORDER_STATE_TRANSITIONS_TOTAL.labels(broker="alpaca", to="FILLED")._value.get(), before + 1
+        )
+
+    def test_parse_ts_naive_returns_aware(self):
+        # FIX-M1: django.utils.timezone.utc was removed in Django 5; a naive
+        # timestamp must not raise (which dropped the fill as a poison message).
+        from django.utils import timezone as djtz
+
+        from apps.orders.services import _parse_ts
+
+        aware = _parse_ts("2026-01-02 15:30:00")
+        self.assertFalse(djtz.is_naive(aware))
+
+    def test_option_buy_to_open_increases_position(self):
+        # FIX-H5: BUY_TO_OPEN is a buy-side, not Order.Side.BUY — must increment.
+        _order(self.user, self.account, self.strategy, coid="bto", side=Order.Side.BUY_TO_OPEN, qty="3")
+        ingest_fill_event(_fill("bto", "o1", "3", "2.50"), user_id=self.user.id)
+        self.assertEqual(Position.objects.get(symbol="AAPL").qty, Decimal("3"))
+
+    def test_option_sell_to_close_decreases_position(self):
+        # FIX-H5: SELL_TO_CLOSE reduces the position.
+        _order(self.user, self.account, self.strategy, coid="bto", side=Order.Side.BUY_TO_OPEN, qty="3")
+        ingest_fill_event(_fill("bto", "o1", "3", "2.50"), user_id=self.user.id)
+        _order(self.user, self.account, self.strategy, coid="stc", side=Order.Side.SELL_TO_CLOSE, qty="2")
+        ingest_fill_event(_fill("stc", "o2", "2", "3.00"), user_id=self.user.id)
+        self.assertEqual(Position.objects.get(symbol="AAPL").qty, Decimal("1"))
+
+    def test_through_zero_flip_resets_basis(self):
+        # FIX-L1: long 5 @ 100, then sell 8 → short 3 whose basis is the flip
+        # fill price (120), not the stale long average.
+        _order(self.user, self.account, self.strategy, coid="buy", qty="5")
+        ingest_fill_event(_fill("buy", "x1", "5", "100"), user_id=self.user.id)
+        _order(self.user, self.account, self.strategy, coid="sell", side=Order.Side.SELL, qty="8")
+        ingest_fill_event(_fill("sell", "x2", "8", "120", side=Side.SELL), user_id=self.user.id)
+        pos = Position.objects.get(symbol="AAPL")
+        self.assertEqual(pos.qty, Decimal("-3"))
+        self.assertEqual(pos.avg_cost, Decimal("120"))
+
+    def test_dedup_scoped_per_broker_account(self):
+        # FIX-M2: the same broker_exec_id under two different accounts must both
+        # persist — a global-unique constraint swallowed the second broker's fill.
+        acct2 = create_broker_account(self.user, is_default=False, account_number="PATEST002")
+        _order(self.user, self.account, self.strategy, coid="c1", qty="5")
+        Order.objects.create(
+            user=self.user, strategy=self.strategy, broker_account=acct2,
+            client_order_id="c2", broker_order_id="b-c2", symbol="AAPL",
+            side=Order.Side.BUY, qty=Decimal("5"), status=Order.Status.SUBMITTED,
+        )
+        ingest_fill_event(_fill("c1", "shared-exec", "5", "150"), user_id=self.user.id)
+        ingest_fill_event(_fill("c2", "shared-exec", "5", "150"), user_id=self.user.id)
+        self.assertEqual(Fill.objects.count(), 2)
+
     def test_reconcile_positions_snaps_to_broker(self):
         Position.objects.create(
             user=self.user, broker_account=self.account, symbol="AAPL", qty=Decimal("9"), avg_cost=Decimal("1")

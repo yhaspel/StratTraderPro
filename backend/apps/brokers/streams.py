@@ -11,11 +11,12 @@ from __future__ import annotations
 import logging
 import random
 import threading
+import time
 
 from .base import BrokerConnState, BrokerContext
-from .metrics import BROKER_STREAM_DISCONNECTS_TOTAL
+from .metrics import BROKER_STREAM_DISCONNECTS_TOTAL, BROKER_WS_RECONNECTS_TOTAL
 from .models import BrokerAccount
-from .services import decrypt_key, set_heartbeat
+from .services import decrypt_key, set_heartbeat, touch_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +90,35 @@ def catch_up_account(account: BrokerAccount, adapter) -> dict:
 
 class StreamSupervisor:
     """Runs one stream thread per account with supervised restart. Instantiated
-    by the ``run_broker_streams`` management command."""
+    by the ``run_broker_streams`` management command.
 
-    def __init__(self, *, heartbeat_interval: float = 15.0):
+    FIX-H8:
+      * Each stream thread owns its heartbeat (CONNECTED on a healthy run /
+        received event, DEGRADED on disconnect). The supervisor loop NEVER
+        blanket-stamps CONNECTED — that masked dead threads and marked
+        thread-less accounts healthy.
+      * The loop diffs ``load_active_accounts()`` against running threads to
+        hot-add / hot-remove accounts (no restart needed) and prune dead threads.
+      * Backoff resets only after a stream stayed up ``healthy_after`` seconds,
+        so repeated immediate failures (auth/DNS) grow the delay instead of
+        busy-looping catch-up at ~1/sec.
+    """
+
+    def __init__(
+        self,
+        *,
+        heartbeat_interval: float = 15.0,
+        healthy_after: float = 60.0,
+        stream_factory=None,
+        adapter_factory=None,
+    ):
         self.heartbeat_interval = heartbeat_interval
+        self.healthy_after = healthy_after
         self._threads: dict[str, threading.Thread] = {}
+        self._stops: dict[str, threading.Event] = {}
         self._stop = threading.Event()
+        self._stream_factory = stream_factory  # injectable for tests
+        self._adapter_factory = adapter_factory
 
     def _context_for(self, account: BrokerAccount) -> BrokerContext:
         return BrokerContext(
@@ -105,47 +129,103 @@ class StreamSupervisor:
             account_number=account.account_number,
         )
 
-    def _run_account(self, account: BrokerAccount):  # pragma: no cover — live loop
-        from apps.orders.fills import publish_fill
-
-        from .alpaca.streams import AlpacaStream
+    def _build_adapter(self, account: BrokerAccount):
+        if self._adapter_factory is not None:
+            return self._adapter_factory(account)
         from .services import build_adapter
 
+        return build_adapter(account)
+
+    def _build_stream(self, account: BrokerAccount):
+        if self._stream_factory is not None:
+            return self._stream_factory(account)
+        from apps.orders.fills import publish_fill  # pragma: no cover — live path
+
+        from .alpaca.streams import AlpacaStream
+
+        def on_event(user_id, event):  # pragma: no cover — live path
+            # A received event proves the stream is alive → refresh CONNECTED.
+            set_heartbeat(account.id, BrokerConnState.CONNECTED.value)
+            publish_fill(user_id, event)
+
+        return AlpacaStream(self._context_for(account), on_event=on_event)
+
+    def _run_account(self, account: BrokerAccount, stop_event: threading.Event):
         attempt = 0
-        while not self._stop.is_set():
+        while not stop_event.is_set():
+            started = time.monotonic()
+            if attempt > 0:
+                BROKER_WS_RECONNECTS_TOTAL.labels(broker="alpaca").inc()
             try:
                 # Catch up any fills missed while (re)connecting.
-                catch_up_account(account, build_adapter(account))
+                catch_up_account(account, self._build_adapter(account))
+                stream = self._build_stream(account)
                 set_heartbeat(account.id, BrokerConnState.CONNECTED.value)
-                stream = AlpacaStream(self._context_for(account), on_event=publish_fill)
-                attempt = 0
                 stream.run()  # blocks until disconnect
-            except Exception:
+            except Exception:  # noqa: BLE001 — supervised restart, never propagate
                 BROKER_STREAM_DISCONNECTS_TOTAL.labels(broker="alpaca").inc()
-                set_heartbeat(account.id, BrokerConnState.DEGRADED.value)
+                logger.warning("broker.stream.error", extra={"account": str(account.id)})
+            # The run ended — cleanly OR with an error — so we're disconnected until
+            # the next connect. Mark DEGRADED unconditionally so a stream that
+            # connects then *returns cleanly* in a tight loop (graceful close) isn't
+            # masked as CONNECTED (FIX-H8).
+            set_heartbeat(account.id, BrokerConnState.DEGRADED.value)
+            # Reset backoff only after a genuinely healthy run; otherwise grow it.
+            if time.monotonic() - started >= self.healthy_after:
+                attempt = 0
+            else:
                 attempt += 1
-                delay = backoff_delay(attempt)
-                logger.warning(
-                    "broker.stream.reconnect",
-                    extra={"account": str(account.id), "attempt": attempt, "delay": delay},
-                )
-                self._stop.wait(delay)
+            if stop_event.is_set():
+                break
+            delay = backoff_delay(attempt)
+            logger.warning(
+                "broker.stream.reconnect",
+                extra={"account": str(account.id), "attempt": attempt, "delay": delay},
+            )
+            stop_event.wait(delay)
 
-    def start(self):  # pragma: no cover — spawns live threads
-        for account in load_active_accounts():
-            t = threading.Thread(target=self._run_account, args=(account,), daemon=True)
-            t.start()
-            self._threads[str(account.id)] = t
+    def _start_thread(self, account: BrokerAccount):
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=self._run_account, args=(account, stop_event), daemon=True
+        )
+        self._stops[str(account.id)] = stop_event
+        self._threads[str(account.id)] = thread
+        thread.start()
+
+    def _reconcile_threads(self, accounts) -> None:
+        """Start threads for newly-active accounts, signal-stop threads for
+        removed accounts, and prune dead threads. Touches no heartbeat."""
+        active = {str(a.id): a for a in accounts}
+        for account_id in list(self._threads):
+            thread = self._threads[account_id]
+            if account_id not in active or not thread.is_alive():
+                stop_event = self._stops.pop(account_id, None)
+                if stop_event is not None:
+                    stop_event.set()
+                del self._threads[account_id]
+        for account_id, account in active.items():
+            if account_id not in self._threads:
+                self._start_thread(account)
+
+    def start(self):
+        self._reconcile_threads(load_active_accounts())
 
     def run_forever(self):  # pragma: no cover — top-level loop
-        self.start()
         try:
             while not self._stop.is_set():
-                for account in load_active_accounts():
-                    set_heartbeat(account.id)
+                self._reconcile_threads(load_active_accounts())
+                # Refresh the heartbeat of each LIVE thread, preserving its state
+                # (a quiet CONNECTED stream stays CONNECTED without event traffic;
+                # a DEGRADED thread is NOT stamped CONNECTED) — FIX-H8.
+                for account_id, thread in list(self._threads.items()):
+                    if thread.is_alive():
+                        touch_heartbeat(account_id)
                 self._stop.wait(self.heartbeat_interval)
         except KeyboardInterrupt:
             self.stop()
 
-    def stop(self):  # pragma: no cover
+    def stop(self):
         self._stop.set()
+        for stop_event in list(self._stops.values()):
+            stop_event.set()

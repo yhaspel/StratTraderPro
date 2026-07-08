@@ -18,6 +18,34 @@ from .hmm_model import FEATURE_ORDER
 Z_CLIP = 4.0
 ROLL_WINDOW = 252
 
+# Stress/credit inputs whose ABSENCE must neutralize (not fail toward risk-on):
+# a fabricated raw 0 z-scores strongly negative against a history of real
+# elevated values, and (their rule weights are negative) pins the score to
+# RISK_ON — data loss must de-risk, not de-stress (FIX-M13). Scoped to the
+# inputs the daily pipeline actually sources (VIXCLS / HY-OAS / IG-OAS). MOVE
+# (bond vol) is not on the free feeds, so its absence is structural, not a
+# degradation — it stays neutral via its empty z-score history, and including
+# it here would pin every observation `degraded`. Re-add MOVE if a source lands.
+CRITICAL_INPUTS = ("vix", "hy_oas", "ig_oas")
+_INPUT_TO_FEATURES = {
+    "vix": ("vix", "vix_term_ratio"),
+    "hy_oas": ("hy_oas",),
+    "ig_oas": ("ig_oas",),
+}
+
+
+def missing_critical_inputs(inputs: dict) -> list[str]:
+    """Critical stress/macro inputs that are absent or unusable (0/None)."""
+    return [k for k in CRITICAL_INPUTS if inputs.get(k) in (None, "", 0, 0.0)]
+
+
+def neutral_feature_keys(missing_inputs) -> set[str]:
+    """Standardized-feature keys to force to 0 (neutral) for missing inputs."""
+    keys: set[str] = set()
+    for k in missing_inputs:
+        keys.update(_INPUT_TO_FEATURES.get(k, ()))
+    return keys
+
 
 def _rsi(closes: pd.Series, period: int = 14) -> float:
     if len(closes) < period + 1:
@@ -81,10 +109,18 @@ def compute_raw_features(inputs: dict) -> dict:
     return {k: float(feats.get(k, 0.0) or 0.0) for k in FEATURE_ORDER}
 
 
-def standardize(raw: dict, history: dict) -> dict:
-    """Z-score each feature against its rolling raw history, clip to [-4, 4]."""
+def standardize(raw: dict, history: dict, neutral_keys=()) -> dict:
+    """Z-score each feature against its rolling raw history, clip to [-4, 4].
+
+    ``neutral_keys`` (features whose source input was missing) are forced to 0
+    instead of z-scoring a fabricated raw value — data loss neutralizes (FIX-M13).
+    """
+    neutral = set(neutral_keys)
     out = {}
     for k in FEATURE_ORDER:
+        if k in neutral:
+            out[k] = 0.0
+            continue
         hist = [float(x) for x in history.get(k, [])][-ROLL_WINDOW:]
         if len(hist) >= 2:
             arr = np.array(hist, dtype=float)

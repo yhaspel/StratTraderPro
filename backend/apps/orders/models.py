@@ -128,15 +128,24 @@ class Order(models.Model):
 class Fill(models.Model):
     id = models.BigAutoField(primary_key=True)
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="fills")
+    # Denormalized from ``order`` so the dedup anchor can be scoped per account
+    # (FIX-M2) — ``broker_exec_id`` alone is not globally unique across brokers.
+    broker_account = models.ForeignKey(
+        "brokers.BrokerAccount", on_delete=models.CASCADE, null=True, blank=True, related_name="fills"
+    )
     qty = models.DecimalField(max_digits=18, decimal_places=8)
     price = models.DecimalField(max_digits=18, decimal_places=4)
     ts = models.DateTimeField()
-    broker_exec_id = models.CharField(max_length=128, unique=True)
+    broker_exec_id = models.CharField(max_length=128)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "orders_fill"
-        indexes = [models.Index(fields=["order", "ts"])]
+        unique_together = ("broker_account", "broker_exec_id")
+        indexes = [
+            models.Index(fields=["order", "ts"]),
+            models.Index(fields=["broker_exec_id"]),
+        ]
 
     def __str__(self) -> str:
         return f"Fill<{self.order_id} {self.qty}@{self.price}>"

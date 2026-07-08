@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from html.parser import HTMLParser
 
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .models import NewsArticle
@@ -37,6 +40,30 @@ def strip_html(html: str) -> str:
     return p.text
 
 
+def _parse_published(value):
+    """Parse a published timestamp to a tz-aware datetime, or None.
+
+    RSS feeds emit RFC-822 dates ("Mon, 07 Jul 2026 19:00:00 GMT") on which
+    ``parse_datetime`` returns None — every RSS article then sorted into limbo.
+    Fall back to ``email.utils.parsedate_to_datetime`` and make it aware (FIX-M5).
+    """
+    if isinstance(value, str):
+        dt = parse_datetime(value)
+        if dt is None:
+            from email.utils import parsedate_to_datetime
+
+            try:
+                dt = parsedate_to_datetime(value)
+            except (TypeError, ValueError, IndexError):
+                dt = None
+        value = dt
+    if isinstance(value, datetime):
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, dt_timezone.utc)
+        return value
+    return None
+
+
 def dedup_hash(url: str, title: str) -> str:
     return hashlib.sha256(f"{(url or '').strip()}|{(title or '').strip().lower()}".encode()).hexdigest()
 
@@ -62,9 +89,7 @@ def ingest_article(raw) -> tuple[NewsArticle | None, bool]:
     h = dedup_hash(raw.url, title)
     symbols = tag_symbols(f"{title}. {body[:600]}", hint_symbols=getattr(raw, "symbols", None))
     material = is_material(raw.source, title, body)
-    published = raw.published_at
-    if isinstance(published, str):
-        published = parse_datetime(published)
+    published = _parse_published(raw.published_at)
     obj, created = NewsArticle.objects.get_or_create(
         dedup_hash=h,
         defaults={

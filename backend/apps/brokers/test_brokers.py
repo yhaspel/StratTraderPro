@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest import mock
@@ -37,7 +38,7 @@ from apps.brokers.services import (
     get_stream_status,
     set_heartbeat,
 )
-from apps.brokers.streams import backoff_delay, catch_up_account
+from apps.brokers.streams import StreamSupervisor, backoff_delay, catch_up_account
 from apps.m04_testutils import (
     auth_headers,
     create_broker_account,
@@ -182,6 +183,37 @@ class AlpacaAdapterTests(TestCase):
                 self._adapter(client=client).get_account()
         self.assertEqual(ctx.exception.code, BrokerErrorCode.RATE_LIMITED)
 
+    def test_get_quote_latest_trade_and_none_on_failure(self):
+        # FIX-H3: the broker-quote sizing tier must be real in prod (not just fake).
+        adapter = self._adapter()
+        adapter._data_client = mock.Mock()
+        adapter._data_client.get_stock_latest_trade.return_value = {
+            "AAPL": SimpleNamespace(price="150.25")
+        }
+        self.assertEqual(adapter.get_quote("AAPL"), Decimal("150.25"))
+        adapter._data_client.get_stock_latest_trade.side_effect = RuntimeError("boom")
+        self.assertIsNone(adapter.get_quote("AAPL"))  # best-effort → None, never raises
+
+    def test_client_has_bounded_http_timeout(self):
+        # FIX-H7: every Alpaca HTTP call must be bounded so a black-holed TCP
+        # connection can't wedge a worker forever.
+        from apps.brokers.alpaca.adapter import ALPACA_HTTP_TIMEOUT, _TimeoutHTTPAdapter
+
+        client = self._adapter().client  # builds a real TradingClient (no network)
+        mounted = client._session.get_adapter("https://paper-api.alpaca.markets")
+        self.assertIsInstance(mounted, _TimeoutHTTPAdapter)
+        self.assertEqual(mounted._timeout, ALPACA_HTTP_TIMEOUT)
+
+
+class CeleryTimeLimitSettingsTests(TestCase):
+    def test_task_time_limits_present_and_ordered(self):
+        # FIX-H7: a soft/hard task time-limit backstop, soft < hard.
+        from django.conf import settings
+
+        self.assertTrue(hasattr(settings, "CELERY_TASK_SOFT_TIME_LIMIT"))
+        self.assertTrue(hasattr(settings, "CELERY_TASK_TIME_LIMIT"))
+        self.assertLess(settings.CELERY_TASK_SOFT_TIME_LIMIT, settings.CELERY_TASK_TIME_LIMIT)
+
 
 # ===========================================================================
 # FakeBrokerAdapter (unit)
@@ -237,6 +269,18 @@ class BrokerConnectViewTests(TestCase):
         self.assertNotIn("api_key_id", body)
         acct = BrokerAccount.objects.get()
         self.assertNotEqual(bytes(acct.api_secret_enc), b"sekret")  # encrypted at rest
+
+    def test_connect_non_ascii_key_rejected_400(self):
+        # FIX-L5: a Unicode key must be a 400 validation error, not a 500
+        # (encrypt_key(raw.encode("ascii")) would raise UnicodeEncodeError).
+        resp = self.client.post(
+            API,
+            data={"api_key_id": "PK—abc", "api_secret": "s", "broker": "ALPACA", "mode": "PAPER"},
+            content_type="application/json",
+            **auth_headers(self.user),
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(BrokerAccount.objects.count(), 0)
 
     def test_connect_live_key_rejected(self):
         resp = self.client.post(
@@ -398,6 +442,166 @@ class StreamCatchUpTests(TestCase):
         self.assertEqual(res["strategy"], "position_snap")
         order.refresh_from_db()
         self.assertEqual(order.status, Order.Status.CANCELLED)  # not blindly FILLED
+
+
+# ===========================================================================
+# Stream supervisor (FIX-H8) + task-process metrics (FIX-C1)
+# ===========================================================================
+class _ImmediateFailStream:
+    def run(self):
+        raise RuntimeError("auth failed")  # a persistent immediate failure
+
+
+class StreamSupervisorTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = create_user()
+        self.account = create_broker_account(self.user)
+
+    def test_reconnect_backoff_grows_and_catch_up_not_hammered(self):
+        # FIX-H8: repeated immediate failures must grow the backoff (attempt) and
+        # not re-run catch_up on every sub-second iteration.
+        from apps.brokers import streams as st
+        from apps.brokers.metrics import BROKER_WS_RECONNECTS_TOTAL
+
+        recon_before = BROKER_WS_RECONNECTS_TOTAL.labels(broker="alpaca")._value.get()
+        attempts, catch_ups = [], {"n": 0}
+        sup = StreamSupervisor(
+            healthy_after=60.0,
+            adapter_factory=lambda account: mock.Mock(),
+            stream_factory=lambda account: _ImmediateFailStream(),
+        )
+        stop_event = threading.Event()
+        waits = {"n": 0}
+
+        def fake_wait(_delay):
+            waits["n"] += 1
+            if waits["n"] >= 4:
+                stop_event.set()
+            return True
+
+        with mock.patch.object(st, "backoff_delay", side_effect=lambda n: attempts.append(n) or 0.0), \
+             mock.patch.object(st, "catch_up_account",
+                               side_effect=lambda *a, **k: catch_ups.__setitem__("n", catch_ups["n"] + 1)), \
+             mock.patch.object(stop_event, "wait", side_effect=fake_wait):
+            sup._run_account(self.account, stop_event)
+
+        self.assertEqual(attempts, [1, 2, 3, 4])          # backoff grows each failure
+        self.assertEqual(catch_ups["n"], 4)               # once per iteration, bounded
+        # reconnects (attempt>0) counted for iterations 2,3,4.
+        self.assertEqual(
+            BROKER_WS_RECONNECTS_TOTAL.labels(broker="alpaca")._value.get(), recon_before + 3
+        )
+
+    def test_reconcile_starts_new_and_stops_removed(self):
+        # FIX-H8: the supervisor diff hot-adds new accounts and signal-stops
+        # removed ones — no restart, no masking.
+        sup = StreamSupervisor()
+        started = []
+
+        class _DummyThread:
+            def is_alive(self):
+                return True
+
+        def fake_start(account):
+            aid = str(account.id)
+            started.append(aid)
+            sup._threads[aid] = _DummyThread()
+            sup._stops[aid] = threading.Event()
+
+        acct_b = create_broker_account(self.user, is_default=False, account_number="PATEST002")
+        with mock.patch.object(sup, "_start_thread", side_effect=fake_start):
+            sup._reconcile_threads([self.account])                 # A active → started
+            self.assertIn(str(self.account.id), sup._threads)
+            sup._reconcile_threads([self.account, acct_b])         # B added → hot-add
+            self.assertIn(str(acct_b.id), sup._threads)
+            ev_a = sup._stops[str(self.account.id)]
+            sup._reconcile_threads([acct_b])                       # A removed → stopped
+        self.assertNotIn(str(self.account.id), sup._threads)
+        self.assertTrue(ev_a.is_set())                             # removed thread signaled
+        self.assertEqual(started, [str(self.account.id), str(acct_b.id)])
+
+    def test_reconcile_prunes_dead_thread(self):
+        # FIX-H8: a thread that has died is pruned (and restartable), never
+        # left masking as healthy.
+        sup = StreamSupervisor()
+
+        class _DeadThread:
+            def is_alive(self):
+                return False
+
+        sup._threads[str(self.account.id)] = _DeadThread()
+        sup._stops[str(self.account.id)] = threading.Event()
+        restarted = []
+        with mock.patch.object(sup, "_start_thread", side_effect=lambda a: restarted.append(str(a.id))):
+            sup._reconcile_threads([self.account])
+        self.assertEqual(restarted, [str(self.account.id)])
+
+    def test_main_loop_does_not_overwrite_degraded_heartbeat(self):
+        # FIX-H8: the reconcile loop must not stamp a DEGRADED heartbeat back to
+        # CONNECTED (the old run_forever bug).
+        set_heartbeat(self.account.id, "DEGRADED")
+        sup = StreamSupervisor()
+        with mock.patch.object(sup, "_start_thread"):
+            sup._reconcile_threads([self.account])
+        self.assertEqual(get_stream_status(self.account), "DEGRADED")
+
+    def test_touch_heartbeat_refreshes_but_preserves_state(self):
+        # FIX-H8: touch_heartbeat keeps a live thread's status fresh without
+        # stamping CONNECTED over a DEGRADED one.
+        from apps.brokers.services import touch_heartbeat
+
+        set_heartbeat(self.account.id, "DEGRADED")
+        touch_heartbeat(self.account.id)
+        self.assertEqual(get_stream_status(self.account), "DEGRADED")
+
+    def test_clean_stream_return_marks_degraded(self):
+        # FIX-H8: a stream.run() that returns cleanly (graceful close) in a tight
+        # loop must NOT be masked CONNECTED — the run end always marks DEGRADED.
+        from apps.brokers import streams as st
+
+        class _CleanReturnStream:
+            def run(self):
+                return None  # returns immediately, no raise
+
+        sup = StreamSupervisor(
+            healthy_after=60.0,
+            adapter_factory=lambda a: mock.Mock(),
+            stream_factory=lambda a: _CleanReturnStream(),
+        )
+        stop_event = threading.Event()
+
+        def fake_wait(_delay):
+            stop_event.set()
+            return True
+
+        with mock.patch.object(st, "backoff_delay", return_value=0.0), \
+             mock.patch.object(st, "catch_up_account", return_value=None), \
+             mock.patch.object(stop_event, "wait", side_effect=fake_wait):
+            sup._run_account(self.account, stop_event)
+        self.assertEqual(get_stream_status(self.account), "DEGRADED")
+
+    def test_heartbeat_age_metric_is_set(self):
+        # FIX-C1: broker_stream_heartbeat_age_seconds is emitted (was dead).
+        from apps.brokers.metrics import BROKER_STREAM_HEARTBEAT_AGE
+
+        set_heartbeat(self.account.id, "CONNECTED")
+        get_stream_status(self.account)
+        val = BROKER_STREAM_HEARTBEAT_AGE.labels(account_id=str(self.account.id))._value.get()
+        self.assertGreaterEqual(val, 0.0)
+
+    def test_task_metrics_server_toggle(self):
+        # FIX-C1: task processes can expose a Prometheus scrape port.
+        from django.test import override_settings
+
+        from config.task_metrics import start_task_metrics_server
+
+        with override_settings(TASK_METRICS_PORT=0):
+            self.assertFalse(start_task_metrics_server())
+        with mock.patch("prometheus_client.start_http_server") as srv, \
+             override_settings(TASK_METRICS_PORT=9109):
+            self.assertTrue(start_task_metrics_server())
+            srv.assert_called_once_with(9109)
 
 
 # ===========================================================================

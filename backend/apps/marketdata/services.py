@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from datetime import timezone as dt_timezone
 from decimal import Decimal
 
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .models import Bar, MacroSeries
@@ -32,6 +34,11 @@ def upsert_bars(symbol: str, tf: str, rows: list[dict]) -> dict:
         ts = r["ts"] if not isinstance(r["ts"], str) else parse_datetime(r["ts"])
         if ts is None:
             continue
+        # A date-only string parses to naive midnight on Django 5.1 — make it
+        # aware in UTC before writing to the tz-aware Bar.ts (FIX-M6-1). Keeps
+        # the (symbol,tf,ts) upsert idempotent on re-run.
+        if timezone.is_naive(ts):
+            ts = timezone.make_aware(ts, dt_timezone.utc)
         _, was_created = Bar.objects.update_or_create(
             symbol=symbol.upper(), tf=tf, ts=ts,
             defaults={

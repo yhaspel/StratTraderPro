@@ -104,6 +104,12 @@ def to_ts_order_payload(req: OrderRequest, client_order_id: str, account_number:
 
 def from_ts_account(d: dict) -> Account:
     bal = d.get("Balances", d) if isinstance(d, dict) else {}
+    equity = _dec((bal or {}).get("Equity"))
+    # last_equity = today's-close-baseline so equity - last_equity == the day's
+    # P&L (TS Balances exposes TodaysProfitLoss). Keeps sizing off `equity` and
+    # the daily-loss watcher correct once TS is enabled — the DTO gained these
+    # fields in the M04–M08 remediation (FIX-H1/B1).
+    todays_pl = _dec((bal or {}).get("TodaysProfitLoss"))
     return Account(
         account_number=str(d.get("AccountID", "") or ""),
         buying_power=_dec((bal or {}).get("BuyingPower")),
@@ -111,6 +117,8 @@ def from_ts_account(d: dict) -> Account:
         currency="USD",
         status=str(d.get("Status", "ACTIVE")),
         is_paper=True,
+        equity=equity,
+        last_equity=equity - todays_pl,
     )
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from .models import ArticleScore, NewsArticle, SentimentScore, TickerRegistry
+from .models import ArticleScore, NewsArticle, SentimentScore
 
 HALF_LIFE_HOURS = 6.0
 WINDOW_MINUTES = 1440  # 24h
@@ -75,9 +75,10 @@ def aggregate_market(now=None) -> SentimentScore:
         )
         return obj
 
-    weights = dict(
-        TickerRegistry.objects.filter(symbol__in=symbols).values_list("symbol", "id")
-    )  # id as a stand-in cap weight; real caps loaded weekly in prod
+    # Equal-weight per symbol until real market-cap data exists. The old code
+    # weighted by TickerRegistry.id (autoincrement PK) — NOT a cap — so
+    # recently-inserted tickers dominated market polarity (FIX-M3).
+    # TODO: weight by real market cap once a cap source is loaded.
     num = den = 0.0
     count = 0
     for sym in symbols:
@@ -85,9 +86,8 @@ def aggregate_market(now=None) -> SentimentScore:
         if not samples:
             continue
         pol = ewma(samples)
-        w = float(weights.get(sym, 1)) or 1.0
-        num += w * pol
-        den += w
+        num += pol  # equal weight (1.0)
+        den += 1.0
         count += len(samples)
     polarity = round(num / den, 4) if den else 0.0
     obj, _ = SentimentScore.objects.update_or_create(

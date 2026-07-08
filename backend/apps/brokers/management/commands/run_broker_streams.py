@@ -24,5 +24,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("BROKER_ALPACA_ENABLED is off — exiting cleanly."))
             return
         self.stdout.write(self.style.SUCCESS("Starting broker streams supervisor…"))
+        # Expose this process's Prometheus registry (streams metrics are dark
+        # otherwise — no gunicorn /metrics here). FIX-C1.
+        from config.task_metrics import start_task_metrics_server
+
+        if start_task_metrics_server():
+            self.stdout.write(self.style.SUCCESS("Streams Prometheus endpoint started."))
         supervisor = StreamSupervisor(heartbeat_interval=options["heartbeat_interval"])
         supervisor.run_forever()

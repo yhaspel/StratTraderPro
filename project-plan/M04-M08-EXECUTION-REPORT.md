@@ -263,3 +263,91 @@ Push in order, one at a time, only when ready to deploy that milestone to prod:
 ### PRs left open (if `--admin` merge was blocked)
 - **None from this mission.** All five milestone PRs (#22 M04, #23 M05, #24 M06, #25 M07, #26 M08) were squash-merged with `--admin` after CI went green and review findings were addressed. Feature branches deleted.
 - **Pre-existing (not mine):** 5 Dependabot PRs (#1–#5, opened 2026-04-18) bump `node`/`nginx` base images and 3 GitHub Actions. Untouched — out of M04–M08 scope. Review + merge at your discretion (they only affect CI/Docker infra, not app code).
+
+---
+
+# Remediation — adversarial review fixes (2026-07-08)
+
+- **Branch:** `fix/m04-m08-review-remediation` (off `main`).
+- **Scope:** correctness/safety defects found in an adversarial review of M04–M08
+  that CI did not catch. Remediation only — no new features, smallest correct
+  change per finding, a regression test for every behavioural change (existing
+  tests that codified the wrong behaviour were corrected).
+- **Gauntlet (local, CI-parity):** ruff ✓ · bandit (medium+) ✓ · pytest **370 passed**
+  (+4 subtests) ✓ · `makemigrations --check` ✓ · prod-import smoke ✓ ·
+  frontend `ngc --noEmit` ✓ · `pnpm build` ✓.
+- **Migration added:** `orders.0004` (Fill dedup scoped to `(broker_account, broker_exec_id)`).
+- **Self-review + security-review** (adversarial finder agents on `git diff main...HEAD`)
+  found and fixed **8 defects in the remediation's own new code**, each with a test:
+  regime MOVE always-degraded + raw-history pollution; a 0 daily-loss threshold
+  tripping on any flat day; unguarded NaN in limit/stop/strike; the dead Alpaca
+  broker-quote tier (added a real `get_quote`); stream heartbeat masking a clean-
+  return thrash + starving a quiet stream; a TradeStation DTO zero-equity regression;
+  an ingest per-fill query; and (security, MEDIUM) `parse_date` raising `ValueError`
+  on an invalid calendar date ("2026-02-30") → crashed `process_alert` / stuck order.
+  Remaining review notes are prompt-specified tradeoffs (L2 market-hours gate, LOW).
+
+## FIX-id → status + evidence
+
+| FIX | Sev | Status | Evidence (test) |
+|-----|-----|--------|-----------------|
+| B1 | BLOCKER | ✅ Fixed | `risk.DailyLossTests` (two-poll trip / held-overnight-flat no-trip / broker-read-gap no-trip / no-retrip-after-release) |
+| H1 | HIGH | ✅ Fixed | `ProcessAlertSizingTests.test_sizes_off_equity_not_buying_power` |
+| H2 | HIGH | ✅ Fixed | `ProcessAlertSizingTests.test_equity_read_failure_rejects_fail_closed` |
+| H3 | HIGH | ✅ Fixed | `ProcessAlertSizingTests.test_market_order_without_price_rejects` / `…test_limit_order_with_price_sizes` |
+| H4 | HIGH | ✅ Fixed | `RiskApiTests.test_strategy_flatten_rejected` |
+| H5 | HIGH | ✅ Fixed | `IngestFillTests.test_option_buy_to_open_increases_position` / `…sell_to_close_decreases_position` |
+| H6 | HIGH | ✅ Fixed | `WebhookAuthTests.test_non_ascii_sig_returns_401_not_500` |
+| H7 | HIGH | ✅ Fixed | `AlpacaAdapterTests.test_client_has_bounded_http_timeout` + `CeleryTimeLimitSettingsTests` |
+| H8 | HIGH | ✅ Fixed | `StreamSupervisorTests` (backoff-grows / start-stop-diff / prune-dead / degraded-not-overwritten) |
+| H9 | HIGH | ✅ Fixed | `BrokerMisrouteTests.test_unconnected_named_broker_rejected_no_order` |
+| H10 | HIGH | ✅ Fixed | `DailyPipelineTests` (pipeline produces snapshot+obs / no-source skips / source runs) |
+| M1 | MED | ✅ Fixed | `IngestFillTests.test_parse_ts_naive_returns_aware` |
+| M2 | MED | ✅ Fixed | `IngestFillTests.test_dedup_scoped_per_broker_account` (migration `orders.0004`) |
+| M3 | MED | ✅ Fixed | `AggregationTests.test_market_equal_weighted_not_pk_skewed` |
+| M4 | MED | ✅ Fixed | `FetcherAndPublishedTests.test_rss_fetcher_uses_timeout_and_user_agent` |
+| M5 | MED | ✅ Fixed | `FetcherAndPublishedTests.test_rfc822_published_at_parsed_aware` |
+| M6 | MED | ✅ Fixed | `FetcherAndPublishedTests.test_build_fetchers_excludes_finnhub_json_endpoint` |
+| M6-1 | MED | ✅ Fixed | `BarStoreTests.test_date_only_ts_stored_aware_and_idempotent` |
+| M7 | MED | ✅ Fixed | `TaggerTests.test_common_word_tickers_not_tagged_unless_cashtagged` |
+| M8 | MED | ✅ Fixed | `TradingDayTests.test_est_and_edt_map_to_new_york_day` |
+| M9 | MED | ✅ Fixed | `ServiceTests.test_activate_rescores_incumbent_on_new_holdout` |
+| M10 | MED | ✅ Fixed | `FMPClientTests` / `FREDClientTests` `test_reuses_single_httpx_client` |
+| M11 | MED | ✅ Fixed | `FMPClientTests.test_malformed_json_falls_back_to_cache` / `…raises_without_cache` |
+| M12 | MED | ✅ Fixed | `FREDClientTests.test_transport_error_hides_api_key` |
+| M13 | MED | ✅ Fixed | `MissingInputDegradationTests.test_missing_stress_inputs_neutralize_not_risk_on` |
+| M14 | MED | ✅ Fixed (BE) | `RiskApiTests.test_killswitch_release_requires_mfa` — **UI prompt on release = follow-up** |
+| M15 | MED | ✅ Fixed | `DailyLossWatcherTests.test_overlap_guard_is_noop` / `…off_hours_skips_trip` |
+| M16 | MED | ✅ Fixed | `ProcessAlertValidationTests` (nan / infinity / bad option_expiry) |
+| C1 | MED | ✅ Fixed (streams) / ⏳ worker-beat deferred | dead-metric emits: `IngestFillTests.test_fills_ingested_metric_increments` / `…order_state_transition_metric_increments`, `StreamSupervisorTests.test_heartbeat_age_metric_is_set` / `…test_task_metrics_server_toggle`; ws-reconnects in the backoff test |
+| L1 | LOW | ✅ Fixed | `IngestFillTests.test_through_zero_flip_resets_basis` |
+| L2 | LOW | ✅ Fixed | `RiskApiTests.test_killswitch_foreign_strategy_rejected` |
+| L3 | LOW | ✅ Fixed | `ProcessAlertSizingTests.test_sizing_decision_records_equity_and_price` |
+| L4 | LOW | ✅ Fixed | `E2EAndApiTests.test_articles_list_no_n_plus_one` |
+| L5 | LOW | ✅ Fixed | `BrokerConnectViewTests.test_connect_non_ascii_key_rejected_400` |
+| L6 | LOW | ✅ Fixed | `ProcessAlertSizingTests.test_sizing_reject_emits_risk_event` |
+
+**All 35 findings fixed.** Two partial/documented pieces:
+- **C1 worker/beat scrape** — the four dead M04 metrics are now emitted (tested);
+  the **streams** process exposes a Prometheus port (`TASK_METRICS_PORT`). The
+  **Celery worker/beat** scrape endpoint is documented as a follow-up in
+  `docs/runbooks/worker-metrics-scrape.md` (infra-shaped; not fakeable green in CI).
+- **M14 frontend** — the backend now requires MFA to *release* a USER/PLATFORM
+  halt; the `/risk` page currently prompts for MFA only when *engaging*, so the
+  UI release button surfaces `MFA_REQUIRED` until the prompt is added. Small UI
+  follow-up (no in-scope test; the release facade already accepts `mfa_code`).
+
+## Scope-boundary follow-ups (recorded, not attempted here)
+- **Per-strategy position tagging** — the real fix behind FIX-H4; needs a schema
+  change (positions carry `strategy_id`). M09. See `docs/runbooks/strategy-flatten-limitation.md`.
+- **Enforce `RiskProfile.max_concurrent` / `leverage_cap` / `permitted_asset_classes`**
+  (currently dead fields) — needs a limits design pass + order-count accounting.
+- **TradeStation OAuth state TOCTOU + refresh-lock** and the cross-user
+  account-linking interstitial — TS is behind `BROKER_TRADESTATION_ENABLED=false`;
+  fix before TS go-live.
+- **Live/staging verifications** already deferred in Section A (Alpaca paper smoke,
+  50-user load, flatten p99, dashboards "live").
+- **M14 UI MFA-on-release prompt** and **C1 worker/beat metrics endpoint** (above).
+- **ADRs amended:** ADR-080 (sizing equity/price semantics — FIX-H1/H2/H3),
+  ADR-081 (daily-loss broker-truth P&L + fail-safe + MFA-on-release — FIX-B1/M8/M14/M15).
+

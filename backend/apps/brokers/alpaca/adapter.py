@@ -12,6 +12,8 @@ import logging
 import random
 import time
 
+from requests.adapters import HTTPAdapter
+
 from ..audit import record_broker_call
 from ..base import (
     Account,
@@ -33,6 +35,34 @@ logger = logging.getLogger(__name__)
 
 PAPER_BASE_URL = "https://paper-api.alpaca.markets"
 _MAX_RETRIES = 3
+# Bound every Alpaca HTTP call so a black-holed TCP connection can't wedge a
+# Celery worker or the streams catch-up forever (FIX-H7). Mirrors the TS client.
+ALPACA_HTTP_TIMEOUT = 10.0
+
+
+class _TimeoutHTTPAdapter(HTTPAdapter):
+    """Injects a default request timeout — ``requests`` has no session-level one."""
+
+    def __init__(self, *args, timeout=ALPACA_HTTP_TIMEOUT, **kwargs):
+        self._timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._timeout
+        return super().send(request, **kwargs)
+
+
+def _apply_timeout(client, timeout: float = ALPACA_HTTP_TIMEOUT):
+    """Mount a timeout adapter on the alpaca-py client's ``requests`` session.
+    No-op for clients that don't expose a mountable ``requests`` session (the
+    Celery task time-limit is the backstop there)."""
+    session = getattr(client, "_session", None)
+    if session is not None and hasattr(session, "mount"):
+        adapter = _TimeoutHTTPAdapter(timeout=timeout)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+    return client
 # Alpaca supports US equities/ETFs and options (by OCC symbol). No futures.
 _SUPPORTED_ASSET_CLASSES = ("STOCK", "ETF", "OPTION", "us_equity")
 _SUPPORTED_ORDER_TYPES = (OrderType.MKT, OrderType.LMT, OrderType.STP, OrderType.STP_LMT)
@@ -42,9 +72,10 @@ class AlpacaAdapter:
     name = "alpaca"
     supported_asset_classes = list(_SUPPORTED_ASSET_CLASSES)
 
-    def __init__(self, ctx: BrokerContext, *, client=None):
+    def __init__(self, ctx: BrokerContext, *, client=None, data_client=None):
         self.ctx = ctx
         self._client = client  # injectable for tests
+        self._data_client = data_client  # market-data client for get_quote (FIX-H3)
 
     # -- client -------------------------------------------------------------
     @property
@@ -52,10 +83,12 @@ class AlpacaAdapter:
         if self._client is None:
             from alpaca.trading.client import TradingClient
 
-            self._client = TradingClient(
-                api_key=self.ctx.api_key_id,
-                secret_key=self.ctx.api_secret,
-                paper=True,
+            self._client = _apply_timeout(
+                TradingClient(
+                    api_key=self.ctx.api_key_id,
+                    secret_key=self.ctx.api_secret,
+                    paper=True,
+                )
             )
         return self._client
 
@@ -116,6 +149,29 @@ class AlpacaAdapter:
     def get_account(self) -> Account:
         raw = self._call("get_account", lambda: self.client.get_account())
         return mapping.map_account(raw)
+
+    def get_quote(self, symbol: str):
+        """Latest trade price for sizing (FIX-H3). Best-effort — returns None on
+        any failure so the caller falls back to the last daily bar / rejects,
+        never fabricating a price. Bounded by the Celery task time limit."""
+        try:
+            if self._data_client is None:
+                from alpaca.data.historical import StockHistoricalDataClient
+
+                self._data_client = _apply_timeout(
+                    StockHistoricalDataClient(self.ctx.api_key_id, self.ctx.api_secret)
+                )
+            from alpaca.data.requests import StockLatestTradeRequest
+
+            resp = self._data_client.get_stock_latest_trade(
+                StockLatestTradeRequest(symbol_or_symbols=symbol)
+            )
+            trade = resp.get(symbol) if isinstance(resp, dict) else resp
+            price = getattr(trade, "price", None)
+            return mapping._dec(price) if price is not None else None
+        except Exception:  # noqa: BLE001 — quote is best-effort; degrade to bar/reject
+            logger.warning("alpaca.get_quote.failed", extra={"symbol": symbol})
+            return None
 
     def list_positions(self) -> list[PositionDTO]:
         raw = self._call("get_all_positions", lambda: self.client.get_all_positions())

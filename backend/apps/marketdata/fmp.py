@@ -45,9 +45,26 @@ class FMPClient:
         self.api_key = api_key if api_key is not None else getattr(settings, "FMP_API_KEY", "")
         self.base = (base_url or getattr(settings, "FMP_BASE_URL", "https://financialmodelingprep.com/stable")).rstrip("/")
         self._http = http
+        self._owned_http = None  # one reused client per instance (FIX-M10)
         self.per_minute = per_minute or getattr(settings, "FMP_RATE_LIMIT_PER_MIN", 750)
         self.cb_threshold = cb_threshold
         self.cb_cooldown = cb_cooldown
+
+    def _client(self):
+        """One httpx.Client per FMPClient, created lazily and reused — a fresh
+        client per call (×retries) leaked a connection pool each time (FIX-M10)."""
+        if self._http is not None:
+            return self._http
+        if self._owned_http is None:
+            import httpx
+
+            self._owned_http = httpx.Client(timeout=15.0)
+        return self._owned_http
+
+    def close(self) -> None:
+        if self._owned_http is not None:
+            self._owned_http.close()
+            self._owned_http = None
 
     # -- rate limit (token bucket, fixed window) ---------------------------
     def _throttle(self) -> None:
@@ -85,7 +102,7 @@ class FMPClient:
     def _raw_get(self, path: str, params: dict):
         import httpx
 
-        client = self._http or httpx.Client(timeout=15.0)
+        client = self._client()
         q = {**params, "apikey": self.api_key}
         try:
             resp = client.get(f"{self.base}{path}", params=q)
@@ -99,7 +116,13 @@ class FMPClient:
             raise FMPServerError(str(resp.status_code))
         if resp.status_code >= 400:  # 4xx — bad key / symbol; do NOT retry
             raise FMPError(f"HTTP {resp.status_code}")
-        return resp.json()
+        try:
+            return resp.json()
+        except (ValueError, TypeError):
+            # 200 with a non-JSON body (proxy/CDN error page). Route through the
+            # resilience layer instead of escaping as an uncaught decode error
+            # (AC-06-9 "never 5xx" / FIX-M11).
+            raise FMPServerError("invalid JSON body") from None
 
     @retry(
         retry=retry_if_exception_type((FMPRateLimited, FMPServerError)),

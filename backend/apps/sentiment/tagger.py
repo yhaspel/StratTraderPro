@@ -12,11 +12,17 @@ import re
 
 from django.conf import settings
 
-# Uppercase words that are never tickers (reduce false positives).
+# Uppercase words that are never tickers in bare (non-cashtag) form. Includes
+# common English words that ARE real tickers (ALL, NOW, ON, CAN, SO, GO, ARE) and
+# single letters like T (from "T-Mobile"): registry membership alone let these
+# tag spuriously (FIX-M7). A deliberate "$ALL" cashtag still tags via the registry.
 _STOPWORD_TICKERS = {
     "A", "I", "THE", "CEO", "CFO", "USA", "US", "ETF", "IPO", "NYSE", "AI", "EPS",
     "GDP", "FED", "SEC", "FDA", "EU", "UK", "Q1", "Q2", "Q3", "Q4", "IT",
     "OK", "PR", "TV", "URL", "FAQ", "AM", "PM", "EST", "EDT", "GMT",
+    # Common-word tickers + ambiguous single/double letters.
+    "ALL", "NOW", "ON", "CAN", "SO", "GO", "ARE", "T", "AN", "AS", "AT", "BE",
+    "BY", "DO", "IF", "IN", "IS", "MY", "NO", "OF", "OR", "TO", "UP", "WE", "HE",
 }
 _CASHTAG_RE = re.compile(r"\$([A-Za-z]{1,5})\b")
 _UPPER_RE = re.compile(r"\b[A-Z]{1,5}\b")
@@ -36,13 +42,12 @@ def tag_symbols(text: str, *, hint_symbols=None) -> list[str]:
     text = text or ""
     symbols: set[str] = {s.upper().strip() for s in (hint_symbols or []) if s}
 
-    # $CASHTAG — deliberate ticker mention, always accepted.
-    for m in _CASHTAG_RE.findall(text):
-        symbols.add(m.upper())
-
-    # Uppercase tokens, filtered to registry-known tickers (precision).
+    # $CASHTAG — a deliberate mention, but still registry-verified so an unknown
+    # cashtag doesn't bypass the registry (FIX-M7). Cashtags skip the stopword
+    # filter (a "$ALL" is intentional), bare uppercase tokens do not.
+    cashtags = {m.upper() for m in _CASHTAG_RE.findall(text)}
     candidates = {t for t in _UPPER_RE.findall(text) if t not in _STOPWORD_TICKERS}
-    symbols |= _known(candidates)
+    symbols |= _known(cashtags | candidates)
 
     # Alias pass (company names → symbol).
     if getattr(settings, "SENTIMENT_ALIAS_TAGGING", True):
