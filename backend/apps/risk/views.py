@@ -113,17 +113,19 @@ class KillSwitchView(APIView):
 
     @extend_schema(operation_id="risk_killswitches_set", tags=["risk"])
     def post(self, request):
-        ser = KillSwitchCreateSerializer(data=request.data)
+        ser = KillSwitchCreateSerializer(data=request.data, context={"user": request.user})
         if not ser.is_valid():
             return fail("VALIDATION_ERROR", "Invalid input.", status=400, details=ser.errors)
         d = ser.validated_data
         scope, active, level = d["scope"], d["active"], _SCOPE_LEVEL[d["scope"]]
 
         # MFA re-prompt on the global (L1) + platform (L3) kill switch (§11).
+        # Required on BOTH engage and release — releasing a halt is the dangerous
+        # direction for a hijacked session (FIX-M14).
         if scope in ("USER", "PLATFORM"):
             if scope == "PLATFORM" and not request.user.is_staff:
                 return fail("FORBIDDEN", "Platform kill switch is admin-only.", status=403)
-            if active and not verify_mfa_code(request.user, d.get("mfa_code", "")):
+            if not verify_mfa_code(request.user, d.get("mfa_code", "")):
                 return fail("MFA_REQUIRED", "A valid MFA code is required for this action.", status=403)
 
         if active:

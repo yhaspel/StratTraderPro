@@ -74,3 +74,31 @@ class KillSwitchCreateSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
     flatten = serializers.BooleanField(required=False, default=False)
     mfa_code = serializers.CharField(required=False, allow_blank=True, default="", max_length=16)
+
+    def validate(self, data):
+        if data.get("scope") != "STRATEGY":
+            return data
+        # Per-strategy flatten is not supported yet — positions carry no
+        # strategy_id, so a STRATEGY-scope flatten would liquidate the whole
+        # account. Reject it; the L0 toggle still halts new orders (FIX-H4).
+        # TODO(M09): allow once positions are tagged with strategy_id.
+        if data.get("flatten"):
+            raise serializers.ValidationError(
+                {"flatten": "FLATTEN_SCOPE_UNSUPPORTED: per-strategy flatten is not supported."}
+            )
+        # STRATEGY scope must name a strategy the caller owns — an unchecked
+        # UUID reached TradingHalt.create() as a cross-user junk row / 500 (FIX-L2).
+        target_id = data.get("target_id")
+        if target_id is None:
+            raise serializers.ValidationError(
+                {"target_id": "target_id (strategy) is required for STRATEGY scope."}
+            )
+        user = self.context.get("user")
+        if user is not None:
+            from apps.strategies.models import Strategy
+
+            if not Strategy.objects.filter(id=target_id, owner=user).exists():
+                raise serializers.ValidationError(
+                    {"target_id": "Unknown strategy or not owned by you."}
+                )
+        return data

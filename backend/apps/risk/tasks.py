@@ -15,17 +15,35 @@ def daily_loss_watcher(self):
     two-poll-confirmed breach (AC-08-9)."""
     if not getattr(settings, "KILL_SWITCHES_ENABLED", True):
         return {"skipped": "disabled"}
-    from .killswitch import check_daily_loss, release_expired_l2_halts
+    from django.core.cache import cache
+
+    from .killswitch import check_daily_loss, market_is_open, release_expired_l2_halts
     from .models import RiskProfile
 
-    # Auto-release yesterday's L2 circuit breakers once the trading day rolls over (AC-08-9).
-    released = release_expired_l2_halts()
+    # Single-flight guard (FIX-M15): a run that overshoots the 30s beat must not
+    # overlap the next — two concurrent runs would cache.incr the same key inside
+    # one stale window and defeat the two-poll confirmation. TTL > beat interval
+    # so an in-progress run keeps the lock; a crash lets it expire.
+    lock_key = "risk:daily_loss_watcher:lock"
+    if not cache.add(lock_key, "1", timeout=45):
+        return {"skipped": "locked"}
+    try:
+        # Auto-release yesterday's L2 breakers once the trading day rolls over —
+        # runs regardless of session so a halt clears even off-hours (AC-08-9).
+        released = release_expired_l2_halts()
 
-    tripped = 0
-    for profile in RiskProfile.objects.select_related("user").all():
-        try:
-            if check_daily_loss(profile.user):
-                tripped += 1
-        except Exception:  # pragma: no cover — one user must not stop the sweep
-            logger.warning("daily_loss.check_error", extra={"user": profile.user_id})
-    return {"tripped": tripped, "released": released}
+        # Trip only during market hours — off-hours mark drift must not fire L2
+        # (FIX-M15 / FIX-B1). Release above still happens 24/7.
+        if not market_is_open():
+            return {"skipped": "market_closed", "released": released}
+
+        tripped = 0
+        for profile in RiskProfile.objects.select_related("user").all():
+            try:
+                if check_daily_loss(profile.user):
+                    tripped += 1
+            except Exception:  # pragma: no cover — one user must not stop the sweep
+                logger.warning("daily_loss.check_error", extra={"user": profile.user_id})
+        return {"tripped": tripped, "released": released}
+    finally:
+        cache.delete(lock_key)

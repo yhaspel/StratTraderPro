@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import timedelta
+from datetime import time as dt_time
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.db import transaction
@@ -25,8 +26,10 @@ from .models import RiskEvent
 
 logger = logging.getLogger(__name__)
 
-# Effective trading-day boundary (UTC-05) for the L2 auto-reset (AC-08-9).
-_DAY_OFFSET = timedelta(hours=5)
+# The trading day is the US/Eastern calendar day — DST-correct (UTC-4 in EDT,
+# UTC-5 in EST), so L2 auto-release lines up with the real market rollover
+# (AC-08-9). A fixed UTC-5 offset released an hour late all summer (FIX-M8).
+_NY_TZ = ZoneInfo("America/New_York")
 
 
 def _enabled() -> bool:
@@ -35,7 +38,22 @@ def _enabled() -> bool:
 
 def trading_day(dt=None):
     dt = dt or timezone.now()
-    return (dt - _DAY_OFFSET).date()
+    return dt.astimezone(_NY_TZ).date()
+
+
+# US regular trading hours (ET). Holidays are not modeled — an extra off-day
+# poll reads flat (equity == last_equity) and cannot trip (FIX-M15).
+_MARKET_OPEN = dt_time(9, 30)
+_MARKET_CLOSE = dt_time(16, 0)
+
+
+def market_is_open(dt=None) -> bool:
+    """True during US regular trading hours (Mon–Fri 09:30–16:00 ET)."""
+    dt = dt or timezone.now()
+    ny = dt.astimezone(_NY_TZ)
+    if ny.weekday() >= 5:  # Saturday / Sunday
+        return False
+    return _MARKET_OPEN <= ny.time() <= _MARKET_CLOSE
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +139,14 @@ def release_halt(halt_id, released_by_id=None) -> bool:
 
 def flatten_user(user_id, *, scope="USER", strategy_id=None) -> dict:
     """Flatten all of a user's positions via each broker's ``flatten_all``.
-    Latency (first call → last submit) is measured for AC-08-8's p99 budget."""
+    Latency (first call → last submit) is measured for AC-08-8's p99 budget.
+
+    NOTE: ``strategy_id`` is intentionally unused — positions carry no
+    strategy_id, so a per-strategy flatten cannot be scoped correctly and would
+    liquidate the whole account. STRATEGY-scope flatten is rejected upstream at
+    the serializer (FIX-H4). TODO(M09): honor strategy_id once positions are
+    tagged with the originating strategy.
+    """
     from apps.brokers.services import build_adapter
     from apps.orders.services import reconcile_positions
 
@@ -148,18 +173,43 @@ def flatten_user(user_id, *, scope="USER", strategy_id=None) -> dict:
 # ---------------------------------------------------------------------------
 # Daily-loss watcher (L2)
 # ---------------------------------------------------------------------------
-def user_daily_pnl(user) -> tuple[Decimal, Decimal]:
-    """Return (pnl_usd, equity). Unrealized from cached Position marks (the
-    conservative fallback when fresh broker marks time out — §review-note-3)."""
-    from apps.orders.models import Position
+def user_daily_pnl(user) -> tuple[Decimal, Decimal] | None:
+    """Broker-truth daily P&L and equity for ``user`` (FIX-B1).
 
-    pnl = Decimal("0")
-    equity = Decimal("0")
-    for p in Position.objects.filter(user=user):
-        if p.market_price is not None:
-            pnl += (p.market_price - p.avg_cost) * p.qty
-            equity += abs(p.market_price * p.qty)
-    return pnl, equity
+    Sums ``equity`` and the day's change ``equity - last_equity`` (previous
+    trading-day close) across the user's connected broker accounts — NOT
+    lifetime unrealized P&L on open positions (which trips every day a swing
+    loser is held and never fires for a day-trader who closes round-trips).
+
+    Returns ``(daily_pnl, equity)``, or ``None`` when no usable broker equity
+    could be read. ``None`` is the fail-safe sentinel: ``check_daily_loss``
+    skips the poll on it, because a monitoring gap must never auto-halt trading.
+    """
+    from apps.brokers.services import build_adapter
+
+    accounts = list(
+        BrokerAccount.objects.filter(user=user, status=BrokerAccount.Status.CONNECTED)
+    )
+    if not accounts:
+        return None
+    total_equity = Decimal("0")
+    total_pnl = Decimal("0")
+    read_ok = False
+    for account in accounts:
+        try:
+            acct = build_adapter(account).get_account()
+        except Exception:  # noqa: BLE001 — a broker read failure must not trip/release
+            logger.warning("daily_loss.account_read_failed", extra={"account": str(account.id)})
+            continue
+        equity = Decimal(acct.equity or 0)
+        if equity <= 0:  # broker reported no equity figure — unusable
+            continue
+        read_ok = True
+        total_equity += equity
+        total_pnl += equity - Decimal(acct.last_equity or 0)
+    if not read_ok or total_equity <= 0:
+        return None
+    return total_pnl, total_equity
 
 
 def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
@@ -178,7 +228,11 @@ def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
         user=user, level=TradingHalt.Level.L2, auto=True, released_at__isnull=True
     ).exists():
         return False
-    pnl, equity = user_daily_pnl(user)
+    snapshot = user_daily_pnl(user)
+    if snapshot is None:
+        # Monitoring gap (no broker equity) — never trip on missing data (FIX-B1).
+        return False
+    pnl, equity = snapshot
     loss_usd = pnl <= -abs(profile.daily_loss_usd)
     loss_pct = equity > 0 and (pnl / equity * 100) <= -abs(profile.daily_loss_pct)
     key = f"risk:dl:{user.id}:{trading_day()}"
