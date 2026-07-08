@@ -556,6 +556,134 @@ paths:
                       message: Token is invalid or expired.
                   summary: Token invalid or expired
           description: ''
+  /api/v1/backtest/runs/:
+    get:
+      operationId: backtest_runs_list
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: backtest_runs_create
+      tags:
+      - backtest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BacktestRunCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BacktestRunCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BacktestRunCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/:
+    get:
+      operationId: backtest_runs_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/cancel/:
+    post:
+      operationId: backtest_runs_cancel
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/report.html:
+    get:
+      operationId: backtest_report_html
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/report.json:
+    get:
+      operationId: backtest_report_json
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/report.pdf:
+    get:
+      operationId: backtest_report_pdf
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/strategies/:
+    get:
+      operationId: backtest_strategies
+      description: 'Picker source: backtestable strategies + whether an adapter is
+        registered.'
+      tags:
+      - backtest
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/brokers/:
     get:
       operationId: brokers_list
@@ -1291,6 +1419,98 @@ components:
       - email
       - id
       - is_verified
+    BacktestRunCreate:
+      type: object
+      properties:
+        strategy:
+          type: string
+          format: uuid
+        symbols:
+          type: array
+          items:
+            type: string
+            maxLength: 16
+          maxItems: 10
+          minItems: 1
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+        tf:
+          type: string
+          default: 1d
+        train_window_days:
+          type: integer
+          maximum: 6000
+          minimum: 1
+        test_window_days:
+          type: integer
+          maximum: 6000
+          minimum: 1
+        step_days:
+          type: integer
+          maximum: 6000
+          minimum: 1
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ModeEnum'
+          default: rolling
+        metric:
+          allOf:
+          - $ref: '#/components/schemas/MetricEnum'
+          default: sharpe
+        initial_cash:
+          type: number
+          format: double
+          minimum: 1.0
+          default: 100000.0
+        param_grid: {}
+        costs:
+          $ref: '#/components/schemas/Costs'
+        sizing_mode:
+          allOf:
+          - $ref: '#/components/schemas/SizingModeEnum'
+          default: fixed_qty_1
+        retention_days:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 90
+      required:
+      - end
+      - start
+      - step_days
+      - strategy
+      - symbols
+      - test_window_days
+      - train_window_days
+    Costs:
+      type: object
+      properties:
+        slippage_bps:
+          type: number
+          format: double
+          maximum: 1000.0
+          minimum: 1.0
+          default: 5.0
+        per_order_usd:
+          type: number
+          format: double
+          minimum: 0.0
+          default: 0.0
+        per_share_usd:
+          type: number
+          format: double
+          minimum: 0.0
+          default: 0.0
+        volume_participation_pct:
+          type: number
+          format: double
+          maximum: 100.0
+          minimum: 0.001
+          default: 10.0
     CurrentUserEnvelope:
       type: object
       properties:
@@ -1324,6 +1544,26 @@ components:
           type: string
       required:
       - refresh
+    MetricEnum:
+      enum:
+      - sharpe
+      - sortino
+      - total_return
+      - mar
+      type: string
+      description: |-
+        * `sharpe` - sharpe
+        * `sortino` - sortino
+        * `total_return` - total_return
+        * `mar` - mar
+    ModeEnum:
+      enum:
+      - anchored
+      - rolling
+      type: string
+      description: |-
+        * `anchored` - anchored
+        * `rolling` - rolling
     PasswordReset:
       type: object
       properties:
@@ -1398,6 +1638,14 @@ components:
           format: email
       required:
       - email
+    SizingModeEnum:
+      enum:
+      - production
+      - fixed_qty_1
+      type: string
+      description: |-
+        * `production` - production
+        * `fixed_qty_1` - fixed_qty_1
     StatusData:
       type: object
       properties:

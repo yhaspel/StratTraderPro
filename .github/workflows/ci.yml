@@ -52,6 +52,15 @@ jobs:
           key: pip-${{ hashFiles('backend/requirements/dev.txt') }}
           restore-keys: pip-
 
+      # WeasyPrint (M09 PDF tearsheets) native deps — kept in sync with the apt
+      # list in docker/backend.Dockerfile. CI runs pytest on the runner (not in
+      # Docker), so the PDF-render tests need Pango/HarfBuzz/fontconfig + a font.
+      - name: Install WeasyPrint system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
+
       - name: Install dependencies
         run: pip install -r backend/requirements/dev.txt
 

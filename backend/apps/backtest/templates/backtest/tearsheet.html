@@ -1,0 +1,99 @@
+{% load backtest_extras %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ lab.title }}</title>
+<style>
+  @page { size: A4; margin: 1.5cm; @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #888; } }
+  body { font-family: "DejaVu Sans", sans-serif; color: #1a1a1a; font-size: 11px; }
+  h1 { color: #0d47a1; font-size: 20px; margin-bottom: 4px; }
+  h2 { color: #0d47a1; font-size: 15px; margin-top: 18px; border-top: 1px solid #ddd; padding-top: 8px; }
+  h3 { font-size: 12px; margin: 10px 0 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0; }
+  td, th { border: 1px solid #ccc; padding: 3px 6px; font-size: 10px; }
+  th { background: #f0f4fa; text-align: left; }
+  .num { text-align: right; }
+  .disclaimer { background: #fff8e1; border: 1px solid #f0c000; padding: 10px; margin: 10px 0; font-size: 10px; }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 3px; font-weight: bold; font-size: 10px; }
+  .badge.high { background: #c62828; color: #fff; }
+  .badge.ok { background: #2e7d32; color: #fff; }
+  .cover-meta { font-size: 11px; margin: 6px 0; }
+  .symbol-section { page-break-before: always; }
+  svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+  <h1>{{ lab.title }}</h1>
+  <div class="cover-meta">
+    <b>{{ lab.strategy }}:</b> {{ config.strategy_slug }}<br>
+    <b>{{ lab.range }}:</b> {{ config.start }} &rarr; {{ config.end }}<br>
+    <b>{{ lab.symbols }}:</b> {{ symbols_label }}<br>
+    <b>{{ lab.sizing_mode }}:</b> {{ sizing_label }}<br>
+    <b>{{ lab.cost_summary }}:</b> {{ cost_label }}
+  </div>
+
+  {# Non-removable past-performance disclaimer — baked into the template flow. #}
+  <div class="disclaimer">
+    <b>{{ lab.disclaimer_title }}</b><br>
+    {{ lab.disclaimer }}
+  </div>
+
+  {% for s in sections %}
+  <div class="symbol-section">
+    <h2>{{ s.symbol }}</h2>
+
+    {% if s.pbo is None %}
+      <p><span class="badge ok">{{ lab.m_pbo }}: n/a</span> {{ lab.pbo_insufficient }}</p>
+    {% elif s.pbo_high %}
+      <p><span class="badge high">{{ lab.pbo_badge_high }} &mdash; {{ lab.m_pbo }} {{ s.pbo|floatformat:2 }}</span></p>
+      <p><small>{{ lab.pbo_warning }}</small></p>
+    {% else %}
+      <p><span class="badge ok">{{ lab.pbo_badge_ok }} &mdash; {{ lab.m_pbo }} {{ s.pbo|floatformat:2 }}</span></p>
+    {% endif %}
+
+    <h3>{{ lab.sec_metrics }}</h3>
+    <table>
+      {% for name, value in s.metrics_rows %}
+      <tr><td>{{ name }}</td><td class="num">{{ value }}</td></tr>
+      {% endfor %}
+      <tr><td>{{ lab.m_sharpe_stability }}</td><td class="num">{{ s.sharpe_stability.mean|floatformat:3 }} / {{ s.sharpe_stability.std|floatformat:3 }}</td></tr>
+    </table>
+
+    <div>{{ s.equity_svg|safe }}</div>
+    <div>{{ s.drawdown_svg|safe }}</div>
+    <div>{{ s.heatmap_svg|safe }}</div>
+    <div>{{ s.windows_svg|safe }}</div>
+
+    <h3>{{ lab.sec_windows }}</h3>
+    <table>
+      <tr><th>#</th><th>train</th><th>test</th><th>params</th><th class="num">Sharpe</th></tr>
+      {% for w in s.windows %}
+      <tr>
+        <td>{{ w.window_index }}</td>
+        <td>{{ w.train_start }}&rarr;{{ w.train_end }}</td>
+        <td>{{ w.test_start }}&rarr;{{ w.test_end }}</td>
+        <td>{{ w.best_params|jsondump }}</td>
+        <td class="num">{{ w.oos_metrics.sharpe|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h3>{{ lab.sec_trades }}</h3>
+    <table>
+      <tr><th>entry</th><th>exit</th><th class="num">qty</th><th class="num">P&amp;L</th><th class="num">MFE</th><th class="num">MAE</th><th>reason</th></tr>
+      {% for t in s.top_trades %}
+      <tr>
+        <td>{{ t.entry_ts }}</td>
+        <td>{{ t.exit_ts }}</td>
+        <td class="num">{{ t.qty|floatformat:2 }}</td>
+        <td class="num">{{ t.pnl|floatformat:2 }}</td>
+        <td class="num">{{ t.mfe|floatformat:2 }}</td>
+        <td class="num">{{ t.mae|floatformat:2 }}</td>
+        <td>{{ t.exit_reason }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+</body>
+</html>

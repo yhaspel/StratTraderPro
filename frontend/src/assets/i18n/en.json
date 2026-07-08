@@ -621,5 +621,134 @@
         "result": "Result"
       }
     }
+  },
+  "backtest": {
+    "title": "Backtester",
+    "launcher": {
+      "title": "New backtest",
+      "submit": "Run backtest",
+      "submitting": "Submitting…",
+      "no_adapter_note": "Only strategies with a registered Python adapter can be backtested.",
+      "no_adapter_banner": "Backtest not available — no Python adapter registered",
+      "no_adapter_suffix": "no adapter"
+    },
+    "form": {
+      "strategy": "Strategy",
+      "strategy_placeholder": "Select a strategy…",
+      "symbols": "Symbols",
+      "symbols_placeholder": "AAPL, MSFT, SPY",
+      "symbols_help": "Up to 10 symbols, comma or space separated.",
+      "symbols_empty": "Enter at least one symbol.",
+      "symbols_too_many": "At most 10 symbols.",
+      "start": "Start date",
+      "end": "End date",
+      "train_window_days": "Train window (days)",
+      "test_window_days": "Test window (days)",
+      "step_days": "Step (days)",
+      "step_help": "Auto-synced to the test window.",
+      "mode": "Window mode",
+      "metric": "Selection metric",
+      "initial_cash": "Initial cash ($)",
+      "sizing": "Position sizing",
+      "sizing_production": "Production sizing (regime/sentiment neutralized)",
+      "sizing_fixed_qty_1": "Fixed qty 1",
+      "param_grid": "Parameter grid (JSON)",
+      "param_grid_help": "Object of {\"name\": [values]}. Leave as {} to sweep the adapter's full grid.",
+      "param_grid_not_object": "Parameter grid must be a JSON object of {name: [values]}.",
+      "param_grid_invalid_json": "Invalid JSON: {{msg}}",
+      "advanced": "Advanced: costs & retention",
+      "slippage_bps": "Slippage (bps)",
+      "per_order_usd": "Per-order fee ($)",
+      "per_share_usd": "Per-share fee ($)",
+      "volume_participation_pct": "Volume participation (%)",
+      "retention_days": "Retention (days)",
+      "retention_help": "Artifacts are evicted after this many days (1–365)."
+    },
+    "mode": {
+      "rolling": "Rolling",
+      "anchored": "Anchored"
+    },
+    "metric": {
+      "sharpe": "Sharpe",
+      "sortino": "Sortino",
+      "total_return": "Total return",
+      "mar": "MAR"
+    },
+    "runs": {
+      "title": "Runs",
+      "empty": "No backtest runs yet.",
+      "cancel": "Cancel",
+      "pagination": "Page {{page}} of {{pages}} · {{total}} total",
+      "prev": "Previous",
+      "next": "Next",
+      "col": {
+        "created": "Created",
+        "strategy": "Strategy",
+        "symbols": "Symbols",
+        "status": "Status",
+        "pbo": "Worst PBO",
+        "duration": "Duration",
+        "actions": "Actions"
+      }
+    },
+    "status": {
+      "QUEUED": "Queued",
+      "RUNNING": "Running",
+      "CANCELLING": "Cancelling",
+      "COMPLETED": "Completed",
+      "FAILED": "Failed",
+      "CANCELLED": "Cancelled"
+    },
+    "stage": {
+      "queued": "Queued",
+      "loading": "Loading data",
+      "sweeping": "Sweeping parameters",
+      "replaying": "Replaying out-of-sample",
+      "reporting": "Building report"
+    },
+    "chart": {
+      "equity": "Equity",
+      "drawdown": "Drawdown",
+      "heatmap": "Monthly heatmap",
+      "window": "Per-window"
+    },
+    "metric_col": {
+      "total_return": "Total return",
+      "cagr": "CAGR",
+      "sharpe": "Sharpe",
+      "sortino": "Sortino",
+      "mar": "MAR",
+      "max_drawdown": "Max DD",
+      "trade_count": "Trades"
+    },
+    "detail": {
+      "back": "Back to backtester",
+      "rerun": "Rerun with same config",
+      "hash": "hash",
+      "eta": "ETA",
+      "downloads": "Download",
+      "download_json": "JSON",
+      "download_html": "HTML",
+      "download_pdf": "PDF",
+      "metrics": "Per-symbol metrics",
+      "segments": "Walk-forward windows",
+      "col": {
+        "symbol": "Symbol",
+        "pbo": "PBO",
+        "window": "Window",
+        "train": "Train",
+        "test": "Test",
+        "params": "Best params",
+        "sharpe": "OOS Sharpe"
+      }
+    },
+    "error": {
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again.",
+      "BACKTEST_NO_ADAPTER": "This strategy has no registered Python adapter, so it can't be backtested.",
+      "BACKTEST_GRID_TOO_LARGE": "The parameter grid is too large. Reduce the number of combinations (max 500).",
+      "BACKTEST_LIMIT_CONCURRENT": "You already have the maximum number of backtests running. Wait for one to finish.",
+      "BACKTEST_DISABLED": "Backtesting is temporarily disabled by the operator.",
+      "UNKNOWN": "Something went wrong. Please try again."
+    }
   }
 }

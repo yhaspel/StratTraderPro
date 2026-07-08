@@ -92,3 +92,23 @@ tenacity>=8.2
 # FINBERT_ENABLED. CI scores with a canned FakeScorer + the regex tagger, so the
 # backend image stays lean and Trivy-clean; see requirements/ml-worker.txt.
 feedparser>=6.0,<7.0
+
+# Walk-forward backtester (M09)
+# vectorbt OSS 1.0.0 (fair-code: Apache-2.0 + Commons Clause) drives the
+# parameter-sweep stage, isolated behind our own SweepEngine seam so it stays
+# swappable (ADR-090). Exact pin — 1.0.0 is recent (2026-04) so we control the
+# bump deliberately. The base install pulls a fat transitive tree (scipy,
+# matplotlib, plotly, scikit-learn, numba, dill, ...). The replay stage is a
+# custom in-repo engine (ADR-090/091) — backtrader is NOT a dependency.
+vectorbt==1.0.0
+# WeasyPrint (BSD) renders the PDF tearsheet from a Django template + matplotlib
+# SVGs. Needs Pango/HarfBuzz/fontconfig + a font at the OS level (no Cairo for
+# WeasyPrint >= 53) — the apt list is installed in BOTH docker/backend.Dockerfile
+# AND the ci.yml backend job (CI runs pytest on the runner, not in Docker).
+weasyprint>=68,<69
+# matplotlib renders the PDF's vector (SVG) charts; plotly renders the single-file
+# offline HTML report (include_plotlyjs="inline", no CDN, no kaleido). Both arrive
+# transitively with vectorbt anyway — pinned explicitly so the versions we render
+# tearsheets with are deliberate (plan §7).
+matplotlib>=3.8,<4.0
+plotly>=5.18,<6.0
