@@ -7,6 +7,15 @@
 **Last verified:** 2026-07-05 (full review — every claim below re-checked against code, migrations, tests, and git)
 **Verification at HEAD (`264e637`):** backend `pytest` **128 passed** (+4 subtests), `ruff` clean, `bandit` clean (medium+), `ngc --noEmit` clean.
 
+> **2026-07-08 — M04–M08 review remediation** (`fix/m04-m08-review-remediation`): an
+> adversarial review found 35 correctness/safety defects CI missed (L2 daily-loss
+> semantics, sizing off `buying_power`/fabricated price, options position math,
+> non-ASCII webhook 500, stream-supervisor masking, regime stub, FMP/FRED resilience,
+> etc.). All fixed with regression tests; gauntlet green (**361 pytest** passed).
+> Full ledger + evidence: `M04-M08-EXECUTION-REPORT.md` → "Remediation". Migration
+> `orders.0004`. Follow-ups: per-strategy flatten tagging (M09), C1 worker/beat
+> metrics scrape, M14 UI MFA-on-release prompt.
+
 ## Where the project stands
 
 | Phase | Scope | Status | Shipped as |

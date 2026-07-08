@@ -6,6 +6,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — M04–M08 adversarial-review remediation (`fix/m04-m08-review-remediation`)
+Every item ships with a regression test that fails before / passes after.
+
+**Blocker**
+- **FIX-B1** — the L2 daily-loss kill switch computed *lifetime unrealized P&L* over all open positions against *gross notional*, so a swing loser tripped L2 every day (and auto-released + re-tripped → permanent lockout), a day-trader who realized losses never tripped, and the pct breach was measured against position notional. Now uses **broker-truth daily P&L** — `Σ(equity − last_equity)` across the user's connected accounts against equity — and **fails safe**: a broker-read gap skips the poll (never auto-halts/releases). Gated to market hours.
+
+**High**
+- **FIX-H1** — position sizing used `buying_power` (2–4× levered) as equity → 2–4× oversizing. Added `equity`/`last_equity` to the `Account` DTO; sizing uses `equity`.
+- **FIX-H2** — sizing equity fallback was a hardcoded $100k (fail-open). Now **fails closed** → `SIZING_NO_EQUITY` reject; `RISK_DEFAULT_EQUITY` deleted.
+- **FIX-H3** — sizing fabricated a $100 price for MKT orders. Now resolves price hint → broker quote → last daily bar, else rejects `SIZING_NO_PRICE`.
+- **FIX-H4** — a STRATEGY-scope kill switch with `flatten=true` liquidated the *entire* account (positions carry no `strategy_id`). Rejected at the serializer (`FLATTEN_SCOPE_UNSUPPORTED`); the L0 block still stops new orders. TODO(M09).
+- **FIX-H5** — options `BUY_TO_OPEN`/`BUY_TO_CLOSE` fills decremented the position (`side == Order.Side.BUY` was false). Buy-side is now a set membership test.
+- **FIX-H6** — a non-ASCII webhook `sig` crashed the public endpoint with a 500 (`hmac.compare_digest` on `str`). Both sides encoded → clean 401 + `SIG_BAD` audit.
+- **FIX-H7** — no timeout on Alpaca HTTP calls, no Celery task time limits. Mounted a 10s timeout adapter on the Alpaca `requests` session; added `CELERY_TASK_SOFT_TIME_LIMIT`/`TIME_LIMIT` (30s/45s).
+- **FIX-H8** — the stream supervisor masked dead threads (blanket-stamped CONNECTED), never hot-added accounts, and busy-looped on persistent failure (reset backoff before the blocking run). Threads own their heartbeat; the loop only diffs accounts (hot add/remove) + prunes dead threads; backoff resets only after a healthy run.
+- **FIX-H9** — an alert naming an unconnected broker silently misrouted to the default. Now rejected `BROKER_NOT_CONNECTED`.
+- **FIX-H10** — the daily feature/observation pipeline was an unconditional stub → regime permanently NEUTRAL. Implemented `compute_features_daily` (fetch → standardize → persist snapshot → observation), a genuine no-op only when keys are absent.
+
+**Medium**
+- **FIX-M1** — `timezone.utc` (removed in Django 5) made naive fill timestamps raise and drop the fill; use `datetime.timezone.utc`.
+- **FIX-M2** — fill dedup `broker_exec_id` was globally unique; scoped to `(broker_account, broker_exec_id)` (migration `orders.0004`).
+- **FIX-M3** — market sentiment was weighted by `TickerRegistry.id` (a PK, not a cap); equal-weighted now.
+- **FIX-M4** — RSS fetch had no timeout and no User-Agent (hangs the beat; EDGAR blocks the default UA); fetch bytes via httpx with a bounded timeout + descriptive UA.
+- **FIX-M5** — RSS `published_at` (RFC-822) never parsed → NULL dates; `email.utils.parsedate_to_datetime` fallback, tz-aware.
+- **FIX-M6** — the Finnhub "RSS" source pointed feedparser at a JSON endpoint; removed from `build_fetchers()`.
+- **FIX-M6-1** — FMP date-only bar timestamps were stored naive under `USE_TZ`; made aware (UTC).
+- **FIX-M7** — common-word tickers (ALL/NOW/ON/…/T) tagged spuriously and cashtags bypassed the registry; expanded stopwords + registry-verify cashtags.
+- **FIX-M8** — the L2 trading-day rollover used a fixed UTC-5 offset (wrong under EDT); computed via `America/New_York`.
+- **FIX-M9** — the HMM swap guard compared holdout LLs from different windows; rescore the incumbent on the new holdout first.
+- **FIX-M10** — FMP/FRED created (and leaked) a new `httpx.Client` per call; one reused client per instance.
+- **FIX-M11** — FMP 200-with-non-JSON escaped the resilience layer; wrapped `resp.json()` → `FMPServerError` (cache-fallback).
+- **FIX-M12** — FRED leaked `api_key` in transport-error URLs and had no resilience; re-raise `FREDError` from None + timeout + one retry.
+- **FIX-M13** — missing macro/stress inputs failed OPEN toward RISK_ON; missing inputs neutralize (z=0) and mark the observation degraded.
+- **FIX-M14** — releasing a kill switch required no MFA (only engaging did); MFA now required for USER/PLATFORM on both engage and release. (UI: the risk page prompts for MFA on release — follow-up.)
+- **FIX-M15** — the 30s daily-loss watcher had no overlap guard and ran 24/7; single-flight cache lock + market-hours gate.
+- **FIX-M16** — alert `qty:"NaN"/"Infinity"` and bad `option_expiry` stranded the alert / risked a 500; validated → clean `INVALID_QTY` / `ORDER_INVALID_OPTION` rejects.
+- **FIX-C1** — task-side metrics were unscrapeable and four M04 metrics were never emitted. Emit `fills_ingested_total`, `broker_stream_heartbeat_age_seconds`, `order_state_transitions_total`, `broker_ws_reconnects_total` at their call sites; the streams process exposes a Prometheus port (`TASK_METRICS_PORT`); Gauges given explicit `multiprocess_mode`. Celery worker/beat scrape wiring documented as a follow-up.
+
+**Low**
+- **FIX-L1** — through-zero position flip kept the old basis; residual now takes the flip fill price.
+- **FIX-L2** — kill-switch `target_id` (strategy) was not ownership-checked; validated in the serializer.
+- **FIX-L3** — `SizingDecision.inputs` now records `equity` and `price`.
+- **FIX-L4** — sentiment article list N+1; `prefetch_related("scores")`.
+- **FIX-L5** — a non-ASCII broker API key → 500; serializer rejects non-ASCII → 400.
+- **FIX-L6** — emit `SIZING_REJECT` (and `SOFT_STOP`) risk events (were enum-only).
+
 ### Added — M08 (Risk Engine, Position Sizing & Kill Switches)
 - **Position sizing** — `apps/risk/sizing.py::compute_size` is a pure, deterministic function: regime scale (CRISIS=0/`REGIME_CRISIS`, BEAR=0.3, CHOP/NEUTRAL=0.6, BULL=1.0), strict-mode BEAR/CRISIS+LONG → `REGIME_SIDE_MISMATCH`, ATR-based stop (else 2%-of-price fallback), dollar-risk sizing, position-% clamp, sentiment adjustment (>0.7→×1.10, <-0.5→×0.70), soft-stop ×0.5, round-to-lot, `SIZING_ZERO`. Wired into `process_alert` **only when the user has a RiskProfile** (else raw alert qty — M04 behavior preserved), persisting a `SizingDecision` per path (AC-08-4).
 - **Four-level kill switches on `brokers.TradingHalt`** (extended with `level` L0–L3 + `auto` + nullable `user` — a single kill-switch table, **no parallel model**): L0 strategy, L1 user-global, L2 daily-loss auto, L3 platform. `killswitch.is_blocked` (platform→user→strategy) is consulted at the webhook AND in `process_alert`; `trigger`/`release` use `SELECT FOR UPDATE`; L2 auto halts lock until the next trading day (UTC-05); flatten goes through the broker adapter's `flatten_all` with measured latency (AC-08-8 ≤5s local vs FakeBroker); daily-loss watcher (30s beat) trips L2 on a **two-poll-confirmed** breach off conservative cached marks.

@@ -109,17 +109,34 @@ The daily-loss watcher (`daily_loss_watcher`, a 30-second Celery beat during
 market hours) computes each profiled user's P&L and trips L2 through the same
 `trigger_halt`. Two design points defend it:
 
+- **Broker-truth daily P&L (amended — FIX-B1, 2026-07-08).** `user_daily_pnl`
+  now reads each connected broker account's snapshot and sums
+  `equity − last_equity` (today's change vs the previous trading-day close)
+  across accounts, comparing the total against `equity`. This replaces the
+  original design, which summed *lifetime* unrealized P&L `(mark − avg_cost)·qty`
+  over all open `Position` rows against **gross open notional** — a swing loser
+  held for weeks tripped L2 every day (and, because the same watcher auto-releases
+  at rollover, re-tripped seconds later → permanent lockout); a day-trader who
+  realized losses on closed round-trips showed flat positions and never tripped;
+  and the pct breach was measured against position notional, not equity. Broker
+  equity is the correct, self-resetting daily baseline.
+- **Fail-safe on a monitoring gap (FIX-B1).** If no connected account returns
+  usable equity (read error or zero), `user_daily_pnl` returns a sentinel and
+  `check_daily_loss` **skips the poll** — a monitoring gap must never auto-halt
+  *or* auto-release. (Contrast the sizing path, which fails *closed* by rejecting
+  the order; here the safe default is to leave existing halt state untouched.)
 - **Two-poll confirmation (Risk §16 mitigation).** `check_daily_loss` only trips
   L2 after the breach is seen on **two consecutive polls** (a per-user, per-
-  trading-day cache counter). A single stale-mark blip clears the counter rather
-  than firing the breaker. P&L is computed from cached `Position` marks as the
-  **conservative fallback** — the intent (review-note 3) is to prefer a fresh
-  broker mark with a short timeout and fall back to the cached mark, never to trip
-  off a single stale read.
+  trading-day cache counter). A single blip clears the counter rather than firing
+  the breaker. The 30s watcher is single-flight-locked and market-hours-gated
+  (FIX-M15) so two overlapping runs can't double-increment the counter and
+  off-hours mark drift can't trip it.
 - **Next-trading-day lock (AC-08-9).** An L2 auto-halt cannot be released until
-  the effective trading day rolls over at the **UTC-05 boundary**
-  (`trading_day()`). `release_halt` compares `trading_day(created_at)` to
-  `trading_day(now)` and refuses (`HALT_LOCKED`, HTTP 409) while they are equal.
+  the effective trading day rolls over. The trading day is the **US/Eastern
+  calendar day** via `zoneinfo` (`America/New_York`) — DST-correct (FIX-M8),
+  replacing the original fixed UTC-05 offset that released an hour late all summer.
+  `release_halt` compares `trading_day(created_at)` to `trading_day(now)` and
+  refuses (`HALT_LOCKED`, HTTP 409) while they are equal.
   A user cannot un-trip their own daily-loss breaker to keep trading the day they
   hit it; it clears on its own the next day. (An admin force-release path exists
   for genuine false positives — see `docs/runbooks/daily-loss-false-trigger.md`.)
@@ -173,8 +190,9 @@ release.
 - **The daily-loss breaker is hard to false-trip and hard to defeat.** Two-poll
   confirmation guards against stale marks; the next-trading-day lock stops a user
   trading through their own limit.
-- **Session theft can't disarm risk controls.** L1/L3 need a live MFA code; L3
-  needs admin.
+- **Session theft can't disarm risk controls.** L1/L3 need a live MFA code — on
+  **both engage and release** (FIX-M14; release is the dangerous direction for a
+  session thief) — and L3 needs admin.
 
 **Negative / honest limits:**
 
@@ -184,10 +202,11 @@ release.
   "p99 ≤ 5s on staging" and the 50-user load test (AC-08-11) need a deployed
   environment and are deferred to the exit gate. See
   `docs/runbooks/kill-switch-verify-monthly.md`.
-- **Fresh-mark vs cached-mark P&L.** The watcher currently computes P&L from
-  cached `Position` marks as the conservative fallback; wiring the short-timeout
-  fresh broker-mark read in front of it (review-note 3) is the intended hardening
-  and is described in `docs/runbooks/daily-loss-false-trigger.md`.
+- **Daily P&L source (amended — FIX-B1).** The watcher now reads **broker
+  equity** (`equity − last_equity`) as the daily P&L, not cached `Position` marks
+  or lifetime unrealized P&L. A broker-read gap fails safe (skips the poll). The
+  remaining honest limit: it depends on the broker snapshot being fresh — see
+  `docs/runbooks/daily-loss-false-trigger.md` for the operator force-release path.
 - **The Redis-kill chaos drill is described for local run.** The DoD chaos drill
   (Redis killed mid-L1 → flatten still runs via the cached broker session, audit
   preserved via Postgres) is written up as a local procedure; the staged staging
