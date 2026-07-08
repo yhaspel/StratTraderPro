@@ -650,11 +650,16 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 09 — Walk-Forward Backtester
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (CI-green, merged)
+**Started:** 2026-07-08
+**Completed:** 2026-07-08 (backend + frontend + docs; branch `feature/m09-walk-forward-backtester`, PR #28 squash-merged `afe6c24`, tag `v0.9.0-backtest` local/unpushed).
 
-> See `09-walk-forward-backtester.md` for full spec.
+> See `09-walk-forward-backtester.md` for full spec; per-AC status + deferrals in `M09-EXECUTION-REPORT.md`.
+
+- **Engines:** bars loader (half-open `[start,end)`, weekday-coverage rule), adapter registry + `sma-cross-demo` + `seed_demo_strategy`, vectorbt sweep behind a `SweepEngine` seam, custom in-repo replay engine (ADR-091), walk-forward orchestrator, PBO/CSCV (vectorized), `stats`, report (JSON+Plotly HTML+WeasyPrint PDF).
+- **Platform:** DRF API (`/api/v1/backtest/*`), routed `run_backtest` on the dedicated `backtest` queue + default-queue eviction beat, `worker-backtest` compose service, `backtest.0001` migration, `BACKTEST_ENABLED` flag, WS progress over `/ws/dashboard/`, lazy `/backtest` Angular UI (chart.js), ADR-090/091/092 + `backtest-stuck` runbook + 3 help articles + Backtest Ops Grafana JSON.
+- **Verified:** 455 backend pytest + 44 karma green; ruff/bandit clean; Trivy HIGH/CRITICAL clean; reproducible `metrics_hash` (JIT + non-JIT). Kelly damper (carried from M08) intentionally NOT built — no `TradeHistory` model per §3.
+- **Deferred (externals/staging):** Railway `worker-backtest` service; AC-09-10 staging SLAs; Grafana live-on-staging; real-symbol sample PDF (M06 FMP backfill); tag push. See `M09-EXECUTION-REPORT.md` §B.
 
 ---
 

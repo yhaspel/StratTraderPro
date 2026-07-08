@@ -31,7 +31,8 @@
 | **M06** | **Market data + regime classifier** | ✅ **Implemented (2026-07-07)** — FMP/FRED + Bar store + rule/HMM/ensemble; live keys/backfill/retrain deferred | `v0.6.0-regime` (tag pending) |
 | **M07** | **Sentiment pipeline** | ✅ **Implemented (2026-07-07)** — fetchers/tagger/tiered scorers (fakes)/EWMA/API; model weights + benchmark deferred | `v0.7.0-sentiment` (tag pending) |
 | **M08** | **Risk engine, sizing & kill switches** | ✅ **Implemented (2026-07-08)** — sizing + 4-level kill switches on `TradingHalt`; staging p99 + Risk Ops "live" deferred | `v0.8.0-risk` (tag pending) |
-| M09–M12 | Backtester, admin/audit, hardening, beta | ⏳ Not started | — |
+| **M09** | **Walk-forward backtester** | ✅ **Implemented (2026-07-08)** — vectorbt sweep + custom replay engine, PBO/CSCV, tearsheet PDF/HTML/JSON, dedicated `backtest` queue, `/backtest` UI; PR #28 merged `afe6c24`; staging SLAs + Railway worker + real-symbol PDF deferred | `v0.9.0-backtest` (tag pending) |
+| M10–M12 | Admin/audit, hardening, beta | ⏳ Not started | — |
 
 **M04 truth (updated 2026-07-07):** Phase A (IB Gateway spike) done 2026-05-15 (ADR-040). **Phase B–F now implemented** on `feature/m04-webhook-alpaca-paper`: public webhook endpoint + `AlertMessage` + `process_alert`; `BrokerAdapter` protocol + `FakeBrokerAdapter` + `AlpacaAdapter` (paper) with `BrokerAccount`/`TradingHalt`/`BrokerCallAudit`; `Order`/`Fill`/`Position` + `ingest_fill_event` (dedup on `broker_exec_id`); Redis-Stream fill transport + `run_broker_streams` supervisor; Channels `/ws/dashboard/` consumer; `/settings/brokers` + `/dashboard` frontend; `alpaca-py` + `channels`/`daphne` in requirements. Backend gauntlet green (ruff/bandit/191 pytest/migrations/prod-import); CI grep gate + pivot hygiene done. **Deferred (needs externals):** the §10.4 live-Alpaca-paper smoke (runbook committed; operator runs with real keys), the Grafana Trading Ops "live on staging" panel (dashboard JSON committed), and the IBKR password rotation + Railway/GitHub secret deletion (operator step).
 
@@ -51,7 +52,7 @@ IBKR is out; **Alpaca is the first execution broker**. Why: IBKR Web API consume
 3. **M04 Phase D — dashboard v0 + broker-connect UI + WS client.** Spec §6.6–§6.8.
 4. **M04 Phase E/F — pivot hygiene + exit gate**: compose profile for ib-gateway, `TWS_*` scrub + IBKR password rotation, CI grep gate, real-paper smoke (§10.4), Trading Ops dashboard, tag `v0.4.0-alpaca-paper`.
 5. **Before M05 starts:** confirm TradeStation sim-API access is actually obtainable, else descope M05 to Order-Lifecycle-only (see M05 review note).
-6. **Before M09 starts:** resolve vectorbt AGPL licensing (see M09 review note).
+6. ~~**Before M09 starts:** resolve vectorbt AGPL licensing~~ ✅ **RESOLVED 2026-07-08** — premise was wrong: vectorbt OSS is fair-code (Apache-2.0 + Commons Clause), not AGPL. Adopted `vectorbt==1.0.0` behind a `SweepEngine` seam; backtrader dropped for a custom in-repo replay engine (ADR-090). M09 implemented + merged (PR #28).
 7. **Before M12 live scope:** confirm Alpaca live eligibility for Israeli residents with Alpaca support (paper is unaffected).
 
 ## Open items & known debt (carried from review, 2026-07-05)
