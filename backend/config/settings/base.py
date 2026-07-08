@@ -459,6 +459,15 @@ KILL_SWITCHES_ENABLED = env.bool("KILL_SWITCHES_ENABLED", default=True)
 # fails CLOSED with a SIZING_NO_EQUITY reject (FIX-H2). No RISK_DEFAULT_EQUITY.
 
 # ---------------------------------------------------------------------------
+# Walk-forward backtester (M09)
+# ---------------------------------------------------------------------------
+# Master rollback flag (plan §15): when False the UI nav is hidden and all
+# /api/v1/backtest/* endpoints return 503 BACKTEST_DISABLED. The nightly
+# eviction beat still runs (default queue) so retention keeps working — it
+# doubles as orphan cleanup while the feature is disabled.
+BACKTEST_ENABLED = env.bool("BACKTEST_ENABLED", default=True)
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -509,6 +518,15 @@ CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=45)
 # which don't sit behind gunicorn's /metrics. 0 = disabled (FIX-C1).
 TASK_METRICS_PORT = env.int("TASK_METRICS_PORT", default=0)
 
+# M09 — dedicated `backtest` queue. **Explicit per-task route only** (first
+# task-route in the repo): a `apps.backtest.tasks.*` glob would drag the nightly
+# eviction task onto the backtest queue and silently break retention whenever
+# the backtest worker is absent. `run_backtest` → backtest queue; everything
+# else (incl. evict_expired_artifacts) stays on the default `celery` queue.
+CELERY_TASK_ROUTES = {
+    "apps.backtest.tasks.run_backtest": {"queue": "backtest"},
+}
+
 # Beat schedule. `fill_ingestor` drains the Redis fill streams (no-op under
 # FILLS_INLINE, so inert in tests). run_broker_streams is deployed as its own
 # always-on service, not a beat task.
@@ -548,6 +566,13 @@ CELERY_BEAT_SCHEDULE = {
     "risk-daily-loss-watcher": {
         "task": "apps.risk.tasks.daily_loss_watcher",
         "schedule": env.float("DAILY_LOSS_INTERVAL_SECONDS", default=30.0),
+    },
+    # M09 — nightly (03:30 UTC) eviction of expired backtest artifacts. Runs on
+    # the DEFAULT `celery` queue (not `backtest`) so retention keeps working when
+    # the backtest worker is scaled to zero / not yet provisioned (§6.8).
+    "backtest-evict-artifacts": {
+        "task": "apps.backtest.tasks.evict_expired_artifacts",
+        "schedule": crontab(hour=3, minute=30),
     },
 }
 
