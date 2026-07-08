@@ -139,9 +139,13 @@ class WebhookView(View):
             WEBHOOK_RECEIVED_TOTAL.labels(result=R_SIG_BAD).inc()
             return _err("WEBHOOK_SIG_BAD", "Unauthorized.", 401)
 
-        # 7. constant-time secret compare
+        # 7. constant-time secret compare — encode both sides so a non-ASCII sig
+        # (e.g. a smart-quote paste) yields a clean 401, not a TypeError→500 that
+        # skips the SIG_BAD audit and pollutes the 5xx alert (FIX-H6).
         expected = decrypt_secret(wc.secret_encrypted)
-        if not isinstance(sig, str) or not hmac.compare_digest(sig, expected):
+        if not isinstance(sig, str) or not hmac.compare_digest(
+            sig.encode("utf-8"), expected.encode("utf-8")
+        ):
             AlertMessage.objects.create(
                 user=wc.user,
                 strategy=wc.strategy,

@@ -83,6 +83,14 @@ class WebhookAuthTests(_Base):
         resp = self.post(body)
         self.assertEqual(resp.status_code, 401)
 
+    def test_non_ascii_sig_returns_401_not_500(self):
+        # FIX-H6: a non-ASCII sig must yield a clean 401 + SIG_BAD audit, not a
+        # TypeError→500 that skips the audit and pollutes the 5xx alert.
+        resp = self.post(valid_alert(sig="é"))
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "WEBHOOK_SIG_BAD")
+        self.assertEqual(AlertMessage.objects.get().reject_reason, "SIG_BAD")
+
     def test_unknown_user_strategy_generic_401_no_row(self):
         import uuid
 
@@ -190,3 +198,61 @@ class WebhookEndToEndTests(_Base):
         order = Order.objects.get()
         self.assertEqual(order.order_type, Order.OrderType.LMT)
         self.assertEqual(str(order.limit_price), "150.2500")
+
+
+class BrokerMisrouteTests(_Base):
+    def test_unconnected_named_broker_rejected_no_order(self):
+        # FIX-H9: an alert that names an unconnected broker must be rejected,
+        # never silently rerouted to the default (AC-05-2).
+        create_broker_account(self.user)  # only ALPACA connected
+        resp = self.post(valid_alert(broker="TRADESTATION", idempotency_key="h9-1"))
+        self.assertEqual(resp.status_code, 200)  # webhook accepts; the task rejects
+        alert = AlertMessage.objects.get()
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(alert.reject_reason, "BROKER_NOT_CONNECTED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_no_broker_specified_uses_default(self):
+        default = create_broker_account(self.user)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self.post(valid_alert(idempotency_key="h9-2"))
+        self.assertEqual(Order.objects.get().broker_account_id, default.id)
+
+
+class ProcessAlertValidationTests(_Base):
+    """FIX-M16: numeric/date parse errors route through a clean reject, never a
+    500 or an alert stranded in RECEIVED. Tested at the task layer because the
+    webhook schema rejects some of these shapes before process_alert runs."""
+
+    def _run(self, body):
+        from apps.webhooks.tasks import process_alert
+
+        create_broker_account(self.user)
+        alert = AlertMessage.objects.create(
+            user=self.user, strategy=self.strategy, body_json=body,
+            idempotency_key=body.get("idempotency_key", ""),
+            status=AlertMessage.Status.RECEIVED,
+        )
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            process_alert.delay(str(alert.id))
+        alert.refresh_from_db()
+        return alert
+
+    def test_nan_qty_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": "NaN",
+                           "order_type": "MKT", "idempotency_key": "nan-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "INVALID_QTY")
+
+    def test_infinity_qty_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": "Infinity",
+                           "order_type": "MKT", "idempotency_key": "inf-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "INVALID_QTY")
+
+    def test_bad_option_expiry_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "MKT",
+                           "asset_class": "OPTION", "option_expiry": "not-a-date",
+                           "option_strike": 150, "idempotency_key": "opt-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
