@@ -7,7 +7,9 @@ services:
       POSTGRES_USER: stp_user
       POSTGRES_PASSWORD: stp_local_pw
     ports:
-      - "5432:5432"
+      # Host 5433 avoids a clash with another local Postgres on 5432; the app
+      # containers still reach this DB internally as postgres:5432.
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +21,9 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      # Host 6380 avoids a clash with a local Redis on 6379; the app containers
+      # still reach this instance internally as redis:6379.
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -56,6 +60,9 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     command: celery -A config.celery worker -l info
+    # The backend service runs `migrate` on boot; on a fresh DB this worker can
+    # start first and hit a not-yet-created table. Self-heal until migrations land.
+    restart: on-failure
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
@@ -75,6 +82,7 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     command: celery -A config.celery beat -l info -S redbeat.RedBeatScheduler
+    restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
@@ -93,6 +101,7 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     command: python manage.py run_broker_streams
+    restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
