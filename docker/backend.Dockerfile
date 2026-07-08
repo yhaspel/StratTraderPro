@@ -18,6 +18,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # aggregates across all files. Must exist before the first worker boots.
 RUN mkdir -p /tmp/prom-multiproc
 
+# WeasyPrint (M09 PDF tearsheets) native deps — Pango/HarfBuzz/fontconfig + a
+# font (DejaVu). No Cairo needed for WeasyPrint >= 53. Kept in sync with the
+# apt list in .github/workflows/ci.yml (CI runs pytest on the runner, not here).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install pre-built wheels

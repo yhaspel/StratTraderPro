@@ -76,6 +76,30 @@ services:
       redis:
         condition: service_healthy
 
+  # ---------- Backtest worker (M09 §6.8) ----------
+  # Dedicated worker for the `backtest` queue so long sweeps never starve order
+  # flow on the default `celery` queue. concurrency=1 + a 2 GB per-child memory
+  # cap (grid chunking keeps peak RSS under it). On Railway this is a separate
+  # service (operator step — until it exists, prod runs sit QUEUED forever).
+  worker-backtest:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: celery -A config.celery worker -Q backtest -l info --concurrency=1 --max-memory-per-child=2000000
+    restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # ---------- Celery Beat ----------
   beat:
     build:
