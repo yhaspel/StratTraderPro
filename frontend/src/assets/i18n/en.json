@@ -654,6 +654,8 @@
       "sizing_fixed_qty_1": "Fixed qty 1",
       "param_grid": "Parameter grid (JSON)",
       "param_grid_help": "Object of {\"name\": [values]}. Leave as {} to sweep the adapter's full grid.",
+      "param_grid_not_object": "Parameter grid must be a JSON object of {name: [values]}.",
+      "param_grid_invalid_json": "Invalid JSON: {{msg}}",
       "advanced": "Advanced: costs & retention",
       "slippage_bps": "Slippage (bps)",
       "per_order_usd": "Per-order fee ($)",
@@ -722,6 +724,7 @@
     "detail": {
       "back": "Back to backtester",
       "rerun": "Rerun with same config",
+      "hash": "hash",
       "eta": "ETA",
       "downloads": "Download",
       "download_json": "JSON",

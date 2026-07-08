@@ -69,9 +69,10 @@ class BacktestRun(models.Model):
 
     class Meta:
         db_table = "backtest_run"
+        # `status` already has db_index=True on the field, so no separate Meta
+        # index for it (would duplicate).
         indexes = [
             models.Index(fields=["user", "-created_at"]),
-            models.Index(fields=["status"]),
         ]
 
     def __str__(self) -> str:
@@ -100,8 +101,9 @@ class BacktestSegment(models.Model):
 
     class Meta:
         db_table = "backtest_segment"
+        # The unique_together already creates a composite index on these columns
+        # (usable for run-prefix lookups), so no separate Meta index.
         unique_together = ("run", "symbol", "window_index")
-        indexes = [models.Index(fields=["run", "symbol", "window_index"])]
 
     def __str__(self) -> str:
         return f"BacktestSegment<{self.run_id} {self.symbol} w{self.window_index}>"

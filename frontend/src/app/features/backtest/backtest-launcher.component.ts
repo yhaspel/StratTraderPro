@@ -12,7 +12,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiError } from '../../core/models/auth.models';
 import {
   BacktestMetric,
@@ -297,6 +297,7 @@ export class BacktestLauncherComponent implements OnInit {
   facade = inject(BacktestFacade);
   private fb = inject(FormBuilder);
   private router = inject(Router);
+  private translate = inject(TranslateService);
 
   readonly modes = MODES;
   readonly metrics = METRICS;
@@ -343,12 +344,14 @@ export class BacktestLauncherComponent implements OnInit {
     try {
       const obj = JSON.parse(text);
       if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-        this.paramGridError.set('param_grid must be a JSON object of {name: [values]}.');
+        this.paramGridError.set(this.translate.instant('backtest.form.param_grid_not_object'));
       } else {
         this.paramGridError.set(null);
       }
     } catch (e) {
-      this.paramGridError.set(`Invalid JSON: ${(e as Error).message}`);
+      this.paramGridError.set(
+        this.translate.instant('backtest.form.param_grid_invalid_json', { msg: (e as Error).message }),
+      );
     }
   }
 

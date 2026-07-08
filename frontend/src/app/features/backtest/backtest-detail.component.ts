@@ -117,7 +117,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
                 {{ 'backtest.detail.download_pdf' | translate }}
               </button>
               @if (run.metrics_hash) {
-                <span class="text-xs text-gray-400 font-mono ml-2">hash: {{ run.metrics_hash.slice(0, 12) }}…</span>
+                <span class="text-xs text-gray-400 font-mono ml-2">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
               }
             </div>
           }

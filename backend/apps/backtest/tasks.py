@@ -304,21 +304,30 @@ def _refresh_artifact_gauge() -> None:
     BACKTEST_ARTIFACT_BYTES.set(float(total))
 
 
-@shared_task(bind=True, ignore_result=True)
+# Generous own limits (NOT the default 30/45s) — the nightly sweep must not be
+# SIGKILLed mid-loop and strand the artifact gauge (it runs on the default queue).
+@shared_task(bind=True, ignore_result=True, soft_time_limit=600, time_limit=900)
 def evict_expired_artifacts(self):
     """Nightly (03:30 UTC, default ``celery`` queue): null artifacts on runs past
-    retention; keep rows + ``run.summary`` + segments (AC-09-11)."""
-    if not getattr(settings, "BACKTEST_ENABLED", True):
-        # Eviction still runs while disabled — doubles as orphan cleanup (§15).
-        pass
+    retention; keep rows + ``run.summary`` + segments (AC-09-11). Runs even while
+    ``BACKTEST_ENABLED`` is off — doubles as orphan cleanup (§15)."""
     now = timezone.now()
     evicted = 0
-    reports = BacktestReport.objects.select_related("run").filter(evicted_at__isnull=True)
-    for report in reports.iterator():
-        run = report.run
-        cutoff = run.created_at + timedelta(days=run.retention_days)
-        if now >= cutoff:
-            report.evict()
-            evicted += 1
-    _refresh_artifact_gauge()
+    # ``.only()`` defers the (potentially large) json/html/pdf blobs so the scan
+    # streams only the retention keys — runtime scales with rows, not bytes.
+    reports = (
+        BacktestReport.objects.select_related("run")
+        .filter(evicted_at__isnull=True)
+        .only("id", "evicted_at", "run__created_at", "run__retention_days")
+    )
+    try:
+        for report in reports.iterator():
+            run = report.run
+            cutoff = run.created_at + timedelta(days=run.retention_days)
+            if now >= cutoff:
+                report.evict()
+                evicted += 1
+    finally:
+        # Always refresh the gauge, even if a soft-limit breach aborts the loop.
+        _refresh_artifact_gauge()
     return {"evicted": evicted}

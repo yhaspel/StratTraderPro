@@ -124,6 +124,19 @@ class ReplayGoldenTests(SimpleTestCase):
         self.assertTrue(t.partial)
         self.assertAlmostEqual(t.cancelled_qty, 0.5, places=6)
 
+    def test_force_close_while_still_filling_charges_entry_commission(self):
+        # Entry order still mid-fill at the final bar (never finalized) → the
+        # force-close must still charge the entry commission (review LOW fix).
+        rows = [(100, 101, 99, 100, 1) for _ in range(4)]  # low volume → slow fill; n=4
+        bars = bars_df(rows, _START)
+        sig = signals_df(bars.index, entries_at=[0])
+        rr = replay(bars, sig, "T", *_full_window(4),
+                    _cfg(volume_participation_pct=10, per_order_usd=2.0))
+        t = rr.trades[0]
+        self.assertEqual(t.exit_reason, "force_close")
+        self.assertLess(t.qty, 1.0)                    # only partially filled
+        self.assertAlmostEqual(t.entry_commission, 2.0, places=6)  # per-order charged
+
     def test_commissions_reduce_pnl(self):
         bars = bars_df(_BASE_ROWS, _START)
         sig = signals_df(bars.index, entries_at=[1], exits_at=[5])

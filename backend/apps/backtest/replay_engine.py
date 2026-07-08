@@ -289,6 +289,12 @@ def replay(
 
         # force-close any open position at the segment's final bar close
         if j == n - 1 and pos is not None and pos.qty > 0:
+            # A position still mid-fill (entry order not finalized) never had its
+            # entry commission charged — charge it now so the trade's P&L is correct.
+            if not pos.complete and pos.entry_commission == 0:
+                pos.entry_commission = _commission(pos.qty)
+                cash -= pos.entry_commission
+                pos.complete = True
             _close(pos, c * (1 - slip), "force_close", ts, j)
             pos = None
 
