@@ -183,6 +183,17 @@ class AlpacaAdapterTests(TestCase):
                 self._adapter(client=client).get_account()
         self.assertEqual(ctx.exception.code, BrokerErrorCode.RATE_LIMITED)
 
+    def test_get_quote_latest_trade_and_none_on_failure(self):
+        # FIX-H3: the broker-quote sizing tier must be real in prod (not just fake).
+        adapter = self._adapter()
+        adapter._data_client = mock.Mock()
+        adapter._data_client.get_stock_latest_trade.return_value = {
+            "AAPL": SimpleNamespace(price="150.25")
+        }
+        self.assertEqual(adapter.get_quote("AAPL"), Decimal("150.25"))
+        adapter._data_client.get_stock_latest_trade.side_effect = RuntimeError("boom")
+        self.assertIsNone(adapter.get_quote("AAPL"))  # best-effort → None, never raises
+
     def test_client_has_bounded_http_timeout(self):
         # FIX-H7: every Alpaca HTTP call must be bounded so a black-holed TCP
         # connection can't wedge a worker forever.
@@ -533,6 +544,41 @@ class StreamSupervisorTests(TestCase):
         sup = StreamSupervisor()
         with mock.patch.object(sup, "_start_thread"):
             sup._reconcile_threads([self.account])
+        self.assertEqual(get_stream_status(self.account), "DEGRADED")
+
+    def test_touch_heartbeat_refreshes_but_preserves_state(self):
+        # FIX-H8: touch_heartbeat keeps a live thread's status fresh without
+        # stamping CONNECTED over a DEGRADED one.
+        from apps.brokers.services import touch_heartbeat
+
+        set_heartbeat(self.account.id, "DEGRADED")
+        touch_heartbeat(self.account.id)
+        self.assertEqual(get_stream_status(self.account), "DEGRADED")
+
+    def test_clean_stream_return_marks_degraded(self):
+        # FIX-H8: a stream.run() that returns cleanly (graceful close) in a tight
+        # loop must NOT be masked CONNECTED — the run end always marks DEGRADED.
+        from apps.brokers import streams as st
+
+        class _CleanReturnStream:
+            def run(self):
+                return None  # returns immediately, no raise
+
+        sup = StreamSupervisor(
+            healthy_after=60.0,
+            adapter_factory=lambda a: mock.Mock(),
+            stream_factory=lambda a: _CleanReturnStream(),
+        )
+        stop_event = threading.Event()
+
+        def fake_wait(_delay):
+            stop_event.set()
+            return True
+
+        with mock.patch.object(st, "backoff_delay", return_value=0.0), \
+             mock.patch.object(st, "catch_up_account", return_value=None), \
+             mock.patch.object(stop_event, "wait", side_effect=fake_wait):
+            sup._run_account(self.account, stop_event)
         self.assertEqual(get_stream_status(self.account), "DEGRADED")
 
     def test_heartbeat_age_metric_is_set(self):

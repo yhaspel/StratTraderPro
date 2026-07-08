@@ -18,15 +18,18 @@ from .hmm_model import FEATURE_ORDER
 Z_CLIP = 4.0
 ROLL_WINDOW = 252
 
-# Stress/credit/macro inputs whose ABSENCE must neutralize (not fail toward
-# risk-on). A fabricated raw 0 z-scores strongly negative against a history of
-# real elevated values, and (their rule weights are negative) pins the score to
-# RISK_ON — data loss must de-risk, not de-stress (FIX-M13).
-CRITICAL_INPUTS = ("vix", "hy_oas", "move", "ig_oas")
+# Stress/credit inputs whose ABSENCE must neutralize (not fail toward risk-on):
+# a fabricated raw 0 z-scores strongly negative against a history of real
+# elevated values, and (their rule weights are negative) pins the score to
+# RISK_ON — data loss must de-risk, not de-stress (FIX-M13). Scoped to the
+# inputs the daily pipeline actually sources (VIXCLS / HY-OAS / IG-OAS). MOVE
+# (bond vol) is not on the free feeds, so its absence is structural, not a
+# degradation — it stays neutral via its empty z-score history, and including
+# it here would pin every observation `degraded`. Re-add MOVE if a source lands.
+CRITICAL_INPUTS = ("vix", "hy_oas", "ig_oas")
 _INPUT_TO_FEATURES = {
     "vix": ("vix", "vix_term_ratio"),
     "hy_oas": ("hy_oas",),
-    "move": ("move",),
     "ig_oas": ("ig_oas",),
 }
 

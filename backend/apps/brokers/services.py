@@ -118,6 +118,23 @@ def set_heartbeat(account_id, state: str = BrokerConnState.CONNECTED.value) -> N
     )
 
 
+def touch_heartbeat(account_id) -> None:
+    """Refresh the TTL/timestamp of the CURRENT heartbeat state WITHOUT changing
+    it — lets the supervisor keep a live thread's status fresh (so a quiet, healthy
+    stream doesn't age into DEGRADED) without blanket-stamping CONNECTED over a
+    DEGRADED thread (FIX-H8). No-op when there is no heartbeat to refresh."""
+    hb = cache.get(_heartbeat_key(account_id))
+    if not hb:
+        return
+    ttl = getattr(settings, "BROKER_STREAM_HEARTBEAT_TTL", 45) * 4
+    cache.set(
+        _heartbeat_key(account_id),
+        {"state": hb.get("state", BrokerConnState.CONNECTED.value),
+         "ts": datetime.now(timezone.utc).isoformat()},
+        timeout=ttl,
+    )
+
+
 def get_stream_status(account: BrokerAccount) -> str:
     """Resolve CONNECTED / DEGRADED / DOWN from the heartbeat the streams
     service refreshes (§6.5). No heartbeat at all → DOWN."""

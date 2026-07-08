@@ -130,13 +130,15 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
     from apps.brokers.metrics import FILLS_INGESTED_TOTAL, ORDER_STATE_TRANSITIONS_TOTAL
 
     order = (
-        Order.objects.select_for_update()
+        Order.objects.select_for_update(of=("self",))
+        .select_related("broker_account")
         .filter(client_order_id=fill.client_order_id)
         .first()
     )
     if order is None and fill.broker_order_id:
         order = (
-            Order.objects.select_for_update()
+            Order.objects.select_for_update(of=("self",))
+            .select_related("broker_account")
             .filter(broker_order_id=fill.broker_order_id)
             .first()
         )

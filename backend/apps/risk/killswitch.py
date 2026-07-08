@@ -233,8 +233,15 @@ def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
         # Monitoring gap (no broker equity) — never trip on missing data (FIX-B1).
         return False
     pnl, equity = snapshot
-    loss_usd = pnl <= -abs(profile.daily_loss_usd)
-    loss_pct = equity > 0 and (pnl / equity * 100) <= -abs(profile.daily_loss_pct)
+    # A 0 threshold means "no limit on this axis" — not "halt on any flat/down
+    # day". With broker-equity P&L, pnl≈0 is the normal flat state, so a zero
+    # threshold (unvalidated, user-settable) would otherwise trip at the open.
+    loss_usd = profile.daily_loss_usd > 0 and pnl <= -abs(profile.daily_loss_usd)
+    loss_pct = (
+        profile.daily_loss_pct > 0
+        and equity > 0
+        and (pnl / equity * 100) <= -abs(profile.daily_loss_pct)
+    )
     key = f"risk:dl:{user.id}:{trading_day()}"
     if not (loss_usd or loss_pct):
         cache.delete(key)

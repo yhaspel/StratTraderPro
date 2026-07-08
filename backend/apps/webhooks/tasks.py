@@ -195,10 +195,15 @@ def process_alert(self, alert_id):
             limit_price = Decimal(str(body.get("limit_price", body.get("price"))))
         except (InvalidOperation, TypeError):
             return _reject(order, alert, "ORDER_INVALID_LIMIT")
+        # NaN/Infinity parse without raising — reject them too (FIX-M16).
+        if not limit_price.is_finite() or limit_price <= 0:
+            return _reject(order, alert, "ORDER_INVALID_LIMIT")
     if otype in (OrderType.STP, OrderType.STP_LMT):
         try:
             stop_price = Decimal(str(body.get("stop_price")))
         except (InvalidOperation, TypeError):
+            return _reject(order, alert, "ORDER_INVALID_STOP")
+        if not stop_price.is_finite() or stop_price <= 0:
             return _reject(order, alert, "ORDER_INVALID_STOP")
 
     tif = {"DAY": TimeInForce.DAY, "GTC": TimeInForce.GTC, "IOC": TimeInForce.IOC}.get(
@@ -215,13 +220,17 @@ def process_alert(self, alert_id):
         if parse_date(expiry_str) is None:
             return _reject(order, alert, "ORDER_INVALID_OPTION")
         try:
-            option = OptionContract(
-                expiry=expiry_str,
-                strike=Decimal(str(body["option_strike"])),
-                right=str(body.get("option_right", "CALL")).upper(),
-            )
+            strike = Decimal(str(body["option_strike"]))
         except (InvalidOperation, TypeError):
             return _reject(order, alert, "ORDER_INVALID_OPTION")
+        # A NaN/Infinity strike parses without raising — reject it (FIX-M16).
+        if not strike.is_finite() or strike <= 0:
+            return _reject(order, alert, "ORDER_INVALID_OPTION")
+        option = OptionContract(
+            expiry=expiry_str,
+            strike=strike,
+            right=str(body.get("option_right", "CALL")).upper(),
+        )
     if asset_raw == "FUTURE":
         future = FutureContract(
             root=str(body.get("future_root", symbol)).upper(),

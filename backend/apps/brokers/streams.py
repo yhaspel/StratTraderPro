@@ -16,7 +16,7 @@ import time
 from .base import BrokerConnState, BrokerContext
 from .metrics import BROKER_STREAM_DISCONNECTS_TOTAL, BROKER_WS_RECONNECTS_TOTAL
 from .models import BrokerAccount
-from .services import decrypt_key, set_heartbeat
+from .services import decrypt_key, set_heartbeat, touch_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +164,12 @@ class StreamSupervisor:
                 stream.run()  # blocks until disconnect
             except Exception:  # noqa: BLE001 — supervised restart, never propagate
                 BROKER_STREAM_DISCONNECTS_TOTAL.labels(broker="alpaca").inc()
-                set_heartbeat(account.id, BrokerConnState.DEGRADED.value)
                 logger.warning("broker.stream.error", extra={"account": str(account.id)})
+            # The run ended — cleanly OR with an error — so we're disconnected until
+            # the next connect. Mark DEGRADED unconditionally so a stream that
+            # connects then *returns cleanly* in a tight loop (graceful close) isn't
+            # masked as CONNECTED (FIX-H8).
+            set_heartbeat(account.id, BrokerConnState.DEGRADED.value)
             # Reset backoff only after a genuinely healthy run; otherwise grow it.
             if time.monotonic() - started >= self.healthy_after:
                 attempt = 0
@@ -211,6 +215,12 @@ class StreamSupervisor:
         try:
             while not self._stop.is_set():
                 self._reconcile_threads(load_active_accounts())
+                # Refresh the heartbeat of each LIVE thread, preserving its state
+                # (a quiet CONNECTED stream stays CONNECTED without event traffic;
+                # a DEGRADED thread is NOT stamped CONNECTED) — FIX-H8.
+                for account_id, thread in list(self._threads.items()):
+                    if thread.is_alive():
+                        touch_heartbeat(account_id)
                 self._stop.wait(self.heartbeat_interval)
         except KeyboardInterrupt:
             self.stop()

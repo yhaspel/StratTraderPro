@@ -216,6 +216,17 @@ class DailyLossTests(TestCase):
             self.assertFalse(killswitch.check_daily_loss(self.user))
         self.assertIsNone(killswitch.is_blocked(self.user.id, None))
 
+    def test_zero_usd_threshold_is_no_limit_not_trip_on_any_loss(self):
+        # A 0 daily_loss_usd (unvalidated, user-settable) means "no USD limit",
+        # NOT "halt on any down day" — else broker-equity pnl<=0 trips at the open.
+        RiskProfile.objects.filter(user=self.user).update(daily_loss_usd=Decimal("0"))
+        with self._adapter(equity=Decimal("99900"), last_equity=Decimal("100000")):  # -$100
+            killswitch.check_daily_loss(self.user)
+            self.assertFalse(killswitch.check_daily_loss(self.user))
+        self.assertFalse(
+            TradingHalt.objects.filter(user=self.user, level=TradingHalt.Level.L2).exists()
+        )
+
     def test_breach_event_not_duplicated_after_trip(self):
         # Once L2 is tripped, further polls must not re-emit the breach event/metric.
         with self._adapter(equity=Decimal("99000"), last_equity=Decimal("100000")):

@@ -256,3 +256,17 @@ class ProcessAlertValidationTests(_Base):
                            "option_strike": 150, "idempotency_key": "opt-1"})
         self.assertEqual(alert.status, "REJECTED")
         self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
+
+    def test_nan_limit_price_rejected(self):
+        # FIX-M16 (review): non-finite limit_price parses but must be rejected.
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "LMT",
+                           "limit_price": "NaN", "idempotency_key": "nl-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_LIMIT")
+
+    def test_nan_option_strike_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "MKT",
+                           "asset_class": "OPTION", "option_expiry": "2026-01-17",
+                           "option_strike": "Infinity", "idempotency_key": "ns-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")

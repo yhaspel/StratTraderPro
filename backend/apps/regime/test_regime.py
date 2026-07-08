@@ -257,6 +257,27 @@ class DailyPipelineTests(TestCase):
             res = compute_features_daily()
         self.assertEqual(res.get("skipped"), "no_market_data_source_configured")
 
+    def test_healthy_sourced_inputs_not_degraded(self):
+        # Review fix: MOVE (unsourceable) is not a critical input, so a fully
+        # sourced day is NOT flagged degraded.
+        from apps.regime.tasks import run_daily_feature_pipeline
+
+        res = run_daily_feature_pipeline(inputs=self._inputs())  # vix/hy_oas/ig_oas present
+        self.assertFalse(res["degraded"])
+
+    def test_missing_input_not_persisted_to_raw_history(self):
+        # Review fix: a missing input's fabricated raw 0 must NOT be persisted
+        # into raw_features (it would pollute future rolling z-scores).
+        from apps.regime.tasks import run_daily_feature_pipeline
+
+        res = run_daily_feature_pipeline(
+            inputs={"spy_closes": [100.0] * 60, "hy_oas": 3.5, "ig_oas": 1.2}  # vix missing
+        )
+        self.assertTrue(res["degraded"])
+        snap = FeatureVectorSnapshot.objects.get(id=res["snapshot"])
+        self.assertNotIn("vix", snap.raw_features)   # neutralized → excluded
+        self.assertIn("hy_oas", snap.raw_features)    # sourced → kept
+
     def test_source_configured_runs_pipeline(self):
         # FIX-H10: the guard is a real key check, not an unconditional stub — with
         # keys present the task runs the pipeline (inputs stubbed, no live calls).

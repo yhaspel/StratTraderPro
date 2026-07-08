@@ -154,12 +154,17 @@ def run_daily_feature_pipeline(*, inputs=None, fmp=None, fred=None, ts=None, sco
 
     raw = compute_raw_features(inputs)
     missing = missing_critical_inputs(inputs)
-    std = standardize(raw, _rolling_history(scope), neutral_keys=neutral_feature_keys(missing))
+    neutral = neutral_feature_keys(missing)
+    std = standardize(raw, _rolling_history(scope), neutral_keys=neutral)
     ts = ts or timezone.now()
 
+    # Persist raw WITHOUT the neutralized (missing-input) features, so a later
+    # day's rolling z-score history isn't polluted by today's fabricated 0s —
+    # which would re-introduce the FIX-M13 risk-on bias one day downstream.
+    persisted_raw = {k: v for k, v in raw.items() if k not in neutral}
     snap = FeatureVectorSnapshot.objects.update_or_create(
         scope=scope, ts=ts,
-        defaults={"features": std, "raw_features": raw, "content_hash": content_hash(std)},
+        defaults={"features": std, "raw_features": persisted_raw, "content_hash": content_hash(std)},
     )[0]
     obs = compute_observation(ts=ts, std_features=std, scope=scope, data_degraded=bool(missing))
     return {"snapshot": snap.id, "observation": obs.id, "degraded": bool(missing), "missing": missing}

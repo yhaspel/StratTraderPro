@@ -54,9 +54,11 @@ class _TimeoutHTTPAdapter(HTTPAdapter):
 
 
 def _apply_timeout(client, timeout: float = ALPACA_HTTP_TIMEOUT):
-    """Mount a timeout adapter on the alpaca-py client's ``requests`` session."""
+    """Mount a timeout adapter on the alpaca-py client's ``requests`` session.
+    No-op for clients that don't expose a mountable ``requests`` session (the
+    Celery task time-limit is the backstop there)."""
     session = getattr(client, "_session", None)
-    if session is not None:
+    if session is not None and hasattr(session, "mount"):
         adapter = _TimeoutHTTPAdapter(timeout=timeout)
         session.mount("https://", adapter)
         session.mount("http://", adapter)
@@ -70,9 +72,10 @@ class AlpacaAdapter:
     name = "alpaca"
     supported_asset_classes = list(_SUPPORTED_ASSET_CLASSES)
 
-    def __init__(self, ctx: BrokerContext, *, client=None):
+    def __init__(self, ctx: BrokerContext, *, client=None, data_client=None):
         self.ctx = ctx
         self._client = client  # injectable for tests
+        self._data_client = data_client  # market-data client for get_quote (FIX-H3)
 
     # -- client -------------------------------------------------------------
     @property
@@ -146,6 +149,29 @@ class AlpacaAdapter:
     def get_account(self) -> Account:
         raw = self._call("get_account", lambda: self.client.get_account())
         return mapping.map_account(raw)
+
+    def get_quote(self, symbol: str):
+        """Latest trade price for sizing (FIX-H3). Best-effort — returns None on
+        any failure so the caller falls back to the last daily bar / rejects,
+        never fabricating a price. Bounded by the Celery task time limit."""
+        try:
+            if self._data_client is None:
+                from alpaca.data.historical import StockHistoricalDataClient
+
+                self._data_client = _apply_timeout(
+                    StockHistoricalDataClient(self.ctx.api_key_id, self.ctx.api_secret)
+                )
+            from alpaca.data.requests import StockLatestTradeRequest
+
+            resp = self._data_client.get_stock_latest_trade(
+                StockLatestTradeRequest(symbol_or_symbols=symbol)
+            )
+            trade = resp.get(symbol) if isinstance(resp, dict) else resp
+            price = getattr(trade, "price", None)
+            return mapping._dec(price) if price is not None else None
+        except Exception:  # noqa: BLE001 — quote is best-effort; degrade to bar/reject
+            logger.warning("alpaca.get_quote.failed", extra={"symbol": symbol})
+            return None
 
     def list_positions(self) -> list[PositionDTO]:
         raw = self._call("get_all_positions", lambda: self.client.get_all_positions())
