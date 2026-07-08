@@ -270,3 +270,13 @@ class ProcessAlertValidationTests(_Base):
                            "option_strike": "Infinity", "idempotency_key": "ns-1"})
         self.assertEqual(alert.status, "REJECTED")
         self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
+
+    def test_invalid_calendar_option_expiry_rejected_not_crash(self):
+        # Security review: parse_date RAISES ValueError (not None) on a
+        # well-formed-but-invalid calendar date — must reject cleanly, not crash
+        # the task and strand the order at PENDING_SUBMIT.
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "MKT",
+                           "asset_class": "OPTION", "option_expiry": "2026-02-30",
+                           "option_strike": 100, "idempotency_key": "ic-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")

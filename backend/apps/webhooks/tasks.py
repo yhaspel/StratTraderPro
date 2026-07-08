@@ -215,9 +215,15 @@ def process_alert(self, alert_id):
         from django.utils.dateparse import parse_date
 
         # option_expiry lands in a DateField — validate it parses (FIX-M16) so a
-        # bad string ("not-a-date") is a clean reject, not a DB error / stuck order.
+        # bad string is a clean reject, not a DB error / stuck order. parse_date
+        # returns None on a malformed string but RAISES ValueError on a
+        # well-formed-but-invalid calendar date ("2026-02-30") — catch both.
         expiry_str = str(body["option_expiry"])
-        if parse_date(expiry_str) is None:
+        try:
+            parsed_expiry = parse_date(expiry_str)
+        except ValueError:
+            parsed_expiry = None
+        if parsed_expiry is None:
             return _reject(order, alert, "ORDER_INVALID_OPTION")
         try:
             strike = Decimal(str(body["option_strike"]))
