@@ -16,11 +16,14 @@ from .test import *  # noqa: F401, F403
 
 import environ as _environ
 
+# star-import skips _-prefixed names — name-import the helper explicitly.
+from .base import _wrap_db_engines_for_prometheus
+
 _env = _environ.Env()
 
 # Point at the CI/compose Postgres. Keep the django_prometheus engine wrapper so
 # the DB-side series behave exactly as prod (which also runs Postgres).
-DATABASES = _wrap_db_engines_for_prometheus(  # noqa: F405 — from base via test
+DATABASES = _wrap_db_engines_for_prometheus(
     {
         "default": _env.db(
             "DATABASE_URL",

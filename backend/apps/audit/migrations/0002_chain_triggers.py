@@ -18,7 +18,7 @@ from django.db import migrations
 _FORWARD_SQL = r"""
 CREATE OR REPLACE FUNCTION audit_log_block_mutation_fn() RETURNS trigger AS $$
 BEGIN
-    RAISE EXCEPTION 'audit_log is append-only (% blocked)', TG_OP;
+    RAISE EXCEPTION 'audit_log is append-only; update/delete is blocked for every role';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -67,7 +67,9 @@ def _apply(sql):
     def _run(apps, schema_editor):
         if schema_editor.connection.vendor != "postgresql":
             return
-        schema_editor.execute(sql)
+        # params=None → skip mogrify. The DDL contains dollar-quoted plpgsql with
+        # ``%`` format specifiers (RAISE) that must not be treated as bind params.
+        schema_editor.execute(sql, params=None)
 
     return _run
 
