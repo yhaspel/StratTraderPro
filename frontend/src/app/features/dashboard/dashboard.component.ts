@@ -8,10 +8,12 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { environment } from '../../../environments/environment';
 import { ApiError } from '../../core/models/auth.models';
 import { StreamStatus } from '../../core/models/brokers.models';
+import { AuthFacade } from '../../abstraction/facades/auth.facade';
 import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
 import { RegimeFacade } from '../../abstraction/facades/regime.facade';
 import { RiskFacade } from '../../abstraction/facades/risk.facade';
@@ -25,7 +27,7 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent],
   template: `
     <!-- ========== Halt banner (any active kill switch) ========== -->
     @if (risk.haltActive()) {
@@ -38,6 +40,11 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
       <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold">{{ 'dashboard.title' | translate }}</h1>
         <div class="flex items-center gap-3 text-sm">
+          @if (auth.user()?.is_staff) {
+            <a routerLink="/admin" class="text-blue-600 font-semibold hover:underline">
+              {{ 'nav.admin' | translate }}
+            </a>
+          }
           <span class="inline-flex items-center gap-1">
             <span class="w-2 h-2 rounded-full"
                   [class.bg-green-500]="facade.connected()"
@@ -200,6 +207,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   regime = inject(RegimeFacade);
   sentiment = inject(SentimentFacade);
   risk = inject(RiskFacade);
+  auth = inject(AuthFacade);
   private fb = inject(FormBuilder);
 
   readonly isProd = environment.production;
