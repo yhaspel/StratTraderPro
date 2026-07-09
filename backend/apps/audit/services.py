@@ -53,6 +53,8 @@ def emit(
     *,
     user=None,
     actor=None,
+    user_id=None,
+    actor_id=None,
     entity_type="",
     entity_id="",
     data_before=None,
@@ -63,10 +65,15 @@ def emit(
     ua="",
 ):
     """Write one chained ``AuditLog`` row. Returns the row, or ``None`` on failure
-    (logged + ``audit_events_dropped_total``). Never raises."""
+    (logged + ``audit_events_dropped_total``). Never raises.
+
+    ``user``/``actor`` accept model instances; ``user_id``/``actor_id`` accept raw
+    ids when the caller only has an id (avoids an extra query)."""
     from .models import AuditLog
 
     event_type = str(event_type)
+    user_id = user_id if user_id is not None else getattr(user, "id", None)
+    actor_id = actor_id if actor_id is not None else getattr(actor, "id", None)
 
     # Fold metadata into data_after (shallow) and scrub + normalize both diffs so
     # what we hash is byte-identical to what JSONField will store back.
@@ -87,8 +94,6 @@ def emit(
     from django.utils import timezone
 
     occurred_at = timezone.now()
-    user_id = getattr(user, "id", None)
-    actor_id = getattr(actor, "id", None)
 
     try:
         with transaction.atomic():
@@ -110,8 +115,8 @@ def emit(
             self_hash = compute_self_hash(prev_hash, payload)
             row = AuditLog.objects.create(
                 occurred_at=occurred_at,
-                user=user,
-                actor=actor,
+                user_id=user_id,
+                actor_id=actor_id,
                 event_type=event_type,
                 entity_type=entity_type,
                 entity_id=entity_id,

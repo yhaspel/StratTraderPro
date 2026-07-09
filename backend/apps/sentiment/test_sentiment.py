@@ -281,6 +281,11 @@ class E2EAndApiTests(TestCase):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
+        # M10: warm the feature-flag cache so its (constant, 30s-cached) DB lookup
+        # doesn't pollute only the first measurement.
+        from apps.admin_portal.flags import is_enabled
+        is_enabled("SENTIMENT_ENABLED")
+
         def _query_count(n):
             NewsArticle.objects.all().delete()
             for i in range(n):

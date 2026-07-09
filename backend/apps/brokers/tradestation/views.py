@@ -15,6 +15,7 @@ from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
 from apps.users.responses import fail, ok
 
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def _enabled() -> bool:
-    return getattr(settings, "BROKER_TRADESTATION_ENABLED", False)
+    return is_enabled("BROKER_TRADESTATION_ENABLED")
 
 
 class TradeStationOAuthStartView(APIView):

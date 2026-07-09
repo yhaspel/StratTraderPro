@@ -39,6 +39,7 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
 from apps.audit.events import AuthEventType as EventType
 
 from . import services
@@ -87,7 +88,7 @@ class OAuthGoogleStartView(APIView):
         summary="Redirect the browser to Google's OAuth authorize URL.",
     )
     def get(self, request):
-        if not settings.GOOGLE_OAUTH_ENABLED or not settings.GOOGLE_OAUTH_CLIENT_ID:
+        if not is_enabled("GOOGLE_OAUTH_ENABLED") or not settings.GOOGLE_OAUTH_CLIENT_ID:
             return _feature_disabled_response()
 
         from allauth.socialaccount.providers.google.views import oauth2_login
@@ -209,7 +210,7 @@ class OAuthExchangeView(APIView):
         summary="Swap an OAuth exchange code for a JWT pair (or MFA challenge).",
     )
     def post(self, request):
-        if not settings.GOOGLE_OAUTH_ENABLED:
+        if not is_enabled("GOOGLE_OAUTH_ENABLED"):
             return _feature_disabled_response()
 
         ser = OAuthExchangeSerializer(data=request.data)

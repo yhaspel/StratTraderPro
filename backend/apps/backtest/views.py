@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from datetime import date
 
-from django.conf import settings
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils.dateparse import parse_datetime
@@ -13,6 +12,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
 from apps.strategies.models import Strategy
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
 from apps.users.responses import fail, ok
@@ -34,7 +34,7 @@ _CODE_STATUS = {GRID_TOO_LARGE: 400, NO_ADAPTER: 400, VALIDATION: 400, LIMIT_CON
 
 
 def _disabled_response():
-    if not getattr(settings, "BACKTEST_ENABLED", True):
+    if not is_enabled("BACKTEST_ENABLED"):
         return fail(DISABLED, "Backtesting is disabled.", status=503)
     return None
 

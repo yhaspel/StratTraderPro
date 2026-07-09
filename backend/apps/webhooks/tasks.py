@@ -313,6 +313,17 @@ def process_alert(self, alert_id):
     order.refresh_from_db()
     push_to_user(alert.user_id, ORDER_UPDATED, order_to_wire(order))
 
+    from apps.audit.events import AuditEventType
+    from apps.audit.services import emit
+
+    emit(
+        AuditEventType.ORDER_SUBMITTED, user=alert.user,
+        entity_type="order", entity_id=str(order.id),
+        data_after={"alert_id": str(alert.id), "broker_order_id": order.broker_order_id,
+                    "symbol": order.symbol, "side": order.side, "qty": str(order.qty),
+                    "status": order.status, "broker": str(account.broker)},
+    )
+
     alert.status = AlertMessage.Status.ACCEPTED
     alert.processed_at = timezone.now()
     alert.save(update_fields=["status", "processed_at"])

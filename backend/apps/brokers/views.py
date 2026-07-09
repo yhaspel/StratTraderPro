@@ -22,6 +22,9 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
+from apps.audit.events import AuditEventType
+from apps.audit.services import emit
 from apps.users.mfa import verify_mfa_code
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
 from apps.users.responses import fail, ok
@@ -46,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 def _alpaca_enabled() -> bool:
-    return getattr(settings, "BROKER_ALPACA_ENABLED", True)
+    return is_enabled("BROKER_ALPACA_ENABLED")
 
 
 def _disabled():
@@ -123,6 +126,12 @@ class BrokerListCreateView(APIView):
             last_connected_at=timezone.now(),
         )
         BROKER_CONNECT_TOTAL.labels(broker=data["broker"].lower(), result="ok").inc()
+        emit(
+            AuditEventType.BROKER_CONNECT, user=request.user, actor=request.user, request=request,
+            entity_type="broker_account", entity_id=str(account.id),
+            data_after={"broker": data["broker"], "mode": data["mode"],
+                        "account_number": info.account_number, "is_default": make_default},
+        )
         notify_accounts_changed(account.id, "add")
         body = BrokerAccountSerializer(account).data
         body["buying_power"] = str(info.buying_power)
@@ -151,6 +160,11 @@ class BrokerDetailView(APIView):
             return fail("MFA_REQUIRED", "A valid MFA code is required to remove a broker.", status=403)
         account_id = account.id
         was_default = account.is_default
+        emit(
+            AuditEventType.BROKER_DISCONNECT, user=request.user, actor=request.user, request=request,
+            entity_type="broker_account", entity_id=str(account_id),
+            data_before={"broker": account.broker, "mode": account.mode, "status": account.status},
+        )
         account.delete()
         notify_accounts_changed(account_id, "remove")
         # Promote another account to default if we removed the default one.
@@ -231,8 +245,14 @@ class BrokerModeView(APIView):
                     "Live trading is not available yet.",
                     status=403,
                 )
+        before_mode = account.mode
         account.mode = mode
         account.save(update_fields=["mode", "updated_at"])
+        emit(
+            AuditEventType.BROKER_MODE_CHANGE, user=request.user, actor=request.user, request=request,
+            entity_type="broker_account", entity_id=str(account.id),
+            data_before={"mode": before_mode}, data_after={"mode": mode},
+        )
         return ok({"id": str(account.id), "mode": account.mode})
 
 

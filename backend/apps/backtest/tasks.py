@@ -14,8 +14,9 @@ from datetime import date, timedelta
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
-from django.conf import settings
 from django.utils import timezone
+
+from apps.admin_portal.flags import is_enabled
 
 from . import events, stats
 from .exceptions import DISABLED, TIME_CAP, BacktestError
@@ -79,7 +80,7 @@ def run_backtest(self, run_id):
         logger.warning("backtest.run_missing", extra={"run_id": str(run_id)})
         return
 
-    if not getattr(settings, "BACKTEST_ENABLED", True):
+    if not is_enabled("BACKTEST_ENABLED"):
         _fail(run, DISABLED, "Backtesting is disabled.")
         return
 

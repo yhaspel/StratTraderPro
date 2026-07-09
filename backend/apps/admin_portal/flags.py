@@ -40,15 +40,20 @@ def _redis_key(name: str) -> str:
     return f"flag:{name}"
 
 
+# Sentinel stored in Redis for "no DB override exists" (distinct from absent key).
+_NO_OVERRIDE = "__none__"
+
+
 def _env_default(name: str) -> bool:
+    """The fail-open default — read LIVE from settings so @override_settings and
+    env changes are respected (the registry ``default`` is only metadata)."""
     reg = _registry().get(name)
-    if reg is not None:
-        return bool(reg["default"])
-    return bool(getattr(settings, name, False))
+    fallback = reg["default"] if reg is not None else False
+    return bool(getattr(settings, name, fallback))
 
 
-def _cache_local(name: str, value: bool) -> None:
-    _local_cache[name] = (value, _monotonic() + LOCAL_CACHE_TTL)
+def _cache_local(name: str, override) -> None:
+    _local_cache[name] = (override, _monotonic() + LOCAL_CACHE_TTL)
 
 
 def _bust_local(name: str | None = None) -> None:
@@ -58,51 +63,56 @@ def _bust_local(name: str | None = None) -> None:
         _local_cache.pop(name, None)
 
 
+def _resolve_override(name: str):
+    """Return the DB override (True/False) or None when no override exists.
+
+    Only the OVERRIDE STATE is cached (30 s local → 60 s Redis → DB). The final
+    value for the no-override case is always resolved from live settings by the
+    caller, so a settings change is never masked by the cache.
+    """
+    hit = _local_cache.get(name)
+    if hit is not None and hit[1] > _monotonic():
+        return hit[0]
+
+    try:
+        cached = cache.get(_redis_key(name))
+    except Exception:  # noqa: BLE001 — fail open
+        logger.warning("flags.redis_read_failed", extra={"flag": name})
+        return None
+    if cached is not None:
+        override = None if cached == _NO_OVERRIDE else bool(cached)
+        _cache_local(name, override)
+        return override
+
+    try:
+        from .models import FeatureFlag
+
+        row = FeatureFlag.objects.filter(name=name).values_list("enabled", flat=True).first()
+    except (ProgrammingError, OperationalError):
+        return None
+    except Exception:  # noqa: BLE001 — fail open
+        logger.warning("flags.db_read_failed", extra={"flag": name})
+        return None
+
+    override = None if row is None else bool(row)
+    try:
+        cache.set(_redis_key(name), _NO_OVERRIDE if override is None else override, REDIS_TTL)
+    except Exception:  # noqa: BLE001,S110 — Redis write is best-effort
+        pass
+    _cache_local(name, override)
+    return override
+
+
 def is_enabled(name: str) -> bool:
     """Effective value of ``name`` (call-time only; never at import)."""
     reg = _registry().get(name)
     # Immutable flags are env-only forever.
     if reg is not None and not reg["mutable"]:
         return bool(getattr(settings, name, reg["default"]))
-
-    # 1) process-local cache
-    hit = _local_cache.get(name)
-    if hit is not None and hit[1] > _monotonic():
-        return hit[0]
-
-    default = _env_default(name)
-
-    # 2) Redis (via Django cache)
-    try:
-        cached = cache.get(_redis_key(name))
-        if cached is not None:
-            value = bool(cached)
-            _cache_local(name, value)
-            return value
-    except Exception:  # noqa: BLE001 — fail open
-        logger.warning("flags.redis_read_failed", extra={"flag": name})
-        _cache_local(name, default)
-        return default
-
-    # 3) DB row (source of truth) — safe before the table exists
-    try:
-        from .models import FeatureFlag
-
-        row = FeatureFlag.objects.filter(name=name).values_list("enabled", flat=True).first()
-    except (ProgrammingError, OperationalError):
-        return default
-    except Exception:  # noqa: BLE001 — fail open
-        logger.warning("flags.db_read_failed", extra={"flag": name})
-        return default
-
-    value = default if row is None else bool(row)
-    # Populate Redis so other processes converge without hitting the DB.
-    try:
-        cache.set(_redis_key(name), value, REDIS_TTL)
-    except Exception:  # noqa: BLE001,S110 — Redis write is best-effort
-        pass
-    _cache_local(name, value)
-    return value
+    override = _resolve_override(name)
+    if override is not None:
+        return override
+    return _env_default(name)
 
 
 def source(name: str) -> str:

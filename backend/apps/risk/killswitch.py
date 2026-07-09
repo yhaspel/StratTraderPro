@@ -19,12 +19,22 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.audit.events import AuditEventType
+from apps.audit.services import emit
 from apps.brokers.models import BrokerAccount, TradingHalt
 
 from .metrics import DAILY_LOSS_BREACH, KILLSWITCH_FLATTEN_LATENCY, KILLSWITCH_TRIGGER
 from .models import RiskEvent
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_user(user_id):
+    if not user_id:
+        return None
+    from django.contrib.auth import get_user_model
+
+    return get_user_model().objects.filter(id=user_id).first()
 
 # The trading day is the US/Eastern calendar day — DST-correct (UTC-4 in EDT,
 # UTC-5 in EST), so L2 auto-release lines up with the real market rollover
@@ -114,6 +124,15 @@ def trigger_halt(*, user_id, level, strategy_id=None, reason="", created_by_id=N
         type=RiskEvent.Type.KILL_SWITCH_ON, scope=scope,
         details={"level": level, "auto": auto, "reason": reason},
     )
+    # Audit every halt path (admin L3, user L0/L1, auto-L2) — M10 §6.1.
+    emit(
+        AuditEventType.RISK_HALT_ENGAGED,
+        user=None if level == TradingHalt.Level.L3 else _resolve_user(user_id),
+        actor=_resolve_user(created_by_id),
+        entity_type="trading_halt", entity_id=str(halt.id),
+        data_after={"level": level, "scope": scope, "auto": auto, "reason": reason,
+                    "strategy_id": str(strategy_id) if strategy_id else None},
+    )
     if flatten and level != TradingHalt.Level.L3 and user_id is not None:
         transaction.on_commit(lambda: flatten_user(user_id, scope=scope, strategy_id=strategy_id))
     return halt
@@ -133,6 +152,13 @@ def release_halt(halt_id, released_by_id=None) -> bool:
     RiskEvent.objects.create(
         user=halt.user, type=RiskEvent.Type.KILL_SWITCH_OFF, scope=halt.scope,
         details={"level": halt.level},
+    )
+    emit(
+        AuditEventType.RISK_HALT_RELEASED,
+        user=halt.user,
+        actor=_resolve_user(released_by_id),
+        entity_type="trading_halt", entity_id=str(halt.id),
+        data_after={"level": halt.level, "scope": halt.scope},
     )
     return True
 

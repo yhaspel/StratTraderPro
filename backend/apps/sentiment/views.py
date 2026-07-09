@@ -1,12 +1,12 @@
 """Sentiment API (M07 §6.6). MFA-enforced; SENTIMENT_ENABLED-gated."""
 from __future__ import annotations
 
-from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
 from apps.users.responses import fail, ok
 
@@ -30,7 +30,7 @@ class _Base(APIView):
     mfa_required = True
 
     def _enabled(self):
-        return getattr(settings, "SENTIMENT_ENABLED", True)
+        return is_enabled("SENTIMENT_ENABLED")
 
     def _disabled(self):
         return fail("FEATURE_DISABLED", "Sentiment feature is disabled.", status=503)
