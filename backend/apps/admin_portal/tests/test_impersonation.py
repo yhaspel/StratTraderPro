@@ -49,10 +49,12 @@ class ImpersonationRequestTests(TestCase):
     def test_safe_read_works_and_is_audited(self):
         resp = self.client.get("/api/v1/risk/profile/")
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(
+        # Exactly one impersonated_read row per request (DRF memoizes request.user).
+        self.assertEqual(
             AuditLog.objects.filter(
                 event_type="admin.impersonated_read", actor=self.admin, user=self.target
-            ).exists()
+            ).count(),
+            1,
         )
 
     def test_write_is_blocked_at_auth_layer(self):

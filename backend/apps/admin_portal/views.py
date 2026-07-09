@@ -291,7 +291,7 @@ class AuditExportView(AdminBaseView):
                     r.occurred_at.isoformat() if r.occurred_at else "",
                     r.event_type,
                     str(r.user_id) if r.user_id else "",
-                    "", str(r.actor_id) if r.actor_id else "", "",
+                    str(r.actor_id) if r.actor_id else "",
                     _csv_safe(r.entity_type), _csv_safe(r.entity_id),
                     r.ip or "", _csv_safe(r.ua),
                     _csv_safe(r.data_before), _csv_safe(r.data_after),

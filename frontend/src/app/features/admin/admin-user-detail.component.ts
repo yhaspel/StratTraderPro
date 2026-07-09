@@ -4,7 +4,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
 import { ApiError } from '../../core/models/auth.models';
 import { ImpersonationBannerComponent } from './impersonation-banner.component';
@@ -153,6 +153,7 @@ type Action = 'disable' | 'enable' | 'impersonate';
 export class AdminUserDetailComponent implements OnInit {
   admin = inject(AdminFacade);
   private route = inject(ActivatedRoute);
+  private translate = inject(TranslateService);
 
   action = signal<Action | null>(null);
   reason = signal('');
@@ -166,7 +167,9 @@ export class AdminUserDetailComponent implements OnInit {
   }
 
   eventLabel(type: string): string {
-    return type;
+    const key = `audit.event.${type}`;
+    const label = this.translate.instant(key);
+    return label === key ? type : label;
   }
 
   open(action: Action): void {

@@ -27,7 +27,7 @@ const CONFIRM_PHRASE = 'HALT PLATFORM';
            (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
         <div class="flex items-start justify-between mb-4">
           <h2 class="text-xl font-bold text-red-700">{{ 'admin.halt.title' | translate }}</h2>
-          <button type="button" (click)="closed.emit()" aria-label="Close"
+          <button type="button" (click)="closed.emit()" [attr.aria-label]="'common.close' | translate"
                   class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
         </div>
 

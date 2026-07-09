@@ -25,14 +25,13 @@ LABELS = {
     }
 }
 
-# Column order for the CSV export.
+# Column order for the CSV export. (user/actor are exported by id — resolving
+# emails per row would be an N+1 on a streamed export of up to _MAX_EXPORT rows.)
 COLUMNS = [
     "occurred_at",
     "event_type",
     "user_id",
-    "user_email",
     "actor_id",
-    "actor_email",
     "entity_type",
     "entity_id",
     "ip",
