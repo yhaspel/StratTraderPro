@@ -105,6 +105,8 @@ INSTALLED_APPS = ["daphne"] + DJANGO_APPS + ["channels"] + THIRD_PARTY_APPS + LO
 # ---------------------------------------------------------------------------
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    # M10 §6.6 — mint/propagate a request_id (ULID) as early as possible.
+    "config.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -677,19 +679,24 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    # M10 §6.6 — inject request_id + task_id into every record.
+    "filters": {
+        "request_context": {"()": "config.request_context.RequestContextFilter"},
+    },
     "formatters": {
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": "%(asctime)s %(name)s %(levelname)s %(message)s",
+            "format": "%(asctime)s %(name)s %(levelname)s %(request_id)s %(task_id)s %(message)s",
         },
         "console": {
-            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "format": "%(asctime)s [%(levelname)s] %(name)s [%(request_id)s]: %(message)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
+            "filters": ["request_context"],
         },
     },
     "root": {
@@ -712,3 +719,9 @@ SENTRY_DSN = env("SENTRY_DSN", default="")
 # ---------------------------------------------------------------------------
 OTEL_SERVICE_NAME = "strattraderpro-backend"
 OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
+
+# ---------------------------------------------------------------------------
+# Metrics exposition basic auth (M10 §6.5a). Unset → open (dev/test); prod warns.
+# ---------------------------------------------------------------------------
+METRICS_BASIC_AUTH_USERNAME = env("METRICS_BASIC_AUTH_USERNAME", default="")
+METRICS_BASIC_AUTH_PASSWORD = env("METRICS_BASIC_AUTH_PASSWORD", default="")

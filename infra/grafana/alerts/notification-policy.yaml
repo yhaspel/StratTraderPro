@@ -1,0 +1,15 @@
+# Grafana notification policy (M10 §6.5g). Critical → email + Telegram; warnings
+# → email. Import + verify with the AC-10-9 sample alert (alerting-setup.md).
+apiVersion: 1
+policies:
+  - orgId: 1
+    receiver: operator-email
+    group_by: [alertname]
+    routes:
+      - receiver: operator-telegram
+        matchers:
+          - severity = critical
+        continue: true
+      - receiver: operator-email
+        matchers:
+          - severity =~ "critical|warning"

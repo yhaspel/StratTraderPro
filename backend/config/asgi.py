@@ -16,13 +16,21 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.prod")
 # imports inside them resolve.
 django_asgi_app = get_asgi_application()
 
+# M10 §6.6 — OTel init on the ASGI (dev/daphne) entry too.
+from config.otel import init_otel  # noqa: E402
+
+init_otel()
+
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 
 from apps.dashboard.routing import websocket_urlpatterns  # noqa: E402
 
+# M10 §6.5a — mirror the /metrics exposition for dev runserver/daphne parity.
+from config.metrics_endpoint import wrap_asgi_http  # noqa: E402
+
 application = ProtocolTypeRouter(
     {
-        "http": django_asgi_app,
+        "http": wrap_asgi_http(django_asgi_app),
         # Auth is JWT-in-query-string + MFA enforcement inside the consumer
         # (plan §6.6), so no channels auth middleware is layered here.
         "websocket": URLRouter(websocket_urlpatterns),

@@ -26,9 +26,15 @@ server {
     # /start/ must persist across Google's redirect back to the backend
     # (a same-origin proxied request would set cookies on the frontend
     # domain, which the browser then drops when bouncing back to backend).
+    #
+    # M10 §6.3/§6.5e — extended with Grafana + Sentry runtime config. The nginx
+    # image only substitutes vars listed in NGINX_ENVSUBST_FILTER, so set it to
+    # `BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE` (else $uri /
+    # $host etc. would also be clobbered). Empty values are harmless — the SPA
+    # treats an empty sentryDsn as "Sentry off" and hides absent Grafana links.
     location = /config.js {
         default_type application/javascript;
-        return 200 "window.STP_CONFIG = { backendUrl: '${BACKEND_URL}' };";
+        return 200 "window.STP_CONFIG = { backendUrl: '${BACKEND_URL}', grafanaUrl: '${GRAFANA_URL}', sentryDsn: '${SENTRY_DSN}', sentryEnvironment: '${SENTRY_ENVIRONMENT}', release: '${RELEASE}' };";
     }
 
     # Proxy API requests to Django backend.

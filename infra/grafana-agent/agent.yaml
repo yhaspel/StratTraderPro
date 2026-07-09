@@ -6,6 +6,10 @@
 # GRAFANA_PROM_TOKEN / BACKEND_TARGET / RAILWAY_ENVIRONMENT_NAME on the Railway
 # service. For staging the backend address is `backend.railway.internal:8777`
 # (the API service's Railway-internal DNS name on the same project).
+#
+# M10 §6.5 — additional env: METRICS_BASIC_AUTH_USERNAME/PASSWORD (the /metrics
+# basic auth), and the worker/beat/streams/exporter targets (Railway internal DNS,
+# e.g. worker.railway.internal:9101). See docs/runbooks/worker-metrics-scrape.md.
 
 server:
   log_level: info
@@ -27,6 +31,10 @@ metrics:
         - job_name: backend
           metrics_path: /metrics
           scheme: http
+          # M10 §6.5a — /metrics now enforces basic auth in prod.
+          basic_auth:
+            username: ${METRICS_BASIC_AUTH_USERNAME}
+            password: ${METRICS_BASIC_AUTH_PASSWORD}
           static_configs:
             - targets:
                 - ${BACKEND_TARGET}
@@ -38,3 +46,36 @@ metrics:
             - source_labels: [__name__]
               regex: 'python_gc_.*|python_info'
               action: drop
+
+        # M10 FIX-C1 §6.5b — worker/beat/streams processes expose their in-process
+        # registry on TASK_METRICS_PORT (no auth; internal network only).
+        - job_name: worker
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${WORKER_TARGET}' ]
+              labels: { service: worker }
+        - job_name: worker-backtest
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${WORKER_BACKTEST_TARGET}' ]
+              labels: { service: worker-backtest }
+        - job_name: beat
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${BEAT_TARGET}' ]
+              labels: { service: beat }
+        - job_name: streams
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${STREAMS_TARGET}' ]
+              labels: { service: streams }
+
+        # M10 §6.5d — DB / Redis exporters.
+        - job_name: postgres-exporter
+          static_configs:
+            - targets: [ '${POSTGRES_EXPORTER_TARGET}' ]
+              labels: { service: postgres }
+        - job_name: redis-exporter
+          static_configs:
+            - targets: [ '${REDIS_EXPORTER_TARGET}' ]
+              labels: { service: redis }
