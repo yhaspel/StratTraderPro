@@ -4,8 +4,8 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change) — the rule lives in the project-root `MEMORY.md`.
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
-**Last verified:** 2026-07-05 (full review — every claim below re-checked against code, migrations, tests, and git)
-**Verification at HEAD (`264e637`):** backend `pytest` **128 passed** (+4 subtests), `ruff` clean, `bandit` clean (medium+), `ngc --noEmit` clean.
+**Last verified:** 2026-07-09 (M10 merge — PR #29 `d574057`)
+**Verification at HEAD (`d574057`):** backend `pytest` **587 passed** (SQLite) + **8 `-m pg`** (Postgres lane), `ruff` clean, `bandit` clean (medium+), `makemigrations --check` clean, prod-import smoke clean; frontend `ngc --noEmit` clean, `pnpm build` (449.56 kB), `pnpm run test:ci` **61 karma**; Docker image builds + Trivy HIGH/CRITICAL clean. GitHub CI: all 5 checks green.
 
 > **2026-07-08 — M04–M08 review remediation** (`fix/m04-m08-review-remediation`): an
 > adversarial review found 35 correctness/safety defects CI missed (L2 daily-loss
@@ -32,7 +32,8 @@
 | **M07** | **Sentiment pipeline** | ✅ **Implemented (2026-07-07)** — fetchers/tagger/tiered scorers (fakes)/EWMA/API; model weights + benchmark deferred | `v0.7.0-sentiment` (tag pending) |
 | **M08** | **Risk engine, sizing & kill switches** | ✅ **Implemented (2026-07-08)** — sizing + 4-level kill switches on `TradingHalt`; staging p99 + Risk Ops "live" deferred | `v0.8.0-risk` (tag pending) |
 | **M09** | **Walk-forward backtester** | ✅ **Implemented (2026-07-08)** — vectorbt sweep + custom replay engine, PBO/CSCV, tearsheet PDF/HTML/JSON, dedicated `backtest` queue, `/backtest` UI; PR #28 merged `afe6c24`; staging SLAs + Railway worker + real-symbol PDF deferred | `v0.9.0-backtest` (tag pending) |
-| M10–M12 | Admin/audit, hardening, beta | ⏳ Not started | — |
+| **M10** | **Admin portal, chained audit log & observability polish** | ✅ **Implemented (2026-07-09)** — `apps/audit` (app-computed hash chain + Postgres append-only/linkage triggers, nightly verifier), `AuthEvent` migrated into `audit_log` then dropped, `apps/admin_portal` (killswitch/users/audit-search+CSV/impersonation/flags/health), `/metrics` moved out-of-urlconf (WSGI+ASGI), FIX-C1 worker/beat scrape, OTel + request-id correlation, six dashboards + alert rules as code, `/admin` frontend; PR #29 merged `d574057`; Grafana/Tempo/Telegram import + Railway env/exporters + staging perf SLAs deferred (operator) | `v0.10.0-admin` (tag created locally, not pushed) |
+| M11–M12 | Hardening, beta | ⏳ Not started | — |
 
 **M04 truth (updated 2026-07-07):** Phase A (IB Gateway spike) done 2026-05-15 (ADR-040). **Phase B–F now implemented** on `feature/m04-webhook-alpaca-paper`: public webhook endpoint + `AlertMessage` + `process_alert`; `BrokerAdapter` protocol + `FakeBrokerAdapter` + `AlpacaAdapter` (paper) with `BrokerAccount`/`TradingHalt`/`BrokerCallAudit`; `Order`/`Fill`/`Position` + `ingest_fill_event` (dedup on `broker_exec_id`); Redis-Stream fill transport + `run_broker_streams` supervisor; Channels `/ws/dashboard/` consumer; `/settings/brokers` + `/dashboard` frontend; `alpaca-py` + `channels`/`daphne` in requirements. Backend gauntlet green (ruff/bandit/191 pytest/migrations/prod-import); CI grep gate + pivot hygiene done. **Deferred (needs externals):** the §10.4 live-Alpaca-paper smoke (runbook committed; operator runs with real keys), the Grafana Trading Ops "live on staging" panel (dashboard JSON committed), and the IBKR password rotation + Railway/GitHub secret deletion (operator step).
 
@@ -62,7 +63,7 @@ IBKR is out; **Alpaca is the first execution broker**. Why: IBKR Web API consume
 - ADR-031 wording ("TradingView signs the alert body") is imprecise — TV embeds a static secret; ADR-042 (M04 deliverable) documents the honest semantics.
 - Known UI follow-ups from M2.5: env badge hardcoded to "staging" copy; login 401 shows `UNKNOWN` error after refresh-interceptor retry.
 - `DJANGO_SETTINGS_MODULE=config.settings.prod` on both staging and prod (only `RAILWAY_ENVIRONMENT_NAME` differs) — consider `staging.py` when they need to diverge.
-- M10 §6.5 observability carryover: move `/metrics` out of Django middleware (removes the Sentry `before_send` mitigation), wire postgres/redis/celery exporters, remaining dashboards.
+- ~~M10 §6.5 observability carryover: move `/metrics` out of Django middleware, wire postgres/redis/celery exporters, remaining dashboards.~~ ✅ **RESOLVED (M10, PR #29)** — `/metrics` moved to `config/metrics_endpoint.py` at the WSGI entry (+ ASGI mirror), Sentry `before_send` mitigation deleted; postgres/redis exporters + agent scrape jobs added; **FIX-C1** worker/beat/streams scrape wired via `TASK_METRICS_PORT`; all six dashboards updated + alert rules committed as code. The M09 backtest-alert "live wiring is M10" note is also closed (backtest rules in `infra/grafana/alerts/alert-rules.yaml`). Remaining = operator import to Grafana Cloud + Railway env.
 - Master-plan-level gaps flagged in `analysis-cost-and-business-model.md` and now cross-referenced in the plan review notes: billing milestone missing (insert before beta if commercialization is still the goal), vectorbt AGPL, model-artifact storage (no DB pickles), news-source ToS.
 
 ## How to re-verify this file's claims

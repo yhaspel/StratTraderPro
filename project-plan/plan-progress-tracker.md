@@ -665,11 +665,17 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 10 — Admin, Audit & Observability
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (CI-green; live Grafana/Tempo/Telegram + Railway env deferred to operator)
+**Started:** 2026-07-09
+**Completed:** 2026-07-09 (PR #29, merge `d574057`, tag `v0.10.0-admin` local/unpushed)
 
-> See `10-admin-audit-observability.md` for full spec.
+> See `10-admin-audit-observability.md` for full spec; close-out in `M10-EXECUTION-REPORT.md`.
+
+**Delivered:** `apps/audit` (app-computed SHA-256 hash chain, ADR-100; Postgres append-only + linkage triggers, vendor-guarded; nightly integrity verifier + cursor; `AuthEvent` migrated into `audit_log` then dropped — 5 migrations incl. the frozen-copy data migration); `apps/admin_portal` (impersonation-aware auth write-block, `IsAdminAndMFAEnforced`, platform L3 killswitch with `HALT PLATFORM` + MFA, user disable/enable, audit search + CSV, read-only impersonation, feature flags DB+Redis+30s cache ADR-101, health aggregation); observability ADR-102 (`/metrics` out-of-urlconf at the WSGI entry + ASGI mirror + basic auth; FIX-C1 worker/beat scrape; postgres/redis exporters; OTel Django/Celery/redis/psycopg2/httpx; request-id ULID correlation; Sentry release; six dashboards SLO panels; alert rules as code + cross-check test); `/admin` Angular area.
+
+**Carryovers closed:** 10.6.5.a (`/metrics` move — done at the WSGI entry, not asgi-only; `before_send` mitigation deleted), 10.6.5.b (postgres/redis exporters + FIX-C1 celery scrape), 10.6.5.c (Trading Ops / Data Pipelines / Backtest Ops dashboards updated with SLO panels).
+
+**Deferred-live (operator):** import six dashboards + `infra/grafana/alerts/*.yaml` to Grafana Cloud + contact points (email/Telegram) + notification policy; Tempo datasource + Sentry↔Tempo correlation; Railway `METRICS_BASIC_AUTH_*` / `TASK_METRICS_PORT` / `OTEL_EXPORTER_OTLP_ENDPOINT` / exporter services / restricted DB role; `SENTRY_AUTH_TOKEN` GitHub secret; staging perf SLAs (audit search @10M, verifier 24h window); sample-alert receipt + Sentry→Tempo click-through.
 
 ### Carryover items from earlier milestones (slot into §6.5 Observability polish)
 
