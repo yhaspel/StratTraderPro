@@ -4,6 +4,151 @@ info:
   version: 0.0.0
   description: Trading bot platform API — webhook-driven, regime-aware, multi-broker.
 paths:
+  /api/v1/admin/audit/:
+    get:
+      operationId: v1_admin_audit_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/audit/export.csv:
+    get:
+      operationId: v1_admin_audit_export.csv_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/flags/:
+    get:
+      operationId: v1_admin_flags_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/flags/{name}/:
+    post:
+      operationId: v1_admin_flags_create
+      parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/health/:
+    get:
+      operationId: v1_admin_health_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/impersonation/{session_id}/stop/:
+    post:
+      operationId: v1_admin_impersonation_stop_create
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/platform/killswitch/:
+    post:
+      operationId: v1_admin_platform_killswitch_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/platform/status/:
+    get:
+      operationId: v1_admin_platform_status_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/:
+    get:
+      operationId: admin_users_list
+      tags:
+      - admin
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/:
+    get:
+      operationId: admin_users_detail
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/disable/:
+    post:
+      operationId: v1_admin_users_disable_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/enable/:
+    post:
+      operationId: v1_admin_users_enable_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/impersonate/start/:
+    post:
+      operationId: v1_admin_users_impersonate_start_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
   /api/v1/auth/login/:
     post:
       operationId: auth_login
@@ -31,7 +176,6 @@ paths:
               $ref: '#/components/schemas/Login'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -116,7 +260,6 @@ paths:
               $ref: '#/components/schemas/Logout'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -131,8 +274,6 @@ paths:
       summary: Replace the user's set of backup codes with a fresh batch of 10.
       tags:
       - mfa
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -142,8 +283,6 @@ paths:
       summary: Disable MFA. Requires both current password and a current TOTP code.
       tags:
       - mfa
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -155,8 +294,6 @@ paths:
       summary: Begin TOTP enrollment
       tags:
       - mfa
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -166,8 +303,6 @@ paths:
       summary: Confirm TOTP enrollment with a verification code
       tags:
       - mfa
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -178,7 +313,6 @@ paths:
       tags:
       - mfa
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -201,7 +335,6 @@ paths:
       tags:
       - oauth
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -223,7 +356,6 @@ paths:
       tags:
       - oauth
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -253,7 +385,6 @@ paths:
               $ref: '#/components/schemas/PasswordReset'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -302,7 +433,6 @@ paths:
               $ref: '#/components/schemas/PasswordResetConfirm'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -359,7 +489,6 @@ paths:
               $ref: '#/components/schemas/Refresh'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -409,7 +538,6 @@ paths:
               $ref: '#/components/schemas/Register'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -487,7 +615,6 @@ paths:
               $ref: '#/components/schemas/ResendVerification'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -534,7 +661,6 @@ paths:
               $ref: '#/components/schemas/VerifyEmail'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '200':
@@ -561,8 +687,6 @@ paths:
       operationId: backtest_runs_list
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -582,8 +706,6 @@ paths:
             schema:
               $ref: '#/components/schemas/BacktestRunCreate'
         required: true
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -599,8 +721,6 @@ paths:
         required: true
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -616,8 +736,6 @@ paths:
         required: true
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -633,8 +751,6 @@ paths:
         required: true
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -650,8 +766,6 @@ paths:
         required: true
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -667,8 +781,6 @@ paths:
         required: true
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -679,8 +791,6 @@ paths:
         registered.'
       tags:
       - backtest
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -689,8 +799,6 @@ paths:
       operationId: brokers_list
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -698,8 +806,6 @@ paths:
       operationId: brokers_connect
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -715,8 +821,6 @@ paths:
         required: true
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -731,8 +835,6 @@ paths:
         required: true
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '204':
           description: No response body
@@ -749,8 +851,6 @@ paths:
         required: true
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -770,8 +870,6 @@ paths:
         required: true
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -787,8 +885,6 @@ paths:
         required: true
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -804,8 +900,6 @@ paths:
         required: true
       tags:
       - brokers
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -814,8 +908,6 @@ paths:
       operationId: v1_brokers_ping_retrieve
       tags:
       - v1
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -834,8 +926,6 @@ paths:
       operationId: v1_brokers_tradestation_oauth_start_retrieve
       tags:
       - v1
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -844,8 +934,6 @@ paths:
       operationId: fills_list
       tags:
       - orders
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -854,8 +942,6 @@ paths:
       operationId: orders_list
       tags:
       - orders
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -871,8 +957,6 @@ paths:
         required: true
       tags:
       - orders
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -881,8 +965,6 @@ paths:
       operationId: orders_export_csv
       tags:
       - orders
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -891,8 +973,6 @@ paths:
       operationId: v1_orders_ping_retrieve
       tags:
       - v1
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -901,8 +981,6 @@ paths:
       operationId: positions_list
       tags:
       - orders
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -911,8 +989,6 @@ paths:
       operationId: reconciliation_events
       tags:
       - orders
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -921,8 +997,6 @@ paths:
       operationId: regime_current
       tags:
       - regime
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -931,8 +1005,6 @@ paths:
       operationId: regime_history
       tags:
       - regime
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -941,8 +1013,6 @@ paths:
       operationId: regime_model
       tags:
       - regime
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -957,8 +1027,6 @@ paths:
         required: true
       tags:
       - regime
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -967,8 +1035,6 @@ paths:
       operationId: risk_events
       tags:
       - risk
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -978,8 +1044,6 @@ paths:
       description: GET active kill switches; POST to trigger/release (AC-08-7/8/9/10).
       tags:
       - risk
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -988,8 +1052,6 @@ paths:
       description: GET active kill switches; POST to trigger/release (AC-08-7/8/9/10).
       tags:
       - risk
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -998,8 +1060,6 @@ paths:
       operationId: v1_risk_ping_retrieve
       tags:
       - v1
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1008,8 +1068,6 @@ paths:
       operationId: risk_profile_get
       tags:
       - risk
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1017,8 +1075,6 @@ paths:
       operationId: risk_profile_put
       tags:
       - risk
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1027,8 +1083,6 @@ paths:
       operationId: risk_sizing_decisions
       tags:
       - risk
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1037,8 +1091,6 @@ paths:
       operationId: sentiment_articles
       tags:
       - sentiment
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1047,8 +1099,6 @@ paths:
       operationId: sentiment_market
       tags:
       - sentiment
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1063,8 +1113,6 @@ paths:
         required: true
       tags:
       - sentiment
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1073,8 +1121,6 @@ paths:
       operationId: strategies_list
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1083,8 +1129,6 @@ paths:
       summary: Upload a 3-file strategy bundle.
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1100,8 +1144,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1116,8 +1158,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1132,8 +1172,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '204':
           description: No response body
@@ -1154,8 +1192,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1171,8 +1207,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1187,8 +1221,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1204,8 +1236,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1221,8 +1251,6 @@ paths:
         required: true
       tags:
       - strategies
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1232,8 +1260,6 @@ paths:
       summary: Get the currently authenticated user
       tags:
       - auth
-      security:
-      - jwtAuth: []
       responses:
         '200':
           content:
@@ -1263,8 +1289,6 @@ paths:
       summary: Change password. Revokes all other refresh sessions.
       tags:
       - users
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1274,8 +1298,6 @@ paths:
       summary: List the user's active refresh-token families.
       tags:
       - users
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1285,8 +1307,6 @@ paths:
       summary: Revoke a single session by family_id, OR all-other if all=true.
       tags:
       - users
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1296,8 +1316,6 @@ paths:
       summary: Update display_name / timezone / language / notification preferences
       tags:
       - users
-      security:
-      - jwtAuth: []
       responses:
         '200':
           description: No response body
@@ -1413,6 +1431,8 @@ components:
         is_verified:
           type: boolean
         mfa_enabled:
+          type: boolean
+        is_staff:
           type: boolean
       required:
       - display_name
@@ -1711,8 +1731,3 @@ components:
       - email
       - id
       - is_verified
-  securitySchemes:
-    jwtAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT

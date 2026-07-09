@@ -40,6 +40,8 @@ class AuthUserSerializer(serializers.Serializer):
     display_name = serializers.CharField()
     is_verified = serializers.BooleanField()
     mfa_enabled = serializers.BooleanField(required=False)
+    # M10 — the frontend adminGuard reads is_staff off the login token-pair payload.
+    is_staff = serializers.BooleanField(required=False)
 
 
 class RegisterDataSerializer(serializers.Serializer):

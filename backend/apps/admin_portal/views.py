@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
+from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
 from apps.audit.events import AuditEventType
@@ -84,6 +85,7 @@ class AdminBaseView(APIView):
 # Users
 # ---------------------------------------------------------------------------
 class AdminUserListView(AdminBaseView):
+    @extend_schema(operation_id="admin_users_list", tags=["admin"])
     def get(self, request):
         qs = User.objects.all().order_by("-created_at")
         q = request.query_params.get("q")
@@ -141,6 +143,7 @@ def _envelope(payload):
 
 
 class AdminUserDetailView(AdminBaseView):
+    @extend_schema(operation_id="admin_users_detail", tags=["admin"])
     def get(self, request, user_id):
         u = get_object_or_404(User, id=user_id)
         brokers = [
