@@ -30,7 +30,11 @@ class DashboardConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         # ``mfa_enabled`` is evaluated inside the sync auth method — it hits the
         # DB, which must not happen in this async context.
-        user, mfa_ok = await self._authenticate()
+        user, mfa_ok, is_impersonation = await self._authenticate()
+        # M10 — read-only impersonation tokens never reach the realtime socket.
+        if is_impersonation:
+            await self.close(code=CLOSE_MFA_REQUIRED)
+            return
         if user is None:
             await self.close(code=CLOSE_UNAUTHENTICATED)
             return
@@ -60,8 +64,9 @@ class DashboardConsumer(AsyncJsonWebsocketConsumer):
     # -- auth ---------------------------------------------------------------
     @database_sync_to_async
     def _authenticate(self):
-        """Return ``(user, mfa_ok)``. Both DB-touching evaluations (user lookup
-        and the ``mfa_enabled`` property) happen here in sync context."""
+        """Return ``(user, mfa_ok, is_impersonation)``. Both DB-touching
+        evaluations (user lookup and the ``mfa_enabled`` property) happen here in
+        sync context."""
         from rest_framework_simplejwt.exceptions import TokenError
         from rest_framework_simplejwt.tokens import AccessToken
 
@@ -69,19 +74,21 @@ class DashboardConsumer(AsyncJsonWebsocketConsumer):
 
         token = self._token_from_scope()
         if not token:
-            return None, False
+            return None, False, False
         try:
             access = AccessToken(token)
         except TokenError:
-            return None, False
+            return None, False, False
+        if access.get("purpose") == "impersonation":
+            return None, False, True
         user_id = access.get("user_id")
         if not user_id:
-            return None, False
+            return None, False, False
         try:
             user = User.objects.get(id=user_id, is_active=True)
         except User.DoesNotExist:
-            return None, False
-        return user, bool(user.mfa_enabled)
+            return None, False, False
+        return user, bool(user.mfa_enabled), False
 
     def _token_from_scope(self) -> str | None:
         query_string = self.scope.get("query_string", b"").decode("utf-8", "ignore")
