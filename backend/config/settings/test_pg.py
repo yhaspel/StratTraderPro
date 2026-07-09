@@ -12,12 +12,11 @@ The ``@skipUnless(connection.vendor == "postgresql")`` decorator on every
 pg-marked test means running this module against SQLite (or without the service)
 simply skips — no failures.
 """
-from .test import *  # noqa: F401, F403
-
 import environ as _environ
 
 # star-import skips _-prefixed names — name-import the helper explicitly.
 from .base import _wrap_db_engines_for_prometheus
+from .test import *  # noqa: F401, F403
 
 _env = _environ.Env()
 

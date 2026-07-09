@@ -86,4 +86,6 @@ urlpatterns = [
     path("api/v1/regime/", include("apps.regime.urls")),
     path("api/v1/sentiment/", include("apps.sentiment.urls")),
     path("api/v1/backtest/", include("apps.backtest.urls")),
+    # M10 — admin portal (staff-only; different path space than Django admin at /admin/).
+    path("api/v1/admin/", include("apps.admin_portal.urls")),
 ]
