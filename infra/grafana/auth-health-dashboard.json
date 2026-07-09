@@ -403,6 +403,109 @@
       ],
       "title": "Rate-limit hits (HTTP 429) by view",
       "type": "timeseries"
+    },
+    {
+      "type": "row",
+      "title": "SLO & Incidents",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 7,
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Login success ratio over 30m vs the 99% availability SLO. Below 99% (0.99) means auth is degraded \u2014 lockout storm, rate-limit breach, or backend fault.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.95
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(auth_login_total{result=\"ok\",service=\"backend\",env=\"$env\"}[30m])) / clamp_min(sum(rate(auth_login_total{service=\"backend\",env=\"$env\"}[30m])), 0.0001)",
+          "instant": false,
+          "legendFormat": "Login success ratio (SLO 99%)",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Login success ratio (SLO 99%)",
+      "type": "stat"
+    },
+    {
+      "type": "text",
+      "title": "Last incident",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      },
+      "id": 6,
+      "options": {
+        "mode": "markdown",
+        "content": "### Last incident\nNo incidents recorded. Track incidents in `docs/runbooks/incident-triage.md` and file a postmortem (`docs/postmortem-template.md`). Update this panel with the date + link after any SEV incident."
+      }
     }
   ],
   "preload": false,

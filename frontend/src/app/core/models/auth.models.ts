@@ -6,6 +6,7 @@ export interface AuthUser {
   display_name: string;
   is_verified: boolean;
   mfa_enabled?: boolean;
+  is_staff?: boolean;
 }
 
 export interface UserProfile {

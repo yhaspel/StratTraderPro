@@ -11,6 +11,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken
 
+from apps.audit.events import AuthEventType as EventType
+
 from . import services
 from .metrics import (
     FAMILY_REVOCATIONS_TOTAL,
@@ -19,7 +21,7 @@ from .metrics import (
     LoginResult,
     PasswordResetStep,
 )
-from .models import AuthEvent, EmailVerificationToken, PasswordResetToken
+from .models import EmailVerificationToken, PasswordResetToken
 from .responses import fail, ok
 from .schema import (
     ERROR_EXAMPLES,
@@ -131,7 +133,7 @@ class RegisterView(APIView):
         except IntegrityError:
             # Email enumeration mitigation: respond 202 generically.
             services.record_event(
-                AuthEvent.EventType.REGISTER,
+                EventType.REGISTER,
                 email=data["email"],
                 request=request,
                 metadata={"duplicate": True},
@@ -141,7 +143,7 @@ class RegisterView(APIView):
         token, raw = EmailVerificationToken.issue(user)
         services.send_verification_email(user, raw)
         services.record_event(
-            AuthEvent.EventType.REGISTER, user=user, request=request
+            EventType.REGISTER, user=user, request=request
         )
         return ok({"id": str(user.id), "email": user.email}, status=status.HTTP_201_CREATED)
 
@@ -185,7 +187,7 @@ class VerifyEmailView(APIView):
             user.is_verified = True
             user.save(update_fields=["is_verified", "updated_at"])
         services.record_event(
-            AuthEvent.EventType.VERIFY_EMAIL, user=user, request=request
+            EventType.VERIFY_EMAIL, user=user, request=request
         )
         return ok(services.issue_token_pair(user, request=request))
 
@@ -226,7 +228,7 @@ class ResendVerificationView(APIView):
             _, raw = EmailVerificationToken.issue(user)
             services.send_verification_email(user, raw)
             services.record_event(
-                AuthEvent.EventType.RESEND_VERIFICATION, user=user, request=request
+                EventType.RESEND_VERIFICATION, user=user, request=request
             )
         # Always 200 to avoid email enumeration.
         return ok({"status": "ok"})
@@ -287,7 +289,7 @@ class LoginView(APIView):
 
         if services.is_locked(email):
             services.record_event(
-                AuthEvent.EventType.LOGIN_FAIL, email=email, request=request,
+                EventType.LOGIN_FAIL, email=email, request=request,
                 metadata={"reason": "locked"},
             )
             LOGIN_TOTAL.labels(result=LoginResult.LOCKED).inc()
@@ -301,7 +303,7 @@ class LoginView(APIView):
         if user is None:
             services.record_failed_login(email, request=request)
             services.record_event(
-                AuthEvent.EventType.LOGIN_FAIL, email=email, request=request,
+                EventType.LOGIN_FAIL, email=email, request=request,
                 metadata={"reason": "invalid_credentials"},
             )
             # If this attempt just crossed the threshold, notify the user.
@@ -310,14 +312,14 @@ class LoginView(APIView):
                 if target:
                     services.send_account_locked_email(target)
                 services.record_event(
-                    AuthEvent.EventType.ACCOUNT_LOCKED, email=email, user=target, request=request,
+                    EventType.ACCOUNT_LOCKED, email=email, user=target, request=request,
                 )
             LOGIN_TOTAL.labels(result=LoginResult.BAD_PASSWORD).inc()
             return fail("INVALID_CREDENTIALS", "Invalid email or password.", status=401)
 
         if not user.is_verified:
             services.record_event(
-                AuthEvent.EventType.LOGIN_FAIL, user=user, request=request,
+                EventType.LOGIN_FAIL, user=user, request=request,
                 metadata={"reason": "unverified"},
             )
             LOGIN_TOTAL.labels(result=LoginResult.UNVERIFIED).inc()
@@ -337,7 +339,7 @@ class LoginView(APIView):
 
             mfa_token = issue_mfa_token(user)
             services.record_event(
-                AuthEvent.EventType.LOGIN_OK,
+                EventType.LOGIN_OK,
                 user=user,
                 request=request,
                 metadata={"mfa_required": True},
@@ -347,7 +349,7 @@ class LoginView(APIView):
 
         pair = services.issue_token_pair(user, request=request)
         pair["mfa_required"] = False
-        services.record_event(AuthEvent.EventType.LOGIN_OK, user=user, request=request)
+        services.record_event(EventType.LOGIN_OK, user=user, request=request)
         LOGIN_TOTAL.labels(result=LoginResult.OK).inc()
         return ok(pair)
 
@@ -461,7 +463,7 @@ class PasswordResetView(APIView):
             _, raw = PasswordResetToken.issue(user)
             services.send_password_reset_email(user, raw)
             services.record_event(
-                AuthEvent.EventType.PASSWORD_RESET_REQUESTED, user=user, request=request
+                EventType.PASSWORD_RESET_REQUESTED, user=user, request=request
             )
         # Increment unconditionally — incrementing only on `if user` would leak
         # email existence via metric volume; anti-enumeration applies here too.
@@ -522,7 +524,7 @@ class PasswordResetConfirmView(APIView):
         if revoked_count:
             FAMILY_REVOCATIONS_TOTAL.inc(revoked_count)
         services.record_event(
-            AuthEvent.EventType.PASSWORD_RESET_CONFIRMED, user=user, request=request
+            EventType.PASSWORD_RESET_CONFIRMED, user=user, request=request
         )
         PASSWORD_RESET_TOTAL.labels(step=PasswordResetStep.CONFIRMED).inc()
         return ok(services.issue_token_pair(user, request=request))

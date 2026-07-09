@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import TestCase, override_settings
 
+from apps.audit.models import AuditLog
 from apps.users.mfa import (
     decrypt_secret,
     encrypt_secret,
@@ -14,7 +15,6 @@ from apps.users.mfa import (
     verify_totp,
 )
 from apps.users.models import (
-    AuthEvent,
     BackupCode,
     MFADevice,
     RefreshTokenFamily,
@@ -149,7 +149,7 @@ class MFAEnrollTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.mfa_enabled)
         # AuthEvent logged.
-        self.assertTrue(AuthEvent.objects.filter(event_type="mfa_enrolled").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.mfa_enrolled").exists())
         # Email sent.
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("Two-factor", mail.outbox[0].subject)
@@ -226,7 +226,7 @@ class LoginMFAFlowTests(TestCase):
         data = resp.json()["data"]
         self.assertIn("access", data)
         self.assertIn("refresh", data)
-        self.assertTrue(AuthEvent.objects.filter(event_type="mfa_challenge_ok").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.mfa_challenge_ok").exists())
 
     def test_mfa_verify_with_backup_code(self):
         user = _create_user()
@@ -246,7 +246,7 @@ class LoginMFAFlowTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         # Backup code now used.
         self.assertEqual(BackupCode.objects.filter(user=user, used_at__isnull=False).count(), 1)
-        self.assertTrue(AuthEvent.objects.filter(event_type="backup_code_used").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.backup_code_used").exists())
 
     def test_mfa_verify_wrong_code_rejected(self):
         user = _create_user()
@@ -264,7 +264,7 @@ class LoginMFAFlowTests(TestCase):
         )
         self.assertEqual(resp.status_code, 401)
         self.assertEqual(resp.json()["error"]["code"], "MFA_CODE_INVALID")
-        self.assertTrue(AuthEvent.objects.filter(event_type="mfa_challenge_fail").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.mfa_challenge_fail").exists())
 
     def test_mfa_verify_with_invalid_token(self):
         user = _create_user()
@@ -491,7 +491,7 @@ class PasswordChangeTests(TestCase):
         # Current family still alive (best-effort — current_jti claim driven)
         # The exact survivor depends on access token's family_id claim;
         # at minimum, password_changed event must be logged.
-        self.assertTrue(AuthEvent.objects.filter(event_type="password_changed").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.password_changed").exists())
         # Old password no longer authenticates.
         user.refresh_from_db()
         self.assertTrue(user.check_password(NEW_PW))

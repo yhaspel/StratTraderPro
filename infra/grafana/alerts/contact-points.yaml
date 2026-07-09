@@ -1,0 +1,23 @@
+# Grafana contact points (M10 §6.5g) — template with env placeholders.
+# Import to Grafana Cloud and fill the secrets (docs/runbooks/alerting-setup.md).
+# Both email and Telegram sit in the same notification policy so a Telegram
+# outage still pages via email (risk register).
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: operator-email
+    receivers:
+      - uid: operator_email
+        type: email
+        settings:
+          addresses: ${GRAFANA_ALERT_EMAIL}
+          singleEmail: true
+  - orgId: 1
+    name: operator-telegram
+    receivers:
+      - uid: operator_telegram
+        type: telegram
+        settings:
+          # Create the bot via @BotFather; chat id via @userinfobot.
+          bottoken: ${TELEGRAM_BOT_TOKEN}
+          chatid: ${TELEGRAM_CHAT_ID}

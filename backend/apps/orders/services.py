@@ -173,6 +173,16 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
             order.filled_qty = (order.filled_qty or Decimal("0")) + fill.qty
             position_changed = True
             FILLS_INGESTED_TOTAL.labels(broker=broker_label).inc()  # FIX-C1
+            # Audit only newly-applied fills (dedup-aware) — M10 §6.1.
+            from apps.audit.events import AuditEventType
+            from apps.audit.services import emit
+
+            emit(
+                AuditEventType.ORDER_FILL_INGESTED, user_id=user_id,
+                entity_type="fill", entity_id=str(fill_row.id),
+                data_after={"order_id": str(order.id), "qty": str(fill.qty),
+                            "price": str(fill.price), "broker_exec_id": fill.broker_exec_id},
+            )
         else:
             fill_row = None  # already ingested — dedup, emit nothing
 

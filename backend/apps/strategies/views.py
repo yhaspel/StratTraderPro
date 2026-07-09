@@ -21,16 +21,17 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
 from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
+from apps.audit.events import AuditEventType
+from apps.audit.services import emit
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
 from apps.users.responses import fail, ok
-from apps.users.services import record_event
 
 from . import services
 from .metrics import (
@@ -71,7 +72,7 @@ def _feature_disabled():
 
 
 def _enabled() -> bool:
-    return getattr(settings, "STRATEGIES_V1_ENABLED", True)
+    return is_enabled("STRATEGIES_V1_ENABLED")
 
 
 def _visible_qs(user):
@@ -209,10 +210,14 @@ class StrategiesListCreateView(APIView):
 
         STRATEGY_UPLOADS_TOTAL.labels(result=StrategyUploadResult.OK).inc()
         refresh_count_gauge()
-        record_event(
-            "register",  # we reuse AuthEvent for now; M10 introduces a strategy event type
-            user=request.user, request=request,
-            metadata={"strategy_slug": slug, "kind": "strategy_upload"},
+        emit(
+            AuditEventType.STRATEGY_CREATED,
+            user=request.user,
+            actor=request.user,
+            request=request,
+            entity_type="strategy",
+            entity_id=strategy.id,
+            data_after={"name": display_name, "slug": slug},
         )
         logger.info(
             "strategy.upload.ok",
@@ -257,6 +262,11 @@ class StrategyDetailView(APIView):
         if not ser.is_valid():
             return fail("VALIDATION_ERROR", "Invalid input.", status=400, details=ser.errors)
         ser.save()
+        emit(
+            AuditEventType.STRATEGY_UPDATED, user=request.user, actor=request.user, request=request,
+            entity_type="strategy", entity_id=str(strategy.id),
+            data_after={k: request.data.get(k) for k in request.data},
+        )
         return ok(StrategySerializer(strategy, context={"request": request}).data)
 
     @extend_schema(operation_id="strategies_delete", tags=["strategies"])
@@ -274,6 +284,11 @@ class StrategyDetailView(APIView):
         strategy.is_enabled = False
         strategy.save(update_fields=["is_enabled", "updated_at"])
         refresh_count_gauge()
+        emit(
+            AuditEventType.STRATEGY_DELETED, user=request.user, actor=request.user, request=request,
+            entity_type="strategy", entity_id=str(strategy.id),
+            data_before={"is_enabled": True}, data_after={"is_enabled": False},
+        )
         return ok({"id": str(strategy.id), "is_enabled": False})
 
 
@@ -381,6 +396,12 @@ class WebhookConfigRotateView(APIView):
         )
         result = services.rotate_secret(config=cfg)
         STRATEGY_WEBHOOK_ROTATIONS_TOTAL.inc()
+        # Audit the rotation event — never the secret (scrubber guards data_after).
+        emit(
+            AuditEventType.STRATEGY_SECRET_ROTATED, user=request.user, actor=request.user, request=request,
+            entity_type="webhook_config", entity_id=str(cfg.id),
+            data_after={"strategy_id": str(strategy.id), "version": result.config.version},
+        )
         logger.info(
             "strategy.webhook.rotate",
             extra={"user": str(request.user.id), "strategy": str(strategy.id), "version": cfg.version},

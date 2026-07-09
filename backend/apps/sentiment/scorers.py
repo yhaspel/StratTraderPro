@@ -18,6 +18,8 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+from apps.admin_portal.flags import is_enabled
+
 PROMPT_VERSION = "v1"
 
 _POS = {"beat", "beats", "surge", "surges", "gain", "gains", "record", "strong",
@@ -170,11 +172,11 @@ def parse_llama_json(text: str) -> LlamaResult:
 def _fake_mode() -> bool:
     # Fakes are the default everywhere except a prod worker that explicitly
     # opts into the real weights.
-    return getattr(settings, "SENTIMENT_FAKE_SCORERS", True)
+    return is_enabled("SENTIMENT_FAKE_SCORERS")
 
 
 def get_finbert():
-    if _fake_mode() or not getattr(settings, "FINBERT_ENABLED", False):
+    if _fake_mode() or not is_enabled("FINBERT_ENABLED"):
         return FakeFinBert()
     return FinBertScorer()
 
@@ -182,7 +184,7 @@ def get_finbert():
 def get_llama():
     """Return the Tier-2 scorer, or None when the LLM worker is disabled/down
     (→ FinBERT-only degradation, AC-07-10)."""
-    if not getattr(settings, "LLM_WORKER_ENABLED", False):
+    if not is_enabled("LLM_WORKER_ENABLED"):
         return None
     if _fake_mode():
         return FakeLlama()

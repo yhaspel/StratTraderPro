@@ -56,6 +56,22 @@ class DashboardConsumerTests(TransactionTestCase):
 
         async_to_sync(scenario)()
 
+    def test_reject_impersonation_token(self):
+        # M10 AC-10-7 — a read-only impersonation token is rejected by the socket.
+        from apps.admin_portal.impersonation import start_session
+
+        admin = create_user(email="wsadmin@example.com")
+        target = create_user(email="wstarget@example.com")
+        _, token = start_session(actor=admin, target=target, reason="debug")
+
+        async def scenario():
+            comm = _comm(token)
+            connected, code = await comm.connect()
+            self.assertFalse(connected)
+            self.assertEqual(code, 4403)
+
+        async_to_sync(scenario)()
+
     def test_receives_position_update(self):
         user = create_user()
         token = access_token(user)

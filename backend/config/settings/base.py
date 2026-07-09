@@ -105,6 +105,8 @@ INSTALLED_APPS = ["daphne"] + DJANGO_APPS + ["channels"] + THIRD_PARTY_APPS + LO
 # ---------------------------------------------------------------------------
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    # M10 §6.6 — mint/propagate a request_id (ULID) as early as possible.
+    "config.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -213,8 +215,11 @@ PASSWORD_HASHERS = [
 # REST Framework
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
+    # M10 — impersonation-aware authentication. The read-only write-block for
+    # impersonation tokens MUST live at the auth layer: every mutating view
+    # overrides permission_classes, which would drop a global permission (§6.2).
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "apps.users.authentication.ImpersonationAwareJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -468,6 +473,48 @@ KILL_SWITCHES_ENABLED = env.bool("KILL_SWITCHES_ENABLED", default=True)
 BACKTEST_ENABLED = env.bool("BACKTEST_ENABLED", default=True)
 
 # ---------------------------------------------------------------------------
+# Admin portal + audit (M10)
+# ---------------------------------------------------------------------------
+# Env-only master gate (immutable flag): off → all /api/v1/admin/* return 503
+# ADMIN_PORTAL_DISABLED and the frontend hides /admin. Audit emission is never
+# gated by this (writes continue). Rollback without redeploy (§15).
+ADMIN_PORTAL_ENABLED = env.bool("ADMIN_PORTAL_ENABLED", default=True)
+# Operator address the nightly integrity verifier pages on a failure (AC-10-2).
+AUDIT_ALERT_EMAIL = env("AUDIT_ALERT_EMAIL", default="")
+# Read-only impersonation token/session TTL (AC-10-7).
+IMPERSONATION_TTL_MINUTES = env.int("IMPERSONATION_TTL_MINUTES", default=15)
+
+# Feature-flag registry (M10 §6.4). Each entry's ``default`` is the env-parsed
+# settings value above (the fail-open target). Immutable flags (``mutable=False``)
+# are env-only forever — the admin API rejects a flip with FLAG_IMMUTABLE.
+# Dangerous flags require a typed name-confirm in the UI (server still MFA-gates).
+def _flag(default, description, *, mutable=True, dangerous=False):
+    return {"default": bool(default), "description": description, "mutable": mutable, "dangerous": dangerous}
+
+
+FEATURE_FLAGS_REGISTRY = {
+    "MFA_ENABLED": _flag(MFA_ENABLED, "MFA challenge + enrollment endpoints.", mutable=False),
+    "GOOGLE_OAUTH_ENABLED": _flag(GOOGLE_OAUTH_ENABLED, "Google OAuth sign-in."),
+    "STRATEGIES_V1_ENABLED": _flag(STRATEGIES_V1_ENABLED, "Strategy CRUD + upload API."),
+    "WEBHOOK_V1_ENABLED": _flag(WEBHOOK_V1_ENABLED, "Public webhook ingest."),
+    "BROKER_ALPACA_ENABLED": _flag(BROKER_ALPACA_ENABLED, "Alpaca broker adapter."),
+    "BROKER_TRADESTATION_ENABLED": _flag(BROKER_TRADESTATION_ENABLED, "TradeStation broker adapter."),
+    "ENABLE_LIVE_TRADING": _flag(ENABLE_LIVE_TRADING, "Master live-trading gate.", dangerous=True),
+    "FILLS_INLINE": _flag(FILLS_INLINE, "Apply fills inline (no Redis stream).", mutable=False),
+    "ENABLE_REGIME_UI": _flag(ENABLE_REGIME_UI, "Regime dashboard UI."),
+    "SENTIMENT_ENABLED": _flag(SENTIMENT_ENABLED, "Sentiment pipeline + API."),
+    "LLM_WORKER_ENABLED": _flag(LLM_WORKER_ENABLED, "Tier-2 LLM (Llama) scorer."),
+    "FINBERT_ENABLED": _flag(FINBERT_ENABLED, "Real FinBERT scorer."),
+    "SENTIMENT_FAKE_SCORERS": _flag(SENTIMENT_FAKE_SCORERS, "Use canned fake scorers.", dangerous=True),
+    "SENTIMENT_SPACY_NER": _flag(SENTIMENT_SPACY_NER, "spaCy NER entity tagging."),
+    "SENTIMENT_ALIAS_TAGGING": _flag(SENTIMENT_ALIAS_TAGGING, "Alias-based ticker tagging."),
+    "SIZING_V1_ENABLED": _flag(SIZING_V1_ENABLED, "Risk-based position sizing.", dangerous=True),
+    "KILL_SWITCHES_ENABLED": _flag(KILL_SWITCHES_ENABLED, "Kill-switch engine.", mutable=False),
+    "BACKTEST_ENABLED": _flag(BACKTEST_ENABLED, "Walk-forward backtester."),
+    "ADMIN_PORTAL_ENABLED": _flag(ADMIN_PORTAL_ENABLED, "Admin portal API.", mutable=False),
+}
+
+# ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="anymail.backends.resend.EmailBackend")
@@ -574,6 +621,17 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.backtest.tasks.evict_expired_artifacts",
         "schedule": crontab(hour=3, minute=30),
     },
+    # M10 — nightly (08:00 UTC ≈ 04:00 ET) audit-chain integrity verification.
+    # Default `celery` queue (M09 rule: no glob routes).
+    "audit-verify-integrity": {
+        "task": "apps.audit.tasks.verify_audit_integrity",
+        "schedule": crontab(hour=8, minute=0),
+    },
+    # M10 — refresh celery_queue_depth{queue} gauge every 30s (default queue).
+    "admin-queue-depths": {
+        "task": "apps.admin_portal.tasks.update_queue_depths",
+        "schedule": env.float("QUEUE_DEPTH_INTERVAL_SECONDS", default=30.0),
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -613,35 +671,32 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ---------------------------------------------------------------------------
-# Logging (structlog with sensitive key scrubbing)
+# Logging
 # ---------------------------------------------------------------------------
-SENSITIVE_KEYS = {"authorization", "sig", "secret", "password", "token", "api_key", "dsn"}
-
-
-def _scrub_sensitive(_, __, event_dict):
-    """Remove sensitive keys from log output."""
-    for key in list(event_dict.keys()):
-        if key.lower() in SENSITIVE_KEYS:
-            event_dict[key] = "***REDACTED***"
-    return event_dict
-
-
+# NOTE (M10 §6.1): the sensitive-key scrubber (SENSITIVE_KEYS + _scrub_sensitive)
+# was relocated to apps/audit/scrub.py so the audit service and the log config
+# share one key set (ADR-100). Import here only if a logging processor needs it.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    # M10 §6.6 — inject request_id + task_id into every record.
+    "filters": {
+        "request_context": {"()": "config.request_context.RequestContextFilter"},
+    },
     "formatters": {
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": "%(asctime)s %(name)s %(levelname)s %(message)s",
+            "format": "%(asctime)s %(name)s %(levelname)s %(request_id)s %(task_id)s %(message)s",
         },
         "console": {
-            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "format": "%(asctime)s [%(levelname)s] %(name)s [%(request_id)s]: %(message)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
+            "filters": ["request_context"],
         },
     },
     "root": {
@@ -664,3 +719,9 @@ SENTRY_DSN = env("SENTRY_DSN", default="")
 # ---------------------------------------------------------------------------
 OTEL_SERVICE_NAME = "strattraderpro-backend"
 OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
+
+# ---------------------------------------------------------------------------
+# Metrics exposition basic auth (M10 §6.5a). Unset → open (dev/test); prod warns.
+# ---------------------------------------------------------------------------
+METRICS_BASIC_AUTH_USERNAME = env("METRICS_BASIC_AUTH_USERNAME", default="")
+METRICS_BASIC_AUTH_PASSWORD = env("METRICS_BASIC_AUTH_PASSWORD", default="")

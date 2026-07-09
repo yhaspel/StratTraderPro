@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "M09 Backtest Ops — walk-forward run throughput, queue wait, failures, duration, and artifact storage. No data until the M09 metrics are emitted; alert rules are wired live in M10.",
+  "description": "M09 Backtest Ops \u2014 walk-forward run throughput, queue wait, failures, duration, and artifact storage. No data until the M09 metrics are emitted; alert rules are wired live in M10.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -37,7 +37,7 @@
     {
       "type": "stat",
       "title": "Active runs",
-      "description": "backtest_active_runs — runs currently executing (concurrency=1 per worker).",
+      "description": "backtest_active_runs \u2014 runs currently executing (concurrency=1 per worker).",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -56,9 +56,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 3 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
             ]
           }
         },
@@ -69,7 +78,9 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -92,7 +103,7 @@
     {
       "type": "timeseries",
       "title": "Runs /hr by terminal status",
-      "description": "backtest_runs_total{status} — COMPLETED / FAILED / CANCELLED per hour.",
+      "description": "backtest_runs_total{status} \u2014 COMPLETED / FAILED / CANCELLED per hour.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -120,7 +131,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["last", "max"]
+          "calcs": [
+            "last",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -144,7 +158,7 @@
     {
       "type": "timeseries",
       "title": "Queue wait p95 / p99",
-      "description": "backtest_queue_wait_seconds — enqueue → task start. ALERT: p95 > 10 min (600s) means the backtest worker isn't keeping up or isn't provisioned.",
+      "description": "backtest_queue_wait_seconds \u2014 enqueue \u2192 task start. ALERT: p95 > 10 min (600s) means the backtest worker isn't keeping up or isn't provisioned.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -164,13 +178,21 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 1,
-            "thresholdsStyle": { "mode": "line" }
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 600 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 600
+              }
             ]
           }
         },
@@ -180,7 +202,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["last", "max"]
+          "calcs": [
+            "last",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -228,7 +253,7 @@
     {
       "type": "timeseries",
       "title": "Failures /hr by reason",
-      "description": "backtest_failed_total{reason} — by error code. Any increase in reason=\"BACKTEST_TIME_CAP\" is a run that hit the 25-min soft cap (see alert).",
+      "description": "backtest_failed_total{reason} \u2014 by error code. Any increase in reason=\"BACKTEST_TIME_CAP\" is a run that hit the 25-min soft cap (see alert).",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -256,7 +281,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["last", "max"]
+          "calcs": [
+            "last",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -280,7 +308,7 @@
     {
       "type": "timeseries",
       "title": "Failed-rate over 1h",
-      "description": "backtest_failed_total ÷ backtest_runs_total over 1h. ALERT: > 20% sustained over 1h.",
+      "description": "backtest_failed_total \u00f7 backtest_runs_total over 1h. ALERT: > 20% sustained over 1h.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -302,13 +330,21 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 1,
-            "thresholdsStyle": { "mode": "line" }
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 0.2 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
             ]
           }
         },
@@ -318,7 +354,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["last", "max"]
+          "calcs": [
+            "last",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -375,14 +414,25 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 1,
-            "thresholdsStyle": { "mode": "line" }
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1500 },
-              { "color": "red", "value": 1800 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1500
+              },
+              {
+                "color": "red",
+                "value": 1800
+              }
             ]
           }
         },
@@ -392,7 +442,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["last", "max"]
+          "calcs": [
+            "last",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -438,7 +491,7 @@
     {
       "type": "timeseries",
       "title": "Artifact bytes stored",
-      "description": "backtest_artifact_bytes — total json+html+pdf bytes across all reports. Trending toward ~5 GB is the R2 revisit trigger (ADR-090 / plan §16).",
+      "description": "backtest_artifact_bytes \u2014 total json+html+pdf bytes across all reports. Trending toward ~5 GB is the R2 revisit trigger (ADR-090 / plan \u00a716).",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -458,13 +511,21 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "lineWidth": 1,
-            "thresholdsStyle": { "mode": "line" }
+            "thresholdsStyle": {
+              "mode": "line"
+            }
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5000000000 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5000000000
+              }
             ]
           }
         },
@@ -474,7 +535,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["last", "max"]
+          "calcs": [
+            "last",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -497,7 +561,7 @@
     },
     {
       "type": "row",
-      "title": "Alert rules (documented — live wiring is M10)",
+      "title": "Alert rules (documented \u2014 live wiring is M10)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -524,7 +588,169 @@
       "id": 131,
       "options": {
         "mode": "markdown",
-        "content": "Three alert rules are committed with this dashboard; **live wiring (contact points / thresholds) is M10 observability work** (per plan §12).\n\n1. **Queue wait p95 > 10 min** — `histogram_quantile(0.95, sum by (le) (rate(backtest_queue_wait_seconds_bucket[30m]))) > 600`. Fires when runs are waiting more than 10 minutes to start — the classic symptom of the `worker-backtest` service not being provisioned or not keeping up. See `docs/runbooks/backtest-stuck.md` §1.\n2. **Any run hits the hard time cap** — `increase(backtest_failed_total{reason=\"BACKTEST_TIME_CAP\"}[10m]) > 0`. A run exceeded the 25-min soft limit (hard kill at 30 min). Not an outage — the job was too big for the budget; shrink the grid / range / symbols. Runbook §5.\n3. **Failed-rate > 20% over 1h** — `sum(increase(backtest_failed_total[1h])) / clamp_min(sum(increase(backtest_runs_total[1h])), 1) > 0.2`. A broad failure spike — check `backtest_failed_total{reason}` to localize (time cap vs insufficient-data vs engine error). Runbook §6."
+        "content": "Three alert rules are committed with this dashboard; **live wiring (contact points / thresholds) is M10 observability work** (per plan \u00a712).\n\n1. **Queue wait p95 > 10 min** \u2014 `histogram_quantile(0.95, sum by (le) (rate(backtest_queue_wait_seconds_bucket[30m]))) > 600`. Fires when runs are waiting more than 10 minutes to start \u2014 the classic symptom of the `worker-backtest` service not being provisioned or not keeping up. See `docs/runbooks/backtest-stuck.md` \u00a71.\n2. **Any run hits the hard time cap** \u2014 `increase(backtest_failed_total{reason=\"BACKTEST_TIME_CAP\"}[10m]) > 0`. A run exceeded the 25-min soft limit (hard kill at 30 min). Not an outage \u2014 the job was too big for the budget; shrink the grid / range / symbols. Runbook \u00a75.\n3. **Failed-rate > 20% over 1h** \u2014 `sum(increase(backtest_failed_total[1h])) / clamp_min(sum(increase(backtest_runs_total[1h])), 1) > 0.2`. A broad failure spike \u2014 check `backtest_failed_total{reason}` to localize (time cap vs insufficient-data vs engine error). Runbook \u00a76."
+      }
+    },
+    {
+      "type": "row",
+      "title": "SLO & Incidents",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 132,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Backtest queue wait p95 (SLO \u2264 10m)",
+      "description": "backtest_queue_wait_seconds \u2014 enqueue \u2192 start. SLO: p95 \u2264 10 min (600s).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 37
+      },
+      "id": 133,
+      "pluginVersion": "11.0.0",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 600
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(backtest_queue_wait_seconds_bucket{env=~\"$env\"}[15m])))",
+          "range": true,
+          "legendFormat": "Backtest queue wait p95 (SLO \u2264 10m)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Backtest failures (1h)",
+      "description": "increase(backtest_failed_total[1h]) \u2014 total run failures in the last hour.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 37
+      },
+      "id": 134,
+      "pluginVersion": "11.0.0",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(backtest_failed_total{env=~\"$env\"}[1h]))",
+          "range": true,
+          "legendFormat": "Backtest failures (1h)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Last incident",
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 16,
+        "y": 37
+      },
+      "id": 135,
+      "options": {
+        "mode": "markdown",
+        "content": "### Last incident\nNo incidents recorded. Track incidents in `docs/runbooks/incident-triage.md` and file a postmortem (`docs/postmortem-template.md`). Update this panel with the date + link after any SEV incident."
       }
     }
   ],

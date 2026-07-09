@@ -332,6 +332,168 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "type": "row",
+      "title": "SLO & Incidents",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 108,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Sentiment freshness (SLO \u2264 30m)",
+      "description": "sentiment_queue_oldest_age_minutes \u2014 age of the oldest unprocessed item. SLO: \u2264 30 min.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 19
+      },
+      "id": 109,
+      "pluginVersion": "11.0.0",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max(sentiment_queue_oldest_age_minutes{env=~\"$env\"})",
+          "range": true,
+          "legendFormat": "Sentiment freshness (SLO \u2264 30m)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "HMM model age (SLO \u2264 48h)",
+      "description": "regime_model_age_seconds \u2014 SLO: \u2264 48h; older \u2192 rule-only fallback (AC-06-8).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 19
+      },
+      "id": 110,
+      "pluginVersion": "11.0.0",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 172800
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max(regime_model_age_seconds{env=~\"$env\"})",
+          "range": true,
+          "legendFormat": "HMM model age (SLO \u2264 48h)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Last incident",
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 16,
+        "y": 19
+      },
+      "id": 111,
+      "options": {
+        "mode": "markdown",
+        "content": "### Last incident\nNo incidents recorded. Track incidents in `docs/runbooks/incident-triage.md` and file a postmortem (`docs/postmortem-template.md`). Update this panel with the date + link after any SEV incident."
+      }
     }
   ],
   "preload": false,

@@ -39,6 +39,9 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
+from apps.admin_portal.flags import is_enabled
+from apps.audit.events import AuthEventType as EventType
+
 from . import services
 from .metrics_oauth import (
     OAUTH_EXCHANGE_TOTAL,
@@ -46,7 +49,7 @@ from .metrics_oauth import (
     OAuthExchangeResult,
     OAuthLoginResult,
 )
-from .models import AuthEvent, OAuthExchangeCode
+from .models import OAuthExchangeCode
 from .responses import fail, ok
 from .serializers import OAuthExchangeSerializer
 
@@ -85,7 +88,7 @@ class OAuthGoogleStartView(APIView):
         summary="Redirect the browser to Google's OAuth authorize URL.",
     )
     def get(self, request):
-        if not settings.GOOGLE_OAUTH_ENABLED or not settings.GOOGLE_OAUTH_CLIENT_ID:
+        if not is_enabled("GOOGLE_OAUTH_ENABLED") or not settings.GOOGLE_OAUTH_CLIENT_ID:
             return _feature_disabled_response()
 
         from allauth.socialaccount.providers.google.views import oauth2_login
@@ -133,7 +136,7 @@ class OAuthPostCallbackView(APIView):
 
         if user is None:
             services.record_event(
-                AuthEvent.EventType.OAUTH_EXCHANGE_FAIL,
+                EventType.OAUTH_EXCHANGE_FAIL,
                 request=request,
                 metadata={"reason": "no_authenticated_user_post_callback"},
             )
@@ -157,21 +160,21 @@ class OAuthPostCallbackView(APIView):
 
         if is_new_user:
             services.record_event(
-                AuthEvent.EventType.OAUTH_USER_CREATED,
+                EventType.OAUTH_USER_CREATED,
                 user=user, request=request,
                 metadata={"provider": "google"},
             )
             services.send_oauth_account_created_email(user)
         elif is_newly_linked:
             services.record_event(
-                AuthEvent.EventType.OAUTH_LINKED,
+                EventType.OAUTH_LINKED,
                 user=user, request=request,
                 metadata={"provider": "google"},
             )
             services.send_oauth_account_linked_email(user)
 
         services.record_event(
-            AuthEvent.EventType.OAUTH_LOGIN_OK,
+            EventType.OAUTH_LOGIN_OK,
             user=user, request=request,
             metadata={"provider": "google"},
         )
@@ -207,7 +210,7 @@ class OAuthExchangeView(APIView):
         summary="Swap an OAuth exchange code for a JWT pair (or MFA challenge).",
     )
     def post(self, request):
-        if not settings.GOOGLE_OAUTH_ENABLED:
+        if not is_enabled("GOOGLE_OAUTH_ENABLED"):
             return _feature_disabled_response()
 
         ser = OAuthExchangeSerializer(data=request.data)
@@ -217,7 +220,7 @@ class OAuthExchangeView(APIView):
         user = OAuthExchangeCode.consume(ser.validated_data["exchange"])
         if user is None:
             services.record_event(
-                AuthEvent.EventType.OAUTH_EXCHANGE_FAIL,
+                EventType.OAUTH_EXCHANGE_FAIL,
                 request=request,
                 metadata={"reason": "invalid_or_expired_code"},
             )
@@ -235,7 +238,7 @@ class OAuthExchangeView(APIView):
 
             mfa_token = issue_mfa_token(user)
             services.record_event(
-                AuthEvent.EventType.OAUTH_EXCHANGE_OK,
+                EventType.OAUTH_EXCHANGE_OK,
                 user=user, request=request,
                 metadata={"mfa_required": True},
             )
@@ -243,7 +246,7 @@ class OAuthExchangeView(APIView):
             return ok({"mfa_required": True, "mfa_token": mfa_token})
 
         services.record_event(
-            AuthEvent.EventType.OAUTH_EXCHANGE_OK,
+            EventType.OAUTH_EXCHANGE_OK,
             user=user, request=request,
             metadata={"mfa_required": False},
         )

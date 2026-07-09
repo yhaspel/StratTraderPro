@@ -63,8 +63,11 @@ urlpatterns = [
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 
-    # Prometheus metrics
-    path("", include("django_prometheus.urls")),
+    # M10 §6.5a — /metrics is now served OUTSIDE the urlconf by
+    # config/metrics_endpoint.py (wired into config/wsgi.py + config/asgi.py) so
+    # scrapes bypass the middleware chain. The django_prometheus.urls include was
+    # removed here; its middlewares + DB engine wrappers stay (they PRODUCE the
+    # series). Rollback = re-add `path("", include("django_prometheus.urls"))`.
 
     # M04 — public webhook receiver. Mounted OUTSIDE /api/v1 so no JWT auth
     # middleware runs; the in-body `sig` secret is the only credential (ADR-042).
@@ -86,4 +89,6 @@ urlpatterns = [
     path("api/v1/regime/", include("apps.regime.urls")),
     path("api/v1/sentiment/", include("apps.sentiment.urls")),
     path("api/v1/backtest/", include("apps.backtest.urls")),
+    # M10 — admin portal (staff-only; different path space than Django admin at /admin/).
+    path("api/v1/admin/", include("apps.admin_portal.urls")),
 ]

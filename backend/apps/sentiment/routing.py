@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 
-from django.conf import settings
+from apps.admin_portal.flags import is_enabled
 
 from .metrics import LLM_INFERENCE_LATENCY, LLM_INVALID_RESPONSES, SENTIMENT_SCORED
 from .models import ArticleScore, LLMInferenceLog, NewsArticle
@@ -82,4 +82,4 @@ def _score_tier2(article: NewsArticle) -> None:
 
 
 def llm_degraded() -> bool:
-    return not getattr(settings, "LLM_WORKER_ENABLED", False)
+    return not is_enabled("LLM_WORKER_ENABLED")

@@ -87,5 +87,9 @@ def queue_backlog() -> dict:
     oldest = qs.order_by("fetched_at").values_list("fetched_at", flat=True).first()
     age_min = (timezone.now() - oldest).total_seconds() / 60.0 if oldest else 0.0
     depth = qs.count()
+    # M10 §6.5c — surface the oldest-age as a gauge (backs the sentiment-lag alert).
+    from .metrics import SENTIMENT_QUEUE_OLDEST_AGE
+
+    SENTIMENT_QUEUE_OLDEST_AGE.set(round(age_min, 1))
     return {"depth": depth, "oldest_age_min": round(age_min, 1),
             "alert": depth > 500 or age_min > 30}

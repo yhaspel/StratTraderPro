@@ -292,16 +292,28 @@ def process_alert(self, alert_id):
         req = _build_req(qty)
 
     # --- place -----------------------------------------------------------
-    try:
-        t0 = time.monotonic()
-        ack = adapter.place_order(req, client_order_id)
-        ORDER_SUBMIT_LATENCY.labels(broker=str(account.broker).lower()).observe(time.monotonic() - t0)
-    except BrokerError as exc:
-        logger.info("process_alert.broker_error", extra={"code": exc.code, "order": str(order.id)})
-        return _reject(order, alert, exc.code)
-    except Exception:  # noqa: BLE001 — never re-raise into a retry storm (§6.3)
-        logger.exception("process_alert.unexpected", extra={"order": str(order.id)})
-        return _reject(order, alert, "BROKER_UNKNOWN_ERROR")
+    # M10 §6.6 — trace the order path with non-PII attributes (user id is hashed;
+    # a raw id never reaches the trace backend). No-op span when OTel is off.
+    from opentelemetry import trace as _otel_trace
+
+    from config.otel import user_id_hash
+
+    _tracer = _otel_trace.get_tracer("apps.webhooks")
+    with _tracer.start_as_current_span("webhook.place_order") as _span:
+        _span.set_attribute("alert_id", str(alert.id))
+        _span.set_attribute("strategy_id", str(alert.strategy_id) if alert.strategy_id else "")
+        _span.set_attribute("broker", str(account.broker))
+        _span.set_attribute("user_id_hash", user_id_hash(alert.user_id))
+        try:
+            t0 = time.monotonic()
+            ack = adapter.place_order(req, client_order_id)
+            ORDER_SUBMIT_LATENCY.labels(broker=str(account.broker).lower()).observe(time.monotonic() - t0)
+        except BrokerError as exc:
+            logger.info("process_alert.broker_error", extra={"code": exc.code, "order": str(order.id)})
+            return _reject(order, alert, exc.code)
+        except Exception:  # noqa: BLE001 — never re-raise into a retry storm (§6.3)
+            logger.exception("process_alert.unexpected", extra={"order": str(order.id)})
+            return _reject(order, alert, "BROKER_UNKNOWN_ERROR")
 
     # Record broker id; advance status only if inline fills haven't already
     # moved it past PENDING_SUBMIT (FILLS_INLINE path).
@@ -312,6 +324,17 @@ def process_alert(self, alert_id):
     )
     order.refresh_from_db()
     push_to_user(alert.user_id, ORDER_UPDATED, order_to_wire(order))
+
+    from apps.audit.events import AuditEventType
+    from apps.audit.services import emit
+
+    emit(
+        AuditEventType.ORDER_SUBMITTED, user=alert.user,
+        entity_type="order", entity_id=str(order.id),
+        data_after={"alert_id": str(alert.id), "broker_order_id": order.broker_order_id,
+                    "symbol": order.symbol, "side": order.side, "qty": str(order.qty),
+                    "status": order.status, "broker": str(account.broker)},
+    )
 
     alert.status = AlertMessage.Status.ACCEPTED
     alert.processed_at = timezone.now()

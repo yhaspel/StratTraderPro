@@ -23,10 +23,22 @@ redis>=5.0,<5.1
 sentry-sdk[django,celery]>=1.40,<2.0
 django-prometheus>=2.3,<2.4
 opentelemetry-distro[otlp]>=0.43b0
+# M10 §6.6 — OTel instrumentation for the traced stack. Pinned to the 0.64b0
+# series that matches the resolved `opentelemetry-distro` (api/sdk 1.43.0); the
+# instrumentations must move in lockstep with the distro's semantic-conventions.
+opentelemetry-instrumentation-django==0.64b0
+opentelemetry-instrumentation-celery==0.64b0
+opentelemetry-instrumentation-redis==0.64b0
+opentelemetry-instrumentation-psycopg2==0.64b0
+opentelemetry-instrumentation-httpx==0.64b0
 python-json-logger>=2.0,<2.1
+# M10 §6.6 — request-id correlation (ULID) across web → Celery → logs → Sentry.
+python-ulid>=3.0,<4.0
 
 # Logging
-structlog>=23.2,<24.0
+# NOTE (M10 §6.6): `structlog` was pinned in M00 but never wired (only comments
+# referenced it; the scrubber uses the python-json-logger LOGGING config). Dropped
+# to remove a dead dependency — the logging stack stays python-json-logger.
 
 # Database
 psycopg2-binary>=2.9,<2.10

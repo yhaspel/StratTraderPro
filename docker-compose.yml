@@ -59,7 +59,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: celery -A config.celery worker -l info
+    # concurrency=1 gives a clean 1:1 mapping to TASK_METRICS_PORT (FIX-C1, §6.5b);
+    # prefork children can't share a scrape port.
+    command: celery -A config.celery worker -l info --concurrency=1
     # The backend service runs `migrate` on boot; on a fresh DB this worker can
     # start first and hit a not-yet-created table. Self-heal until migrations land.
     restart: on-failure
@@ -68,6 +70,7 @@ services:
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9101"  # FIX-C1 — scraped by grafana-agent as worker:9101
     volumes:
       - ./backend:/app
     depends_on:
@@ -92,6 +95,7 @@ services:
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9102"  # FIX-C1 — scraped as worker-backtest:9102
     volumes:
       - ./backend:/app
     depends_on:
@@ -112,6 +116,7 @@ services:
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9103"  # FIX-C1 — scraped as beat:9103
     volumes:
       - ./backend:/app
     depends_on:
@@ -131,11 +136,31 @@ services:
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9104"  # already wired; scraped as streams:9104
     volumes:
       - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Prometheus exporters (M10 §6.5d) ----------
+  # Local parity for the DB/Redis saturation alerts. On Railway these are
+  # separate operator-provisioned services (docs/runbooks/worker-metrics-scrape.md).
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://stp_user:stp_local_pw@postgres:5432/strattraderpro?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
       redis:
         condition: service_healthy
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
+from apps.admin_portal.flags import is_enabled
 
 from .metrics import SIZING_DECISIONS, SIZING_REJECT_REASON
 from .models import RiskEvent, RiskProfile, SizingDecision
@@ -88,7 +88,7 @@ def _atr14(symbol: str) -> Decimal | None:
 
 def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol, price_hint=None):
     """Returns a SizingResult, or None if sizing is off / no profile."""
-    if not getattr(settings, "SIZING_V1_ENABLED", True):
+    if not is_enabled("SIZING_V1_ENABLED"):
         return None
     profile = RiskProfile.objects.filter(user=alert.user).first()
     if profile is None:

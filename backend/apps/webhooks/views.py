@@ -33,6 +33,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
+from apps.admin_portal.flags import is_enabled
 from apps.risk.killswitch import is_blocked
 from apps.strategies.models import WebhookConfig
 from apps.strategies.services import decrypt_secret
@@ -92,7 +93,7 @@ class WebhookView(View):
     def post(self, request, user_id, strategy_id):
         started = time.monotonic()
 
-        if not getattr(settings, "WEBHOOK_V1_ENABLED", True):
+        if not is_enabled("WEBHOOK_V1_ENABLED"):
             WEBHOOK_RECEIVED_TOTAL.labels(result=R_DISABLED).inc()
             return _err("FEATURE_DISABLED", "Webhook ingest is disabled by ops.", 503)
 

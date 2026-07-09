@@ -14,6 +14,7 @@ from cryptography.fernet import InvalidToken as FernetInvalidToken
 from django.conf import settings
 from django.core.cache import cache
 
+from apps.admin_portal.flags import is_enabled
 from apps.users.mfa import _fernet  # reuse the platform KEK
 
 from .base import BrokerAdapter, BrokerConnState, BrokerContext
@@ -56,13 +57,13 @@ def build_adapter(account: BrokerAccount) -> BrokerAdapter:
         account_number=account.account_number,
     )
     if account.broker == BrokerAccount.Broker.ALPACA:
-        if not getattr(settings, "BROKER_ALPACA_ENABLED", True):
+        if not is_enabled("BROKER_ALPACA_ENABLED"):
             raise BrokerError(BrokerErrorCode.DISABLED, "Alpaca is disabled by ops.")
         from .alpaca.adapter import AlpacaAdapter
 
         return AlpacaAdapter(ctx)
     if account.broker == BrokerAccount.Broker.TRADESTATION:
-        if not getattr(settings, "BROKER_TRADESTATION_ENABLED", False):
+        if not is_enabled("BROKER_TRADESTATION_ENABLED"):
             raise BrokerError(BrokerErrorCode.DISABLED, "TradeStation is disabled by ops.")
         from .tradestation.adapter import TradeStationPaperAdapter
 
@@ -75,7 +76,7 @@ def build_adapter_from_keys(*, api_key_id: str, api_secret: str, broker: str) ->
     test (POST /brokers/). Used before we know the account number."""
     ctx = BrokerContext(account_id="pending", user_id="pending", api_key_id=api_key_id, api_secret=api_secret)
     if broker == BrokerAccount.Broker.ALPACA:
-        if not getattr(settings, "BROKER_ALPACA_ENABLED", True):
+        if not is_enabled("BROKER_ALPACA_ENABLED"):
             raise BrokerError(BrokerErrorCode.DISABLED, "Alpaca is disabled by ops.")
         from .alpaca.adapter import AlpacaAdapter
 

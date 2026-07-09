@@ -13,8 +13,8 @@ from django.core import mail
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from apps.audit.models import AuditLog
 from apps.users.models import (
-    AuthEvent,
     EmailVerificationToken,
     FailedLoginAttempt,
     PasswordResetToken,
@@ -64,7 +64,7 @@ class RegisterTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("Verify", mail.outbox[0].subject)
         # AuthEvent recorded
-        self.assertTrue(AuthEvent.objects.filter(event_type="register").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.register").exists())
 
     def test_register_duplicate_email_returns_202(self):
         _create_user(email="dupe@example.com")
@@ -343,7 +343,7 @@ class AuthEventTests(TestCase):
             {"email": "test@example.com", "password": GOOD_PW},
             content_type="application/json",
         )
-        self.assertTrue(AuthEvent.objects.filter(event_type="login_ok").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.login_ok").exists())
 
     def test_failed_login_records_auth_event(self):
         _create_user()
@@ -352,7 +352,7 @@ class AuthEventTests(TestCase):
             {"email": "test@example.com", "password": "wrong"},
             content_type="application/json",
         )
-        self.assertTrue(AuthEvent.objects.filter(event_type="login_fail").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.login_fail").exists())
 
 
 # =========================================================================

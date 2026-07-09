@@ -54,11 +54,22 @@ class RiskProfileView(APIView):
     @extend_schema(operation_id="risk_profile_put", tags=["risk"])
     def put(self, request):
         profile = _get_or_create_profile(request.user)
+        before = RiskProfileSerializer(profile).data
         ser = RiskProfileSerializer(profile, data=request.data, partial=True)
         if not ser.is_valid():
             return fail("VALIDATION_ERROR", "Invalid risk profile.", status=400, details=ser.errors)
         ser.save()
-        return ok(RiskProfileSerializer(profile).data)
+        after = RiskProfileSerializer(profile).data
+        from apps.audit.events import AuditEventType
+        from apps.audit.services import emit
+
+        changed = {k: after[k] for k in after if before.get(k) != after.get(k)}
+        emit(
+            AuditEventType.RISK_PROFILE_CHANGED, user=request.user, actor=request.user, request=request,
+            entity_type="risk_profile", entity_id=str(profile.id),
+            data_before={k: before.get(k) for k in changed}, data_after=changed,
+        )
+        return ok(after)
 
 
 class SizingDecisionsView(APIView):

@@ -53,5 +53,11 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/backtest/backtest.routes').then(m => m.BACKTEST_ROUTES),
   },
+  // Admin (M10): /admin — overview, users, audit, flags, health (staff-only)
+  {
+    path: '',
+    loadChildren: () =>
+      import('./features/admin/admin.routes').then(m => m.ADMIN_ROUTES),
+  },
   { path: '**', redirectTo: '' },
 ];

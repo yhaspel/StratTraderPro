@@ -22,7 +22,8 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "delete": "Delete",
-    "copied": "Copied"
+    "copied": "Copied",
+    "close": "Close"
   },
   "auth": {
     "login": {
@@ -749,6 +750,186 @@
       "BACKTEST_LIMIT_CONCURRENT": "You already have the maximum number of backtests running. Wait for one to finish.",
       "BACKTEST_DISABLED": "Backtesting is temporarily disabled by the operator.",
       "UNKNOWN": "Something went wrong. Please try again."
+    }
+  },
+  "admin": {
+    "nav": {
+      "users": "Users",
+      "audit": "Audit log",
+      "flags": "Feature flags",
+      "health": "Health",
+      "back": "Back to admin",
+      "back_users": "Back to users"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{pages}} · {{total}} total",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "overview": {
+      "title": "Admin portal",
+      "kpis": "Platform snapshot",
+      "killswitch": "Platform kill switch",
+      "running": "Platform is running normally.",
+      "halted": "Platform is halted — all trading is blocked.",
+      "halt_banner": "PLATFORM HALTED — all trading is blocked for every user.",
+      "release": "Release halt",
+      "releasing": "Releasing…"
+    },
+    "halt": {
+      "title": "Halt the entire platform",
+      "warning": "This immediately blocks new orders for every user on the platform. Type the confirmation phrase and enter your authenticator code to proceed.",
+      "confirm_label": "Type HALT PLATFORM to confirm",
+      "mfa_label": "Authenticator code",
+      "reason_label": "Reason (optional)",
+      "engage": "Halt platform",
+      "engaging": "Halting…",
+      "error": {
+        "CONFIRM_PHRASE_MISMATCH": "The confirmation phrase must be exactly HALT PLATFORM.",
+        "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code."
+      }
+    },
+    "impersonation": {
+      "banner": "You are impersonating a user. Actions are performed as them.",
+      "stop": "Stop impersonating",
+      "stopping": "Stopping…"
+    },
+    "users": {
+      "title": "Users",
+      "empty": "No users match these filters.",
+      "staff": "Staff",
+      "on": "On",
+      "off": "Off",
+      "filter": {
+        "search": "Search",
+        "search_placeholder": "Email or name…",
+        "active": "Active",
+        "broker": "Has broker",
+        "all": "All",
+        "active_yes": "Yes",
+        "active_no": "No",
+        "broker_yes": "Yes",
+        "broker_no": "No",
+        "apply": "Apply"
+      },
+      "col": {
+        "email": "Email",
+        "name": "Name",
+        "active": "Active",
+        "mfa": "MFA",
+        "brokers": "Brokers",
+        "created": "Created"
+      }
+    },
+    "detail": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "verified": "Verified",
+      "mfa": "Authenticator code",
+      "staff": "Staff",
+      "created": "Created",
+      "brokers": "Broker connections",
+      "no_brokers": "No broker connections.",
+      "default": "Default",
+      "actions": "Actions",
+      "disable": "Disable account",
+      "enable": "Enable account",
+      "impersonate": "Impersonate",
+      "reason": "Reason",
+      "submitting": "Working…",
+      "recent_audit": "Recent activity",
+      "no_audit": "No recent activity.",
+      "confirm": {
+        "disable": "Disabling this account signs the user out everywhere and blocks new orders. Confirm with your authenticator code.",
+        "enable": "Re-enable this account. Confirm with your authenticator code.",
+        "impersonate": "Start an impersonation session for this user. Confirm with your authenticator code."
+      },
+      "error": {
+        "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code."
+      }
+    },
+    "audit": {
+      "title": "Audit log",
+      "empty": "No audit events match these filters.",
+      "export": "Export CSV",
+      "filter": {
+        "user": "User",
+        "actor": "Actor",
+        "event_type": "Event type",
+        "entity_type": "Entity type",
+        "entity_id": "Entity ID",
+        "after": "After",
+        "before": "Before",
+        "apply": "Apply"
+      },
+      "col": {
+        "time": "Time",
+        "event": "Event",
+        "actor": "Actor",
+        "entity": "Entity",
+        "ip": "IP"
+      }
+    },
+    "flags": {
+      "title": "Feature flags",
+      "empty": "No feature flags registered.",
+      "dangerous": "Dangerous",
+      "immutable": "Immutable",
+      "source": "Source",
+      "on": "Enabled",
+      "off": "Disabled",
+      "enable": "Enable",
+      "disable": "Disable",
+      "mfa": "Authenticator code",
+      "confirm_name": "Type the flag name to confirm",
+      "submitting": "Working…",
+      "error": {
+        "FLAG_IMMUTABLE": "This flag is immutable and can't be changed here.",
+        "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code."
+      }
+    },
+    "health": {
+      "title": "Platform health",
+      "grafana": "Open Grafana dashboards",
+      "ok": "OK",
+      "down": "Down",
+      "db": "Database",
+      "redis": "Redis",
+      "queue_total": "Queue depth (total)",
+      "sentiment_backlog": "Sentiment backlog",
+      "hmm_age": "HMM model age (s)",
+      "queues": "Queue depths",
+      "no_queues": "No queues reported.",
+      "broker_streams": "Broker streams",
+      "no_streams": "No broker streams reported.",
+      "active_halts": "Active halts",
+      "no_halts": "No active halts.",
+      "overridden_flags": "Overridden flags",
+      "no_overrides": "No overridden flags.",
+      "generated": "Generated"
+    }
+  },
+  "audit": {
+    "event": {
+      "auth.login_ok": "Login succeeded",
+      "auth.login_failed": "Login failed",
+      "auth.logout": "Logout",
+      "auth.mfa_verified": "MFA verified",
+      "auth.password_changed": "Password changed",
+      "admin.user_disabled": "User disabled",
+      "admin.user_enabled": "User enabled",
+      "admin.impersonation_started": "Impersonation started",
+      "admin.impersonation_stopped": "Impersonation stopped",
+      "admin.platform_halted": "Platform halted",
+      "admin.platform_released": "Platform halt released",
+      "flag.flipped": "Feature flag changed",
+      "broker.connected": "Broker connected",
+      "broker.removed": "Broker removed",
+      "order.submitted": "Order submitted",
+      "order.filled": "Order filled",
+      "order.cancelled": "Order cancelled",
+      "risk.kill_switch_on": "Kill switch armed",
+      "risk.kill_switch_off": "Kill switch released"
     }
   }
 }

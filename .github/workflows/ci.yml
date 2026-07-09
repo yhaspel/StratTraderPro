@@ -77,10 +77,26 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: cd backend && python -m pytest --tb=short -q
 
+      # M10 §6.0 — Postgres lane: the `-m pg` tests exercise the audit append-only
+      # triggers, advisory-lock concurrency, the restricted-role privilege check,
+      # the AuthEvent data migration, and the audit-search index-usage EXPLAIN —
+      # all no-ops/undefined on the SQLite lane. Runs against the already-
+      # provisioned (previously unused) postgres service container.
+      - name: Run tests (Postgres lane)
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test_pg
+          DATABASE_URL: postgres://test_user:test_pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+        run: cd backend && python -m pytest -m pg --tb=short -q
+
   # ---------- Frontend ----------
   frontend-lint-test:
     name: Frontend — Lint & Test
     runs-on: ubuntu-latest
+    # Job-level env so the sourcemap step's `if: env.SENTRY_AUTH_TOKEN != ''`
+    # can see the secret (step-level env is not available in that step's own `if`).
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -105,6 +121,19 @@ jobs:
 
       - name: Build
         run: cd frontend && pnpm build
+
+      # M10 §6.5e — upload frontend source maps to Sentry for readable stack
+      # traces. Gated on the SENTRY_AUTH_TOKEN secret so CI stays green until an
+      # operator adds it (deferred-live). Cleanly skipped when the secret is absent.
+      - name: Upload source maps to Sentry
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          cd frontend
+          npx @sentry/cli@2 sourcemaps inject dist
+          npx @sentry/cli@2 sourcemaps upload --release "${GITHUB_SHA}" dist
 
   # ---------- E2E Smoke ----------
   e2e-smoke:
