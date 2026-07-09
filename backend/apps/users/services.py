@@ -16,13 +16,14 @@ from django.utils import timezone
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.audit.events import AuthEventType as EventType
+
 from .metrics import (
     FAMILY_REVOCATIONS_TOTAL,
     REFRESH_TOTAL,
     RefreshResult,
 )
 from .models import (
-    AuthEvent,
     EmailVerificationToken,
     FailedLoginAttempt,
     PasswordResetToken,
@@ -42,19 +43,17 @@ def record_event(
     email: str = "",
     request=None,
     metadata: Optional[dict] = None,
-) -> AuthEvent:
-    ip = ua = ""
-    if request is not None:
-        ip = _client_ip(request) or ""
-        ua = (request.META.get("HTTP_USER_AGENT") or "")[:512]
-    return AuthEvent.objects.create(
-        user=user,
-        email=email or (getattr(user, "email", "") or ""),
-        event_type=event_type,
-        ip=ip or None,
-        user_agent=ua,
-        metadata=metadata or {},
-    )
+):
+    """M10: thin wrapper over the audit service (frozen decision 1). Namespaces
+    the bare auth event value under ``auth.`` and folds email/metadata into the
+    ``data_after`` diff. Signature unchanged so every existing caller keeps
+    working. Returns the ``AuditLog`` row (or ``None`` if emission was dropped)."""
+    from apps.audit.services import emit
+
+    data_after = {"email": email or (getattr(user, "email", "") or "")}
+    if metadata:
+        data_after.update(metadata)
+    return emit(f"auth.{event_type}", user=user, request=request, data_after=data_after)
 
 
 def _client_ip(request) -> Optional[str]:
@@ -143,7 +142,7 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
 
     if family.is_revoked:
         record_event(
-            AuthEvent.EventType.REFRESH_REUSE,
+            EventType.REFRESH_REUSE,
             user=family.user,
             request=request,
             metadata={"family_id": str(family.family_id), "reason": "already_revoked"},
@@ -155,13 +154,13 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
         # Reuse detected — burn the entire family.
         family.revoke(reason="reuse_detected")
         record_event(
-            AuthEvent.EventType.REFRESH_REUSE,
+            EventType.REFRESH_REUSE,
             user=family.user,
             request=request,
             metadata={"family_id": str(family.family_id), "presented_jti": jti},
         )
         record_event(
-            AuthEvent.EventType.FAMILY_REVOKED,
+            EventType.FAMILY_REVOKED,
             user=family.user,
             request=request,
             metadata={"family_id": str(family.family_id)},
@@ -177,7 +176,7 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
 
     pair = issue_token_pair(user, family=family, request=request)
     record_event(
-        AuthEvent.EventType.REFRESH_OK,
+        EventType.REFRESH_OK,
         user=user,
         request=request,
         metadata={"family_id": str(family.family_id)},
@@ -203,7 +202,7 @@ def revoke_refresh(raw_refresh: str, *, request=None) -> bool:
         return False
     family.revoke(reason="logout")
     record_event(
-        AuthEvent.EventType.LOGOUT,
+        EventType.LOGOUT,
         user=family.user,
         request=request,
         metadata={"family_id": str(family.family_id)},
@@ -347,6 +346,8 @@ def serialize_user(user) -> dict:
         "display_name": user.display_name,
         "is_verified": user.is_verified,
         "mfa_enabled": user.mfa_enabled,
+        # M10 — the frontend adminGuard reads this off the login token-pair payload.
+        "is_staff": user.is_staff,
     }
 
 

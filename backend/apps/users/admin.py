@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import (
-    AuthEvent,
     BackupCode,
     FailedLoginAttempt,
     MFADevice,
@@ -56,24 +55,23 @@ class MFADeviceAdmin(admin.ModelAdmin):
 
     @admin.action(description="Force-disable MFA (audited; emails the user)")
     def force_disable_mfa(self, request, queryset):
-        from . import services
-        from .models import AuthEvent
+        from apps.audit.events import AuthEventType
+        from apps.audit.services import emit
 
+        from . import services
+
+        actor = request.user if request.user.is_authenticated else None
         for device in queryset:
             user = device.user
             device.delete()
             user.backup_codes.all().delete()
             services.send_mfa_disabled_email(user)
-            AuthEvent.objects.create(
+            emit(
+                f"auth.{AuthEventType.MFA_DISABLED}",
                 user=user,
-                email=user.email,
-                event_type=AuthEvent.EventType.MFA_DISABLED,
-                metadata={
-                    "actor": "admin",
-                    "admin_user": (
-                        request.user.email if request.user.is_authenticated else "system"
-                    ),
-                },
+                actor=actor,
+                request=request,
+                data_after={"email": user.email, "actor": "admin"},
             )
         self.message_user(request, f"Disabled MFA on {queryset.count()} user(s).")
 
@@ -83,14 +81,6 @@ class BackupCodeAdmin(admin.ModelAdmin):
     list_display = ("user", "used_at", "created_at")
     search_fields = ("user__email",)
     readonly_fields = ("code_hash", "salt", "used_at", "created_at")
-
-
-@admin.register(AuthEvent)
-class AuthEventAdmin(admin.ModelAdmin):
-    list_display = ("occurred_at", "event_type", "email", "ip")
-    list_filter = ("event_type",)
-    search_fields = ("email",)
-    readonly_fields = ("user", "email", "event_type", "ip", "user_agent", "metadata", "occurred_at")
 
 
 @admin.register(RefreshTokenFamily)

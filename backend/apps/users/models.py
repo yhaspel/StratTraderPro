@@ -8,7 +8,6 @@ Tables:
 - RefreshTokenFamily: tracks JWT refresh-token families for rotation/reuse
   detection; M02 adds user_agent / ip / last_used_at for the sessions UI.
 - FailedLoginAttempt: per-email sliding-window counter for account lockout. (M01)
-- AuthEvent: lightweight audit precursor (folded into AuditLog in M10).
 - UserProfile: per-user prefs — timezone, language, notifications. (M02)
 - MFADevice: TOTP secret (Fernet-encrypted at rest). (M02)
 - BackupCode: 10 single-use codes per user, sha256+salt hashed. (M02)
@@ -227,60 +226,6 @@ class FailedLoginAttempt(models.Model):
     class Meta:
         db_table = "users_failed_login_attempt"
         indexes = [models.Index(fields=["email", "occurred_at"])]
-
-
-# ---------------------------------------------------------------------------
-# AuthEvent (precursor to full AuditLog in M10)
-# ---------------------------------------------------------------------------
-class AuthEvent(models.Model):
-    class EventType(models.TextChoices):
-        REGISTER = "register"
-        VERIFY_EMAIL = "verify_email"
-        LOGIN_OK = "login_ok"
-        LOGIN_FAIL = "login_fail"
-        LOGOUT = "logout"
-        REFRESH_OK = "refresh_ok"
-        REFRESH_REUSE = "refresh_reuse"
-        FAMILY_REVOKED = "family_revoked"
-        PASSWORD_RESET_REQUESTED = "password_reset_requested"  # noqa: S105
-        PASSWORD_RESET_CONFIRMED = "password_reset_confirmed"  # noqa: S105
-        ACCOUNT_LOCKED = "account_locked"
-        RESEND_VERIFICATION = "resend_verification"
-        # M02 — MFA + profile
-        MFA_ENROLLED = "mfa_enrolled"
-        MFA_DISABLED = "mfa_disabled"
-        MFA_CHALLENGE_OK = "mfa_challenge_ok"
-        MFA_CHALLENGE_FAIL = "mfa_challenge_fail"
-        BACKUP_CODE_USED = "backup_code_used"
-        BACKUP_CODES_REGENERATED = "backup_codes_regenerated"
-        PASSWORD_CHANGED = "password_changed"  # noqa: S105
-        PROFILE_UPDATED = "profile_updated"
-        SESSION_REVOKED = "session_revoked"
-        # M2.5 — Google OAuth
-        OAUTH_LOGIN_OK = "oauth_login_ok"
-        OAUTH_USER_CREATED = "oauth_user_created"   # first sign-in via Google created a new User
-        OAUTH_LINKED = "oauth_linked"               # Google identity auto-linked to existing email
-        OAUTH_EXCHANGE_OK = "oauth_exchange_ok"
-        OAUTH_EXCHANGE_FAIL = "oauth_exchange_fail"
-
-    id = models.BigAutoField(primary_key=True)
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="auth_events",
-    )
-    email = models.EmailField(blank=True, default="")  # captured for anon/failed events
-    event_type = models.CharField(max_length=32, choices=EventType.choices)
-    ip = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=512, blank=True, default="")
-    metadata = models.JSONField(default=dict, blank=True)
-    occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
-
-    class Meta:
-        db_table = "users_auth_event"
-        indexes = [models.Index(fields=["user", "occurred_at"])]
 
 
 # ---------------------------------------------------------------------------

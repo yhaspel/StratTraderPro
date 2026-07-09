@@ -37,7 +37,7 @@ class OpenAPISchemaTest(TestCase):
 
 class LoggingScrubberTest(TestCase):
     def test_logging_scrubber_strips_authorization(self):
-        from config.settings.base import _scrub_sensitive
+        from apps.audit.scrub import _scrub_sensitive
 
         event = {"authorization": "Bearer secret123", "user": "test@example.com"}
         result = _scrub_sensitive(None, None, event)
@@ -45,7 +45,7 @@ class LoggingScrubberTest(TestCase):
         self.assertEqual(result["user"], "test@example.com")
 
     def test_logging_scrubber_strips_multiple_keys(self):
-        from config.settings.base import _scrub_sensitive
+        from apps.audit.scrub import _scrub_sensitive
 
         event = {"password": "hunter2", "token": "abc", "name": "safe"}
         result = _scrub_sensitive(None, None, event)

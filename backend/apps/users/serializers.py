@@ -114,7 +114,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "email", "display_name", "is_verified", "created_at",
-            "mfa_enabled", "profile",
+            "mfa_enabled", "is_staff", "profile",
         ]
         read_only_fields = fields
 

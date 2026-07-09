@@ -28,9 +28,10 @@ from django.utils.text import slugify
 from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
+from apps.audit.events import AuditEventType
+from apps.audit.services import emit
 from apps.users.permissions import IsAuthenticatedAndMFAEnforced
 from apps.users.responses import fail, ok
-from apps.users.services import record_event
 
 from . import services
 from .metrics import (
@@ -209,10 +210,14 @@ class StrategiesListCreateView(APIView):
 
         STRATEGY_UPLOADS_TOTAL.labels(result=StrategyUploadResult.OK).inc()
         refresh_count_gauge()
-        record_event(
-            "register",  # we reuse AuthEvent for now; M10 introduces a strategy event type
-            user=request.user, request=request,
-            metadata={"strategy_slug": slug, "kind": "strategy_upload"},
+        emit(
+            AuditEventType.STRATEGY_CREATED,
+            user=request.user,
+            actor=request.user,
+            request=request,
+            entity_type="strategy",
+            entity_id=strategy.id,
+            data_after={"name": display_name, "slug": slug},
         )
         logger.info(
             "strategy.upload.ok",

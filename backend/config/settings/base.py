@@ -613,19 +613,11 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ---------------------------------------------------------------------------
-# Logging (structlog with sensitive key scrubbing)
+# Logging
 # ---------------------------------------------------------------------------
-SENSITIVE_KEYS = {"authorization", "sig", "secret", "password", "token", "api_key", "dsn"}
-
-
-def _scrub_sensitive(_, __, event_dict):
-    """Remove sensitive keys from log output."""
-    for key in list(event_dict.keys()):
-        if key.lower() in SENSITIVE_KEYS:
-            event_dict[key] = "***REDACTED***"
-    return event_dict
-
-
+# NOTE (M10 §6.1): the sensitive-key scrubber (SENSITIVE_KEYS + _scrub_sensitive)
+# was relocated to apps/audit/scrub.py so the audit service and the log config
+# share one key set (ADR-100). Import here only if a logging processor needs it.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

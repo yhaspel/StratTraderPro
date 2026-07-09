@@ -26,6 +26,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken
 
+from apps.audit.events import AuthEventType as EventType
+
 from . import services
 from .metrics_m02 import (
     MFA_BACKUP_USED_TOTAL,
@@ -45,7 +47,7 @@ from .mfa import (
     render_qr_png_b64,
     verify_totp,
 )
-from .models import AuthEvent, MFADevice, RefreshTokenFamily, UserProfile
+from .models import MFADevice, RefreshTokenFamily, UserProfile
 from .responses import fail, ok
 from .serializers import (
     MFABackupRegenerateSerializer,
@@ -155,7 +157,7 @@ class MFAEnrollConfirmView(APIView):
         if not verify_totp(secret, ser.validated_data["code"]):
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
-                AuthEvent.EventType.MFA_CHALLENGE_FAIL,
+                EventType.MFA_CHALLENGE_FAIL,
                 user=user, request=request, metadata={"phase": "enroll"},
             )
             return fail("MFA_CODE_INVALID", "TOTP code is invalid.", status=400)
@@ -167,7 +169,7 @@ class MFAEnrollConfirmView(APIView):
         codes = generate_backup_codes(user)
         MFA_ENROLLMENTS_TOTAL.inc()
         services.record_event(
-            AuthEvent.EventType.MFA_ENROLLED, user=user, request=request,
+            EventType.MFA_ENROLLED, user=user, request=request,
         )
         services.send_mfa_enabled_email(user)
         return ok({"backup_codes": codes})
@@ -215,7 +217,7 @@ class MFAVerifyView(APIView):
             if ok_code:
                 MFA_BACKUP_USED_TOTAL.inc()
                 services.record_event(
-                    AuthEvent.EventType.BACKUP_CODE_USED, user=user, request=request,
+                    EventType.BACKUP_CODE_USED, user=user, request=request,
                 )
         else:
             secret = decrypt_secret(user.mfa_device.secret_encrypted)
@@ -225,7 +227,7 @@ class MFAVerifyView(APIView):
             MFA_VERIFICATIONS_TOTAL.labels(result=MFAVerifyResult.FAIL).inc()
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
-                AuthEvent.EventType.MFA_CHALLENGE_FAIL,
+                EventType.MFA_CHALLENGE_FAIL,
                 user=user, request=request,
                 metadata={"phase": "login", "kind": "backup" if is_backup else "totp"},
             )
@@ -233,7 +235,7 @@ class MFAVerifyView(APIView):
 
         MFA_VERIFICATIONS_TOTAL.labels(result=MFAVerifyResult.OK).inc()
         services.record_event(
-            AuthEvent.EventType.MFA_CHALLENGE_OK,
+            EventType.MFA_CHALLENGE_OK,
             user=user, request=request,
             metadata={"kind": "backup" if is_backup else "totp"},
         )
@@ -284,7 +286,7 @@ class MFADisableView(APIView):
         if not verify_totp(secret, ser.validated_data["code"]):
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
-                AuthEvent.EventType.MFA_CHALLENGE_FAIL,
+                EventType.MFA_CHALLENGE_FAIL,
                 user=user, request=request, metadata={"phase": "disable"},
             )
             return fail("MFA_CODE_INVALID", "TOTP code is invalid.", status=400)
@@ -292,7 +294,7 @@ class MFADisableView(APIView):
         user.mfa_device.delete()
         user.backup_codes.all().delete()
         services.record_event(
-            AuthEvent.EventType.MFA_DISABLED, user=user, request=request,
+            EventType.MFA_DISABLED, user=user, request=request,
         )
         services.send_mfa_disabled_email(user)
         return ok({"status": "ok"})
@@ -328,14 +330,14 @@ class MFABackupRegenerateView(APIView):
         if not verify_totp(secret, ser.validated_data["code"]):
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
-                AuthEvent.EventType.MFA_CHALLENGE_FAIL,
+                EventType.MFA_CHALLENGE_FAIL,
                 user=user, request=request, metadata={"phase": "regenerate"},
             )
             return fail("MFA_CODE_INVALID", "TOTP code is invalid.", status=400)
 
         codes = generate_backup_codes(user)
         services.record_event(
-            AuthEvent.EventType.BACKUP_CODES_REGENERATED, user=user, request=request,
+            EventType.BACKUP_CODES_REGENERATED, user=user, request=request,
         )
         return ok({"backup_codes": codes})
 
@@ -373,7 +375,7 @@ class ProfileUpdateView(APIView):
         prof.save()
 
         services.record_event(
-            AuthEvent.EventType.PROFILE_UPDATED,
+            EventType.PROFILE_UPDATED,
             user=user, request=request,
             metadata={"fields": sorted(data.keys())},
         )
@@ -425,7 +427,7 @@ class PasswordChangeView(APIView):
         )
 
         services.record_event(
-            AuthEvent.EventType.PASSWORD_CHANGED, user=user, request=request,
+            EventType.PASSWORD_CHANGED, user=user, request=request,
         )
         return ok({"status": "ok"})
 
@@ -476,7 +478,7 @@ class SessionsRevokeView(APIView):
                 user, except_family_id=current_family_id, reason="revoke_all",
             )
             services.record_event(
-                AuthEvent.EventType.SESSION_REVOKED, user=user, request=request,
+                EventType.SESSION_REVOKED, user=user, request=request,
                 metadata={"scope": "all_other", "count": count},
             )
             return ok({"revoked": count})
@@ -488,7 +490,7 @@ class SessionsRevokeView(APIView):
             return fail("SESSION_NOT_FOUND", "No active session with that id.", status=404)
         fam.revoke(reason="user_revoke")
         services.record_event(
-            AuthEvent.EventType.SESSION_REVOKED, user=user, request=request,
+            EventType.SESSION_REVOKED, user=user, request=request,
             metadata={"scope": "single", "family_id": str(fam.family_id)},
         )
         return ok({"revoked": 1})

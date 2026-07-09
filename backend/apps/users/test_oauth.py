@@ -18,9 +18,9 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from apps.audit.models import AuditLog
 from apps.users.mfa import encrypt_secret, generate_totp_secret
 from apps.users.models import (
-    AuthEvent,
     MFADevice,
     OAuthExchangeCode,
 )
@@ -266,7 +266,7 @@ class OAuthExchangeViewTests(TestCase):
             content_type="application/json",
         )
         self.assertTrue(
-            AuthEvent.objects.filter(event_type="oauth_exchange_ok", user=user).exists()
+            AuditLog.objects.filter(event_type="auth.oauth_exchange_ok", user=user).exists()
         )
 
     def test_exchange_invalid_records_failure_event(self):
@@ -275,7 +275,7 @@ class OAuthExchangeViewTests(TestCase):
             {"exchange": "fake-code-9999999999"},
             content_type="application/json",
         )
-        self.assertTrue(AuthEvent.objects.filter(event_type="oauth_exchange_fail").exists())
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.oauth_exchange_fail").exists())
 
     @override_settings(GOOGLE_OAUTH_ENABLED=False)
     def test_exchange_disabled_returns_503(self):
