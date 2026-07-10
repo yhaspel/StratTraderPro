@@ -97,35 +97,41 @@ New backend code (`apps/audit`, `apps/admin_portal`, `config/*` observability) i
 
 # Section B — Manual user steps & follow-ups
 
-### 1. Deployed-migration notice (do this first)
-Merging **deployed the `users_auth_event` → `audit_log` migration + table drop** to staging/prod (Railway auto-deploy runs `migrate` before serving). **No pre-deploy Railway backup was taken** (operator credential).
-- **What proves it:** `audit.0003` self-asserts row-count parity + head-hash re-verification in-migration; `test_migration.py` proves it on fixtures; the pg lane proves the triggers.
-- **Post-deploy spot-check:** confirm `SELECT count(*) FROM audit_log WHERE event_type LIKE 'auth.%';` matches the number of `auth.*` rows you expect from the old `users_auth_event` (the old table is gone). If anything looks off, restore from a Railway PITR backup **before** trusting new audit rows.
-- The `AuthEvent` drop is practically **forward-only** on Postgres (append-only trigger blocks delete); rollback = DB backup restore.
+> **Post-merge operator progress (2026-07-10).** Items 1–3 below were tackled together with the
+> user via the Railway CLI. Remaining web-UI steps (Grafana import + Tempo/Telegram, prod exporter
+> deploy, worker-backtest/streams creation, Sentry+GitHub) are packaged in
+> **`project-plan/M10-cowork-followups.md`** for a Claude Cowork (Chrome MCP) session.
+> Also landed a hardening PR (#30, `e5b0d16`): Redis socket timeouts + flag DB-fallthrough so an
+> unreachable/hung Redis degrades gracefully instead of blocking workers — this diagnosed and (via
+> a CLI redeploy) fixed a **staging Redis outage** discovered during the deploy verification.
 
-### 2. Railway env / services
-- Set `METRICS_BASIC_AUTH_USERNAME` / `METRICS_BASIC_AUTH_PASSWORD` on the backend service **and** the grafana-agent (matching). Until set, `/metrics` is served **without** auth in prod (backend logs a loud startup warning).
-- Set `TASK_METRICS_PORT` per long-lived service (worker 9101, worker-backtest 9102, beat 9103, streams 9104) and add the agent scrape targets `WORKER_TARGET`/`WORKER_BACKTEST_TARGET`/`BEAT_TARGET`/`STREAMS_TARGET` (Railway internal DNS, e.g. `worker.railway.internal:9101`) — see `docs/runbooks/worker-metrics-scrape.md`.
-- Create **postgres-exporter** + **redis-exporter** Railway services; set `POSTGRES_EXPORTER_TARGET` / `REDIS_EXPORTER_TARGET`.
-- Set `OTEL_EXPORTER_OTLP_ENDPOINT` when Tempo is ready (empty = no export, tracing is a no-op).
-- Frontend nginx service: set `GRAFANA_URL`, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `RELEASE` and extend `NGINX_ENVSUBST_FILTER` to `BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE`.
-- Provision the **restricted DB role** (INSERT+SELECT only on `audit_log`) per `docs/runbooks/audit-integrity-failure.md` appendix.
-- Set `AUDIT_ALERT_EMAIL` so the verifier can page on integrity failure.
-- **M09 carryover:** create the `worker-backtest` Railway service if still missing (else prod backtests sit QUEUED).
+### 1. Deployed-migration notice — ✅ VERIFIED (both envs)
+Merging deployed the `users_auth_event` → `audit_log` migration + table drop (Railway `migrate` before serving). Read-only re-verification on the live databases:
+- **staging:** 138 audit_log rows, all `auth.*`; `users_auth_event` dropped; chain re-verifies (138 checked, 0 failures).
+- **production:** 16 audit_log rows, all `auth.*`; `users_auth_event` dropped; chain re-verifies (16 checked, 0 failures).
+- The migration self-asserts parity + head-hash in-migration, and a healthy boot (which happened on both envs) means `migrate` completed. **No backup restore needed.** Forward-only on Postgres.
 
-### 3. Grafana Cloud
-- Import the **six** updated dashboards + `infra/grafana/alerts/*.yaml`.
-- Create contact points: **email** + **Telegram** (bot via @BotFather, chat id via @userinfobot); apply `notification-policy.yaml` (critical → email + Telegram, warning → email).
-- Configure the **Tempo** datasource + **Sentry↔Tempo** correlation.
-- Then run **AC-10-9** (fire a sample alert, confirm receipt on both email + Telegram) and **AC-10-10** (Sentry issue → Tempo trace click-through). Procedures in `docs/runbooks/alerting-setup.md`.
+### 2. Railway env / services — ✅ mostly done via CLI (both staging + production)
+- ✅ `METRICS_BASIC_AUTH_USERNAME=metrics` / `METRICS_BASIC_AUTH_PASSWORD` on backend **and** grafana-agent — verified LIVE (`/metrics` 401 without creds, 200 with, on prod). Password stored in Railway.
+- ✅ `TASK_METRICS_PORT` on celery-worker (9101) + celery-beat (9103); agent scrape targets (WORKER/BEAT/WORKER_BACKTEST/STREAMS/POSTGRES_EXPORTER/REDIS_EXPORTER) set.
+- ✅ `AUDIT_ALERT_EMAIL=yuval3000@gmail.com`.
+- ✅ `postgres-exporter` + `redis-exporter` created + **deployed on staging**. ⏳ **prod deploy pending** (1-click in the dashboard — Cowork A1).
+- ⏳ `OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_EXPORTER_OTLP_HEADERS` — set once Grafana Cloud Tempo is up (Cowork B5/A5).
+- ⏳ Frontend `GRAFANA_URL`/`SENTRY_*`/`RELEASE` + `NGINX_ENVSUBST_FILTER` (Cowork A4).
+- ⏳ Restricted DB role (Cowork A6).
+- ⏳ **`worker-backtest` + `streams` services** — need a custom start command (dashboard); packaged in Cowork A2/A3 (TASK_METRICS_PORT 9102/9104).
 
-### 4. GitHub
-- Add the `SENTRY_AUTH_TOKEN` secret (+ `SENTRY_ORG`/`SENTRY_PROJECT` vars) to activate the frontend sourcemap-upload CI step (currently cleanly skipped).
+### 3. Grafana Cloud — ⏳ packaged for Claude Cowork (`M10-cowork-followups.md` §B)
+- Import the **six** updated dashboards + `infra/grafana/alerts/*.yaml`; create email + Telegram contact points + notification policy; Tempo datasource + Sentry↔Tempo correlation; then run **AC-10-9** (sample alert → email + Telegram) and **AC-10-10** (Sentry → Tempo click-through). Procedures in `docs/runbooks/alerting-setup.md`.
 
-### 5. Staging verifications deferred (need a deployed env)
-- Audit-search p95 ≤ 500 ms @ 10M rows; verifier throughput ≥ 24h synthetic (~100k) ≤ 5 min; flag-flip E2E in the real UI ≤ 60 s; dashboards populated; `/metrics` basic auth live 401/200.
+### 4. GitHub — ⏳ packaged for Cowork (`M10-cowork-followups.md` §C)
+- Add the `SENTRY_AUTH_TOKEN` secret (+ `SENTRY_ORG`/`SENTRY_PROJECT` vars) to activate the frontend sourcemap-upload CI step. Or set via CLI once you have a token: `gh secret set SENTRY_AUTH_TOKEN --repo yhaspel/StratTraderPro`.
+
+### 5. Staging verifications deferred (need scale/tools — Cowork tail)
+- Audit-search p95 ≤ 500 ms @ 10M rows; verifier throughput ≥ 24h synthetic (~100k) ≤ 5 min; flag-flip E2E in the real UI ≤ 60 s; dashboards populated. ✅ `/metrics` basic auth live 401/200 already verified on prod.
 
 ### 6. Ops notes
+- ✅ **Staging Redis outage found + fixed** during deploy verification: staging Redis had been unreachable since 2026-05-01 (only deployment REMOVED); a `railway redeploy -s Redis -e staging` restored it (`/readyz` → 200, redis ok). The #30 hardening ensures a future Redis outage degrades gracefully instead of hanging workers.
 - Granting `is_staff` happens via **Django admin/shell** — out of band of the audit chain (documented limitation; M11 hardening candidate).
 - Add the **monthly audit-integrity spot-check** to the ops calendar (`docs/runbooks/audit-integrity-verify-monthly.md`).
 - The **`v0.10.0-admin`** tag was created locally on `d574057` but **NOT pushed** (operator convention). No tag-triggered deploy workflow exists — the merge already deployed via Railway. Prior unpushed tags (`v0.1.1-auth-metrics`, `v0.4.0`…`v0.9.0`) remain pending too.
