@@ -1,275 +1,298 @@
 # Milestone 11 — Hardening, Security, Load Test & Docs
 
 > **Week:** 11
-> **Duration:** 5 working days
-> **Depends on:** M10
+> **Duration:** 5 working days (planning-calendar label, not an execution constraint)
+> **Depends on:** M10 (Admin Portal, Chained Audit Log & Observability) — **merged** PR #29 `d574057`, tag `v0.10.0-admin` (created, unpushed)
 > **Unlocks:** M12 (Beta + Signoff)
+> **Status:** `REVIEWED & FROZEN 2026-07-10`
+
+## 0. Ground-truth reconciliation (read first)
+
+This plan was reviewed against the **actual codebase at `main` after M10 merged**, not the pre-Alpaca-pivot master plan. The following corrections are baked into the sections below; they exist here as an explicit ledger so the implementer does not "fix" the plan back into its wrong assumptions:
+
+1. **M10 is done.** `apps/audit` (chained `AuditLog`, `hashing.py`, `verifier.py`, `services.emit()`), `apps/admin_portal` (`/api/v1/admin/*`, `IsAdminAndMFAEnforced`, `FeatureFlag` + `flags.is_enabled()`), the `/admin` frontend, `infra/grafana/alerts/*.yaml`, and `docs/{slo,oncall,postmortem-template}.md` all exist now. M11 **verifies and extends** these; it does not build them.
+2. **Kill-switch levels are L0–L3, not "L1–L4"** (ADR-081, `apps/risk/killswitch.py`). **L0** = per-strategy; **L1** = per-user global halt **+ flatten all of that user's positions** (AC-08-8, ≤5s p99); **L2** = daily-loss auto circuit breaker (same flatten action, un-releasable until next UTC-05 rollover); **L3** = platform, **blocks intake and does NOT flatten** (`killswitch.py:136`). The 50-user simultaneous scenario is an **L1** flatten and completes the **deferred M08 AC-08-11** load item.
+3. **Webhook auth is a static bearer secret, NOT an HMAC-over-payload signature** (ADR-042). The `sig` field in the body is constant-time-compared (`hmac.compare_digest`) against a per-config Fernet-encrypted secret. TradingView **cannot compute HMACs**. Every "webhook HMAC" phrase from the original draft is corrected to "static `sig` bearer secret." Do not re-introduce an HMAC-verify.
+4. **Idempotency** = body field `idempotency_key` → Redis `cache.add` (SETNX) key `idem:{user}:{sha256(key)}`, TTL `WEBHOOK_IDEMPOTENCY_TTL_SECONDS` (default 86400). Not a header. Replay protection + `WEBHOOK_RATE_LIMIT_PER_MIN` fixed-window counter + optional `WEBHOOK_IP_ALLOWLIST` already exist.
+5. **Options ARE supported** (M05 extended M04 across Alpaca + TradeStation); futures are TradeStation-only. The load mix (stocks/ETFs/options) is valid. Crypto is not supported.
+6. **Secret encryption is a single Fernet key today** (`Fernet(settings.FERNET_KEK)` in `apps/users/mfa.py`), shared by MFA TOTP, webhook `sig`, and broker API keys — **there is no `MultiFernet` in the code and no KEK/DEK envelope.** KEK rotation *temporarily* swaps in a `MultiFernet` (old+new keys) to re-encrypt each stored secret, then reverts to single-key once the old KEK is retired — the exact steps are in `docs/runbooks/mfa-kek-rotation.md`. Do not assume `MultiFernet` is already wired into settings.
+7. **JWT is single-key HS256 (SimpleJWT); there is no `kid`/multi-key rotation today.** Signing-key rotation therefore invalidates in-flight access tokens (≤15 min TTL) — the rehearsal documents the drain, it does **not** "verify multi-kid," which does not exist. Building multi-kid is a feature and is **out of scope**.
+8. **`users` migration is `0005_delete_flow_and_terms`** (0003 = oauth, 0004 = M10's `drop_auth_event`). Follow M10's convention: let `makemigrations` assign the number; do not hard-code if the tree has advanced.
+9. **No object storage exists** (no R2/S3/`django-storages`/`boto3`). GDPR export + weekly `pg_dump` offload require an S3-compatible backend. Build against a storage abstraction testable locally (filesystem/MinIO/moto); the **real R2 bucket + credentials are an operator step**.
+10. **No CSP, no `pip-audit`/`pnpm audit` in CI, no `axe-core`, no load-test tooling.** These are net-new (buildable). Trivy image-scan + weekly Dependabot already exist; there are ~5 open Dependabot PRs to resolve under §7.2.
+11. **Frontend uses `pnpm` + Angular 19 + Karma + Playwright** (Playwright e2e is auth-only and **not in CI** today — only a `/healthz` docker-compose smoke). i18n is `ngx-translate` with a single `en.json`; there is **no `.pot`/second locale and no backend `locale/`**. Do not claim a pot file is "prepared."
+12. **Bundle budget:** Angular's `initial` budget is **raw**, currently `warning 500kB / error 1MB`; M10 shipped **449.56 kB raw initial**. The original "≤400 KB gzipped" gate is ambiguous and (as raw) already breached — see §7.11 for the concrete, enforceable replacement.
+13. **Prod web tier is gunicorn WSGI** (`config.wsgi`, gthread); `/ws/dashboard/` is served by a **separate daphne ASGI service**. `/metrics` is now wired into both `wsgi.py` and `asgi.py` with basic auth (`METRICS_BASIC_AUTH_*`, M10). Any cross-cutting hook must live in both entrypoints + worker init or it ships prod-dark.
+14. **Railway topology is NOT "6 services."** Documented staging = 4 (backend, frontend, Postgres, grafana-agent). The real target set (derived from the docker-compose service set + `infra/grafana-agent/` + M10's exporters) is larger: backend, frontend, Postgres, Redis, worker, worker-backtest, beat, streams, ws (daphne), grafana-agent, postgres-exporter, redis-exporter. (`grafana-agent` is not a compose service — it deploys from `infra/grafana-agent/`.) §7.9 re-derives this; standing up prod is operator-heavy.
+15. **`strattraderpro.com` is not registered/verified** and no Cloudflare account is wired — AC-11-10 is almost entirely operator/[LIVE].
 
 ## 1. Purpose
 
-Prepare the platform for external users with a deliberate hardening pass: security review against OWASP ASVS L2 subset, load testing at 100-user scale, chaos drills, complete user- and ops-facing documentation, and all compliance-adjacent housekeeping (terms, privacy, GDPR export/delete). No new features are added — this week is purely about making what we have durable.
+Prepare the platform for external users with a deliberate hardening pass: a security review against an OWASP ASVS L2 subset, load testing at ~100-user scale, chaos drills, complete user- and ops-facing documentation, and compliance-adjacent housekeeping (terms, privacy, GDPR export/delete). **No new product features** — this week makes what we already have durable. Net-new *code* here (CSP headers, GDPR export/delete, terms models, dependency/a11y/bundle CI gates, load-test harness) is defensive hardening and compliance plumbing, not feature work.
 
 ## 2. In Scope
 
-- Security review checklist against OWASP ASVS L2 (selected controls appropriate to our scope).
-- Dependency audit + upgrade (all HIGH+ CVEs resolved).
-- Pentest-like manual probing (auth, authz, injection, SSRF, file upload, webhook spoof).
-- Load test at 100 concurrent dashboards + 20 webhooks/sec + 50 users flatten-all simultaneously.
-- Chaos drills: Redis kill, worker kill, broker disconnect storm, DB failover.
-- DB backup verification with test restore to a scratch instance.
-- GDPR / CCPA: data export endpoint (`/api/v1/users/me/export/`), account delete request flow.
-- Versioned Terms + Privacy Policy; acceptance flow on first login post-deploy.
-- Final runbook sweep; on-call escalation confirmed.
-- Secret rotation rehearsal (DB password + KEK + JWT signing key).
-- Production Railway environment created (staging has existed; prod spins up here).
-- Custom domains + Cloudflare + WAF rules.
-- Accessibility audit pass (axe-core + keyboard nav).
-- Performance budget enforcement in CI (bundle size gates).
+- OWASP ASVS L2 subset walkthrough with per-control evidence (file / PR / test), committed as a signed checklist.
+- Dependency audit + upgrade: add `pip-audit` (Python) and `pnpm audit` (Node) CI gates; resolve all HIGH+ findings or record a waiver; clear the open Dependabot PRs.
+- Manual pentest-like probing (auth, authz, injection, SSRF, file upload, webhook replay/spoof of the static `sig`, open-redirect).
+- Add Content-Security-Policy + verify the rest of the security-header set (HSTS/Referrer-Policy/X-Content-Type-Options/Permissions-Policy).
+- Load test against **local docker-compose with `FakeBrokerAdapter`** (deterministic; real Alpaca paper caps at ~200 req/min and cannot absorb 20 orders/sec): 100 concurrent WS dashboards + 20 webhooks/sec, plus the 50-user simultaneous **L1** flatten. A scaled-down canary runs weekly in CI.
+- Chaos drills: Redis kill, worker kill mid-flatten, `run_broker_streams` kill (Alpaca `trade_updates` gone), Alpaca REST 5xx storm, DB failover.
+- DB backup verification with a scripted test-restore to a scratch Postgres instance.
+- GDPR / CCPA: personal-data export endpoint + async job, and a 30-day soft account-delete request flow.
+- Versioned Terms of Service + Privacy Policy (drafted, flagged for counsel); acceptance flow on first login after a version bump.
+- Final runbook sweep: every runbook gets a `Last reviewed:` frontmatter line; on-call escalation confirmed (extends M10's `docs/oncall.md`).
+- Secret-rotation rehearsal on staging/local: DB password, Fernet KEK (via a temporary `MultiFernet` swap), JWT signing key.
+- Accessibility audit: add `@axe-core/playwright` gate + manual keyboard pass over auth, dashboard, strategies, backtest, risk, and the M10 admin pages.
+- Performance budget enforcement in CI (Angular raw-initial budget hard-fail; optional gzipped tracking).
+- **Operator-track (documented, not executed by the autonomous run):** production Railway project, custom domains, Cloudflare + WAF, R2 bucket, exporter services, Grafana Cloud alert import + sample-fire.
 
 ## 3. Out of Scope
 
-- New features or model improvements.
+- New product features or model improvements.
+- JWT multi-`kid` signing (a feature; would change the token contract).
 - SOC 2 certification (post-launch).
-- Live-trading enablement (v0.2+).
-- External penetration-test engagement (noted in post-MVP plan).
+- Live-trading enablement (v0.2+; `ENABLE_LIVE_TRADING=false` stays).
+- External (third-party) penetration-test engagement — noted in the post-MVP plan.
+- A real second-language locale / `.pot` catalog (only `en.json` keys are added this week).
 
-## 4. Acceptance Criteria
+## 4. Frozen decisions (do not revisit autonomously)
 
-| # | Criterion |
-|---|-----------|
-| AC-11-1 | All HIGH+ CVEs in dependencies resolved or documented with waiver. |
-| AC-11-2 | OWASP ASVS L2 checklist items (see §6.1) show Pass / Documented Waiver for each applicable control. |
-| AC-11-3 | Load test: 100 concurrent WS dashboards + 20 webhooks/sec for 10 min sustained; no 5xx; p95 order submit ≤ 1.5s. |
-| AC-11-4 | 50-user simultaneous L1 flatten: all flatten orders submitted within 10s; p99 ≤ 8s. |
-| AC-11-5 | Chaos drill: Redis killed mid-traffic — no data loss; Celery recovers within 60s; at-most-once semantics preserved for orders via idempotency. |
-| AC-11-6 | Chaos drill: `run_broker_streams` service killed (Alpaca `trade_updates` gone) — broker status flips to DEGRADED within 30s; kill switch still works via REST path; missed fills recovered on restart (M04 AC-04-11 semantics under load). |
-| AC-11-7 | Backup restore: a snapshot restored to a scratch DB reproduces last-known state; queryable via admin. |
-| AC-11-8 | `/api/v1/users/me/export/` produces a ZIP with user's profile, strategies, orders, fills, audit events; delivered via signed URL expiring in 24h. |
-| AC-11-9 | Account delete request marks account for 30-day soft delete then purges PII on schedule; user receives confirmation email. |
-| AC-11-10 | Production Railway project stood up; custom domains `api.strattraderpro.com`, `app.strattraderpro.com` with Cloudflare WAF enforcing rate limits + basic bot protection. |
-| AC-11-11 | Axe-core audit: 0 critical, 0 serious issues on auth, dashboard, strategies, backtest, risk, admin pages. |
-| AC-11-12 | Bundle size budget: frontend initial bundle ≤ 400 KB gzipped (excluding lazy chunks); CI gate enforces. |
-| AC-11-13 | Secret rotation rehearsal performed end-to-end on staging; runbook updated with measured times. |
+1. **Load test target = local docker-compose + `FakeBrokerAdapter`.** Full-scale (100 WS / 20 rps / 50-user L1) runs there; a reduced canary runs weekly in CI. A staging spot-check is a documented operator follow-up (staging lacks the ws/streams services today).
+2. **GDPR export storage uses an S3-compatible abstraction** (`django-storages`[s3] / boto3). Tests run against MinIO or `moto`; **real Cloudflare R2 bucket + credentials are a Section-B operator step**. Signed-URL TTL = 24h.
+3. **Account delete = 30-day soft delete.** `pending_delete_at = now + 30d`; a nightly job anonymizes on expiry. M10 shipped plain `SET_NULL` FKs on `AuditLog.user`/`actor` with **no** anonymization mechanism — **M11 designs anonymize-in-place itself:** keep the `User` row alive under its PK and scrub its PII fields in place so audit FKs keep resolving; never hard-`delete()` the `User` and never delete audit rows (the append-only trigger forbids it anyway).
+4. **JWT signing-key rotation is documented as a drain, not multi-kid.** Rehearsal proves access tokens re-mint cleanly after `JWT_SIGNING_KEY` change within one 15-min TTL window; refresh handled by the existing `RefreshTokenFamily` re-issue path.
+5. **KEK rotation temporarily introduces `MultiFernet`** (add new key, re-encrypt each secret, then revert to single-key once the old KEK retires), per `docs/runbooks/mfa-kek-rotation.md`. No `MultiFernet` is committed to `settings` and no DEK layer is introduced — the swap is a rotation-time-only edit.
+6. **CSP ships report-only first, then enforce.** Add `django-csp` (or a static header via `SecurityMiddleware`); start `Content-Security-Policy-Report-Only`, capture violations, then flip to enforcing in the same PR only if the app pages are clean; otherwise leave report-only and document the flip as follow-up.
+7. **Chaos "broker 5xx storm" targets Alpaca's REST path** (the only broker in the production hot path), injected via `FakeBrokerAdapter`/mock — **not** TradeStation (flag OFF, zero live traffic). The TradeStation retry/backoff code is covered by an adapter-level unit test instead.
+8. **Terms/Privacy are drafted in-repo and flagged for counsel.** A minimum-viable ToS is usable at beta; counsel sign-off is tracked as an open item, not a merge blocker.
 
-## 5. Definition of Done
+## 5. Acceptance Criteria
 
-Baseline DoD applies, plus:
+Each AC is tagged **[CI]** (provable by the autonomous run: unit/integration/local-compose/scripted) or **[LIVE]** (requires a deployed env, external credential, or human — becomes a documented Section-B step, not a failure).
 
-- Release candidate tag `v0.11.0-rc.1` tested on production for 24h soak.
-- User-facing terms of service and privacy policy signed off by counsel (or drafted and flagged for review in §17 open items).
-- Ops documentation complete: every runbook has a date-of-last-review in the frontmatter.
+| # | Tag | Criterion |
+|---|-----|-----------|
+| AC-11-1 | [CI] | `pip-audit` + `pnpm audit` run in CI and fail on HIGH+; all current HIGH+ findings resolved or covered by a recorded waiver; open Dependabot PRs triaged (merged or documented). |
+| AC-11-2 | [CI] | OWASP ASVS L2 subset checklist (§7.1) shows Pass / Documented-Waiver for each applicable control, each with file/PR/test evidence, committed at `docs/security/asvs-l2-evidence.md`. |
+| AC-11-3 | [CI] | Load test (local compose, `FakeBrokerAdapter`): 100 concurrent WS dashboards + 20 webhooks/sec sustained 10 min; **no 5xx**; p95 alert-ingest→order-submit ≤ 1.5s (measures the platform path, excludes real-broker latency by design). Results in `docs/ops/load-test-results.md`. |
+| AC-11-4 | [CI] | 50-user simultaneous **L1** halt+flatten: all flatten orders submitted within 10s; p99 ≤ 8s (completes deferred M08 AC-08-11). |
+| AC-11-5 | [CI] | Chaos: Redis killed mid-traffic — Celery recovers within 60s; no orphaned/duplicate orders; at-most-once order semantics preserved via the `idempotency_key` SETNX guard + Alpaca `client_order_id`. |
+| AC-11-6 | [CI] | Chaos: `run_broker_streams` killed (Alpaca `trade_updates` gone) — `GET /api/v1/brokers/{id}/status/` flips to DEGRADED within `BROKER_STREAM_HEARTBEAT_TTL` (default 45s) + margin (assert ≤ 60s); L1 flatten still works via the REST path (independent of the stream); missed fills recovered on restart via REST cursor, deduped on `broker_exec_id` (AC-04-11 semantics under load). |
+| AC-11-7 | [CI] | Backup restore drill: a `pg_dump` restored into a scratch Postgres reproduces last-known state; scripted verification queries pass; procedure in `docs/ops/backup-restore.md`. (Railway PITR config + R2 retention are [LIVE].) |
+| AC-11-8 | [CI] | `GET /api/v1/users/me/export/` starts a Celery job producing a ZIP (profile, strategies, orders, fills, **audit events for that user from `audit_log`**, backtests); broker creds + MFA secrets redacted; delivered via a signed URL expiring in 24h. Provable against MinIO/moto in tests; real R2 is [LIVE]. |
+| AC-11-9 | [CI] | `POST /api/v1/users/me/delete/` sets `pending_delete_at = now + 30d`, sends a confirmation email, and is cancellable via `POST /api/v1/users/me/delete/cancel/` within the window; a nightly job anonymizes on expiry leaving an anonymized audit stub. |
+| AC-11-10 | [LIVE] | Production Railway project stood up; custom domains `api.strattraderpro.com` / `app.strattraderpro.com` behind Cloudflare WAF (rate limits + bot-fight). **Entirely operator** (domain purchase, DNS, Cloudflare, prod infra). The run delivers the config/runbook, not the live env. |
+| AC-11-11 | [CI] | `@axe-core/playwright` audit: 0 critical, 0 serious on auth, dashboard, strategies, backtest, risk, and admin pages; runs as a CI job (new). Manual keyboard-nav pass documented. |
+| AC-11-12 | [CI] | Angular initial **raw** budget enforced (CI `pnpm build` hard-fails on breach; confirm the `maximumError` actually fails the job). Threshold set to prevent regression from the current 449.56 kB (see §7.11). Lighthouse FCP ≤1.2s on throttled 4G is **[LIVE]** (needs a deployed URL). |
+| AC-11-13 | [CI]/[LIVE] | Secret-rotation rehearsal performed end-to-end for KEK (temporary `MultiFernet` swap → revert, local/staging-shaped) and JWT signing key (drain); runbooks updated with measured times. DB-password rotation on Railway is [LIVE]. |
 
-## 6. Implementation Tasks
+## 6. Definition of Done
 
-### 6.1 OWASP ASVS L2 subset
+Baseline DoD (`project-plan/README.md` §"Definition of Done") applies — note it already lists `axe-core` a11y, dependency-scan-clean, and translation-keys-extracted, several of which M11 turns from nominal into enforced. Plus:
 
-Walk each applicable control, evidence by file/PR/test:
+- All **[CI]** acceptance criteria green in the merged PR; every **[LIVE]** item documented in the execution report's Section B with the exact operator command/procedure.
+- Release-candidate tag `v0.11.0-rc.1` **created locally, not pushed** (operator convention; a 24h prod soak is a Section-B [LIVE] step).
+- Terms of Service + Privacy Policy drafted and flagged for counsel (open item in §17), acceptance flow live and tested.
+- Ops documentation complete: every runbook has `Last reviewed: 2026-07-10` (or later) frontmatter.
 
-- V1 Architecture: ADRs complete (yes — committed in earlier milestones).
-- V2 Authentication: Argon2, MFA, lockout, rate limits, secure reset — verify.
-- V3 Session: JWT rotation, revocation, secure storage — verify.
-- V4 Access Control: MFA enforcement + admin role checks — verify.
-- V5 Validation: DRF serializers + jsonschema — verify; add fuzz tests.
-- V7 Error / Logging: sensitive data scrubbing — verify with a grep + test.
-- V8 Data Protection: at-rest encryption on creds + MFA secrets — verify.
-- V9 Communications: TLS 1.3, HSTS, CSP — verify headers.
-- V10 Malicious Code: dependency audit, no `eval`/`exec` on user input — verify (grep + CI).
-- V11 Business Logic: kill switch test, daily loss test, sizing deterministic — verify.
-- V12 Files and Resources: file upload validation (M03) — verify.
-- V13 API: rate limits, CORS, webhook HMAC — verify.
-- V14 Configuration: secrets in env only, debug off in prod — verify.
+## 7. Implementation Tasks
 
-Output: a signed checklist committed at `/docs/security/asvs-l2-evidence.md`.
+### 7.1 OWASP ASVS L2 subset
 
-### 6.2 Dependency audit
+Walk each applicable control; evidence by file/PR/test. Output: `docs/security/asvs-l2-evidence.md` (signed checklist).
 
-- `pip-audit` (Python) + `pnpm audit` (Node) run in CI; M11 fails the build on HIGH+ unless waiver tag present.
-- Upgrade all HIGH+ findings; document any unavoidable waivers.
+- **V1 Architecture** — ADRs 000–102 committed; confirm coverage.
+- **V2 Authentication** — Argon2id hasher (`PASSWORD_HASHERS`), TOTP MFA (`pyotp`), custom lockout (`FailedLoginAttempt`, 10/15min per-email), `django-ratelimit` on login/register/reset — verify + add auth fuzz tests.
+- **V3 Session** — SimpleJWT HS256 + custom `RefreshTokenFamily` rotation & reuse-detection; token blacklist app installed; access 15m / refresh 30d — verify revocation paths.
+- **V4 Access Control** — `IsAuthenticatedAndMFAEnforced`, admin `IsAdminAndMFAEnforced` + `is_staff`, impersonation write-block at the authentication layer (M10) — verify the matrix.
+- **V5 Validation** — DRF serializers + `jsonschema` on the webhook body + upload validators — verify; add fuzz/property tests on the webhook schema.
+- **V7 Error / Logging** — audit `scrub.py` + the `SENSITIVE_KEYS` set; confirm no secrets in logs. **Known follow-up:** M10 flagged that `_scrub_sensitive` is not wired into the stdlib `python-json-logger` LOGGING config (the audit-row scrub *is* active) — wire the stdlib filter or correct the docstring here and grep-test it.
+- **V8 Data Protection** — at-rest Fernet on MFA secrets, webhook `sig`, broker API keys — verify; confirm export redaction.
+- **V9 Communications** — TLS/HSTS/`SECURE_*` in `prod.py`; **add CSP** (§4, decision 6); verify HSTS preload, Referrer-Policy, X-Content-Type-Options, Permissions-Policy.
+- **V10 Malicious Code** — dependency audit gate (§7.2); grep-gate that no `eval`/`exec` runs on user input; keep the existing `TWS_*` legacy-cred grep gate untouched.
+- **V11 Business Logic** — kill-switch L0–L3 tests, daily-loss (L2) two-poll confirm + auto-release, deterministic sizing — verify. Address the dead `RiskProfile.max_concurrent`/`leverage_cap`/`permitted_asset_classes` fields (remove or wire) flagged in the M04–M08 report.
+- **V12 Files & Resources** — M03 upload validators (size caps, path-traversal, filename regex, Pine `//@version=` check, stored-XSS scan) — verify; add a polyglot/zip-bomb probe.
+- **V13 API** — per-view `django-ratelimit` + the webhook fixed-window counter (there is **no** global DRF throttle — decide whether to add `DEFAULT_THROTTLE_*` or document the per-endpoint approach as the control), CORS allowlist, and the **static `sig` bearer secret** (ADR-042, **not** HMAC) — verify constant-time compare + replay guard.
+- **V14 Configuration** — secrets in env only, `DEBUG=False` in prod, `METRICS_BASIC_AUTH_*` set (M10), no committed secrets — verify.
 
-### 6.3 Manual pentest-like probing
+### 7.2 Dependency audit
 
-- Token rotation stress: parallel refreshes don't lose session.
-- Authorization: user A tries to read user B's strategy/order/audit — 403 at every layer.
-- Webhook replay attacks: tampered body with correct sig; swapped user UUID; old idempotency key.
-- File-upload edge cases: polyglot PDF-as-pine file; filename traversal; zip bomb (shouldn't apply but confirm).
-- SSRF via URL fields (none expected — confirm).
-- Open redirect via `next` query param — verify allowlist.
-- XSS in strategy description (display escaped).
+- Add `pip-audit` (backend) and `pnpm audit --audit-level=high` (frontend) as CI steps in `.github/workflows/ci.yml`; fail on HIGH+ unless a waiver file/annotation is present.
+- Resolve all current HIGH+ findings; upgrade pins; document unavoidable waivers in `docs/security/dependency-waivers.md`.
+- Triage the ~5 open Dependabot PRs (node/nginx base images + GitHub Actions bumps, opened 2026-04-18): merge the safe ones or document why deferred. Keep `pnpm-lock.yaml` frozen-lockfile-clean.
 
-### 6.4 Load test
+### 7.3 Manual pentest-like probing
 
-Using Locust or k6 scripts:
-- 100 WS dashboards: each subscribes, receives 5 events/min.
-- 20 webhooks/sec: HMAC signed; 70% stocks, 20% ETFs, 10% options.
-- 50 L1 kill-switch simultaneous triggers after a market-open simulation.
+- Token-rotation stress: parallel refreshes don't lose the session or trip false reuse-detection.
+- Authorization: user A reads user B's strategy/order/fill/audit → 403 at every layer (incl. the export endpoint and admin routes).
+- Webhook replay/spoof of the **static `sig`**: tampered body with a valid old `sig`; swapped user/strategy UUID in the path; replayed `idempotency_key` (must dedupe, not double-order); wrong-secret → generic 401 (no existence oracle).
+- File-upload edge cases: polyglot PDF-as-Pine; filename traversal; oversize; zip-bomb (confirm N/A).
+- SSRF via any URL field (none expected — confirm; there is no server-side fetch of user URLs today).
+- Open-redirect via a `next`-style param — **none exists today** (OAuth/email redirects are built from `FRONTEND_BASE_URL`, not client input); confirm and add a regression test asserting no user-controlled redirect target is introduced.
+- Stored-XSS in strategy description (`description_short` is API-only/escaped; confirm no server-rendered sink).
 
-Capture:
-- p50/p95/p99 latencies.
-- Queue depths over time.
-- DB CPU, memory, IOPS.
-- Worker CPU utilization.
-- WebSocket reconnect rate.
+### 7.4 Load test
 
-Tune based on results (worker count, pool sizes).
+Locust (Python, aligns with stack) scripts under `backend/loadtest/` (or `infra/loadtest/`), run against **local docker-compose with `FakeBrokerAdapter`**:
 
-### 6.5 Chaos drills
+- 100 WS dashboards: each authenticates (JWT-in-querystring + MFA gate), subscribes to `/ws/dashboard/`, receives ~5 events/min.
+- 20 webhooks/sec to `POST /hooks/v1/{user}/{strategy}/` with a valid static `sig` + unique `idempotency_key`; mix 70% stocks, 20% ETFs, 10% options.
+- 50 simultaneous **L1** halt+flatten triggers after a market-open simulation.
 
-Documented, scheduled, one per day:
+Capture: p50/p95/p99 for ingest→submit and for flatten; Celery queue depths over time (reuse M10's `celery_queue_depth{queue}` gauge); WebSocket reconnect rate. **Infra metrics** (DB CPU/mem/IOPS, worker CPU) require the postgres/redis exporters — capture app-level metrics locally and note infra-metric capture as a staging follow-up. Tune worker count / pool sizes from results; record in `docs/ops/load-test-results.md`. Add a **scaled-down canary** (e.g. 10 WS / 2 rps / 60s) as a `workflow_dispatch` + weekly-cron GitHub Actions job (Playwright/Locust headless), gated to not run per-commit.
 
-- **Day 1:** Kill Redis for 90s; verify recovery, no orphaned orders.
-- **Day 2:** Kill a worker mid-flatten; verify idempotent retry.
-- **Day 3:** `run_broker_streams` crash-loops (Alpaca stream unavailable); verify kill-switch fallback via REST + fill catch-up on recovery.
-- **Day 4:** Simulated TS 5xx storm; verify backoff + no duplicate orders.
-- **Day 5:** DB failover (Railway + ad-hoc) — measure downtime & reconnect.
+### 7.5 Chaos drills
 
-### 6.6 Backup & restore
+Documented in `docs/ops/chaos-drill-logs.md`, scripted where feasible (compose `kill`/`pause`):
 
-- Automated daily backup retained 30d.
-- Weekly `pg_dump` pushed to R2 retained 90d.
-- Restore test: spin up scratch Postgres, restore latest dump, run verification queries; documented in runbook.
+- **Day 1 (→AC-11-5):** Kill Redis ~90s; verify Celery recovery, idempotency guard holds, no orphaned orders.
+- **Day 2:** Kill a worker mid-flatten; verify idempotent retry (no duplicate flatten orders).
+- **Day 3 (→AC-11-6):** `run_broker_streams` crash-loop; verify DEGRADED within TTL+margin, L1 flatten via REST still works, fill catch-up on reconnect (dedupe on `broker_exec_id`).
+- **Day 4:** **Alpaca REST 5xx storm** (injected via `FakeBrokerAdapter`/mock, since Alpaca is the only live-path broker); verify bounded retry/backoff and no duplicate orders. (TradeStation retry code covered by a separate adapter unit test — it carries no live traffic, flag OFF.)
+- **Day 5:** DB failover (local: restart Postgres; staging: Railway) — measure reconnect/downtime; note the Railway-side measurement as [LIVE].
 
-### 6.7 GDPR / CCPA
+### 7.6 Backup & restore
 
-- `GET /api/v1/users/me/export/` → generates ZIP (profile, strategies, orders, fills, audit, backtests) via Celery; user receives email with signed URL (24h TTL).
-- `POST /api/v1/users/me/delete/` → marks account `pending_delete_at=now+30d`; email confirmation; admin can cancel if requested within window.
-- After 30 days a nightly job anonymizes/deletes per a retention policy doc (audit rows keep an anonymized user stub for integrity chain).
+- Document the daily automated backup (Railway, 30d) and a weekly `pg_dump` → R2 (90d) — both **operator/[LIVE]** for the real buckets.
+- **Buildable drill (AC-11-7):** a script (`scripts/restore-drill.sh` + a management command or SQL) that spins up a scratch Postgres, restores a `pg_dump`, and runs verification queries (row counts on key tables, audit-chain head re-verify). Runbook: `docs/ops/backup-restore.md`.
 
-### 6.8 Terms & Privacy
+### 7.7 GDPR / CCPA
 
-- Draft `TermsOfService` + `PrivacyPolicy` (flag for counsel review).
-- Versioned in DB as `TermsDocument(version, text, effective_from)`.
-- `TermsAcceptance` model records user+version+accepted_at+ip.
-- On first login post-version-update, UI modal requires re-acceptance.
-- Live-trading version bump is its own document with extra disclaimers (scaffolded for v0.2).
+- `GET /api/v1/users/me/export/` → enqueues a Celery job (default `celery` queue) building a ZIP (profile, strategies, orders, fills, **per-user rows from `audit_log`**, backtests) via `zipfile`+`tempfile`, streamed to S3-compatible storage; returns `{job_id}`. **Redact** broker API keys + MFA secrets. `GET /api/v1/users/me/export/{job_id}/` → status + signed download URL (24h) when READY. Email the user the link (reuse `_send_templated`).
+- `POST /api/v1/users/me/delete/` → `pending_delete_at = now+30d`, confirmation email; `POST /api/v1/users/me/delete/cancel/` within the window; admin can also cancel.
+- Nightly beat job anonymizes/deletes expired accounts per a retention doc; audit rows keep an **anonymized actor stub** (chain integrity). Emit audit events for export-requested / delete-requested / delete-cancelled / anonymized.
 
-### 6.9 Production Railway env
+### 7.8 Terms & Privacy
 
-- Separate Railway project `strattraderpro-prod` with the same 6 services.
-- Separate Postgres + Redis.
-- DNS: `api.strattraderpro.com`, `app.strattraderpro.com`, `hooks.strattraderpro.com` (optional alias for webhooks).
-- Cloudflare in front: TLS + WAF + rate-limit rules + bot-fight mode.
-- Railway → Cloudflare orange-cloud; origin restricted to Cloudflare IPs.
+- Draft `docs/legal/terms-of-service.md` + `docs/legal/privacy-policy.md` (flag for counsel).
+- `TermsDocument(kind, version, text, effective_from)` + `TermsAcceptance(user, tos_version, privacy_version, accepted_at, ip)` models (migration `users.0005_delete_flow_and_terms` — or the next free number via `makemigrations`).
+- `GET /api/v1/terms/current/` → current ToS + Privacy versions; `POST /api/v1/terms/accept/ { tos_version, privacy_version }` records acceptance + IP + audit event.
+- On first login after a version bump, the SPA shows a blocking modal requiring re-acceptance.
+- All strings via `ngx-translate` keys in `en.json` (DoD: no hard-coded strings). A live-trading ToS variant is scaffolded for v0.2, not built.
 
-### 6.10 Accessibility
+### 7.9 Production Railway env — **[LIVE]/operator**
 
-- axe-core CLI run in CI over built frontend pages.
-- Manual keyboard-only pass on every page.
-- Focus rings visible; skip-link present.
-- Color contrast: all text meets 4.5:1; interactive elements 3:1.
+The autonomous run produces the **config + runbook**, not the live environment. Re-derive the real service set (not the stale "6"): `backend`, `frontend`, `postgres`, `redis`, `worker`, `worker-backtest`, `beat`, `streams`, `ws` (daphne), `grafana-agent`, `postgres-exporter`, `redis-exporter`. Runbook `docs/ops/prod-bringup.md` covers: separate `strattraderpro-prod` project, separate Postgres + Redis, DNS (`api.` / `app.` / optional `hooks.` `strattraderpro.com`), Cloudflare (TLS + WAF + rate-limit + bot-fight, orange-cloud, origin restricted to Cloudflare IPs), and env-var matrix (incl. M10's `METRICS_BASIC_AUTH_*`, `TASK_METRICS_PORT`, exporter targets, `SENTRY_*`). Domain purchase, Cloudflare account, and prod bring-up are operator steps.
 
-### 6.11 Performance budget
+### 7.10 Accessibility
 
-- Webpack-bundle-analyzer + CI gate.
-- Initial bundle < 400 KB gzipped; lazy chunks ≤ 400 KB each.
-- Dashboard first contentful paint ≤ 1.2s on throttled 4G (Lighthouse CI).
+- Add `@axe-core/playwright`; extend the (currently auth-only) Playwright suite with specs for dashboard, strategies, backtest, risk, and the M10 admin pages; add a CI job (Playwright is not in CI today).
+- Manual keyboard-only pass on every page; document results.
+- Focus rings visible; skip-link present; color contrast text ≥ 4.5:1, interactive ≥ 3:1.
 
-### 6.12 Secret rotation rehearsal
+### 7.11 Performance budget
 
-- Rotate DB password via Railway; verify zero downtime (if connection pool handles).
-- Rotate Fernet KEK: envelope re-wrap all DEKs; test that broker/MFA secrets still decrypt.
-- Rotate JWT HMAC secret: multi-kid support verified so active sessions survive.
+- Enforce the Angular **raw initial** budget in CI: confirm `pnpm build` actually **fails** on `maximumError` (it currently only warns at 500kB / errors at 1MB). Set `maximumError` to a regression-guard threshold above the current **449.56 kB** actual (e.g. `500kB`) so any real growth fails the build; keep lazy `admin`/`backtest` chunks out of the initial budget.
+- Optionally add a small script to report **gzipped** initial size for tracking (informational, not a gate) to avoid the raw-vs-gzipped ambiguity of the original draft.
+- Lighthouse-CI FCP ≤1.2s on throttled 4G is **[LIVE]** (needs a deployed URL) — document as a Section-B step.
 
-## 7. Tech Stack Notes
+### 7.12 Secret-rotation rehearsal
 
-- **Locust** chosen over k6 because Python; aligns with stack.
-- **axe-core** is the de-facto a11y scanner; integrates with Playwright.
-- **Cloudflare** free tier sufficient for our traffic; WAF rules + bot-fight mode enabled.
-- GDPR export uses `zipfile` + `tempfile`; temporary files cleaned; R2 upload with SSE.
+- **DB password** (Railway) — **[LIVE]**: rotate via Railway, verify pool re-connect, measure downtime; document.
+- **Fernet KEK** — [CI-shaped]: rehearse the runbook's rotation — temporarily introduce `MultiFernet` (old+new keys), re-encrypt MFA/webhook/broker secrets, confirm all still decrypt, time it, then revert to single-key per the runbook's final step. **The M11 PR leaves the code at single-key `Fernet`** (the `MultiFernet` swap is a rotation-time-only edit, not a committed change). Record measured times in `docs/runbooks/mfa-kek-rotation.md`.
+- **JWT signing key** — [CI-shaped]: rotate `JWT_SIGNING_KEY`; because signing is single-key HS256, in-flight access tokens (≤15m) are invalidated — prove clean re-mint within one TTL window and refresh-family re-issue; document the drain. **Multi-`kid` is explicitly out of scope.**
 
-## 8. Data Model Changes
+## 8. Tech Stack Notes
+
+- **Locust** over k6 (Python, aligns with stack) for load; headless canary in CI.
+- **`@axe-core/playwright`** integrates with the existing Playwright runner.
+- **Cloudflare** free/Pro tier sufficient; WAF + bot-fight (operator).
+- GDPR export: `zipfile`+`tempfile`, streamed to S3-compatible storage (MinIO/moto in tests, R2 in prod) with SSE; signed URL 24h.
+- CSP via `django-csp` (report-only → enforce) or a static header on `SecurityMiddleware`.
+
+## 9. Data Model Changes
 
 Migrations:
-- `users.0003_delete_flow_and_terms` — `pending_delete_at`, `TermsDocument`, `TermsAcceptance`.
+- `users.0005_delete_flow_and_terms` (or next free number) — `User.pending_delete_at`, `TermsDocument`, `TermsAcceptance`.
+- Possibly an `export_jobs` table (or reuse a generic async-job pattern) for export status — implementer's discretion; keep it minimal.
 
-## 9. API Contract Changes
+## 10. API Contract Changes
 
-New:
+New (all under `/api/v1/`):
 ```
-GET  /api/v1/users/me/export/            → starts export job; returns job_id
-GET  /api/v1/users/me/export/{job_id}/   → status; returns download URL when READY
-POST /api/v1/users/me/delete/            → schedules deletion
-POST /api/v1/users/me/delete/cancel/     → cancels pending deletion
+GET  /api/v1/users/me/export/            → starts export job; returns { job_id }
+GET  /api/v1/users/me/export/{job_id}/   → status; signed download URL when READY (24h TTL)
+POST /api/v1/users/me/delete/            → schedules 30-day soft delete
+POST /api/v1/users/me/delete/cancel/     → cancels pending deletion (within window)
 GET  /api/v1/terms/current/              → current ToS + Privacy versions
 POST /api/v1/terms/accept/               { tos_version, privacy_version }
 ```
+Regenerate OpenAPI (`make schema`) + frontend types (`pnpm run schema:types`); no drift. Note: an unrelated `GET /api/v1/orders/export.csv` already exists (trade CSV) — do not conflate with the GDPR export.
 
-## 10. Test Plan
+## 11. Test Plan
 
-### 10.1 Automated
+### 11.1 Automated (CI)
+- `pip-audit` + `pnpm audit` gates.
+- `@axe-core/playwright` a11y gate (new Playwright CI job).
+- Angular raw-initial bundle gate (build hard-fail).
+- Load-test canary (weekly cron + `workflow_dispatch`; not per-commit).
+- Chaos scenarios scripted where feasible (compose kill/pause) with assertions.
+- Backend unit/integration for export/delete/terms (SQLite lane + `-m pg` where triggers/indexes matter), storage against MinIO/`moto`, email via locmem backend.
 
-- Dependency CI gate.
-- `axe-core` CI gate.
-- Bundle size CI gate.
-- Load test tied to GitHub Actions weekly (not per commit).
-- Chaos scenarios scripted (where feasible).
+### 11.2 Manual / drills
+- OWASP ASVS L2 walkthrough (self-review + 24h cooldown + re-check, per solo-dev DoD).
+- Backup-restore drill; secret-rotation drills (KEK, JWT).
+- Terms-acceptance UX walkthrough; keyboard-nav pass.
 
-### 10.2 Manual
+### 11.3 Regression
+- Full existing backend gauntlet (ruff, bandit, SQLite + pg lanes) + `ngc` + `pnpm build` + Karma + the auth Playwright suite must stay green after hardening changes.
 
-- OWASP ASVS L2 walkthrough with a partner (or self-review + 24h cooldown + re-check).
-- Backup restore drill.
-- Secret rotation drill.
-- Terms acceptance UX walkthrough.
+## 12. Security Considerations
 
-### 10.3 Regression
+- All changes are defensive; adding CSP/GDPR/terms introduces no new *attack* surface, but the export endpoint is a new data-egress path — hence redaction + per-user authz tests are mandatory.
+- Terms acceptance protects legally only with clear UX + an audit trail (both required here).
+- Exported ZIP must contain **no** broker creds or MFA secrets (redaction test is an AC-gating test).
+- Account delete is 30-day soft to allow reversal; audit log retains only an anonymized stub.
 
-- Full existing Playwright suite must pass on prod-env-equivalent staging after hardening changes.
+## 13. Observability
 
-## 11. Security Considerations
+- **Verify/extend M10, don't rebuild.** M10 authored `docs/slo.md`, the six dashboards' SLO panels, and `infra/grafana/alerts/*.yaml`. M11 adds **burn-rate alerts** on top and confirms end-to-end fire+receive.
+- Fire+receive verification (email + Telegram) is **[LIVE]** (Grafana Cloud import + contact points are M10 Section-B operator steps not yet done) — M11 documents and, where a deployed env exists, executes; otherwise it's a Section-B follow-up.
+- Add metrics for the new paths: export job count/duration, delete-request count, terms-acceptance count.
 
-- All changes in this milestone are defensive; no new attack surface.
-- Terms acceptance protects us legally only if paired with clear UX and audit trail.
-- Exported ZIP has no sensitive credentials (broker creds redacted; MFA secrets redacted).
-- Account delete is 30d soft to allow users to reverse, and audit log retains anonymized stub only.
+## 14. Translation & Localization
 
-## 12. Observability
+- Terms/Privacy, export `readme.txt`, delete-flow copy, and all new UI strings added as **`en.json` keys** (no hard-coded strings). Backend user-facing labels via the existing i18n LABELS pattern.
+- **No `.pot`/second locale is produced** (the app uses `ngx-translate` with a single `en.json`; there is no gettext extraction pipeline). A real second language is future work — do not claim a pot file is prepared.
+- Cloudflare error-page localization is an operator/[LIVE] note.
 
-- All alerts verified end-to-end (fire + receive).
-- SLO error budgets documented; burn alerts added for critical SLOs.
-- Dashboards reviewed by operator; outdated panels retired.
+## 15. Documentation Deliverables
 
-## 13. Translation & Localization
+- `docs/security/asvs-l2-evidence.md`, `docs/security/pentest-report.md`, `docs/security/dependency-waivers.md`.
+- `docs/ops/load-test-results.md`, `docs/ops/chaos-drill-logs.md`, `docs/ops/backup-restore.md`, `docs/ops/prod-bringup.md`.
+- `docs/runbooks/secret-rotation.md` (JWT + DB) and extend `docs/runbooks/mfa-kek-rotation.md`.
+- `docs/legal/terms-of-service.md`, `docs/legal/privacy-policy.md` (drafts; flagged for counsel).
+- Runbook sweep: every `docs/runbooks/*.md` gets `Last reviewed: 2026-07-10` frontmatter (most lack it today — derive the live count with `ls docs/runbooks/*.md | wc -l` rather than trusting a hard-coded number, and normalize the header template).
+- ADR(s) for CSP, GDPR export/delete design, and the load-test target choice.
 
-- Terms of Service + Privacy Policy translated into `en` now; pot file prepared for future translations.
-- Export ZIP `readme.txt` and emails translated via user's language.
-- Delete-flow copy translated with careful phrasing (legal disclaimers).
-- Cloudflare error pages localized (CF config) to at least English.
+## 16. Rollback Plan
 
-## 14. Documentation Deliverables
+- Hardening changes are largely config + CI + additive endpoints; a problematic change rolls back per-PR.
+- The new `users.0005` migration is additive (nullable `pending_delete_at` + two new tables) — reversible; no destructive column drops.
+- Cloudflare/prod infra is not created by the run, so there is nothing to tear down there.
 
-- `/docs/security/asvs-l2-evidence.md`.
-- `/docs/security/pentest-report.md` — self-pentest notes.
-- `/docs/ops/load-test-results.md`.
-- `/docs/ops/chaos-drill-logs.md`.
-- `/docs/ops/backup-restore.md`.
-- `/docs/ops/secret-rotation.md`.
-- `/docs/legal/terms-of-service.md` (draft; flagged for counsel).
-- `/docs/legal/privacy-policy.md` (draft; flagged for counsel).
-- Runbook sweep: every runbook has `Last reviewed: 2026-MM-DD` frontmatter.
-
-## 15. Rollback Plan
-
-- Hardening changes are largely config + CI. A problematic change can be rolled back per-PR.
-- Production Railway env can be torn down and re-created if fundamentally broken — no user data yet.
-- Cloudflare WAF rules can be bypassed in emergency via page rule toggles.
-
-## 16. Risks & Mitigations
+## 17. Risks & Mitigations
 
 | Risk | L | I | Mitigation |
 |---|---|---|---|
-| Load test reveals scaling bug too late to fix in week | Med | High | Run preliminary load test earlier, during M10. |
-| Counsel review of ToS/Privacy delays launch | High | Med | Draft early; plan buffer in week 12; minimum viable ToS ready to use. |
-| Cloudflare config change breaks prod | Low | High | Stage all rules in staging first; rollback plan documented. |
-| GDPR export large ZIP exceeds memory | Low | Low | Stream to R2 directly; multipart upload. |
+| Load test reveals a scaling bug late | Med | High | Run the local-compose load test early in the week; canary in CI thereafter. |
+| Counsel review of ToS/Privacy delays launch | High | Med | Draft early; minimum-viable ToS usable at beta; buffer in M12. |
+| GDPR export large ZIP exceeds memory | Low | Low | Stream to storage; chunked/multipart upload; temp-file cleanup. |
+| Real R2 not provisioned in time | Med | Med | Build against MinIO/moto; R2 is a Section-B operator step; export degrades gracefully (job stays PENDING with a clear operator note). |
+| JWT rotation invalidates active sessions (no multi-kid) | Med | Med | Document the 15-min drain; schedule rotation in a low-traffic window; multi-kid noted as future work. |
+| CSP breaks app pages when enforced | Med | Med | Ship report-only first; flip to enforce only if violation reports are clean. |
+| M10 Section-B operator steps (Grafana import, exporters, restricted DB role) still open | High | Med | M11 observability/AC items depending on them are tagged [LIVE]; do not block the merge on them. |
 
-## 17. Exit Gate Checklist
+## 18. Exit Gate Checklist
 
-- [ ] AC-11-1 … AC-11-13 pass.
-- [ ] OWASP ASVS evidence doc complete.
-- [ ] Load + chaos reports filed.
-- [ ] Production env running and soaked 24h.
-- [ ] Terms & Privacy drafted + acceptance flow live.
-- [ ] Backup restore verified.
-- [ ] Secret rotation drill logged.
-- [ ] Tag `v0.11.0-rc.1`.
+- [ ] All **[CI]** AC (AC-11-1…9, 11, 12, 13-partial) green in the merged PR.
+- [ ] All **[LIVE]** items (AC-11-10, Lighthouse, DB-password rotation, Grafana fire+receive, R2, prod bring-up) documented in Section B with exact procedures.
+- [ ] OWASP ASVS evidence doc complete; dependency gates live; HIGH+ resolved/waived.
+- [ ] Load + chaos + backup-restore reports filed.
+- [ ] GDPR export/delete + Terms acceptance flow live and tested.
+- [ ] a11y + bundle CI gates enforcing; runbook sweep done (frontmatter normalized).
+- [ ] Secret-rotation rehearsals (KEK, JWT) logged with measured times.
+- [ ] Tag `v0.11.0-rc.1` created locally (not pushed).
 
 Proceed to **M12 Beta + Signoff**.
