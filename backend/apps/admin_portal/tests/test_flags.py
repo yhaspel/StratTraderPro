@@ -81,3 +81,25 @@ class FlagResolutionTests(TestCase):
             mgr.filter.side_effect = ProgrammingError("relation does not exist")
             # Must not raise; returns the env default.
             self.assertTrue(flags.is_enabled("BACKTEST_ENABLED"))
+
+    def test_redis_error_falls_through_to_db_override(self):
+        from django.core.cache import cache
+
+        flags.set_flag("BACKTEST_ENABLED", False, actor=self.admin)  # DB override
+        flags._bust_local()
+        # Redis unreachable (raises) → must fall through to the DB, not fail open.
+        with patch.object(cache, "get", side_effect=RuntimeError("redis down")):
+            self.assertFalse(flags.is_enabled("BACKTEST_ENABLED"))
+
+    def test_backing_store_outage_fails_open_and_caches_locally(self):
+        from django.core.cache import cache
+
+        flags._bust_local()
+        with patch.object(cache, "get", side_effect=RuntimeError("redis down")), \
+             patch("apps.admin_portal.models.FeatureFlag.objects") as mgr:
+            mgr.filter.side_effect = RuntimeError("db down")
+            # Both backends down → fail open to env default (True), and cache it
+            # locally so the second call does not re-hit the backing store.
+            self.assertTrue(flags.is_enabled("BACKTEST_ENABLED"))
+            self.assertIn("BACKTEST_ENABLED", flags._local_cache)
+            self.assertTrue(flags.is_enabled("BACKTEST_ENABLED"))

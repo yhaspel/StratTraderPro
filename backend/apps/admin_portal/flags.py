@@ -74,11 +74,13 @@ def _resolve_override(name: str):
     if hit is not None and hit[1] > _monotonic():
         return hit[0]
 
+    # Redis error → fall THROUGH to the DB (the source of truth may be up even
+    # when Redis is down/hung), rather than immediately failing open.
+    cached = None
     try:
         cached = cache.get(_redis_key(name))
-    except Exception:  # noqa: BLE001 — fail open
+    except Exception:  # noqa: BLE001 — fail open, but still try the DB below
         logger.warning("flags.redis_read_failed", extra={"flag": name})
-        return None
     if cached is not None:
         override = None if cached == _NO_OVERRIDE else bool(cached)
         _cache_local(name, override)
@@ -89,9 +91,14 @@ def _resolve_override(name: str):
 
         row = FeatureFlag.objects.filter(name=name).values_list("enabled", flat=True).first()
     except (ProgrammingError, OperationalError):
+        # Table not migrated yet — treat as no override, but don't cache (the
+        # table will appear shortly and we want to pick it up).
         return None
     except Exception:  # noqa: BLE001 — fail open
         logger.warning("flags.db_read_failed", extra={"flag": name})
+        # Cache the fail-open result locally so a sustained outage doesn't re-hit
+        # the backing store every request (converges within LOCAL_CACHE_TTL).
+        _cache_local(name, None)
         return None
 
     override = None if row is None else bool(row)
