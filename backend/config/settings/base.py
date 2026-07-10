@@ -641,6 +641,16 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": env("REDIS_URL", default="redis://localhost:6379/1"),
+        # Fail FAST on an unreachable/hung Redis instead of blocking the worker
+        # until its 120s timeout. Without these, a Redis that accepts the TCP
+        # connection but never responds hangs `/readyz`, `flags.is_enabled()`
+        # (whose except only catches errors, not a blocking socket), webhook
+        # idempotency, and rate limiting. With a short timeout the socket raises,
+        # callers fall back gracefully (flags fail open to the env default).
+        "OPTIONS": {
+            "socket_connect_timeout": env.float("REDIS_SOCKET_CONNECT_TIMEOUT", default=2.0),
+            "socket_timeout": env.float("REDIS_SOCKET_TIMEOUT", default=2.0),
+        },
     }
 }
 
