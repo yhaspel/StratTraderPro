@@ -1,0 +1,29 @@
+# shellcheck shell=sh
+# Default RELEASE to the platform's commit SHA (BUG-003).
+#
+# Runs from the official nginx image's /docker-entrypoint.d/. Two things make this
+# work, and both matter:
+#
+#   1. The entrypoint SOURCES files ending in `.envsh` (and merely executes `*.sh`
+#      in a subshell). Only a sourced file can export a variable that the later
+#      scripts will see — hence the .envsh extension.
+#   2. It is numbered 15, i.e. BEFORE `20-envsubst-on-templates.sh`, which is the
+#      step that renders docker/nginx.conf.template. So RELEASE must be set by now
+#      or it substitutes to the empty string.
+#
+# Why not just set RELEASE as a Railway service variable? Because the obvious value
+# — "${{RAILWAY_GIT_COMMIT_SHA}}" — silently resolves to "". Railway's ${{...}}
+# reference system does not expose the git SHA (it only exposes 8 vars:
+# ENVIRONMENT_ID/NAME, PRIVATE/PUBLIC_DOMAIN, PROJECT_ID/NAME, SERVICE_ID/NAME).
+# The SHA *is* in the container environment, though — which is exactly where this
+# script reads it from, and it's the same source the backend's /healthz uses.
+#
+# With release: '' on every event, Sentry can never match the sourcemaps CI uploads
+# under $GITHUB_SHA, so frontend stack traces stay minified.
+#
+# An explicitly-provided RELEASE always wins; this only fills in a blank.
+
+if [ -z "${RELEASE:-}" ] && [ -n "${RAILWAY_GIT_COMMIT_SHA:-}" ]; then
+    export RELEASE="$RAILWAY_GIT_COMMIT_SHA"
+    echo "15-release-default: RELEASE defaulted from RAILWAY_GIT_COMMIT_SHA ($RELEASE)"
+fi

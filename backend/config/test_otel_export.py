@@ -86,3 +86,57 @@ class EntrypointOrderTests(SimpleTestCase):
 
     def test_asgi_inits_otel_before_building_app(self):
         self._assert_init_precedes("asgi.py", "get_asgi_application")
+
+
+class OtelStatusLogTests(SimpleTestCase):
+    """BUG-006: the tracing confirmation must be logged, and logged late enough.
+
+    `init_otel()` runs before `django.setup()` (it has to — BUG-001), so at that
+    point `settings.LOGGING` is not applied and an INFO record is silently dropped.
+    The confirmation is therefore emitted by `log_otel_status()`, which the
+    entrypoints call *after* the Django app is built.
+    """
+
+    def _assert_status_logged_after_app_built(self, module: str, build_func: str):
+        src = (_CONFIG_DIR / module).read_text()
+        build_line = _first_call_lineno(src, build_func)
+        status_line = _first_call_lineno(src, "log_otel_status")
+
+        self.assertIsNotNone(
+            status_line,
+            f"config/{module} never calls log_otel_status(): the boot-time "
+            "confirmation that tracing is enabled would be lost (BUG-006).",
+        )
+        self.assertLess(
+            build_line,
+            status_line,
+            f"log_otel_status() must come AFTER {build_func}() in config/{module}: "
+            "django.setup() is what applies settings.LOGGING, so logging any earlier "
+            "goes to a root logger with no handlers and the INFO record is discarded.",
+        )
+
+    def test_wsgi_logs_status_after_app_built(self):
+        self._assert_status_logged_after_app_built("wsgi.py", "get_wsgi_application")
+
+    def test_asgi_logs_status_after_app_built(self):
+        self._assert_status_logged_after_app_built("asgi.py", "get_asgi_application")
+
+    def test_init_otel_does_not_log_the_confirmation_itself(self):
+        """Guard the regression: logging it inside init_otel() is what lost it."""
+        src = (_CONFIG_DIR / "otel.py").read_text()
+        tree = ast.parse(src)
+        init_fn = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == "init_otel"
+        )
+        emits = [
+            n for n in ast.walk(init_fn)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "info"
+        ]
+        self.assertEqual(
+            emits, [],
+            "init_otel() must not log at INFO: it runs before django.setup() applies "
+            "settings.LOGGING, so the record is dropped. Use log_otel_status().",
+        )

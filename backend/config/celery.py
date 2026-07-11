@@ -47,9 +47,13 @@ def _on_worker_init(**_kwargs):
     _start_task_metrics()
     # M10 §6.6 — trace worker tasks too.
     try:
-        from config.otel import init_otel
+        from config.otel import init_otel, log_otel_status
 
         init_otel()
+        # BUG-006 — Django is already set up in a Celery worker, so logging is
+        # configured and this lands. Kept explicit (rather than logging inside
+        # init_otel) so all three entrypoints behave identically.
+        log_otel_status()
     except Exception:  # noqa: BLE001
         logger.exception("otel.worker_init_failed")
 

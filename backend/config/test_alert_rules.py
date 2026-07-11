@@ -34,6 +34,11 @@ _EXTERNAL = {
     "pg_up",
     "redis_up",
     "redis_connected_clients",
+    # BUG-005 — usage-alerts.yaml queries the `grafanacloud-usage` datasource,
+    # which Grafana Cloud maintains about our own account. These series are not
+    # scraped from us and will never appear in an apps/*/metrics.py.
+    "grafanacloud_org_metrics_billable_series",
+    "grafanacloud_org_metrics_included_series",
 }
 
 _HIST_SUFFIXES = ("_bucket", "_sum", "_count")
@@ -95,4 +100,76 @@ class AlertRuleCrossCheckTests(SimpleTestCase):
         self.assertFalse(
             missing,
             f"alert rules reference unexported metric series: {sorted(set(missing))}",
+        )
+
+
+def _rules_from_alerts() -> list[dict]:
+    rules: list[dict] = []
+    for path in sorted(_ALERTS_DIR.glob("*.yaml")):
+        doc = yaml.safe_load(path.read_text())
+        for group in (doc or {}).get("groups", []):
+            rules.extend(group.get("rules", []))
+    return rules
+
+
+class DeadMansSwitchTests(SimpleTestCase):
+    """BUG-008 — something must fire when the metrics pipeline goes silent.
+
+    Almost every rule here embeds its comparison in the PromQL (`... > 0`), so a
+    healthy system yields an empty result, which Grafana reports as Normal. That
+    is correct per-rule but makes silence ambiguous: "condition false" and
+    "nothing is being scraped" look identical. Without a rule that fires on
+    ABSENCE, killing the agent turns the whole board green and pages nobody —
+    including the kill-switch and audit-integrity alerts.
+
+    These tests fail if that safety net is ever removed.
+    """
+
+    def test_a_rule_fires_on_absence_of_metrics(self):
+        absent_rules = [
+            r for r in _rules_from_alerts() if "absent(" in r.get("expr", "")
+        ]
+        self.assertTrue(
+            absent_rules,
+            "No alert rule uses absent(): nothing would fire if the Grafana Agent "
+            "stopped scraping. Every self-filtering rule would return empty and be "
+            "reported as Normal — alerting would be blind, not green (BUG-008).",
+        )
+        for rule in absent_rules:
+            self.assertEqual(
+                rule.get("labels", {}).get("severity"),
+                "critical",
+                f"{rule.get('alert')} is the dead-man's switch; it must be critical.",
+            )
+
+    def test_a_rule_fires_on_target_down(self):
+        exprs = [r.get("expr", "") for r in _rules_from_alerts()]
+        self.assertTrue(
+            any(re.search(r"\bup\b\s*==\s*0", e) for e in exprs),
+            "No `up == 0` rule: an individual scrape target could die unnoticed "
+            "while the agent keeps reporting for everything else (BUG-008).",
+        )
+
+
+class ScrapeIntervalBudgetTests(SimpleTestCase):
+    """BUG-005 — the scrape interval is a BILLING lever, not just a fidelity one.
+
+    Grafana Cloud bills `active_series x (actual_DPM / included_DPM)` and the free
+    tier includes 1 DPM. A 30s scrape is 2 DPM, so it doubles billable series and
+    blows the allowance with no change in series count. Alert groups evaluate at
+    1m, so a sub-60s scrape buys nothing anyway.
+    """
+
+    def test_agent_scrape_interval_is_at_least_60s(self):
+        agent = _REPO / "infra" / "grafana-agent" / "agent.yaml"
+        self.assertTrue(agent.is_file(), "infra/grafana-agent/agent.yaml missing")
+
+        match = re.search(r"^\s*scrape_interval:\s*(\d+)s\s*$", agent.read_text(), re.M)
+        self.assertIsNotNone(match, "agent.yaml does not set a global scrape_interval")
+        self.assertGreaterEqual(
+            int(match.group(1)),
+            60,
+            "scrape_interval < 60s doubles (or worse) Grafana Cloud billable series "
+            "for zero benefit — every alert group evaluates at 1m. This is what put "
+            "the account over its free-tier allowance (BUG-005).",
         )

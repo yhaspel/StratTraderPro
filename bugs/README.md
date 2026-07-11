@@ -24,9 +24,12 @@ picked up later without re-deriving the investigation.
 | [BUG-002](BUG-002-otlp-endpoint-missing-signal-path.md) | OTLP exporter given base URL; `/v1/traces` never appended | S2 | FIXED | Observability |
 | [BUG-003](BUG-003-healthz-reports-stale-git-sha.md) | `/healthz` reports a stale commit SHA | S3 | OPEN | Deploy/Provenance |
 | [BUG-004](BUG-004-nginx-envsubst-filter-too-narrow.md) | Frontend Sentry never worked (nginx envsubst allowlist + empty `SENTRY_DSN`) | S2 | **FIXED & VERIFIED** | Frontend/Config |
-| [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | Grafana Cloud free-tier metrics limit reached → series dropped | S3 | OPEN | Observability/Ops |
-| [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | OPEN | Observability |
-| [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job runs **neither** lint nor tests — no frontend spec has ever executed | S2 | OPEN | CI |
+| [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | "Free tier limit for Metrics" — caused by the **scrape interval**, not the series count | S3 | FIXED (awaiting deploy) | Observability/Ops |
+| [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | FIXED | Observability |
+| [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job runs **neither** lint nor tests — no frontend spec has ever executed | S2 | FIXED (awaiting CI) | CI |
+| [BUG-008](BUG-008-no-dead-mans-switch-alerting-fails-silent.md) | No dead-man's switch: a dead metrics pipeline is indistinguishable from "all healthy" | **S1** | FIXED (blocked by 009) | Alerting |
+| [BUG-009](BUG-009-all-alert-rules-imported-paused.md) | **Every imported alert rule was PAUSED — the M10 alerting stack had never been able to fire** | **S1** | FIXED (all 21 live) | Alerting |
+| [BUG-010](BUG-010-worker-beat-metrics-endpoints-unscrapeable.md) | celery-worker + celery-beat metrics endpoints unscrapeable in both envs → `CeleryQueueDepthHigh` permanently blind | S2 | OPEN | Observability/Railway |
 
 BUG-004 is fixed, guarded in CI, and verified live: the SPA now serves a real DSN
 and Sentry recorded `STRATTRADERPRO-2` — the first frontend event this project has
@@ -56,13 +59,37 @@ list or the event JSON. Don't conclude the tags are missing from the summary pan
 
 ## Theme
 
-BUG-001, BUG-002 and BUG-004 share one failure mode, and it is the thing to
-watch for on this project:
+BUG-001, BUG-002, BUG-004, BUG-007, BUG-008 and BUG-009 share one failure mode,
+and it is *the* thing to watch for on this project:
 
 > **Configuration that is wired, reported healthy, and completely inert.**
 
 M10 shipped tracing with a passing test suite, a healthy exporter, no error logs
-— and not one span ever reached Tempo. The frontend ships a Sentry DSN that is
-the literal string `${SENTRY_DSN}`. In every case the component *initialises
-successfully* and then does nothing. Prefer end-to-end assertions ("a span
-arrived", "the served config contains no `${`") over "it initialised".
+— and not one span ever reached Tempo. The frontend shipped a Sentry DSN that was
+the literal string `${SENTRY_DSN}`. A CI job called "Frontend — Lint & Test" ran
+neither lint nor tests. And 17 alert rules sat in Grafana, correctly written,
+correctly routed, reporting `health: ok` — **paused**, unable to fire, for the
+platform's kill switch and audit-integrity checks.
+
+In every case the component *initialises successfully* and then does nothing.
+
+### The corollary, which is worse
+
+**A clean bill of health can be produced by the defect itself.**
+
+- A paused alert rule reports `health: ok` *because* it never evaluates.
+- A self-filtering rule with no data reports `Normal` *because* it sees nothing.
+- A CI job with no test step is green *because* it tests nothing.
+
+So "it's green" is not evidence. Ask what would have to be true for the green to
+be a lie, and go check *that*. Prefer end-to-end assertions — "a span arrived",
+"the served config contains no `${`", "the rule is not paused", "the test step
+exists in the workflow file" — over any component's self-report.
+
+### And: verify the fix against the real artifact
+
+AC-10-9 "passed" by creating a **new** temp alert rule and watching it page. It
+proved the notification path and nothing else — every rule the platform actually
+depends on was paused, and the acceptance check was structurally incapable of
+noticing. A test that exercises a fresh copy of the thing is not a test of the
+thing.

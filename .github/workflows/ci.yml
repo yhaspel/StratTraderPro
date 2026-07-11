@@ -91,7 +91,14 @@ jobs:
 
   # ---------- Frontend ----------
   frontend-lint-test:
-    name: Frontend — Lint & Test
+    # BUG-007 — renamed. This was "Frontend — Lint & Test" while running neither:
+    # `ng lint` has no target configured in angular.json ("Cannot find 'lint'
+    # target"), and the test step simply did not exist. A job name that promises
+    # checks it does not perform is worse than no job, because it manufactures
+    # confidence. Tests are wired up below; a real lint target (angular-eslint)
+    # means new dependencies, which M12 freezes, so it is tracked separately
+    # rather than smuggled in here.
+    name: Frontend — Build & Test
     runs-on: ubuntu-latest
     # Job-level env so the sourcemap step's `if: env.SENTRY_AUTH_TOKEN != ''`
     # can see the secret (step-level env is not available in that step's own `if`).
@@ -118,6 +125,14 @@ jobs:
 
       - name: Install dependencies
         run: cd frontend && pnpm install --frozen-lockfile
+
+      # BUG-007 — this job was named "Lint & Test" and did NEITHER: it only ran
+      # `pnpm build`. Every frontend spec in the repo had therefore never executed
+      # in CI, so a green build said nothing whatsoever about frontend behaviour.
+      # `ng test` is properly configured (karma builder + tsconfig.spec.json), and
+      # ubuntu-latest ships Chrome, so ChromeHeadless just works.
+      - name: Test (karma, headless)
+        run: cd frontend && pnpm test:ci
 
       - name: Build
         run: cd frontend && pnpm build

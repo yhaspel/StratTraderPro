@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | S2 — the entire frontend test suite is dead weight; no frontend regression can be caught by CI |
-| **Status** | OPEN |
+| **Status** | **FIXED** 2026-07-11 (awaiting first CI run) — `pnpm test:ci` (karma/ChromeHeadless) added to the frontend job; job renamed `Frontend — Build & Test` because it never linted. **These specs have never executed, so the first run may legitimately go red — that is the bug surfacing, not a new regression.** A real `lint` target needs `angular-eslint` (new deps, frozen by M12) and is tracked separately. |
 | **Area** | CI |
 | **Found** | 2026-07-11, while adding a karma spec for the BUG-004 fix and checking it would actually run |
 

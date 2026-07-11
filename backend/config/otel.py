@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 
 _initialized = False
 
+# BUG-006 — `otel.initialized` was being swallowed.
+#
+# init_otel() must run BEFORE get_wsgi_application() (BUG-001), which means it also
+# runs before django.setup() applies settings.LOGGING. At that point the root logger
+# has no handlers and an INFO record is dropped on the floor (Python's lastResort
+# handler only emits WARNING+). So the one line that told you whether tracing was
+# actually on vanished — and its absence then *looked* like a regression.
+#
+# Fix: record the outcome here, and emit it from log_otel_status(), which the
+# entrypoints call once logging is configured.
+_otlp_enabled: bool | None = None  # None -> init never completed
+
 
 def user_id_hash(user_id) -> str:
     """First 16 hex of sha256(user id) — never a raw id in trace backends."""
@@ -70,7 +82,7 @@ def _traces_endpoint(endpoint: str) -> str:
 
 def init_otel() -> bool:
     """Initialize tracing once per process. Returns True if it initialized now."""
-    global _initialized
+    global _initialized, _otlp_enabled
     if _initialized:
         return False
     try:
@@ -98,11 +110,28 @@ def init_otel() -> bool:
         trace.set_tracer_provider(provider)
         _instrument()
         _initialized = True
-        logger.info("otel.initialized", extra={"otlp": bool(endpoint)})
+        # Do NOT log here — settings.LOGGING is not applied yet (BUG-006). Stash the
+        # outcome; log_otel_status() emits it once the entrypoint has set Django up.
+        _otlp_enabled = bool(endpoint)
         return True
     except Exception:  # noqa: BLE001 — tracing must never break boot
+        # ERROR *does* survive an unconfigured logging stack (lastResort emits
+        # WARNING+), so a broken init is still visible even this early.
         logger.exception("otel.init_failed")
         return False
+
+
+def log_otel_status() -> None:
+    """Emit the boot-time tracing confirmation (BUG-006).
+
+    Call from an entrypoint AFTER Django is set up, i.e. after
+    ``get_wsgi_application()`` / ``get_asgi_application()``, so ``settings.LOGGING``
+    is in effect and the record actually goes somewhere. No-op if init never
+    completed (the failure was already logged by init_otel).
+    """
+    if _otlp_enabled is None:
+        return
+    logger.info("otel.initialized", extra={"otlp": _otlp_enabled})
 
 
 def _instrument() -> None:

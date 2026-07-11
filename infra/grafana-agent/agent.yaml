@@ -16,7 +16,20 @@ server:
 
 metrics:
   global:
-    scrape_interval: 30s
+    # BUG-005 — 60s, NOT 30s. Grafana Cloud does not bill raw active series; it
+    # bills `active_series x (actual_DPM / included_DPM)`, and the free tier
+    # includes 1 datapoint-per-minute per series. A 30s scrape is 2 DPM, so it
+    # DOUBLES billable series: 6,946 real series were being billed as 13,068,
+    # blowing the 10,000 free allowance and triggering the "reached your free
+    # tier limit" banner — with no series-count problem whatsoever.
+    #
+    # The 2x spend bought nothing: every alert rule group evaluates at 1m, so the
+    # extra sample is never read by anything. 60s aligns scrape to evaluation.
+    #
+    # Do not lower this without re-checking the budget:
+    #   grafanacloud_org_metrics_billable_series / grafanacloud_org_metrics_included_series
+    # (grafanacloud-usage datasource). The MetricsBudgetExhausted alert guards it.
+    scrape_interval: 60s
     external_labels:
       cluster: strattraderpro-${RAILWAY_ENVIRONMENT_NAME}
       env: ${RAILWAY_ENVIRONMENT_NAME}

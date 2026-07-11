@@ -32,6 +32,20 @@ COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 ENV NGINX_ENVSUBST_FILTER='^(BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE)$' \
     BACKEND_URL='http://backend:8777'
 
+# BUG-003 — default RELEASE from the platform's commit SHA, so Sentry events carry
+# a release and the sourcemaps CI uploads under $GITHUB_SHA can actually match.
+#
+# Three things are load-bearing here:
+#   - `.envsh` extension: the entrypoint SOURCES those, so the export survives.
+#     A plain `.sh` is executed in a subshell and its exports would be lost.
+#   - sorts before `20-envsubst-on-templates.sh`, which renders the template.
+#   - MUST be EXECUTABLE: the entrypoint skips non-executable files outright
+#     ("Ignoring $f, not executable") — it would fail silently, which is exactly
+#     the class of bug this repo keeps getting bitten by. chmod is explicit rather
+#     than trusting the git file mode to survive the checkout.
+COPY docker/15-release-default.envsh /docker-entrypoint.d/15-release-default.envsh
+RUN chmod +x /docker-entrypoint.d/15-release-default.envsh
+
 COPY --from=builder /app/dist/strattraderpro/browser /usr/share/nginx/html
 
 EXPOSE 80

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | S4 — papercut, but it removes the only boot-time confirmation that tracing is on |
-| **Status** | OPEN |
+| **Status** | **FIXED** 2026-07-11 — `log_otel_status()` called from all three entrypoints after Django is set up; guarded by `config/test_otel_export.py::OtelStatusLogTests` (AST assertion that `init_otel()` contains no `.info(` call, so the regression cannot be re-introduced) |
 | **Area** | Observability / logging |
 | **Introduced by** | the BUG-001 fix (`dac9643`) — a deliberate, accepted trade-off |
 

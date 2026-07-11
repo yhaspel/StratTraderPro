@@ -18,13 +18,16 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.prod")
 # inserting its middleware into settings.MIDDLEWARE, and Django freezes the
 # middleware chain when the handler is constructed. Init must precede
 # get_asgi_application() or the HTTP branch emits zero request spans.
-from config.otel import init_otel  # noqa: E402
+from config.otel import init_otel, log_otel_status  # noqa: E402
 
 init_otel()
 
 # Initialize Django's app registry BEFORE importing consumers/routing so model
 # imports inside them resolve.
 django_asgi_app = get_asgi_application()
+
+# BUG-006 — settings.LOGGING is applied now, so the confirmation actually lands.
+log_otel_status()
 
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 

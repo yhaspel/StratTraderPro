@@ -1,99 +1,103 @@
-# BUG-003 — `/healthz` reports a stale commit SHA
+# BUG-003 — Frontend `release` is empty (was: "`/healthz` reports a stale commit SHA")
 
 | | |
 |---|---|
-| **Severity** | S3 — misleading deploy provenance; wrong Sentry `release` tagging |
-| **Status** | OPEN |
+| **Severity** | S3 — frontend sourcemaps can never resolve, so the whole sourcemap setup buys nothing |
+| **Status** | FIXED — pending live verification |
 | **Area** | Deploy / provenance |
-| **Found** | 2026-07-11, while confirming the BUG-001 fix had rolled out |
+| **Found** | 2026-07-11 |
 
-## Symptom
+## ⚠️ The original report was wrong. Correcting the record.
 
-After commit `dac9643` was pushed to `main` and Railway reported the deployment
-as **Active / Deployment successful / Deployed via GitHub — branch `main`**, the
-backend still reported the *previous* commit:
+This bug was originally filed as *"`/healthz` reports a stale commit SHA"*, based on
+production returning `2c1207b` after `dac9643` had been deployed.
 
-```
-$ curl https://backend-production-f3e8.up.railway.app/healthz
-{"status": "ok", "version": "2c1207b"}     # expected: dac9643
-```
-
-This is not a rollout failure — the new code was demonstrably running (traces
-started flowing, which only the `dac9643` fix enables). Only the reported SHA is
-wrong.
-
-## Impact
-
-1. `/healthz` cannot be trusted to tell you which commit is live — it actively
-   misleads during incident triage, which is the exact moment you rely on it.
-   It cost real time during the BUG-001 investigation: it looked like the deploy
-   hadn't landed.
-2. `sentry_sdk.init(release=GIT_SHA)` — Sentry release health is tagged with the
-   **wrong commit**, so errors group against a stale release.
-3. **Frontend sourcemaps never resolve.** Confirmed 2026-07-11 while fixing
-   BUG-004: on the `frontend` service, `RELEASE="${{RAILWAY_GIT_COMMIT_SHA}}"`
-   resolves to the **empty string** in *both* environments, so the SPA reports
-   `release: ''`. CI uploads sourcemaps keyed to `${GITHUB_SHA}`
-   (`sentry-cli sourcemaps upload --release "$GITHUB_SHA"`), and Sentry matches
-   sourcemaps by release — with no release on the event, they can never match.
-
-   So frontend stack traces stay minified, and the entire `SENTRY_AUTH_TOKEN` +
-   sourcemap-upload setup (C2) currently buys nothing. This makes BUG-003 more
-   than a cosmetic annoyance.
-
-## Recommended fix (strengthened by the above)
-
-Stop depending on `RAILWAY_GIT_COMMIT_SHA` entirely. Bake the SHA at **build**
-time, which is deterministic and works for every service and every deploy method:
-
-```dockerfile
-ARG GIT_SHA=unknown
-ENV GIT_SHA=${GIT_SHA}
-```
-
-…passed by the build, and used for the backend's `GIT_SHA` *and* the frontend's
-`RELEASE`, so `/healthz`, Sentry release health, and sourcemap matching all agree
-on one value.
-
-## Key new evidence: staging is CORRECT, production is not
-
-Later the same day, commit `3fe78bb` was pushed and deployed to both environments:
+**That was a measurement error, not a bug.** The reading was taken **during a
+rollout** — the request hit the old container before the new one took over. Once
+both environments settled, they report the deployed commit correctly:
 
 ```
-staging    /healthz -> {"status":"ok","version":"3fe78bb"}   # correct
-production /healthz -> {"status":"ok","version":"2c1207b"}   # stale
+expected deployed commit: 6a842fe
+backend-staging    -> {"status": "ok", "version": "6a842fe"}   ✅
+backend-production -> {"status": "ok", "version": "6a842fe"}   ✅
 ```
 
-Same code, same resolution logic, same deploy method (GitHub → Railway) — but only
-production reports a stale SHA. That **rules out the code path** and points squarely
-at production's environment: either a stale explicit `GIT_SHA` override on the
-production backend service, or `RAILWAY_GIT_COMMIT_SHA` not being refreshed there.
-Start by diffing the two services' resolved env.
+`RAILWAY_GIT_COMMIT_SHA` **does** exist in the container environment, and
+`/healthz` + `sentry_sdk.init(release=GIT_SHA)` resolve it correctly. There is
+nothing to fix on the backend.
 
-## Root cause (suspected — needs confirmation)
+*(This is the second time a mid-rollout read produced a false conclusion — the
+same thing initially made the OTel fix look like it hadn't worked. Lesson: after a
+deploy, confirm the rollout has completed **before** trusting anything you measure.)*
 
-`backend/config/settings/base.py` resolves the SHA as:
+## The real bug (what's left)
 
-1. `git rev-parse --short HEAD` — fails inside the image (no `.git`)
-2. `GIT_SHA` env var
-3. `RAILWAY_GIT_COMMIT_SHA[:7]`
-4. `"unknown"`
+The frontend SPA reports **`release: ''`** in both environments:
 
-Since the value is a real, *previous* commit rather than `"unknown"`, step 2 or 3
-returned a stale value. Most likely `RAILWAY_GIT_COMMIT_SHA` was not refreshed for
-this deployment. There is a known related quirk on this project: **Railway CLI
-(`railway up`) deploys do not inject `RAILWAY_GIT_COMMIT_SHA` at all**, so the
-variable can be left holding whatever a previous deploy set.
+```js
+window.STP_CONFIG = { ..., sentryEnvironment: 'staging', release: '' };
+```
 
-## Next steps
+### Root cause
 
-- [ ] Inspect the backend service's resolved env in Railway: is `GIT_SHA`
-      explicitly set (an override that has gone stale), and what is
-      `RAILWAY_GIT_COMMIT_SHA` on the current deployment?
-- [ ] If `GIT_SHA` is an explicit stale override → delete it.
-- [ ] If `RAILWAY_GIT_COMMIT_SHA` is itself stale → stop depending on it. Bake the
-      SHA at build time instead, e.g. a Docker `ARG GIT_SHA` passed by the build
-      and written to `ENV GIT_SHA`, which is deterministic and survives any
-      deploy method.
-- [ ] Add a smoke assertion that `/healthz.version` matches the commit being
-      deployed, so provenance drift fails loudly instead of silently.
+Two different mechanisms, easy to conflate:
+
+| Mechanism | Sees `RAILWAY_GIT_COMMIT_SHA`? |
+|---|---|
+| The **container environment** at runtime (what Django's `env()` and nginx's `envsubst` read) | ✅ **yes** — this is why `/healthz` works |
+| Railway's **`${{...}}` variable-reference** templating (used in the service-variable UI) | ❌ **no** — resolves to the empty string |
+
+The frontend's `RELEASE` was set to `"${{RAILWAY_GIT_COMMIT_SHA}}"`, i.e. via the
+reference syntax — which silently resolved to `""`. Railway does not list
+`RAILWAY_GIT_COMMIT_SHA` among the 8 variables it exposes to the reference system
+(`RAILWAY_ENVIRONMENT_ID/NAME`, `RAILWAY_PRIVATE/PUBLIC_DOMAIN`,
+`RAILWAY_PROJECT_ID/NAME`, `RAILWAY_SERVICE_ID/NAME`), even though it *is* present
+in the container env.
+
+### Why it matters
+
+CI uploads frontend sourcemaps keyed to the commit:
+
+```
+npx @sentry/cli sourcemaps upload --release "${GITHUB_SHA}" dist
+```
+
+Sentry matches sourcemaps to events **by release**. With `release: ''` on every
+event, they can never match — so frontend stack traces stay minified and the whole
+`SENTRY_AUTH_TOKEN` + sourcemap-upload setup (C2) delivers nothing.
+
+## Fix
+
+Populate `RELEASE` from the container environment instead of the reference syntax.
+
+The official nginx image's entrypoint runs the files in `/docker-entrypoint.d/` in
+order, and — importantly — **`*.envsh` files are _sourced_** (so their `export`s
+persist) while `*.sh` files run in a subshell. `20-envsubst-on-templates.sh` is
+what performs the substitution, so a sourced script numbered below it can set
+`RELEASE` before the template is rendered:
+
+`docker/15-release-default.envsh` → `/docker-entrypoint.d/15-release-default.envsh`
+
+```sh
+# Default RELEASE to the platform's commit SHA when not explicitly provided.
+if [ -z "${RELEASE:-}" ] && [ -n "${RAILWAY_GIT_COMMIT_SHA:-}" ]; then
+  export RELEASE="$RAILWAY_GIT_COMMIT_SHA"
+fi
+```
+
+This keeps the nginx template platform-agnostic (it still just emits `${RELEASE}`),
+reads the SHA from the one place that actually has it, and leaves an explicitly-set
+`RELEASE` untouched.
+
+## Verification
+
+- [ ] `GET /config.js` reports a non-empty `release` matching the deployed commit
+- [ ] A frontend Sentry event carries that release
+- [ ] Sourcemaps resolve (stack trace shows original TS, not minified output)
+
+## Note on `GIT_SHA` resolution (unchanged, and fine)
+
+`backend/config/settings/base.py` resolves in order: `git rev-parse` (fails in the
+image — `.dockerignore` excludes `.git/`), then `GIT_SHA`, then
+`RAILWAY_GIT_COMMIT_SHA[:7]`, then `"unknown"`. Step 3 is what fires in production,
+and it works.

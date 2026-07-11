@@ -106,3 +106,65 @@ groups:
         for: 30m
         labels: {severity: warning}
         annotations: {summary: "Backtest artifact storage > 5 GB"}
+
+  # ---------------------------------------------------------------------------
+  # BUG-008 — dead-man's switch. DO NOT DELETE.
+  #
+  # Every other rule in this file is *self-filtering*: the comparison lives inside
+  # the PromQL (`... > 0`, `... > 0.8`), so a healthy system returns an EMPTY
+  # result. Grafana maps empty -> NoData -> (noDataState=OK) -> Normal. That
+  # mapping is correct for those rules — but it means silence is ambiguous:
+  #
+  #     "no series because the condition is false"   (healthy)
+  #     "no series because nothing is being scraped" (BLIND)
+  #
+  # are indistinguishable. Before these rules existed, killing the agent — or
+  # breaking /metrics basic auth, or an exporter dying, or hitting the ingestion
+  # cap — would have turned all 17 rules green and paged nobody. For a trading
+  # bot, KillSwitchTriggered and AuditIntegrityFailure failing *silently open* is
+  # the worst available failure mode.
+  #
+  # IMPORT SETTINGS — read this before "fixing" them, the intuition is inverted:
+  #
+  #   MetricsPipelineDown : noDataState=OK, execErrState=Alerting
+  #   TargetDown          : noDataState=OK, execErrState=OK
+  #
+  # It is tempting to give the dead-man's switch noDataState=Alerting — "surely
+  # THIS rule should page on NoData". That is backwards, and it was tried:
+  # `absent(X)` returns an EMPTY vector exactly when X is present, i.e. when the
+  # pipeline is HEALTHY. Grafana reads empty as NoData, so noDataState=Alerting
+  # makes the rule fire continuously while everything is fine — which is how it
+  # was caught (it went `pending` on its first evaluation with the backend up).
+  #
+  # Empty therefore has to map to OK. The datasource-unreachable case — the one
+  # that actually worried us — surfaces as an *Error*, not NoData, so it is
+  # covered by execErrState=Alerting instead.
+  # ---------------------------------------------------------------------------
+  - name: observability-liveness
+    folder: StratTraderPro
+    interval: 1m
+    rules:
+      - alert: MetricsPipelineDown
+        # `absent()` returns 1 exactly when the series has no sample. Covers agent
+        # death, remote_write failure, and target removal alike: once `up` for the
+        # backend goes stale, this fires. 5m > staleness window, so a single missed
+        # scrape does not page.
+        expr: absent(up{service="backend"})
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "METRICS PIPELINE DOWN — alerting is BLIND, treat all other rules as unreliable"
+          description: >-
+            No `up` sample for service=backend. The Grafana Agent is not scraping or
+            not remote-writing. Every self-filtering rule (kill switch, audit
+            integrity, broker stream) is now returning empty and reporting Normal —
+            they are not green, they are blind. Runbook: docs/runbooks/alerting-setup.md
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Scrape target down: {{ $labels.service }} ({{ $labels.job }})"
+          description: >-
+            The agent reached this target but the scrape failed. Any alert rule that
+            depends on this service's metrics is now blind.
