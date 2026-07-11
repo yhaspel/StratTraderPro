@@ -12,14 +12,19 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.prod")
 
-# Initialize Django's app registry BEFORE importing consumers/routing so model
-# imports inside them resolve.
-django_asgi_app = get_asgi_application()
-
 # M10 §6.6 — OTel init on the ASGI (dev/daphne) entry too.
+#
+# ORDER IS LOAD-BEARING (mirrors config/wsgi.py): DjangoInstrumentor activates by
+# inserting its middleware into settings.MIDDLEWARE, and Django freezes the
+# middleware chain when the handler is constructed. Init must precede
+# get_asgi_application() or the HTTP branch emits zero request spans.
 from config.otel import init_otel  # noqa: E402
 
 init_otel()
+
+# Initialize Django's app registry BEFORE importing consumers/routing so model
+# imports inside them resolve.
+django_asgi_app = get_asgi_application()
 
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 

@@ -60,6 +60,14 @@ def tag_sentry_correlation() -> dict:
     return tags
 
 
+def _traces_endpoint(endpoint: str) -> str:
+    """Normalize an OTLP endpoint to the traces signal URL (idempotent)."""
+    url = endpoint.rstrip("/")
+    if url.endswith("/v1/traces"):
+        return url
+    return f"{url}/v1/traces"
+
+
 def init_otel() -> bool:
     """Initialize tracing once per process. Returns True if it initialized now."""
     global _initialized
@@ -78,7 +86,15 @@ def init_otel() -> bool:
             from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
+            # The OTLP/HTTP exporter only appends the `/v1/traces` signal path when it
+            # resolves the endpoint from the environment itself; an endpoint passed
+            # explicitly is used verbatim (see OTLPSpanExporter.__init__:
+            # `endpoint or environ.get(..., _append_trace_path(...))`). Passing the
+            # OTLP *base* URL therefore POSTs to `/otlp` and every span 404s silently.
+            # Normalize so both the base and the full signal URL work.
+            provider.add_span_processor(
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=_traces_endpoint(endpoint)))
+            )
         trace.set_tracer_provider(provider)
         _instrument()
         _initialized = True
