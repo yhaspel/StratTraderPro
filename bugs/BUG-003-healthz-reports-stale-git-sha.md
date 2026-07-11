@@ -32,6 +32,21 @@ wrong.
    **wrong commit**, so errors group against a stale release.
 3. Same `GIT_SHA` feeds the frontend `RELEASE` runtime var (see BUG-004).
 
+## Key new evidence: staging is CORRECT, production is not
+
+Later the same day, commit `3fe78bb` was pushed and deployed to both environments:
+
+```
+staging    /healthz -> {"status":"ok","version":"3fe78bb"}   # correct
+production /healthz -> {"status":"ok","version":"2c1207b"}   # stale
+```
+
+Same code, same resolution logic, same deploy method (GitHub → Railway) — but only
+production reports a stale SHA. That **rules out the code path** and points squarely
+at production's environment: either a stale explicit `GIT_SHA` override on the
+production backend service, or `RAILWAY_GIT_COMMIT_SHA` not being refreshed there.
+Start by diffing the two services' resolved env.
+
 ## Root cause (suspected — needs confirmation)
 
 `backend/config/settings/base.py` resolves the SHA as:

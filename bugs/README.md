@@ -27,6 +27,26 @@ picked up later without re-deriving the investigation.
 | [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | Grafana Cloud free-tier metrics limit reached → series dropped | S3 | OPEN | Observability/Ops |
 | [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | OPEN | Observability |
 
+## Gotchas (not bugs — traps that will cost you time again)
+
+**The "Trace ID" Sentry shows you is not the OTel trace id.** A Sentry issue's
+header/highlights show Sentry's *own* trace-context ID. Looking that value up in
+Tempo returns `failed to get trace with id: … Status: Not Found`, which looks
+exactly like "tracing is broken".
+
+The join key for the Sentry → Tempo click-through is the **`trace_id` tag** on the
+event (set by `config.otel.tag_sentry_correlation()`), alongside `request_id`.
+Verified 2026-07-11 on staging:
+
+| Source | Value |
+|---|---|
+| Sentry UI "Trace: Trace ID" (Sentry's own) | `c3aa56fe14c54a0eb878014f0666a44b` → **not in Tempo** |
+| Sentry event **tag** `trace_id` (OTel) | `a18459fd968c301c3191335b759ee5da` → **found in Tempo** ✅ |
+
+Sentry's issue page also only renders the *top* tag distribution (transaction, url,
+release, environment). `trace_id`/`request_id` are present but need the full tag
+list or the event JSON. Don't conclude the tags are missing from the summary panel.
+
 ## Theme
 
 BUG-001, BUG-002 and BUG-004 share one failure mode, and it is the thing to
