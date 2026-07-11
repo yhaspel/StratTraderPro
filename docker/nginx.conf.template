@@ -27,11 +27,18 @@ server {
     # (a same-origin proxied request would set cookies on the frontend
     # domain, which the browser then drops when bouncing back to backend).
     #
-    # M10 §6.3/§6.5e — extended with Grafana + Sentry runtime config. The nginx
-    # image only substitutes vars listed in NGINX_ENVSUBST_FILTER, so set it to
-    # `BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE` (else $uri /
-    # $host etc. would also be clobbered). Empty values are harmless — the SPA
-    # treats an empty sentryDsn as "Sentry off" and hides absent Grafana links.
+    # M10 §6.3/§6.5e — extended with Grafana + Sentry runtime config.
+    #
+    # EVERY ${VAR} below must appear in NGINX_ENVSUBST_FILTER (docker/frontend.Dockerfile).
+    # The filter is an anchored allowlist: a var that is missing from it is NOT
+    # substituted and its literal "${FOO}" text is served to the browser. That is
+    # BUG-004 — the filter said '^BACKEND_URL$' while this block emitted five vars,
+    # so the SPA received sentryDsn: '${SENTRY_DSN}' and Sentry silently no-op'd.
+    # scripts/check_envsubst_filter.py enforces the two stay in sync (CI guard).
+    #
+    # An UNSET var substitutes to the empty string, which is the correct "feature
+    # off" signal: the SPA treats empty (and, defensively, a leftover "${...}")
+    # as unset — see frontend/src/app/core/runtime-config.ts.
     location = /config.js {
         default_type application/javascript;
         return 200 "window.STP_CONFIG = { backendUrl: '${BACKEND_URL}', grafanaUrl: '${GRAFANA_URL}', sentryDsn: '${SENTRY_DSN}', sentryEnvironment: '${SENTRY_ENVIRONMENT}', release: '${RELEASE}' };";

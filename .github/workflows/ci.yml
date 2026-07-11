@@ -212,6 +212,25 @@ jobs:
           fi
           echo "No legacy IBKR credentials in active code/config."
 
+  # ---------- Guard: nginx runtime-config substitution (BUG-004) ----------
+  # NGINX_ENVSUBST_FILTER is an anchored allowlist. Any ${VAR} in
+  # docker/nginx.conf.template that is missing from it is NOT substituted and its
+  # literal "${FOO}" text is served to the browser. That is how frontend Sentry
+  # shipped broken: the SPA received sentryDsn: '${SENTRY_DSN}' and Sentry.init()
+  # silently no-op'd on the malformed DSN.
+  #
+  # The E2E smoke runs `ng serve`, so it never exercises the nginx image — this
+  # static cross-check is what actually covers the production artifact.
+  block-unsubstituted-runtime-config:
+    name: Guard — nginx envsubst filter in sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cross-check NGINX_ENVSUBST_FILTER against nginx.conf.template
+        run: python3 scripts/check_envsubst_filter.py
+
   # ---------- Image Scan ----------
   image-scan:
     name: Trivy — Docker Image Scan
