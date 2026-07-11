@@ -3,9 +3,38 @@
 | | |
 |---|---|
 | **Severity** | S2 — a shipped feature is silently non-functional in production |
-| **Status** | FIXED (code) — pending live verification that frontend Sentry receives an event |
+| **Status** | **FIXED & VERIFIED LIVE** (2026-07-11) — frontend Sentry now reports (`STRATTRADERPRO-2`) |
 | **Area** | Frontend / Docker / runtime config |
 | **Found** | 2026-07-11 (confirmed against the repo during M10 Section-B) |
+
+## ⚠️ Correction to the original diagnosis (read this first)
+
+The original write-up claimed the Railway-deployed SPA was being served
+`sentryDsn: '${SENTRY_DSN}'`. **On Railway that was not what was happening.**
+
+Inspecting the live `frontend` service revealed a **service-level
+`NGINX_ENVSUBST_FILTER` variable**, which *overrides the Dockerfile `ENV`*, and it
+already carried the wide filter:
+
+```
+NGINX_ENVSUBST_FILTER="BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE"
+SENTRY_DSN=""          <-- the actual cause on Railway
+RELEASE=""
+```
+
+So on Railway the vars *were* substituted — into the **empty string**, because
+`SENTRY_DSN` was never set (it couldn't be: no Sentry project existed until
+2026-07-11). Frontend Sentry was still dead, just by a different mechanism:
+**empty DSN**, not a literal placeholder.
+
+The literal-`${...}` failure is real, but it applies to the **image default** —
+docker-compose, local runs, and any new environment that lacks the service-level
+override. Both mechanisms had the same outcome (a Sentry SDK that initialises and
+reports nothing), and both are fixed here.
+
+**Consequence worth keeping:** because a Railway *service variable* overrides the
+Dockerfile, the CI guard protects the **image**, not Railway. Railway can still
+drift on its own. See the follow-up below.
 
 ## Symptom
 
@@ -97,11 +126,55 @@ M12 additionally introduces `BETA_FEEDBACK_URL` and `TRADESTATION_ENABLED`; the
 guard will now *force* those into the filter when the template gains them, instead
 of letting them silently ship as literals.
 
+## Live verification (2026-07-11)
+
+Set `SENTRY_DSN="${{shared.SENTRY_DSN}}"` on the Railway **frontend** service in
+both environments and redeployed. The served config is now clean:
+
+```js
+// GET https://frontend-staging-9011.up.railway.app/config.js
+window.STP_CONFIG = {
+  backendUrl: 'https://backend-staging-4b6d.up.railway.app',
+  grafanaUrl: 'https://yuval3000.grafana.net',
+  sentryDsn: 'https://eb4bd…@o4511716412489728.ingest.us.sentry.io/4511716419305472',
+  sentryEnvironment: 'staging',
+  release: ''
+};
+```
+
+No `${...}` placeholders, real DSN — same for production.
+
+Then threw an **uncaught** error in the live SPA (so it goes through Sentry's
+global handler, not an API call). Sentry received it:
+
+> **`STRATTRADERPRO-2` — Error: "BUG-004 verification: frontend Sentry live check"** —
+> Unhandled, 1 event, 1 user.
+
+**That is the first frontend Sentry event this project has ever recorded.**
+
+## Loose end found during verification: `release` is empty
+
+`RELEASE="${{RAILWAY_GIT_COMMIT_SHA}}"` resolves to the **empty string** on the
+frontend service, in both environments — so the SPA reports `release: ''`.
+
+This matters beyond cosmetics: CI uploads frontend sourcemaps keyed to
+`${GITHUB_SHA}` (`sentry-cli sourcemaps upload --release "$GITHUB_SHA"`). With no
+release on the event, **Sentry can never match them**, so frontend stack traces
+stay minified and the whole `SENTRY_AUTH_TOKEN`/sourcemap setup (C2) buys nothing.
+
+This is the same root cause as **BUG-003** (Railway's git-SHA injection is
+unreliable) and should be fixed there — bake the SHA at build time via a Docker
+`ARG`/`ENV` rather than depending on `RAILWAY_GIT_COMMIT_SHA`.
+
 ## Follow-up
 
 - [x] Widen `NGINX_ENVSUBST_FILTER`; fix the stale comment in the template
 - [x] Add a CI guard so filter and template cannot drift apart again
 - [x] Treat `${`-prefixed values as unset in the SPA
-- [ ] Set `GRAFANA_URL` / `SENTRY_DSN` / `SENTRY_ENVIRONMENT` / `RELEASE` on the
-      Railway **frontend** service (staging + production)
-- [ ] Verify frontend Sentry actually receives an event — the only real proof
+- [x] Set `SENTRY_DSN` on the Railway frontend service (staging + production)
+- [x] Verify frontend Sentry actually receives an event ✅
+- [ ] **Remove the service-level `NGINX_ENVSUBST_FILTER` override** from both
+      frontend services once the fixed image is deployed, so the CI-guarded
+      Dockerfile `ENV` is the single source of truth. While the override exists,
+      the CI guard does not protect Railway.
+- [ ] Fix `release: ''` (see BUG-003) so sourcemaps actually resolve.

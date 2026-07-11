@@ -23,13 +23,16 @@ picked up later without re-deriving the investigation.
 | [BUG-001](BUG-001-otel-web-tier-never-traced.md) | OTel never traced the web tier (entrypoint ordering) | S2 | FIXED | Observability |
 | [BUG-002](BUG-002-otlp-endpoint-missing-signal-path.md) | OTLP exporter given base URL; `/v1/traces` never appended | S2 | FIXED | Observability |
 | [BUG-003](BUG-003-healthz-reports-stale-git-sha.md) | `/healthz` reports a stale commit SHA | S3 | OPEN | Deploy/Provenance |
-| [BUG-004](BUG-004-nginx-envsubst-filter-too-narrow.md) | nginx envsubst allowlist drops 4 of 5 runtime-config vars → **frontend Sentry has never worked** | S2 | FIXED* | Frontend/Config |
+| [BUG-004](BUG-004-nginx-envsubst-filter-too-narrow.md) | Frontend Sentry never worked (nginx envsubst allowlist + empty `SENTRY_DSN`) | S2 | **FIXED & VERIFIED** | Frontend/Config |
 | [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | Grafana Cloud free-tier metrics limit reached → series dropped | S3 | OPEN | Observability/Ops |
 | [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | OPEN | Observability |
 | [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job runs **neither** lint nor tests — no frontend spec has ever executed | S2 | OPEN | CI |
 
-\* BUG-004 code is fixed and guarded in CI; live verification (frontend Sentry
-actually receiving an event) still pending.
+BUG-004 is fixed, guarded in CI, and verified live: the SPA now serves a real DSN
+and Sentry recorded `STRATTRADERPRO-2` — the first frontend event this project has
+ever had. Two loose ends are tracked in its follow-up: remove the Railway
+service-level `NGINX_ENVSUBST_FILTER` override (the CI guard protects the image,
+not Railway), and fix `release: ''` (BUG-003) so sourcemaps actually resolve.
 
 ## Gotchas (not bugs — traps that will cost you time again)
 

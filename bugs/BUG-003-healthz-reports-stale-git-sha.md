@@ -30,7 +30,30 @@ wrong.
    hadn't landed.
 2. `sentry_sdk.init(release=GIT_SHA)` — Sentry release health is tagged with the
    **wrong commit**, so errors group against a stale release.
-3. Same `GIT_SHA` feeds the frontend `RELEASE` runtime var (see BUG-004).
+3. **Frontend sourcemaps never resolve.** Confirmed 2026-07-11 while fixing
+   BUG-004: on the `frontend` service, `RELEASE="${{RAILWAY_GIT_COMMIT_SHA}}"`
+   resolves to the **empty string** in *both* environments, so the SPA reports
+   `release: ''`. CI uploads sourcemaps keyed to `${GITHUB_SHA}`
+   (`sentry-cli sourcemaps upload --release "$GITHUB_SHA"`), and Sentry matches
+   sourcemaps by release — with no release on the event, they can never match.
+
+   So frontend stack traces stay minified, and the entire `SENTRY_AUTH_TOKEN` +
+   sourcemap-upload setup (C2) currently buys nothing. This makes BUG-003 more
+   than a cosmetic annoyance.
+
+## Recommended fix (strengthened by the above)
+
+Stop depending on `RAILWAY_GIT_COMMIT_SHA` entirely. Bake the SHA at **build**
+time, which is deterministic and works for every service and every deploy method:
+
+```dockerfile
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+```
+
+…passed by the build, and used for the backend's `GIT_SHA` *and* the frontend's
+`RELEASE`, so `/healthz`, Sentry release health, and sourcemap matching all agree
+on one value.
 
 ## Key new evidence: staging is CORRECT, production is not
 
