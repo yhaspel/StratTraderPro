@@ -1,4 +1,7 @@
 """StratTraderPro URL Configuration."""
+import os
+
+from django.conf import settings
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
@@ -92,3 +95,37 @@ urlpatterns = [
     # M10 — admin portal (staff-only; different path space than Django admin at /admin/).
     path("api/v1/admin/", include("apps.admin_portal.urls")),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Deliberate-error endpoint (AC-10-10 verification only)
+# ---------------------------------------------------------------------------
+def _boom(request):
+    """Raise on purpose so Sentry records a real issue (AC-10-10).
+
+    The resulting Sentry event carries the `request_id` + `trace_id` tags applied
+    by config.otel.tag_sentry_correlation(); that trace_id is the join key for the
+    Sentry → Grafana Tempo click-through.
+    """
+    raise RuntimeError("AC-10-10 deliberate error: Sentry -> Tempo correlation check")
+
+
+def _debug_error_endpoint_armed() -> bool:
+    """Only when explicitly enabled AND not in production.
+
+    The env check is deliberate belt-and-braces: this is a trading platform, and an
+    always-500 route must not be one stray environment variable away from being
+    live in prod.
+    """
+    if not getattr(settings, "DEBUG_ERROR_ENDPOINT_ENABLED", False):
+        return False
+    environment = (
+        os.environ.get("SENTRY_ENVIRONMENT")
+        or os.environ.get("RAILWAY_ENVIRONMENT_NAME")
+        or ""
+    ).strip().lower()
+    return environment != "production"
+
+
+if _debug_error_endpoint_armed():
+    urlpatterns += [path("__debug__/boom/", _boom, name="debug-boom")]

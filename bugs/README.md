@@ -1,0 +1,41 @@
+# Bug Log
+
+Tracked defects found outside the normal test/CI loop — mostly things that were
+**CI-green but broken in production**. Each bug gets its own file so it can be
+picked up later without re-deriving the investigation.
+
+## Conventions
+
+- **File name:** `BUG-<NNN>-<kebab-slug>.md`
+- **Status:** `OPEN` · `FIXED` · `WONTFIX` · `DEFERRED`
+- **Severity:**
+  - `S1` — data loss, money loss, or a safety control that silently doesn't work
+  - `S2` — a shipped feature is silently non-functional in production
+  - `S3` — degraded/misleading behaviour, workaround exists
+  - `S4` — cosmetic / papercut
+- Every bug records **how it was detected**, because most of these were invisible
+  to CI. If a bug could have been caught by a test, the fix must add that test.
+
+## Index
+
+| ID | Title | Sev | Status | Area |
+|----|-------|-----|--------|------|
+| [BUG-001](BUG-001-otel-web-tier-never-traced.md) | OTel never traced the web tier (entrypoint ordering) | S2 | FIXED | Observability |
+| [BUG-002](BUG-002-otlp-endpoint-missing-signal-path.md) | OTLP exporter given base URL; `/v1/traces` never appended | S2 | FIXED | Observability |
+| [BUG-003](BUG-003-healthz-reports-stale-git-sha.md) | `/healthz` reports a stale commit SHA | S3 | OPEN | Deploy/Provenance |
+| [BUG-004](BUG-004-nginx-envsubst-filter-too-narrow.md) | nginx envsubst allowlist drops 4 of 5 runtime-config vars → **frontend Sentry has never worked** | S2 | OPEN | Frontend/Config |
+| [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | Grafana Cloud free-tier metrics limit reached → series dropped | S3 | OPEN | Observability/Ops |
+| [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | OPEN | Observability |
+
+## Theme
+
+BUG-001, BUG-002 and BUG-004 share one failure mode, and it is the thing to
+watch for on this project:
+
+> **Configuration that is wired, reported healthy, and completely inert.**
+
+M10 shipped tracing with a passing test suite, a healthy exporter, no error logs
+— and not one span ever reached Tempo. The frontend ships a Sentry DSN that is
+the literal string `${SENTRY_DSN}`. In every case the component *initialises
+successfully* and then does nothing. Prefer end-to-end assertions ("a span
+arrived", "the served config contains no `${`") over "it initialised".
