@@ -91,11 +91,31 @@ two are far more serious than the banner that led to them.
 2. **Alerting** — `infra/grafana/alerts/usage-alerts.yaml` adds `MetricsBudgetHigh`
    (>85%, warning) and `MetricsBudgetExhausted` (>100%, critical) against the
    `grafanacloud-usage` datasource, so the budget alerts *before* the cliff instead
-   of leaving a UI banner as the only signal. Both created live 2026-07-11.
+   of leaving a UI banner as the only signal.
 
-   Both are currently **paused** (BUG-009). Once enabled they will fire immediately
-   and **correctly** — the budget genuinely is exceeded — and will self-resolve once
-   the 60s agent change deploys. That is the alert working, not a false positive.
+## Verified live (2026-07-11) — and a second mistake caught
+
+After the agent deployed at 60s: **DPM 1.98 → 0.96**, samples/sec **228 → 124**.
+The overspend is gone; the scrape is now exactly aligned to the 1 DPM allowance.
+
+But the first draft of the two new rules alerted on
+`grafanacloud_org_metrics_billable_series`, and that was **wrong**: it is a
+billing-**period aggregate**, not a gauge. After the fix halved the ingest rate,
+billable_series *rose* — 13,068 → 13,285. It only accumulates. Those rules would
+have paged critical every day for the rest of the billing period **about a problem
+that was already fixed** — which is exactly how an operator learns to ignore a
+pager.
+
+Both rules now measure the current billable **rate**, the thing we actually control:
+
+```promql
+sum(grafanacloud_instance_samples_per_second) * 60
+  / scalar(grafanacloud_org_metrics_included_series)
+```
+
+Verified against reality: **0.746** now (healthy, silent) and **1.372** at the 30s
+scrape that caused this bug (fires both). It detects the defect and then shuts up
+when the defect is fixed. *Alert on the lever you can pull, not on the invoice.*
 
 ## Related
 

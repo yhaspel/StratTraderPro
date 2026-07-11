@@ -29,7 +29,8 @@ picked up later without re-deriving the investigation.
 | [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job runs **neither** lint nor tests — no frontend spec has ever executed | S2 | FIXED (awaiting CI) | CI |
 | [BUG-008](BUG-008-no-dead-mans-switch-alerting-fails-silent.md) | No dead-man's switch: a dead metrics pipeline is indistinguishable from "all healthy" | **S1** | FIXED (blocked by 009) | Alerting |
 | [BUG-009](BUG-009-all-alert-rules-imported-paused.md) | **Every imported alert rule was PAUSED — the M10 alerting stack had never been able to fire** | **S1** | FIXED (all 21 live) | Alerting |
-| [BUG-010](BUG-010-worker-beat-metrics-endpoints-unscrapeable.md) | celery-worker + celery-beat metrics endpoints unscrapeable in both envs → `CeleryQueueDepthHigh` permanently blind | S2 | OPEN | Observability/Railway |
+| [BUG-010](BUG-010-worker-beat-metrics-endpoints-unscrapeable.md) | celery-worker + celery-beat metrics endpoints unscrapeable in both envs | S2 | CLOSED — symptom of 011 | Observability/Railway |
+| [BUG-011](BUG-011-celery-worker-and-beat-are-not-running-celery.md) | **`celery-worker` + `celery-beat` were running gunicorn, not Celery — the default queue had no consumer and beat had never run, in both envs** | **S1/P0** | **FIXED & VERIFIED** | Railway/Celery |
 
 BUG-004 is fixed, guarded in CI, and verified live: the SPA now serves a real DSN
 and Sentry recorded `STRATTRADERPRO-2` — the first frontend event this project has

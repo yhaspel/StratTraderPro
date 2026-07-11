@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | S2 — a shipped feature (worker/beat metrics) is silently non-functional, and it blinds a risk alert |
-| **Status** | OPEN — root cause not yet pinned; needs worker/beat runtime logs |
+| **Status** | **CLOSED — symptom, not a bug.** Root cause is [BUG-011](BUG-011-celery-worker-and-beat-are-not-running-celery.md): the `celery-worker` and `celery-beat` Railway services have an empty start command and are running **gunicorn**, not Celery. There is no Celery process to expose a metrics endpoint. The FIX-C1 signal wiring is correct — it works in `worker-backtest`, the one service that actually runs Celery. |
 | **Area** | Observability / Railway |
 | **Found** | 2026-07-11, **by the BUG-008 dead-man's switch on its first evaluation** |
 

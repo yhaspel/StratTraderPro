@@ -37,8 +37,11 @@ _EXTERNAL = {
     # BUG-005 — usage-alerts.yaml queries the `grafanacloud-usage` datasource,
     # which Grafana Cloud maintains about our own account. These series are not
     # scraped from us and will never appear in an apps/*/metrics.py.
-    "grafanacloud_org_metrics_billable_series",
+    "grafanacloud_instance_samples_per_second",
     "grafanacloud_org_metrics_included_series",
+    # Kept allowlisted but deliberately NOT alerted on: it is a billing-period
+    # aggregate that keeps climbing after the cause is fixed. See usage-alerts.yaml.
+    "grafanacloud_org_metrics_billable_series",
 }
 
 _HIST_SUFFIXES = ("_bucket", "_sum", "_count")

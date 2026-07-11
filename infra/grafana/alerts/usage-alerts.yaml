@@ -33,21 +33,40 @@ groups:
     folder: StratTraderPro
     interval: 5m
     rules:
+      # ---------------------------------------------------------------------
+      # DO NOT alert on `grafanacloud_org_metrics_billable_series`.
+      #
+      # It is a billing-PERIOD AGGREGATE, not a gauge. Measured live: after the
+      # scrape interval was halved back to 60s (fixing the overspend), DPM fell
+      # 1.98 -> 0.96 and samples/sec fell 228 -> 124 — and billable_series went
+      # *UP*, 13,068 -> 13,285. It only accumulates. Alerting on it would page
+      # critical every day for the rest of the billing period even though the
+      # cause was already fixed, which is how you teach an operator to ignore a
+      # pager.
+      #
+      # These rules instead measure the current billable RATE — the thing we
+      # actually control:
+      #
+      #   samples_per_minute / (included_series x included_DPM)
+      #
+      # With included_DPM = 1 that is simply samples/min ÷ included_series.
+      # Verified: reads 0.746 now (healthy), and 1.372 at the 30s scrape that
+      # caused BUG-005 — so it catches the original defect and then goes quiet.
+      # ---------------------------------------------------------------------
       - alert: MetricsBudgetHigh
-        # Ratio, not an absolute count: the allowance changes with the plan.
-        expr: grafanacloud_org_metrics_billable_series / grafanacloud_org_metrics_included_series > 0.85
+        expr: sum(grafanacloud_instance_samples_per_second) * 60 / scalar(grafanacloud_org_metrics_included_series) > 0.85
         for: 30m
         labels: {severity: warning}
         annotations:
           summary: "Grafana metrics budget > 85% of the included allowance"
           description: >-
-            billable_series = active_series x (actual_DPM / included_DPM). If this is
-            climbing, check the SCRAPE INTERVAL before deleting metrics — halving the
-            interval doubles this number without adding a single series.
-            infra/grafana-agent/agent.yaml must stay at scrape_interval: 60s.
+            Current billable rate. If this is climbing, check the SCRAPE INTERVAL
+            before deleting metrics — halving the interval doubles this number
+            without adding a single series. infra/grafana-agent/agent.yaml must stay
+            at scrape_interval: 60s.
 
       - alert: MetricsBudgetExhausted
-        expr: grafanacloud_org_metrics_billable_series / grafanacloud_org_metrics_included_series > 1
+        expr: sum(grafanacloud_instance_samples_per_second) * 60 / scalar(grafanacloud_org_metrics_included_series) > 1
         for: 15m
         labels: {severity: critical}
         annotations:
@@ -56,4 +75,5 @@ groups:
             Over the included allowance. Grafana Cloud may reject new series. A
             rejected series makes every self-filtering alert rule return empty, which
             Grafana reports as Normal — so alerting degrades to silently-green rather
-            than loudly-broken. See bugs/BUG-005 and bugs/BUG-008.
+            than loudly-broken. Fix the scrape rate, don't delete metrics.
+            See bugs/BUG-005 and bugs/BUG-008.
