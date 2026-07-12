@@ -1,5 +1,7 @@
 # Runbook: User Account Locked Out
 
+**Last reviewed:** 2026-07-12
+
 ## Symptoms
 
 - User reports they cannot log in.

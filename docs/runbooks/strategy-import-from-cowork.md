@@ -1,5 +1,7 @@
 # Runbook — Importing strategies from the Trading Strategies project
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval (creator of the Trading Strategies project)
 **Used by:** ops + the deployment pipeline
 **Command:** `python manage.py load_strategies <path>`

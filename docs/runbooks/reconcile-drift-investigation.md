@@ -1,5 +1,7 @@
 # Runbook — Investigating a reconciliation drift
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist — the broker-agnostic reconciliation loop is
 built and unit-tested (M05, AC-05-6). Works against any `CONNECTED`

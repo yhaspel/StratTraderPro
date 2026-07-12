@@ -1,5 +1,7 @@
 # Runbook — Engage / release the L3 platform halt (admin portal)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable. The admin platform kill-switch endpoint, the typed-confirm
 + MFA gate, and the delegation to `apps/risk/killswitch` at level L3 are built and

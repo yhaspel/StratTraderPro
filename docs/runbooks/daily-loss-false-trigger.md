@@ -1,5 +1,7 @@
 # Runbook — Investigating a daily-loss false trigger (L2)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist. The L2 daily-loss breaker — two-poll
 confirmation, the `DAILY_LOSS_BREACH` event, the auto-halt, and the

@@ -1,5 +1,7 @@
 # Runbook — IB Gateway sidecar (operations + re-auth)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Production-ready (M04). Was the M04 Day-1 spike runbook; promoted 2026-05-15 per `docs/adr/040-ibkr-gateway-sidecar.md` (Status: Accepted).
 **Companion docs:** `docs/adr/040-ibkr-gateway-sidecar.md` (topology rationale + gotchas), `docker/ib-gateway/Dockerfile` (image pin + IBC template patches), `docker/ib-gateway/README.md` (env contract summary), `scripts/verify_ibgw_config.sh` (config-drift gate).

@@ -1,5 +1,7 @@
 # Runbook — STRATEGY-scope kill switch cannot flatten (FIX-H4)
 
+**Last reviewed:** 2026-07-12
+
 **Status:** current limitation (M08). Removal tracked for M09.
 
 ## What

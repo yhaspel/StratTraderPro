@@ -6,6 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — M11 (Hardening, Security, Load Test & Docs)
+- **SERVICE_ROLE image entrypoint dispatch (§7.0, BUG-011)** — `docker/entrypoint.sh` (0755)
+  dispatches on a **required** `SERVICE_ROLE` over seven roles (`web`, `web-dev`, `worker`,
+  `worker-backtest`, `beat`, `streams`, `ws`); unset/unrecognised **exits non-zero, never
+  falls back to `web`**. Compose drives all six backend-image services through it (no
+  `command:` overrides; `ws` sets `PORT=8788`). New `entrypoint-dispatch` CI job (dry-run
+  string-equality vs `docker/entrypoint.expected`, `SERVICE_ROLE=web` gunicorn boot, Day-6
+  unset-crash drill). Railway cutover is the [LIVE] operator step (`docs/ops/service-role-cutover.md`).
+- **Dependency audit gates (§7.2)** — `pip-audit` (backend, no severity threshold) + `pnpm audit
+  --audit-level=high` (frontend) in CI; bumped DRF 3.15.2 / simplejwt 5.5.1 / daphne 4.2.2 /
+  @angular 19.2.25; waivers + 13-PR Dependabot triage in `docs/security/dependency-waivers.md`.
+- **GDPR export/delete + Terms (§7.7/§7.8)** — `GET /users/me/export/` (async ZIP to
+  S3-compatible storage, creds/MFA redacted, 24h signed URL); 30-day soft delete
+  (`/users/me/delete/` + `/cancel/`) with nightly anonymize-in-place; `GET /terms/current/` +
+  `POST /terms/accept/` + blocking re-acceptance modal + `seed_terms`. Migration `users.0005`.
+- **Security headers + log scrubber (§7.1)** — CSP report-only + Permissions-Policy
+  (`SecurityHeadersMiddleware`); the M10-dangling sensitive-key log scrubber is now wired into
+  `settings.LOGGING`; OWASP pentest regression tests (webhook static-`sig` model, cross-user
+  BOLA/IDOR).
+- **SLO burn-rate alerts (§13)** — multi-window multi-burn-rate error-budget alerts on the
+  99.9% availability SLO; export/delete/terms metrics.
+- **Load / chaos / backup harness (§7.4–7.6)**, **a11y axe-core gate + bundle budget (§7.10/7.11)**,
+  **secret-rotation rehearsals (§7.12)**, ASVS L2 evidence + pentest report + ADRs 103–106,
+  runbook `Last reviewed:` sweep, legal ToS/Privacy drafts.
+
 ### Added — M10.5 (App Shell, Navigation, Operability & Review Remediation)
 - **App shell** — one `ShellComponent` (`features/shared/shell/`) wraps every authenticated route: `role="banner"` header with the wordmark, role-aware primary nav (dashboard/strategies/backtest/risk/orders/settings + staff-only admin), a user menu with **Sign out** (the first logout anywhere in the app), the impersonation-banner slot, a skip-to-content link, a mobile drawer, and the global toast host. Route restructure (`app.routes.ts`): public landing + auth pages OUTSIDE the shell; all features as children of one `authGuard`-guarded shell parent (feature `*.routes.ts` converted to child lists, `adminGuard` retained); `/` redirects authed users to `/dashboard` (`landingGuard`); a real **404 page** replaces the silent `** → ''`. Design in **ADR-043**.
 - **Honest landing** — product explanation + webhook→risk→broker "how it works" strip + **Sign in / Create account** CTAs; environment badge driven by runtime config (never the hardcoded "Platform scaffold" string); paper-trading-only copy (F-13).

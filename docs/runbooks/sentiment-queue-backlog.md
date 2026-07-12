@@ -1,5 +1,7 @@
 # Runbook — sentiment queue backlog / unscored articles
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist — the ingest → score → aggregate pipeline, the
 `sentiment_queue_depth` gauge, the `queue_backlog()` helper, and the FinBERT-only

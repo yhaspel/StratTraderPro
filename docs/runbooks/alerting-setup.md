@@ -1,5 +1,7 @@
 # Runbook — Grafana Cloud alerting + dashboards setup
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Cadence:** One-time per environment, re-run on a fresh Grafana Cloud workspace.
 **Status:** The dashboards and the alert rules / contact points / notification
