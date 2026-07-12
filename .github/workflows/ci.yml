@@ -199,6 +199,89 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # ---------- Entrypoint SERVICE_ROLE dispatch (M11 §7.0 / AC-11-14) ----------
+  # BUG-011: a blank Railway start command silently ran gunicorn in celery-worker
+  # /celery-beat for two months. The image entrypoint now REQUIRES SERVICE_ROLE
+  # and exits non-zero (never falls back to `web`) on unset/unrecognised. This
+  # job proves it in CI so no future PR can regress it (the dry-run/mode/guard
+  # tests also run inside backend-lint-test's pytest; the `web`-role gunicorn boot
+  # is only provable here because it needs the built image + a DB).
+  entrypoint-dispatch:
+    name: Entrypoint — SERVICE_ROLE dispatch
+    runs-on: ubuntu-latest
+    needs: [backend-lint-test]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Deps-free: pinned-literal string equality for all 7 roles + the
+      # unset/bogus/web-dev-misconfig exit-non-zero guards + the committed 0755.
+      - name: Dry-run dispatch gauntlet (pinned literals + guards + mode)
+        run: bash scripts/verify_entrypoint_dispatch.sh
+
+      - name: Build backend image
+        run: docker build -f docker/backend.Dockerfile -t stp-backend:ci .
+
+      # The E2E smoke boots web-dev/worker/beat/streams/ws through the dispatcher;
+      # the production `web` role is only exercised here. `--network host` lets the
+      # run container reach the postgres/redis service containers on localhost.
+      - name: SERVICE_ROLE=web boots gunicorn and answers /healthz
+        run: |
+          docker run -d --rm --name stp-web-check --network host \
+            -e SERVICE_ROLE=web \
+            -e DJANGO_SETTINGS_MODULE=config.settings.dev \
+            -e DATABASE_URL="postgres://test_user:test_pass@localhost:5432/test_db" \
+            -e REDIS_URL="redis://localhost:6379/0" \
+            -e SECRET_KEY="ci-entrypoint-web-boot-check" \
+            stp-backend:ci
+          ok=0
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:8777/healthz; then echo "SERVICE_ROLE=web booted gunicorn"; ok=1; break; fi
+            sleep 2
+          done
+          if [ "$ok" != "1" ]; then echo "::error::SERVICE_ROLE=web did not boot gunicorn"; docker logs stp-web-check || true; docker rm -f stp-web-check || true; exit 1; fi
+          # Prove it is really gunicorn (the whole point of BUG-011).
+          docker logs stp-web-check 2>&1 | grep -qi gunicorn || { echo "::error::web role is not gunicorn"; docker logs stp-web-check; docker rm -f stp-web-check; exit 1; }
+          docker rm -f stp-web-check
+
+      # Day-6 role-removal drill (§7.5): an unset SERVICE_ROLE must CRASH, not
+      # quietly serve HTTP. Assert on exit code + the loud log line.
+      - name: Role-removal drill — unset SERVICE_ROLE crashes (does not serve)
+        run: |
+          set +e
+          docker run --name stp-role-removal \
+            -e DJANGO_SETTINGS_MODULE=config.settings.dev \
+            -e SECRET_KEY="ci-role-removal-drill" \
+            stp-backend:ci
+          code=$(docker inspect -f '{{.State.ExitCode}}' stp-role-removal)
+          logs=$(docker logs stp-role-removal 2>&1)
+          docker rm -f stp-role-removal >/dev/null 2>&1
+          set -e
+          [ "$code" != "0" ] || { echo "::error::unset SERVICE_ROLE exited 0 (should crash)"; exit 1; }
+          echo "$logs" | grep -q "SERVICE_ROLE is unset" || { echo "::error::missing loud unset message"; echo "$logs"; exit 1; }
+          echo "unset SERVICE_ROLE crashed with exit $code and the loud message — as designed"
+
   # ---------- Legacy IBKR credential guard (M04 §6.9 / AC-04-13) ----------
   # After the Alpaca pivot (ADR-041) the IBKR TWS_* / DEBUG_VNC env vars must
   # not reappear in active code or config. They are allowed ONLY in the parked

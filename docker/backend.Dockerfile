@@ -34,6 +34,13 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 # Copy application code
 COPY backend/ .
 
+# M11 §7.0 — the SERVICE_ROLE dispatcher (BUG-011). It lives OUTSIDE /app because
+# every backend-image compose service bind-mounts ./backend:/app, which would mask
+# anything under /app; and `COPY backend/ .` above does not carry the repo's
+# docker/ dir, so it needs its own COPY. chmod defends against a non-exec commit.
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/entrypoint.sh
+
 # Collect static files
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
@@ -65,4 +72,9 @@ EXPOSE 8777
 # `gthread` worker class gives 3 workers × 4 threads = ~12 concurrent
 # requests with the existing memory footprint, comparable to UvicornWorker's
 # previous concurrency profile.
-CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --config /app/gunicorn.conf.py --bind 0.0.0.0:${PORT} --workers 3 --worker-class gthread --threads 4 --timeout 120 --access-logfile - --error-logfile -"]
+#
+# M11 §7.0 — CMD (not ENTRYPOINT, so `docker run <image> <cmd>` still overrides
+# it for debugging) is the SERVICE_ROLE dispatcher. The `web` role reproduces the
+# exact gunicorn command above (pinned in docker/entrypoint.expected). Unset or
+# unrecognised SERVICE_ROLE => exit 1, never a silent `web` fallback (BUG-011).
+CMD ["/usr/local/bin/entrypoint.sh"]

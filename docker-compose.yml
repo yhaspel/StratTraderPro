@@ -36,10 +36,12 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py runserver 0.0.0.0:8777"
+    # M11 §7.0 — no `command:`; the image entrypoint dispatches on SERVICE_ROLE.
+    # `web-dev` (not `web`) keeps the hot-reload runserver + ./backend bind mount;
+    # the entrypoint refuses web-dev unless settings end in `.dev` and no
+    # RAILWAY_ENVIRONMENT_NAME is set.
     environment:
+      SERVICE_ROLE: web-dev
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
@@ -61,12 +63,12 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     # concurrency=1 gives a clean 1:1 mapping to TASK_METRICS_PORT (FIX-C1, §6.5b);
-    # prefork children can't share a scrape port.
-    command: celery -A config.celery worker -l info --concurrency=1
+    # prefork children can't share a scrape port. M11 §7.0 — command via SERVICE_ROLE.
     # The backend service runs `migrate` on boot; on a fresh DB this worker can
     # start first and hit a not-yet-created table. Self-heal until migrations land.
     restart: on-failure
     environment:
+      SERVICE_ROLE: worker
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
@@ -89,9 +91,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: celery -A config.celery worker -Q backtest -l info --concurrency=1 --max-memory-per-child=2000000
     restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
     environment:
+      SERVICE_ROLE: worker-backtest  # M11 §7.0 — command via SERVICE_ROLE
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
@@ -110,9 +112,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: celery -A config.celery beat -l info -S redbeat.RedBeatScheduler
     restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
     environment:
+      SERVICE_ROLE: beat  # M11 §7.0 — command via SERVICE_ROLE
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
@@ -130,9 +132,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: python manage.py run_broker_streams
     restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
     environment:
+      SERVICE_ROLE: streams  # M11 §7.0 — command via SERVICE_ROLE
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
@@ -171,8 +173,13 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: daphne -b 0.0.0.0 -p 8788 config.asgi:application
+    # M11 §7.0 — command via SERVICE_ROLE. The image sets ENV PORT=8777, so the
+    # `ws` role's `${PORT:-8788}` never falls back; PORT: 8788 here makes daphne
+    # bind 8788 so the published 8788:8788 maps to a live socket (Railway injects
+    # $PORT). Without this the 100-WS load test would hit a dead port.
     environment:
+      SERVICE_ROLE: ws
+      PORT: "8788"
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
