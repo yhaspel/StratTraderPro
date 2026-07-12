@@ -4,7 +4,7 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change) — the rule lives in the project-root `MEMORY.md`.
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
-**Last verified:** 2026-07-09 (M10 merge — PR #29 `d574057`)
+**Last verified:** 2026-07-11 (M10 **closed** — operator track live-verified; 11 defects found & fixed, see the M10 close-out below. HEAD `036b892`, CI green.)
 **Verification at HEAD (`d574057`):** backend `pytest` **587 passed** (SQLite) + **8 `-m pg`** (Postgres lane), `ruff` clean, `bandit` clean (medium+), `makemigrations --check` clean, prod-import smoke clean; frontend `ngc --noEmit` clean, `pnpm build` (449.56 kB), `pnpm run test:ci` **61 karma**; Docker image builds + Trivy HIGH/CRITICAL clean. GitHub CI: all 5 checks green.
 
 > **2026-07-08 — M04–M08 review remediation** (`fix/m04-m08-review-remediation`): an
@@ -32,8 +32,42 @@
 | **M07** | **Sentiment pipeline** | ✅ **Implemented (2026-07-07)** — fetchers/tagger/tiered scorers (fakes)/EWMA/API; model weights + benchmark deferred | `v0.7.0-sentiment` (tag pending) |
 | **M08** | **Risk engine, sizing & kill switches** | ✅ **Implemented (2026-07-08)** — sizing + 4-level kill switches on `TradingHalt`; staging p99 + Risk Ops "live" deferred | `v0.8.0-risk` (tag pending) |
 | **M09** | **Walk-forward backtester** | ✅ **Implemented (2026-07-08)** — vectorbt sweep + custom replay engine, PBO/CSCV, tearsheet PDF/HTML/JSON, dedicated `backtest` queue, `/backtest` UI; PR #28 merged `afe6c24`; staging SLAs + Railway worker + real-symbol PDF deferred | `v0.9.0-backtest` (tag pending) |
-| **M10** | **Admin portal, chained audit log & observability polish** | ✅ **Implemented (2026-07-09)** — `apps/audit` (app-computed hash chain + Postgres append-only/linkage triggers, nightly verifier), `AuthEvent` migrated into `audit_log` then dropped, `apps/admin_portal` (killswitch/users/audit-search+CSV/impersonation/flags/health), `/metrics` moved out-of-urlconf (WSGI+ASGI), FIX-C1 worker/beat scrape, OTel + request-id correlation, six dashboards + alert rules as code, `/admin` frontend; PR #29 merged `d574057`; Grafana/Tempo/Telegram import + Railway env/exporters + staging perf SLAs deferred (operator) | `v0.10.0-admin` (tag created locally, not pushed) |
-| M11–M12 | Hardening, beta | ⏳ Not started | — |
+| **M10** | **Admin portal, chained audit log & observability polish** | ✅ **DONE (2026-07-11)** — code merged `d574057` (PR #29); **operator track completed and verified live 2026-07-11**: Grafana Cloud (6 dashboards, 21 alert rules, contact points, notification policy, Tempo+OTel, Sentry↔Tempo), Railway exporters/services, Sentry+GitHub wiring. **11 defects found and fixed during the live bring-up (`bugs/`), 3 of them S1** — see the note below; the observability stack was *entirely inert* before this pass. | `v0.10.0-admin` (tag created locally, **not pushed**) |
+| M11 | Hardening, security, load test & docs | ⏳ Not started — **§7.12 (SERVICE_ROLE dispatch, carried from BUG-011) is the first task** | — |
+| M12 | Beta & sign-off | ⏳ Not started | — |
+
+### M10 close-out — the observability stack was inert until 2026-07-11
+
+M10 merged CI-green on 2026-07-09 and **every component reported healthy while doing
+nothing.** The live bring-up on 2026-07-11 found 11 defects (`bugs/README.md`), all now
+fixed and verified in production. The three that mattered:
+
+- **BUG-009 (S1) — all 17 imported alert rules were `isPaused: true`.** Grafana's
+  Prometheus-rule converter imports paused by default. `KillSwitchTriggered`,
+  `AuditIntegrityFailure`, `BrokerStreamSilent` could never have fired. The rules API
+  reported `health: ok` for every one of them — *because a rule that never evaluates
+  never reports a problem.* **AC-10-9 passed anyway**, because its wording only required
+  that "a sample alert fires": the drill created a *temporary* rule, which is not paused.
+  AC-10-9 and `docs/runbooks/alerting-setup.md` have both been rewritten to assert
+  against the **real** rules (`isPaused == false`).
+- **BUG-011 (S1) — `celery-worker` and `celery-beat` were running gunicorn, not Celery**
+  (empty Railway start command → image default `CMD`). The default queue had no consumer
+  and beat had **never fired a scheduled task**, in both envs, including
+  `daily_loss_watcher`. Fixed live; the structural fix (fail loudly instead of silently
+  substituting a web server) is **M11 §7.12**.
+- **BUG-008 (S1) — no dead-man's switch.** 14 of 17 rules are self-filtering (`… > 0`), so
+  *empty = healthy*; nothing fired on **absence**, making a dead metrics pipeline
+  indistinguishable from a green one. Added `MetricsPipelineDown` + `TargetDown`, which
+  found BUG-011 within 60 seconds of going live.
+
+Also fixed: OTel never traced the web tier (001/002), frontend Sentry never worked (004),
+the frontend CI job ran neither lint nor tests — 67 specs had never executed (007), and the
+"free tier" banner was a 30s scrape interval double-billing us, not a series-count problem
+(005). A daily scheduled audit now re-asserts all of this (zero paused rules, all targets up,
+beat→queue→worker loop fresh, budget, frontend config) and reports only on failure.
+
+**The lesson, recorded in `bugs/README.md`: a clean bill of health can be produced by the
+defect itself.** Prefer end-to-end assertions over any component's self-report.
 
 **M04 truth (updated 2026-07-07):** Phase A (IB Gateway spike) done 2026-05-15 (ADR-040). **Phase B–F now implemented** on `feature/m04-webhook-alpaca-paper`: public webhook endpoint + `AlertMessage` + `process_alert`; `BrokerAdapter` protocol + `FakeBrokerAdapter` + `AlpacaAdapter` (paper) with `BrokerAccount`/`TradingHalt`/`BrokerCallAudit`; `Order`/`Fill`/`Position` + `ingest_fill_event` (dedup on `broker_exec_id`); Redis-Stream fill transport + `run_broker_streams` supervisor; Channels `/ws/dashboard/` consumer; `/settings/brokers` + `/dashboard` frontend; `alpaca-py` + `channels`/`daphne` in requirements. Backend gauntlet green (ruff/bandit/191 pytest/migrations/prod-import); CI grep gate + pivot hygiene done. **Deferred (needs externals):** the §10.4 live-Alpaca-paper smoke (runbook committed; operator runs with real keys), the Grafana Trading Ops "live on staging" panel (dashboard JSON committed), and the IBKR password rotation + Railway/GitHub secret deletion (operator step).
 

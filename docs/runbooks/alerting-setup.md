@@ -67,8 +67,38 @@ outage still pages by email.
   `severity =~ "critical|warning"` to email. Net effect: **critical → email +
   Telegram, warning → email**.
 - **Alert rules** (`alert-rules.yaml`): Grafana Cloud → Alerting → import / provision.
-  The four groups (`trading-ops`, `risk-and-queues`, `platform-and-audit`,
-  `backtest-ops`) land in the `StratTraderPro` folder.
+  The groups (`trading-ops`, `risk-and-queues`, `platform-and-audit`, `backtest-ops`,
+  `observability-liveness`) land in the `StratTraderPro` folder. `usage-alerts.yaml`
+  is a separate file that must be imported against the **`grafanacloud-usage`**
+  datasource, not `grafanacloud-prom`.
+
+### ⛔ STOP — imported rules arrive PAUSED. You must un-pause them. (BUG-009)
+
+**Grafana's Prometheus-rule converter creates every converted rule in a paused
+state.** A paused rule never evaluates and can never fire. This is the single most
+dangerous step in this runbook, because *nothing in the UI tells you*:
+
+- The Alert rules list shows all the rules, in the right folders, with the right
+  PromQL and severities. It does **not** show `isPaused`.
+- The rules API reports **`health: ok`** for every one of them — because a rule that
+  never evaluates never reports a problem. **The clean bill of health is produced by
+  the defect.**
+- Imported rules carry the tell-tale label `__converted_prometheus_rule__: "true"`.
+
+This is exactly how M10 shipped: 17 rules — including `KillSwitchTriggered`,
+`AuditIntegrityFailure` and `BrokerStreamSilent` — sat paused and unable to fire
+from the day they were imported until 2026-07-11. Verify with the **provisioning
+API**, which is the only place `isPaused` is visible:
+
+```js
+// Grafana → any tab, console (same-origin):
+const rules = await (await fetch('/api/v1/provisioning/alert-rules')).json();
+rules.filter(r => r.isPaused).map(r => r.title);   // MUST be []
+```
+
+Un-pause by PUT-ing each rule back with `isPaused: false` and header
+`X-Disable-Provenance: true`, or via each rule's ⋮ → Resume in the UI.
+**Do not sign off Step 5 until this returns `[]`.**
 
 ## Step 4 — Tempo datasource + Sentry ↔ Tempo correlation
 
@@ -81,20 +111,35 @@ outage still pages by email.
   the Sentry↔Grafana/Tempo integration (or a "trace_id" tag link) so clicking an
   event jumps to the Tempo trace with that id.
 
-## Step 5 — AC-10-9: fire a sample alert end-to-end
+## Step 5 — AC-10-9: fire a REAL alert end-to-end
 
 Prove the pipe from rule → contact point → your phone/inbox works before you rely
-on it:
+on it.
 
-1. Pick a cheap, safe-to-trip rule. The simplest is to temporarily lower a warning
-   threshold (e.g. `CeleryQueueDepthHigh`'s `> 1000` to `> 0` in a scratch copy) or
-   use Grafana's "test" on a rule, so it transitions Inactive → Pending → Firing.
-2. Confirm a **warning** delivers to **email only**, and a **critical** (temporarily
-   force one, e.g. a scratch rule labelled `severity: critical`) delivers to
-   **email + Telegram**.
-3. Watch the rule go Inactive → Pending(activeAt) → Firing(activeAt + `for`) in the
-   Alerting UI, and confirm the message arrives on both channels for the critical.
-4. Revert the scratch threshold. Record the run in `docs/oncall.md` / the drill log.
+> **Do not test with a scratch rule.** The original version of this step said to
+> create a temporary rule and watch it page. That proves the *notification pipeline*
+> and **nothing about the rules the platform depends on** — a freshly created rule is
+> not paused, so the drill passes cheerfully while all 17 real rules are inert
+> (BUG-009). A test that exercises a fresh copy of the thing is not a test of the
+> thing. **Trip one of the real, committed rules.**
+
+1. **Gate:** confirm zero paused rules (the snippet in Step 3). If anything is
+   paused, stop — the rest of this drill is meaningless.
+2. **Trip a real rule.** Temporarily lower the threshold *on the committed rule
+   itself* (e.g. `CeleryQueueDepthHigh` `> 1000` → `> -1`) so it transitions
+   Inactive → Pending → Firing. Do not clone it.
+3. Confirm a **warning** delivers to **email only**, and a **critical** delivers to
+   **email + Telegram** (trip a real `severity: critical` rule, e.g.
+   `WebhookErrorRatioCrit`).
+4. Watch Inactive → Pending(activeAt) → Firing(activeAt + `for`) in the Alerting UI,
+   and confirm delivery on both channels for the critical.
+5. **Restore the real threshold** and re-confirm the rule returns to Inactive and is
+   still `isPaused: false`. Record the run in `docs/oncall.md` / the drill log.
+
+Note that `observability-liveness` gives you a standing check that this never
+silently rots: `MetricsPipelineDown` / `TargetDown` are the only rules that fire on
+**absence**, and the daily silent-failure audit re-asserts "zero paused" every
+morning.
 
 ## Step 6 — AC-10-10: Sentry → Tempo click-through
 

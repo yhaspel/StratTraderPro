@@ -45,6 +45,7 @@ Prepare the platform for external users with a deliberate hardening pass: a secu
 - Secret-rotation rehearsal on staging/local: DB password, Fernet KEK (via a temporary `MultiFernet` swap), JWT signing key.
 - Accessibility audit: add `@axe-core/playwright` gate + manual keyboard pass over auth, dashboard, strategies, backtest, risk, and the M10 admin pages.
 - Performance budget enforcement in CI (Angular raw-initial budget hard-fail; optional gzipped tracking).
+- **Service-role dispatch in the image entrypoint (§7.12) — carried from M10, do first.** A blank Railway start command currently makes a service *silently become a web server* (BUG-011: `celery-worker`/`celery-beat` ran gunicorn for two months). Make `SERVICE_ROLE` required and fail loudly when it is unset, removing the dangerous default rather than merely version-controlling the value.
 - **Operator-track (documented, not executed by the autonomous run):** production Railway project, custom domains, Cloudflare + WAF, R2 bucket, exporter services, Grafana Cloud alert import + sample-fire.
 
 ## 3. Out of Scope
@@ -174,6 +175,72 @@ Documented in `docs/ops/chaos-drill-logs.md`, scripted where feasible (compose `
 ### 7.9 Production Railway env — **[LIVE]/operator**
 
 The autonomous run produces the **config + runbook**, not the live environment. Re-derive the real service set (not the stale "6"): `backend`, `frontend`, `postgres`, `redis`, `worker`, `worker-backtest`, `beat`, `streams`, `ws` (daphne), `grafana-agent`, `postgres-exporter`, `redis-exporter`. Runbook `docs/ops/prod-bringup.md` covers: separate `strattraderpro-prod` project, separate Postgres + Redis, DNS (`api.` / `app.` / optional `hooks.` `strattraderpro.com`), Cloudflare (TLS + WAF + rate-limit + bot-fight, orange-cloud, origin restricted to Cloudflare IPs), and env-var matrix (incl. M10's `METRICS_BASIC_AUTH_*`, `TASK_METRICS_PORT`, exporter targets, `SENTRY_*`). Domain purchase, Cloudflare account, and prod bring-up are operator steps.
+
+### 7.12 Service-role dispatch in the image entrypoint — **remove the silent-substitution default** (carried from M10 / BUG-011)
+
+**Priority: do this first.** It is the structural fix for the worst defect M10 surfaced.
+
+#### What happened
+
+The `celery-worker` and `celery-beat` Railway services had an **empty Custom Start
+Command**, so they ran the image's default `CMD` — `migrate && gunicorn`. Both
+services reported **Online** and had been running a *second copy of the Django web
+server* since deploy. The default `celery` queue had no consumer and beat had never
+fired a single scheduled task, in **both** environments, including
+`apps.risk.tasks.daily_loss_watcher` (a risk control). Found 2026-07-11; see
+`bugs/BUG-011-celery-worker-and-beat-are-not-running-celery.md`.
+
+The root property is what matters: **a blank field silently substitutes a web
+server.** The service does not fail — it succeeds at being the wrong thing.
+
+#### The fix (frozen design — do not "simplify" this)
+
+Make `docker/backend.Dockerfile`'s `CMD` a dispatcher on a required `SERVICE_ROLE`:
+
+| `SERVICE_ROLE` | Process |
+|---|---|
+| `web` | `migrate --noinput && gunicorn config.wsgi:application …` (today's CMD) |
+| `worker` | `celery -A config.celery worker -l info --concurrency=1` |
+| `worker-backtest` | `celery -A config.celery worker -Q backtest -l info --concurrency=1 --max-memory-per-child=2000000` |
+| `beat` | `celery -A config.celery beat -l info -S redbeat.RedBeatScheduler` |
+| `streams` | `python manage.py run_broker_streams` |
+| `ws` | `daphne config.asgi:application …` |
+
+**Unset or unrecognised `SERVICE_ROLE` must `exit 1` with a loud message. It must
+NOT default to `web`.** That single line is the entire point: it converts a silent
+wrong-process into a crash. A crashed deploy is visible in thirty seconds; a worker
+that is secretly gunicorn went unnoticed for two months.
+
+Set `SERVICE_ROLE` on all services in **both** environments. Then **delete** the
+Custom Start Commands from Railway, so the image is the single source of truth.
+Keep `docker-compose.yml` in step (it can pass `SERVICE_ROLE` per service).
+
+#### Why `railway.json` config-as-code is NOT sufficient (rejected 2026-07-11)
+
+It is the tempting middle option and it does not fix the bug class. `railway.json`
+version-controls the *value*, but the dangerous **default survives**: the image `CMD`
+is still gunicorn. If the config isn't applied, is overridden in the UI, or a new
+service is added and forgotten, the container silently becomes a web server again —
+the identical failure, now with a config file that makes you *believe* it's covered.
+It buys reviewability and no safety. Only removing the default removes the failure.
+
+#### Acceptance
+
+- Deploying any service with `SERVICE_ROLE` unset **fails the deploy** (assert in the
+  chaos-drill section, §7.5 — this is a legitimate drill: "clear the role and confirm
+  it crashes rather than quietly serving HTTP").
+- No Railway service has a Custom Start Command; all six roles boot correctly.
+- `up{job=~"worker|beat"} == 1` in both envs, and `celery_queue_depth` stays fresh
+  (proves beat → default queue → worker → metric, end-to-end).
+- Staging first, verify, then production.
+
+#### Interim mitigation already in place (why this can wait for M11, but not past it)
+
+The exposure has already collapsed from *"silently broken forever"* to *"loudly broken
+in five minutes"*: M10's dead-man's switch (`TargetDown`, `MetricsPipelineDown` —
+BUG-008) fires within 5 minutes if worker/beat stop scraping, and a daily audit
+re-asserts the whole beat→queue→worker loop. **That detection is a backstop, not a
+fix.** The default is still wrong.
 
 ### 7.10 Accessibility
 
