@@ -6,12 +6,14 @@ import { AuthApi } from '../../core/services/auth.api';
 import { AuthStore } from '../stores/auth.store';
 import { ApiError, AuthTokenPair, LoginResult } from '../../core/models/auth.models';
 import { environment } from '../../../environments/environment';
+import { DashboardWsService } from '../../core/services/ws.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private api = inject(AuthApi);
   private store = inject(AuthStore);
   private router = inject(Router);
+  private ws = inject(DashboardWsService);
 
   // Expose store signals for templates
   readonly user = this.store.user;
@@ -190,6 +192,19 @@ export class AuthFacade {
     }
     this.store.clearAuth();
     await this.router.navigate(['/login']);
+  }
+
+  /** M10.5 §7.1/AC-10.5-3 — user-initiated sign-out from the shell user menu:
+   * tears down the shared dashboard WebSocket (C-FE-4), revokes on the server
+   * (best-effort), clears auth state, and lands on the public landing ("/"). */
+  async signOut(): Promise<void> {
+    this.ws.disconnect();
+    const refresh = this.store.refreshToken();
+    if (refresh) {
+      try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
+    }
+    this.store.clearAuth();
+    await this.router.navigate(['/']);
   }
 
   async refreshSession(): Promise<boolean> {

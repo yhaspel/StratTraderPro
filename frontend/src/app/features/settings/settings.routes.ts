@@ -1,25 +1,22 @@
+/** /settings/* child routes (M02). Mounted under the shell parent, which
+ * enforces authGuard once (M10.5 §7.1) — so no per-route canMatch here. */
 import { Routes } from '@angular/router';
-import { authGuard } from '../../core/guards/auth.guard';
 
 export const SETTINGS_ROUTES: Routes = [
   {
     path: 'settings/profile',
-    canMatch: [authGuard],
     loadComponent: () => import('./profile/profile.component').then(m => m.ProfileComponent),
   },
   {
     path: 'settings/security',
-    canMatch: [authGuard],
     loadComponent: () => import('./security/security.component').then(m => m.SecurityComponent),
   },
   {
     path: 'settings/security/mfa/setup',
-    canMatch: [authGuard],
     loadComponent: () => import('./mfa-setup/mfa-setup.component').then(m => m.MfaSetupComponent),
   },
   {
     path: 'settings/brokers',
-    canMatch: [authGuard],
     loadComponent: () => import('./brokers/brokers.component').then(m => m.BrokersComponent),
   },
 ];

@@ -1,12 +1,10 @@
-/** /risk — lazy-loaded route group (M08). Client guard is `authGuard`;
- * MFA/permission enforcement happens server-side. */
+/** /risk child route (M08). Mounted under the shell parent, which enforces
+ * authGuard once (M10.5 §7.1). MFA/permission enforcement is server-side. */
 import { Routes } from '@angular/router';
-import { authGuard } from '../../core/guards/auth.guard';
 
 export const RISK_ROUTES: Routes = [
   {
     path: 'risk',
-    canMatch: [authGuard],
     loadComponent: () => import('./risk.component').then(m => m.RiskComponent),
   },
 ];
