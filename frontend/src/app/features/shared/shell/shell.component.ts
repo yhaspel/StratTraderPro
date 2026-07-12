@@ -90,6 +90,13 @@ interface NavItem {
                   (click)="closeMenu()">
                   {{ 'nav.settings' | translate }}
                 </a>
+                <a
+                  role="menuitem"
+                  routerLink="/help"
+                  class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  (click)="closeMenu()">
+                  {{ 'nav.help' | translate }}
+                </a>
                 <button
                   type="button"
                   role="menuitem"

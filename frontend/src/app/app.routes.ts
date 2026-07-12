@@ -53,6 +53,12 @@ export const routes: Routes = [
       ...BACKTEST_ROUTES,
       ...ADMIN_ROUTES,
       {
+        path: 'help',
+        pathMatch: 'full',
+        loadComponent: () =>
+          import('./features/help/help-index.component').then(m => m.HelpIndexComponent),
+      },
+      {
         path: 'help/:slug',
         loadComponent: () =>
           import('./features/help/help-article.component').then(m => m.HelpArticleComponent),

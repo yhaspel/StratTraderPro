@@ -12,15 +12,18 @@ import { CommonModule } from '@angular/common';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { RegimeFacade } from '../../abstraction/facades/regime.facade';
 import { RegimeHistoryComponent } from './regime-history.component';
+import { HelpLinkComponent } from '../shared/ui/help-link.component';
 
 @Component({
   selector: 'app-regime-badge',
   standalone: true,
-  imports: [CommonModule, TranslateModule, RegimeHistoryComponent],
+  imports: [CommonModule, TranslateModule, RegimeHistoryComponent, HelpLinkComponent],
   template: `
     <section class="rounded border border-gray-200 p-4 space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">{{ 'regime.title' | translate }}</h2>
+        <h2 class="text-lg font-semibold">
+          {{ 'regime.title' | translate }}<app-help-link slug="regime-badge" />
+        </h2>
       </div>
 
       @if (facade.current(); as o) {

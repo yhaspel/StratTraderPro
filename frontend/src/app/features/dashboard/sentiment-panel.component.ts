@@ -13,6 +13,7 @@ import { CommonModule } from '@angular/common';
 import { TranslateModule } from '@ngx-translate/core';
 import { SentimentFacade } from '../../abstraction/facades/sentiment.facade';
 import { SentimentArticle, SentimentScore } from '../../core/models/sentiment.models';
+import { HelpLinkComponent } from '../shared/ui/help-link.component';
 
 /** Below this magnitude a polarity reads as neutral rather than pos/neg. */
 const NEUTRAL_BAND = 0.05;
@@ -26,11 +27,13 @@ const SPARK_PAD = 3;
 @Component({
   selector: 'app-sentiment-panel',
   standalone: true,
-  imports: [CommonModule, TranslateModule],
+  imports: [CommonModule, TranslateModule, HelpLinkComponent],
   template: `
     <section class="rounded border border-gray-200 p-4 space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">{{ 'sentiment.title' | translate }}</h2>
+        <h2 class="text-lg font-semibold">
+          {{ 'sentiment.title' | translate }}<app-help-link slug="sentiment" />
+        </h2>
       </div>
 
       @if (market()?.current; as c) {
