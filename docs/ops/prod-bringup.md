@@ -289,20 +289,25 @@ URL), `celery-worker` (writes the export ZIP), `celery-beat` (weekly `pg_dump` o
 on all six backend-image services if you prefer uniformity — harmless on the ones that don't
 use storage.
 
+These are the **exact** names `config/settings/prod.py` reads (do not invent `AWS_STORAGE_BUCKET_NAME`
+etc. — the code keys off `EXPORTS_BUCKET`). Setting `EXPORTS_BUCKET` is what flips
+`EXPORTS_STORAGE_READY` on; leave it unset and exports stay `PENDING` gracefully.
+
 | Var | Value | Notes |
 |---|---|---|
+| `EXPORTS_BUCKET` | `strattraderpro-prod-private` | **The trigger var** — non-empty switches `STORAGES['exports']` to the R2 S3 backend. |
 | `AWS_ACCESS_KEY_ID` | R2 token Access Key ID (§5) | |
 | `AWS_SECRET_ACCESS_KEY` | R2 token Secret Access Key (§5) | Secret. |
-| `AWS_STORAGE_BUCKET_NAME` | `strattraderpro-prod-private` | The private bucket. |
 | `AWS_S3_ENDPOINT_URL` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | R2's S3 endpoint (from §5). |
-| `AWS_S3_REGION_NAME` | `auto` | R2 uses `auto`. |
-| `AWS_S3_SIGNATURE_VERSION` | `s3v4` | Required for R2 presigned URLs. |
-| `AWS_S3_ADDRESSING_STYLE` | `virtual` | R2 supports virtual-hosted style. |
-| `GDPR_EXPORT_URL_TTL_SECONDS` | `86400` | Signed-URL lifetime = 24h (§4 decision 2). |
+| `AWS_S3_REGION_NAME` | `auto` | Optional — code defaults to `auto` (R2's region). |
+| `EXPORT_SIGNED_URL_TTL_SECONDS` | `86400` | Optional — code defaults to 86400 (24h signed URL, §4 decision 2). |
 
-> Django 5's `STORAGES` setting selects this S3 backend for the export/backup buckets while
-> `staticfiles` stays local — the code wires the backend from the `AWS_*` vars above; there
-> is no separate `STORAGES` env var to set by hand.
+> Django 5's `STORAGES` setting selects this S3 backend for the export bucket while `staticfiles`
+> stays local — `prod.py` builds `STORAGES['exports']["OPTIONS"]` (`bucket_name`/`access_key`/
+> `secret_key`/`endpoint_url`/`region_name`/`querystring_expire`) from the vars above; there is no
+> separate `STORAGES` env var to set by hand. Presigned-URL signature version is left to boto3's
+> default (SigV4 in the `auto` region) — if R2 rejects a presigned URL, that is a code follow-up,
+> not an env var to add.
 
 ### 6.4 Exporters (`postgres-exporter`, `redis-exporter`)
 
