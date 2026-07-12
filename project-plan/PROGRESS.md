@@ -4,7 +4,8 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change) — the rule lives in the project-root `MEMORY.md`.
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
-**Last verified:** 2026-07-11 (M10 **closed** — operator track live-verified; 11 defects found & fixed, see the M10 close-out below. HEAD `036b892`, CI green.)
+**Last verified:** 2026-07-12 (**M10.5 implemented + gauntlet-green + live-verified**, branch `feature/m10.5-app-shell-and-operability`, not yet merged/tagged). Backend: `pytest` green (SQLite, `config.settings.test`; the 5 `test_alert_rules.py` tests need the repo root and only pass in CI) + `-m pg` **8**, `ruff`/`bandit` clean, `makemigrations --check` clean, prod-import smoke clean. Frontend: `ngc` clean, `ng build` OK, karma **99 passed**. Live E2E (Chrome): landing→login, shell + nav + logout, getting-started checklist, authed 404, help viewer — all pass. AC-by-AC + gauntlet output: `M10.5-EXECUTION-REPORT.md`.
+**Prior:** 2026-07-11 (M10 **closed** — operator track live-verified; 11 defects found & fixed, see the M10 close-out below. HEAD `036b892`, CI green.)
 **Verification at HEAD (`d574057`):** backend `pytest` **587 passed** (SQLite) + **8 `-m pg`** (Postgres lane), `ruff` clean, `bandit` clean (medium+), `makemigrations --check` clean, prod-import smoke clean; frontend `ngc --noEmit` clean, `pnpm build` (449.56 kB), `pnpm run test:ci` **61 karma**; Docker image builds + Trivy HIGH/CRITICAL clean. GitHub CI: all 5 checks green.
 
 > **2026-07-08 — M04–M08 review remediation** (`fix/m04-m08-review-remediation`): an
