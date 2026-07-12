@@ -108,6 +108,8 @@ MIDDLEWARE = [
     # M10 §6.6 — mint/propagate a request_id (ULID) as early as possible.
     "config.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # M11 §7.1 — CSP (report-only) + Permissions-Policy on every Django response.
+    "config.security_headers.SecurityHeadersMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -727,8 +729,11 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     # M10 §6.6 — inject request_id + task_id into every record.
+    # M11 §7.1 — scrub_sensitive redacts secret-named extra= fields (the wiring
+    # M10 flagged as missing; ADR-100 key set).
     "filters": {
         "request_context": {"()": "config.request_context.RequestContextFilter"},
+        "scrub_sensitive": {"()": "config.log_scrub.SensitiveDataFilter"},
     },
     "formatters": {
         "json": {
@@ -743,7 +748,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
-            "filters": ["request_context"],
+            "filters": ["request_context", "scrub_sensitive"],
         },
     },
     "root": {
@@ -789,3 +794,23 @@ METRICS_BASIC_AUTH_PASSWORD = env("METRICS_BASIC_AUTH_PASSWORD", default="")
 # instead of falling open. Default False (dev/test stay open); prod sets True so
 # an unconfigured deploy fails CLOSED rather than exposing metrics to the world.
 METRICS_REQUIRE_AUTH = env.bool("METRICS_REQUIRE_AUTH", default=False)
+
+# ---------------------------------------------------------------------------
+# Security response headers (M11 §7.1 V9 / §4.6)
+# ---------------------------------------------------------------------------
+# Django's SecurityMiddleware handles these two natively (HSTS is set in prod.py):
+SECURE_CONTENT_TYPE_NOSNIFF = True  # X-Content-Type-Options: nosniff
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+# CSP + Permissions-Policy are added by config.security_headers.SecurityHeadersMiddleware.
+# CSP ships REPORT-ONLY (frozen decision §4.6); flip via CSP_REPORT_ONLY=false once
+# violation reports are clean. The Django tier serves JSON + the Swagger/browsable
+# API — a strict default-src is safe for JSON and only *reported* for the API UIs.
+CSP_REPORT_ONLY = env.bool("CSP_REPORT_ONLY", default=True)
+CSP_POLICY = env(
+    "CSP_POLICY",
+    default="default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+)
+PERMISSIONS_POLICY = env(
+    "PERMISSIONS_POLICY",
+    default="geolocation=(), microphone=(), camera=(), payment=()",
+)
