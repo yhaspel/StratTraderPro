@@ -937,6 +937,19 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/onboarding/status/:
+    get:
+      operationId: onboarding_status
+      description: GET the onboarding checklist state. Auth required, but NOT MFA-gated.
+      tags:
+      - onboarding
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatusEnvelope'
+          description: ''
   /api/v1/orders/:
     get:
       operationId: orders_list
@@ -1584,6 +1597,15 @@ components:
       description: |-
         * `anchored` - anchored
         * `rolling` - rolling
+    OnboardingStatusEnvelope:
+      type: object
+      description: M10.5 §9 — the four onboarding booleans + a derived ``complete``
+        flag.
+      properties:
+        data:
+          $ref: '#/components/schemas/_OnboardingData'
+      required:
+      - data
     PasswordReset:
       type: object
       properties:
@@ -1731,3 +1753,22 @@ components:
       - email
       - id
       - is_verified
+    _OnboardingData:
+      type: object
+      properties:
+        mfa_enrolled:
+          type: boolean
+        broker_connected:
+          type: boolean
+        strategy_ready:
+          type: boolean
+        first_fill_seen:
+          type: boolean
+        complete:
+          type: boolean
+      required:
+      - broker_connected
+      - complete
+      - first_fill_seen
+      - mfa_enrolled
+      - strategy_ready

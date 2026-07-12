@@ -11,6 +11,7 @@ from allauth.socialaccount.providers.google.views import (
 from django.urls import path
 from django.views.generic import RedirectView
 
+from .onboarding import OnboardingStatusView
 from .views import (
     CurrentUserView,
     LoginView,
@@ -57,6 +58,9 @@ urlpatterns = [
         name="auth-password-reset-confirm",
     ),
     path("users/me/", CurrentUserView.as_view(), name="users-me"),
+
+    # ---- M10.5 — onboarding checklist (auth-only, NOT MFA-gated) ----
+    path("onboarding/status/", OnboardingStatusView.as_view(), name="onboarding-status"),
 
     # ---- M02 — MFA ----
     path("auth/mfa/enroll/", MFAEnrollView.as_view(), name="auth-mfa-enroll"),

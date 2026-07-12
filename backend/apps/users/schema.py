@@ -157,6 +157,19 @@ class CurrentUserEnvelopeSerializer(serializers.Serializer):
     data = _CurrentUserData()
 
 
+class OnboardingStatusEnvelopeSerializer(serializers.Serializer):
+    """M10.5 §9 — the four onboarding booleans + a derived ``complete`` flag."""
+
+    class _OnboardingData(serializers.Serializer):
+        mfa_enrolled = serializers.BooleanField()
+        broker_connected = serializers.BooleanField()
+        strategy_ready = serializers.BooleanField()
+        first_fill_seen = serializers.BooleanField()
+        complete = serializers.BooleanField()
+
+    data = _OnboardingData()
+
+
 # ---------------------------------------------------------------------------
 # Shared error examples (re-used via OpenApiExample in views)
 # ---------------------------------------------------------------------------

@@ -793,6 +793,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET the onboarding checklist state. Auth required, but NOT MFA-gated. */
+        get: operations["onboarding_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/": {
         parameters: {
             query?: never;
@@ -1387,6 +1404,10 @@ export interface components {
          * @enum {string}
          */
         ModeEnum: "anchored" | "rolling";
+        /** @description M10.5 §9 — the four onboarding booleans + a derived ``complete`` flag. */
+        OnboardingStatusEnvelope: {
+            data: components["schemas"]["_OnboardingData"];
+        };
         PasswordReset: {
             /** Format: email */
             email: string;
@@ -1450,6 +1471,13 @@ export interface components {
             is_verified: boolean;
             /** Format: date-time */
             created_at: string;
+        };
+        _OnboardingData: {
+            mfa_enrolled: boolean;
+            broker_connected: boolean;
+            strategy_ready: boolean;
+            first_fill_seen: boolean;
+            complete: boolean;
         };
     };
     responses: never;
@@ -2513,6 +2541,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    onboarding_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingStatusEnvelope"];
+                };
             };
         };
     };
