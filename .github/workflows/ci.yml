@@ -173,6 +173,37 @@ jobs:
           npx @sentry/cli@2 sourcemaps inject dist
           npx @sentry/cli@2 sourcemaps upload --release "${GITHUB_SHA}" dist
 
+  # ---------- Accessibility (axe-core) — M11 §7.10 / AC-11-11 ----------
+  # The a11y specs seed auth (mock.seedRefreshToken + mocked /api/v1/**) and assert
+  # a page-identifying locator is visible BEFORE AxeBuilder.analyze(), so they scan
+  # the REAL authed pages — not a silent /login redirect (the BUG-009 trap the plan
+  # calls out). They mock the backend, so `ng serve` alone is enough (Playwright's
+  # webServer self-spawns it); no docker-compose needed.
+  a11y:
+    name: A11y — axe-core (dashboard/strategies/backtest/risk/admin)
+    runs-on: ubuntu-latest
+    needs: [frontend-lint-test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: cd frontend && pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: cd frontend && pnpm exec playwright install --with-deps chromium
+
+      - name: axe-core a11y audit
+        run: cd frontend && pnpm exec playwright test e2e/a11y
+
   # ---------- E2E Smoke ----------
   e2e-smoke:
     name: E2E Smoke — docker-compose healthz

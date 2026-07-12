@@ -171,7 +171,7 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
               <li class="px-3 py-2 flex items-center justify-between text-sm">
                 <span class="font-medium">{{ f.symbol }}</span>
                 <span class="font-mono text-gray-600">{{ fmtQty(f.qty) }} &#64; {{ fmtMoney(f.price) }}</span>
-                <span class="text-xs text-gray-400">{{ f.ts | date:'shortTime' }}</span>
+                <span class="text-xs text-gray-500">{{ f.ts | date:'shortTime' }}</span>
               </li>
             }
           </ul>

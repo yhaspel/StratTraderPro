@@ -3,6 +3,10 @@
  * On open: saves `document.activeElement`, moves focus into the dialog, traps
  * Tab within it, closes on Escape or backdrop click, and restores focus on
  * close. `role="dialog" aria-modal="true"` with a labelled title (AC-10.5-13).
+ *
+ * Set `[dismissable]="false"` for a BLOCKING modal (M11 §7.8): Escape and
+ * backdrop clicks are ignored and the ✕ close affordance is hidden, so the
+ * only way out is an in-content action. Tab-trapping still applies.
  */
 import {
   ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild,
@@ -29,11 +33,13 @@ let modalSeq = 0;
           class="w-full max-w-lg rounded-lg bg-white p-lg shadow-md focus:outline-none">
           <div class="mb-md flex items-start justify-between gap-md">
             <h2 [id]="titleId" class="text-lg font-semibold text-primary-900">{{ heading }}</h2>
-            <button
-              type="button"
-              class="rounded p-1 text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-              [attr.aria-label]="closeLabel"
-              (click)="close()">✕</button>
+            @if (dismissable) {
+              <button
+                type="button"
+                class="rounded p-1 text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                [attr.aria-label]="closeLabel"
+                (click)="close()">✕</button>
+            }
           </div>
           <ng-content />
         </div>
@@ -45,6 +51,9 @@ export class ModalComponent implements OnDestroy {
   @Input() heading = '';
   @Input() closeLabel = 'Close';
   @Input() titleId = `modal-title-${++modalSeq}`;
+  /** When false the modal is blocking: Escape/backdrop are ignored and the ✕
+   * affordance is hidden (M11 §7.8). Defaults true (existing behaviour). */
+  @Input() dismissable = true;
 
   @Input()
   set open(value: boolean) {
@@ -76,11 +85,14 @@ export class ModalComponent implements OnDestroy {
   }
 
   onBackdrop(ev: MouseEvent): void {
-    if (ev.target === ev.currentTarget) { this.close(); }
+    if (this.dismissable && ev.target === ev.currentTarget) { this.close(); }
   }
 
   onKeydown(ev: KeyboardEvent): void {
-    if (ev.key === 'Escape') { ev.preventDefault(); this.close(); return; }
+    if (ev.key === 'Escape') {
+      if (this.dismissable) { ev.preventDefault(); this.close(); }
+      return;
+    }
     if (ev.key !== 'Tab') { return; }
     const focusables = this.focusable();
     if (focusables.length === 0) { ev.preventDefault(); return; }

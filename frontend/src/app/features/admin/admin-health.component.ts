@@ -117,7 +117,7 @@ import { ImpersonationBannerComponent } from './impersonation-banner.component';
           </section>
         </div>
 
-        <p class="text-xs text-gray-400">{{ 'admin.health.generated' | translate }}: {{ h.generated_at | date:'medium' }}</p>
+        <p class="text-xs text-gray-500">{{ 'admin.health.generated' | translate }}: {{ h.generated_at | date:'medium' }}</p>
       }
     </div>
   `,

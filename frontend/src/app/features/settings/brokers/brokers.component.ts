@@ -66,7 +66,7 @@ const KNOWN_ERRORS = new Set([
                       }
                     </p>
                     <p class="text-sm text-gray-500 font-mono">{{ acct.account_number || '—' }}</p>
-                    <p class="text-xs text-gray-400">
+                    <p class="text-xs text-gray-500">
                       {{ 'brokers.connected.last_connected' | translate }}:
                       {{ acct.last_connected_at ? (acct.last_connected_at | date:'medium') : '—' }}
                     </p>
@@ -121,7 +121,7 @@ const KNOWN_ERRORS = new Set([
                     <button type="button" (click)="onSetMode(acct, 'LIVE')"
                             [attr.aria-disabled]="true"
                             [title]="'brokers.mode.live_soon' | translate"
-                            class="px-3 py-1 border-l text-gray-400 cursor-not-allowed">
+                            class="px-3 py-1 border-l text-gray-500 cursor-not-allowed">
                       {{ 'brokers.mode.live' | translate }}
                     </button>
                   </div>
@@ -193,7 +193,7 @@ const KNOWN_ERRORS = new Set([
           <div>
             <label class="block text-sm font-medium mb-1">
               {{ 'brokers.connect.nickname' | translate }}
-              <span class="text-gray-400 font-normal">({{ 'brokers.connect.optional' | translate }})</span>
+              <span class="text-gray-500 font-normal">({{ 'brokers.connect.optional' | translate }})</span>
             </label>
             <input type="text" formControlName="nickname" class="w-full border rounded px-3 py-2 text-sm" />
           </div>

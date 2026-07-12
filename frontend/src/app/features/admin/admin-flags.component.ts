@@ -52,7 +52,7 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
                     }
                   </div>
                   <p class="text-xs text-gray-500 mt-1">{{ f.description }}</p>
-                  <p class="text-xs text-gray-400 mt-0.5">{{ 'admin.flags.source' | translate }}: {{ f.source }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ 'admin.flags.source' | translate }}: {{ f.source }}</p>
                 </div>
                 <div class="text-right">
                   <span class="text-sm font-semibold" [class.text-green-700]="f.enabled" [class.text-gray-500]="!f.enabled">

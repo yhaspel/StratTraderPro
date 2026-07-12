@@ -62,7 +62,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
             <div>
               <h1 class="text-2xl font-bold">{{ run.strategy_name }}</h1>
               <p class="text-sm text-gray-500 font-mono">{{ run.symbols.join(', ') }}</p>
-              <p class="text-xs text-gray-400 font-mono">{{ run.config.start }} → {{ run.config.end }} · {{ run.config.mode }} · {{ run.config.metric }}</p>
+              <p class="text-xs text-gray-500 font-mono">{{ run.config.start }} → {{ run.config.end }} · {{ run.config.mode }} · {{ run.config.metric }}</p>
             </div>
             <div class="flex items-center gap-2">
               <span class="text-xs px-2 py-1 rounded" [class]="statusClass(run.status)">
@@ -117,7 +117,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
                 {{ 'backtest.detail.download_pdf' | translate }}
               </button>
               @if (run.metrics_hash) {
-                <span class="text-xs text-gray-400 font-mono ml-2">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
+                <span class="text-xs text-gray-500 font-mono ml-2">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
               }
             </div>
           }

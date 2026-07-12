@@ -1026,5 +1026,14 @@
       "add": "Add",
       "view": "View dashboard"
     }
+  },
+  "terms": {
+    "title": "Updated terms",
+    "intro": "We've updated our Terms of Service and Privacy Policy. Please review and accept them to continue using StratTraderPro.",
+    "tos_link": "Terms of Service",
+    "privacy_link": "Privacy Policy",
+    "accept": "I Accept",
+    "accepting": "Accepting…",
+    "error": "We couldn't record your acceptance. Please try again."
   }
 }

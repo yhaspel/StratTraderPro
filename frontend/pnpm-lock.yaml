@@ -66,6 +66,9 @@ importers:
       '@angular/compiler-cli':
         specifier: ^19.2.25
         version: 19.2.25(@angular/compiler@19.2.25)(typescript@5.6.3)
+      '@axe-core/playwright':
+        specifier: ^4.12.1
+        version: 4.12.1(playwright-core@1.59.1)
       '@playwright/test':
         specifier: ^1.40.0
         version: 1.59.1
@@ -295,6 +298,11 @@ packages:
       '@angular/core': 19.2.25
       '@angular/platform-browser': 19.2.25
       rxjs: ^6.5.3 || ^7.4.0
+
+  '@axe-core/playwright@4.12.1':
+    resolution: {integrity: sha512-rMd7xriptqKpP+w5265i4Hdkv2X5kbu6uiBi/B2I7uf3hieRBM3qDCfaKPtxfiYb2mKXfF+yLODJwIx+Jv1GDw==}
+    peerDependencies:
+      playwright-core: '>= 1.0.0'
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -2328,6 +2336,10 @@ packages:
     hasBin: true
     peerDependencies:
       postcss: ^8.1.0
+
+  axe-core@4.12.1:
+    resolution: {integrity: sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==}
+    engines: {node: '>=4'}
 
   babel-loader@9.2.1:
     resolution: {integrity: sha512-fqe8naHt46e0yIdkjUZYqddSXfej3AHajX+CSO5X7oy0EmPc6o5Xh+RClNoHjnieWz9AW4kZxW9yyFMhVB1QLA==}
@@ -5198,6 +5210,11 @@ snapshots:
       rxjs: 7.8.2
       tslib: 2.8.1
 
+  '@axe-core/playwright@4.12.1(playwright-core@1.59.1)':
+    dependencies:
+      axe-core: 4.12.1
+      playwright-core: 1.59.1
+
   '@babel/code-frame@7.29.0':
     dependencies:
       '@babel/helper-validator-identifier': 7.28.5
@@ -7214,6 +7231,8 @@ snapshots:
       picocolors: 1.1.1
       postcss: 8.5.13
       postcss-value-parser: 4.2.0
+
+  axe-core@4.12.1: {}
 
   babel-loader@9.2.1(@babel/core@7.26.10)(webpack@5.105.0(esbuild@0.28.0)):
     dependencies:

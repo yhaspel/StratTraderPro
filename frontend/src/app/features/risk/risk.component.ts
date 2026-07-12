@@ -79,7 +79,7 @@ const KNOWN_ERRORS = new Set([
                   </label>
                   <input type="number" [id]="f.key" [formControlName]="f.key" [step]="f.step"
                          class="w-full border rounded px-3 py-2 font-mono text-sm" />
-                  <p class="mt-1 text-xs text-gray-400">{{ ('risk.profile.' + f.key + '_help') | translate }}</p>
+                  <p class="mt-1 text-xs text-gray-500">{{ ('risk.profile.' + f.key + '_help') | translate }}</p>
                   @if (fieldErrors()[f.key]; as errs) {
                     <p class="mt-1 text-xs text-red-700">{{ errs.join(' ') }}</p>
                   }
@@ -93,7 +93,7 @@ const KNOWN_ERRORS = new Set([
                 <input type="checkbox" formControlName="strict_mode" class="rounded" />
                 {{ 'risk.profile.strict_mode' | translate }}
               </label>
-              <p class="mt-1 text-xs text-gray-400">{{ 'risk.profile.strict_mode_help' | translate }}</p>
+              <p class="mt-1 text-xs text-gray-500">{{ 'risk.profile.strict_mode_help' | translate }}</p>
             </div>
 
             <!-- permitted_asset_classes multi-select -->
@@ -237,7 +237,7 @@ const KNOWN_ERRORS = new Set([
                     @if (ks.reason) {
                       <p class="text-sm text-gray-600">{{ ('risk.reason.' + ks.reason) | translate }}</p>
                     }
-                    <p class="text-xs text-gray-400">{{ ks.created_at | date:'short' }}</p>
+                    <p class="text-xs text-gray-500">{{ ks.created_at | date:'short' }}</p>
                   </div>
                   <button type="button" (click)="onReleaseOther(ks)"
                           class="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 shrink-0">
@@ -271,7 +271,7 @@ const KNOWN_ERRORS = new Set([
                 <span class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 shrink-0">
                   {{ ('risk.event.' + e.type) | translate }}
                 </span>
-                <span class="text-xs text-gray-400 shrink-0">{{ e.created_at | date:'short' }}</span>
+                <span class="text-xs text-gray-500 shrink-0">{{ e.created_at | date:'short' }}</span>
                 <code class="text-xs text-gray-500 truncate">{{ e.details | json }}</code>
               </li>
             }

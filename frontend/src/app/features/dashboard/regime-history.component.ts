@@ -21,7 +21,7 @@ const MAX_SEGMENTS = 90;
     <div>
       <div class="mb-1 text-xs font-medium text-gray-500">{{ 'regime.history' | translate }}</div>
       @if (series().length === 0) {
-        <p class="text-xs text-gray-400">{{ 'regime.no_data' | translate }}</p>
+        <p class="text-xs text-gray-500">{{ 'regime.no_data' | translate }}</p>
       } @else {
         <div class="flex h-6 w-full gap-px overflow-hidden rounded border border-gray-200"
              role="img" [attr.aria-label]="ariaSummary()">

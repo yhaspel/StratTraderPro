@@ -16,8 +16,10 @@ import { TranslateModule } from '@ngx-translate/core';
 import { AuthStore } from '../../../abstraction/stores/auth.store';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
 import { OnboardingFacade } from '../../../abstraction/facades/onboarding.facade';
+import { TermsFacade } from '../../../abstraction/facades/terms.facade';
 import { ImpersonationBannerComponent } from '../../admin/impersonation-banner.component';
 import { ToastHostComponent } from '../ui/toast/toast-host.component';
+import { TermsGateComponent } from '../terms/terms-gate.component';
 
 interface NavItem {
   key: string;
@@ -29,7 +31,7 @@ interface NavItem {
   standalone: true,
   imports: [
     RouterLink, RouterLinkActive, RouterOutlet, TranslateModule,
-    ImpersonationBannerComponent, ToastHostComponent,
+    ImpersonationBannerComponent, ToastHostComponent, TermsGateComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -40,6 +42,7 @@ interface NavItem {
     </a>
 
     <app-toast-host />
+    <app-terms-gate />
     <app-impersonation-banner />
 
     <header role="banner" class="border-b border-slate-200 bg-white">
@@ -153,6 +156,7 @@ export class ShellComponent implements OnInit {
   private store = inject(AuthStore);
   private auth = inject(AuthFacade);
   readonly onboarding = inject(OnboardingFacade);
+  private terms = inject(TermsFacade);
 
   readonly menuOpen = signal(false);
   readonly drawerOpen = signal(false);
@@ -168,6 +172,7 @@ export class ShellComponent implements OnInit {
 
   ngOnInit(): void {
     void this.onboarding.load();
+    void this.terms.load(); // M11 §7.8 — blocking terms re-acceptance gate
   }
 
   navItems(): NavItem[] {

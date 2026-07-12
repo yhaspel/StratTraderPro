@@ -8,6 +8,7 @@ import { ShellComponent } from './shell.component';
 import { AuthStore } from '../../../abstraction/stores/auth.store';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
 import { OnboardingFacade } from '../../../abstraction/facades/onboarding.facade';
+import { TermsFacade } from '../../../abstraction/facades/terms.facade';
 
 describe('ShellComponent', () => {
   let authFacade: jasmine.SpyObj<AuthFacade>;
@@ -26,6 +27,17 @@ describe('ShellComponent', () => {
         { provide: AuthStore, useValue: { user: signal(user), isAuthenticated: signal(true) } },
         { provide: AuthFacade, useValue: authFacade },
         { provide: OnboardingFacade, useValue: { load, incomplete: signal(incomplete) } },
+        {
+          provide: TermsFacade,
+          useValue: {
+            load: jasmine.createSpy('termsLoad'),
+            needsAcceptance: signal(false),
+            terms: signal(null),
+            accepting: signal(false),
+            error: signal(null),
+            accept: jasmine.createSpy('accept'),
+          },
+        },
       ],
     });
     const fixture = TestBed.createComponent(ShellComponent);
