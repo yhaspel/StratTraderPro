@@ -75,7 +75,17 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
             </div>
           </div>
         } @else {
-          <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+          @if (admin.error(); as err) {
+            <p class="text-sm text-red-700" role="alert">
+              @if (err.code === 'MFA_REQUIRED') {
+                {{ 'admin.overview.kpis_mfa_required' | translate }}
+              } @else {
+                {{ 'admin.overview.kpis_error' | translate }}
+              }
+            </p>
+          } @else {
+            <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+          }
         }
       </section>
 

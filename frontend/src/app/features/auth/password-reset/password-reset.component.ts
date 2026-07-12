@@ -19,6 +19,11 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
         </div>
       } @else {
         <p class="mb-4 text-gray-600">{{ 'auth.reset.description' | translate }}</p>
+        @if (error()) {
+          <div role="alert" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            {{ 'auth.reset.error' | translate }}
+          </div>
+        }
         <form [formGroup]="form" (ngSubmit)="onSubmit()">
           <div class="mb-4">
             <label for="email" class="block text-sm font-medium mb-1">{{ 'auth.reset.email' | translate }}</label>
@@ -48,12 +53,18 @@ export class PasswordResetComponent {
 
   sent = signal(false);
   loading = signal(false);
+  error = signal(false);
 
   async onSubmit(): Promise<void> {
     if (this.form.invalid) return;
     this.loading.set(true);
-    await this.facade.passwordReset(this.form.getRawValue().email);
+    this.error.set(false);
+    const ok = await this.facade.passwordReset(this.form.getRawValue().email);
     this.loading.set(false);
-    this.sent.set(true);
+    if (ok) {
+      this.sent.set(true);
+    } else {
+      this.error.set(true);
+    }
   }
 }

@@ -292,7 +292,7 @@ export class OrdersComponent implements OnInit {
     broker: [''],
     status: [''],
     strategy: [''],
-    from: [this.today()],
+    from: [this.daysAgo(30)],
     to: [this.today()],
   });
 
@@ -357,5 +357,11 @@ export class OrdersComponent implements OnInit {
 
   private today(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private daysAgo(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
   }
 }

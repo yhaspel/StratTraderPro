@@ -22,6 +22,7 @@ import { CommonModule } from '@angular/common';
 import { TranslateModule } from '@ngx-translate/core';
 import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade';
 import { Strategy, WebhookConfig } from '../../../core/models/strategies.models';
+import { ToastService } from '../../shared/ui/toast/toast.service';
 
 @Component({
   selector: 'app-webhook-config-modal',
@@ -151,6 +152,7 @@ export class WebhookConfigModalComponent implements OnInit {
   @Output() closed = new EventEmitter<void>();
 
   private facade = inject(StrategiesFacade);
+  private toast = inject(ToastService);
 
   loading = signal(true);
   saving = signal(false);
@@ -248,7 +250,12 @@ export class WebhookConfigModalComponent implements OnInit {
     }
     this.rotating.set(true);
     try {
-      await this.facade.rotateWebhookSecret(this.strategy.id);
+      const res = await this.facade.rotateWebhookSecret(this.strategy.id);
+      if (res) {
+        this.toast.success('Webhook secret rotated. Copy the new secret now — it is shown only once.');
+      } else {
+        this.toast.error(this.facade.error()?.message ?? 'Failed to rotate webhook secret.');
+      }
     } finally {
       this.rotating.set(false);
     }

@@ -74,6 +74,9 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             </button>
           </form>
         }
+        @if (mfa.error(); as err) {
+          <p role="alert" class="mt-3 text-sm text-red-600">{{ err.message }}</p>
+        }
       </section>
 
       <!-- ========== Backup codes (only when MFA enabled) ========== -->
@@ -114,6 +117,9 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               </ul>
             </div>
           }
+          @if (mfa.error(); as err) {
+            <p role="alert" class="mt-3 text-sm text-red-600">{{ err.message }}</p>
+          }
         </section>
       }
 
@@ -133,6 +139,9 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             {{ 'security.sessions.revoke_all' | translate }}
           </button>
         </div>
+        @if (sessions.error(); as err) {
+          <p role="alert" class="mb-3 text-sm text-red-600">{{ err.message }}</p>
+        }
         @if (sessions.loading()) {
           <p class="text-gray-500">{{ 'common.loading' | translate }}</p>
         } @else if (sessions.sessions().length === 0) {
