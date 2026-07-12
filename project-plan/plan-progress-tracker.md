@@ -691,11 +691,23 @@ After today's spike close-out surfaced two account-side constraints — (a) IBKR
 
 ## Phase 11 — Hardening & Load Test
 
-**Status:** ⏳ Pending
-**Started:** —
-**Completed:** —
+**Status:** ✅ Implemented (PR #32, squash `72ed231`, tag `v0.11.0-rc.1` local)
+**Started:** 2026-07-12
+**Completed:** 2026-07-12
 
-> See `11-hardening-and-load-test.md` for full spec.
+M11 (Hardening, Security, Load Test & Docs) merged to `main`, all 8 CI jobs green.
+Key deliverables: **§7.0 SERVICE_ROLE image-entrypoint dispatch** (discharges BUG-011
+in code — unset/bogus role exits non-zero, never falls back to `web`; AC-11-14 [CI],
+cutover pending as AC-11-15 [LIVE]); `pip-audit`+`pnpm audit` gates + waivers; GDPR
+export/delete + Terms (`users.0005`); CSP report-only + wired log scrubber; OWASP
+pentest regressions + ASVS L2 evidence; axe-core a11y CI gate (fixed a real contrast
+defect) + bundle gate; SLO burn-rate alerts + KEK/JWT rotation rehearsals; Locust
+harness + chaos scripts (restore-drill + Day-6 role-removal ran green). Full load run +
+destructive chaos + prod/R2/Cloudflare/cutover are documented Section-B operator steps.
+The 50-user L1 flatten closes deferred **AC-08-11** once run on a dedicated stack.
+
+> Full AC-by-AC + gauntlet + Section B: `M11-EXECUTION-REPORT.md`. Spec:
+> `11-hardening-and-load-test.md`.
 
 ---
 

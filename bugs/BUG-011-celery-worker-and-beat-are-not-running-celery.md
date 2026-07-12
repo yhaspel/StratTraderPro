@@ -123,11 +123,18 @@ Note what had never executed in production until now: **`apps.risk.tasks.daily_l
 
 ## Follow-up
 
-- **The start commands must not live only in a Railway text box.** They are the
-  reason the platform's async tier exists, and a blank field silently substitutes a
-  web server. Move them into `railway.json`/config-as-code, or bake role-dispatching
-  into the image entrypoint, so the service's identity is version-controlled and
-  reviewable.
+- ✅ **RESOLVED IN CODE (M11 §7.0, merged `72ed231` / PR #32, 2026-07-12).** The start
+  commands no longer live only in a Railway text box: `docker/entrypoint.sh` bakes
+  **role-dispatch on a required `SERVICE_ROLE`** into the image. Unset or unrecognised →
+  **`exit 1` with a loud message, never a `web` fallback** — the blank field now *crashes
+  visibly* instead of silently substituting a web server. The `railway.json` alternative was
+  **rejected** (ADR-103): it version-controls the value but leaves the dangerous default alive.
+  Compose drives all six backend-image services through the dispatcher; a CI job
+  (`entrypoint-dispatch`) proves the seven roles resolve to pinned literals, `SERVICE_ROLE=web`
+  boots gunicorn, and an unset role crashes. **The operator cutover (set `SERVICE_ROLE` on every
+  Railway service, delete every Custom Start Command) is the remaining [LIVE] step, AC-11-15** —
+  until then the image change is inert (an existing start command overrides the image `CMD`).
+  Procedure: `docs/ops/service-role-cutover.md`; design: `docs/adr/103-service-role-dispatch.md`.
 - Add an operational check that each service is running the process it claims to be
   (e.g. assert `up{job="worker"} == 1` at M12 sign-off, now that `TargetDown` exists).
 
