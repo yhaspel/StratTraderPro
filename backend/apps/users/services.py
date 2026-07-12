@@ -19,8 +19,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.audit.events import AuthEventType as EventType
 
 from .metrics import (
+    EMAIL_SEND_TOTAL,
     FAMILY_REVOCATIONS_TOTAL,
     REFRESH_TOTAL,
+    EmailSendResult,
     RefreshResult,
 )
 from .models import (
@@ -235,13 +237,23 @@ def clear_failed_logins(email: str) -> None:
 # ---------------------------------------------------------------------------
 # Email
 # ---------------------------------------------------------------------------
-def _send_templated(*, to: str, subject: str, template_base: str, context: dict) -> None:
+def _send_templated(*, to: str, subject: str, template_base: str, context: dict) -> bool:
     """
-    Render and send a transactional email. Network failures (Resend down, 422
-    on an unverified test-sender recipient, SMTP timeout, …) are LOGGED but
-    NOT raised — the user-facing endpoint must not 500 just because the
-    provider rejected delivery. The matching AuthEvent is still recorded by
-    the caller so we can replay sends later if needed.
+    Render and send a transactional email. Returns True if the provider accepted
+    the message, False if it did not.
+
+    Network failures (Resend down, 403 because DEFAULT_FROM_EMAIL is still the
+    `onboarding@resend.dev` sandbox sender and the recipient is not the account
+    owner, SMTP timeout, …) are LOGGED and COUNTED but NOT raised — the
+    user-facing endpoint must not 500 just because the provider rejected
+    delivery. The matching AuthEvent is still recorded by the caller so we can
+    replay sends later if needed.
+
+    Swallowing the exception used to also swallow the *signal*: a registration
+    whose verification email was rejected still returned 201 and nothing said
+    otherwise. Callers now get a boolean, and every attempt increments
+    auth_email_send_total{template,result} so a broken sender is visible in
+    Grafana instead of being discovered by a user who never got their email.
     """
     text = render_to_string(f"email/{template_base}.txt", context)
     html = render_to_string(f"email/{template_base}.html", context)
@@ -256,11 +268,18 @@ def _send_templated(*, to: str, subject: str, template_base: str, context: dict)
             "transactional email send failed",
             extra={"template": template_base, "to": to},
         )
+        EMAIL_SEND_TOTAL.labels(
+            template=template_base, result=EmailSendResult.ERROR
+        ).inc()
+        return False
+    EMAIL_SEND_TOTAL.labels(template=template_base, result=EmailSendResult.OK).inc()
+    return True
 
 
-def send_verification_email(user, raw_token: str) -> None:
+def send_verification_email(user, raw_token: str) -> bool:
+    """Returns False when the provider rejected the message (nothing was sent)."""
     link = f"{settings.FRONTEND_BASE_URL}/verify-email?token={raw_token}"
-    _send_templated(
+    return _send_templated(
         to=user.email,
         subject="Verify your StratTraderPro account",
         template_base="verify_email",
@@ -268,9 +287,9 @@ def send_verification_email(user, raw_token: str) -> None:
     )
 
 
-def send_password_reset_email(user, raw_token: str) -> None:
+def send_password_reset_email(user, raw_token: str) -> bool:
     link = f"{settings.FRONTEND_BASE_URL}/password-reset/confirm?token={raw_token}"
-    _send_templated(
+    return _send_templated(
         to=user.email,
         subject="Reset your StratTraderPro password",
         template_base="password_reset",

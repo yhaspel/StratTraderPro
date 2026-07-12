@@ -214,9 +214,18 @@ class ResendVerificationView(APIView):
         operation_id="auth_resend_verification",
         tags=["auth"],
         summary="Resend verification email",
-        description="Idempotent. Always returns 200 to avoid email enumeration.",
+        description=(
+            "Idempotent. Returns 200 whether or not the address maps to an "
+            "unverified account, to avoid email enumeration. Returns 503 "
+            "EMAIL_SEND_FAILED only when the mail provider rejected a message we "
+            "genuinely tried to send."
+        ),
         request=ResendVerificationSerializer,
-        responses={200: StatusEnvelopeSerializer, 429: ErrorEnvelopeSerializer},
+        responses={
+            200: StatusEnvelopeSerializer,
+            429: ErrorEnvelopeSerializer,
+            503: ErrorEnvelopeSerializer,
+        },
         examples=[
             OpenApiExample(
                 "Resend request",
@@ -237,11 +246,30 @@ class ResendVerificationView(APIView):
         user = User.objects.filter(email=email).first()
         if user and not user.is_verified:
             _, raw = EmailVerificationToken.issue(user)
-            services.send_verification_email(user, raw)
+            sent = services.send_verification_email(user, raw)
             services.record_event(
-                EventType.RESEND_VERIFICATION, user=user, request=request
+                EventType.RESEND_VERIFICATION,
+                user=user,
+                request=request,
+                metadata={"sent": sent},
             )
-        # Always 200 to avoid email enumeration.
+            if not sent:
+                # The provider REJECTED the message — no email exists, and telling
+                # the user "ok" here is a lie they can only discover by waiting for
+                # an email that will never arrive. Report it.
+                #
+                # Enumeration note: this reply is only reachable when the address
+                # belongs to a real unverified account AND the provider is failing.
+                # While the sender is healthy every caller still gets an identical
+                # 200, so the enumeration guarantee holds in steady state; during a
+                # provider outage we accept a narrow leak (rate-limited to 3/min per
+                # address) in exchange for not lying to the user.
+                return fail(
+                    "EMAIL_SEND_FAILED",
+                    "We couldn't send the verification email. Please try again shortly.",
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+        # Always 200 otherwise, to avoid email enumeration.
         return ok({"status": "ok"})
 
 

@@ -6,14 +6,18 @@ backend. Rate-limiting is disabled by default (test settings).
 from __future__ import annotations
 
 from datetime import timedelta
+from smtplib import SMTPException
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.mail import EmailMultiAlternatives
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
+from apps.users.metrics import EMAIL_SEND_TOTAL
 from apps.users.models import (
     EmailVerificationToken,
     FailedLoginAttempt,
@@ -24,9 +28,16 @@ from apps.users.services import (
     is_locked,
     issue_token_pair,
     record_failed_login,
+    send_verification_email,
 )
 
 User = get_user_model()
+
+
+def _counter_value(template: str, result: str) -> float:
+    """Read a live prometheus_client Counter child (they are process-global, so
+    tests must assert on a DELTA, never on an absolute value)."""
+    return EMAIL_SEND_TOTAL.labels(template=template, result=result)._value.get()
 
 # Consistent test password that meets policy.
 GOOD_PW = "SecurePass123!"
@@ -430,3 +441,100 @@ class RateLimitKeyTests(TestCase):
         self.assertEqual(_email_keyer("grp", _Req(b'{"email": "A@Example.com"}')), "a@example.com")
         self.assertEqual(_email_keyer("grp", _Req(b"")), "anon")
         self.assertEqual(_email_keyer("grp", _Req(b"not json")), "anon")
+
+
+# =========================================================================
+# Transactional email delivery — failures must be VISIBLE, not swallowed
+#
+# The provider (Resend) rejects a send whenever DEFAULT_FROM_EMAIL is still the
+# `onboarding@resend.dev` sandbox sender and the recipient is not the account
+# owner — exactly the production configuration that made every new-user
+# verification email vanish while /register happily returned 201. The send is
+# still non-fatal (the endpoint must not 500 on a provider outage), but it now
+# reports: a boolean to the caller, an auth_email_send_total{result="error"}
+# increment, and a real 503 out of /auth/resend-verification/.
+# =========================================================================
+class EmailSendFailureTests(TestCase):
+    """`fail_silently=False` send() raising == provider rejected the message."""
+
+    @staticmethod
+    def _boom(*_args, **_kwargs):
+        raise SMTPException("provider rejected: sandbox sender, foreign recipient")
+
+    def test_send_verification_email_returns_false_when_provider_rejects(self):
+        user = _create_user(email="reject@example.com", verified=False)
+        with patch.object(EmailMultiAlternatives, "send", self._boom):
+            sent = send_verification_email(user, "raw-token")
+        self.assertFalse(sent)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_send_verification_email_returns_true_on_success(self):
+        user = _create_user(email="ok@example.com", verified=False)
+        self.assertTrue(send_verification_email(user, "raw-token"))
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_failed_send_increments_error_counter(self):
+        user = _create_user(email="counted@example.com", verified=False)
+        before = _counter_value("verify_email", "error")
+        with patch.object(EmailMultiAlternatives, "send", self._boom):
+            send_verification_email(user, "raw-token")
+        self.assertEqual(_counter_value("verify_email", "error"), before + 1)
+
+    def test_successful_send_increments_ok_counter(self):
+        user = _create_user(email="counted-ok@example.com", verified=False)
+        before = _counter_value("verify_email", "ok")
+        send_verification_email(user, "raw-token")
+        self.assertEqual(_counter_value("verify_email", "ok"), before + 1)
+
+    def test_register_still_201_when_email_send_fails(self):
+        """A provider outage must never cost the user their account."""
+        with patch.object(EmailMultiAlternatives, "send", self._boom):
+            resp = self.client.post(
+                f"{API}auth/register/",
+                {"email": "still@example.com", "display_name": "Still", "password": GOOD_PW},
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(User.objects.filter(email="still@example.com").exists())
+
+    def test_resend_verification_reports_503_when_send_fails(self):
+        """Fail-before/pass-after: this returned a lying 200 before the fix."""
+        _create_user(email="unverified@example.com", verified=False)
+        with patch.object(EmailMultiAlternatives, "send", self._boom):
+            resp = self.client.post(
+                f"{API}auth/resend-verification/",
+                {"email": "unverified@example.com"},
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 503)
+        self.assertEqual(resp.json()["error"]["code"], "EMAIL_SEND_FAILED")
+
+    def test_resend_verification_200_when_send_succeeds(self):
+        _create_user(email="unverified2@example.com", verified=False)
+        resp = self.client.post(
+            f"{API}auth/resend-verification/",
+            {"email": "unverified2@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_resend_verification_unknown_email_still_200(self):
+        """Enumeration guarantee holds: unknown address is indistinguishable."""
+        resp = self.client.post(
+            f"{API}auth/resend-verification/",
+            {"email": "ghost@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_resend_verification_already_verified_still_200(self):
+        _create_user(email="done@example.com", verified=True)
+        resp = self.client.post(
+            f"{API}auth/resend-verification/",
+            {"email": "done@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)

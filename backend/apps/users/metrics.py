@@ -79,6 +79,30 @@ PasswordResetStep = type(
 )
 
 
+# ---------------------------------------------------------------------------
+# Transactional email delivery
+# ---------------------------------------------------------------------------
+# services._send_templated() deliberately swallows provider errors so a Resend
+# outage (or a 403 from an unverified sending domain) never 500s the endpoint
+# the user is standing on. The cost of that choice is silence: a registration
+# whose verification email was rejected still returns 201, and nothing anywhere
+# says so. This counter is that missing signal — alert on
+# rate(auth_email_send_total{result="error"}[15m]) > 0.
+EMAIL_SEND_TOTAL = Counter(
+    "auth_email_send_total",
+    "Transactional email sends by template and outcome.",
+    labelnames=("template", "result"),
+)
+EmailSendResult = type(
+    "EmailSendResult",
+    (),
+    {
+        "OK": "ok",        # provider accepted the message
+        "ERROR": "error",  # provider rejected / network failed — nothing was sent
+    },
+)
+
+
 __all__ = [
     "LOGIN_TOTAL",
     "LoginResult",
@@ -87,4 +111,6 @@ __all__ = [
     "FAMILY_REVOCATIONS_TOTAL",
     "PASSWORD_RESET_TOTAL",
     "PasswordResetStep",
+    "EMAIL_SEND_TOTAL",
+    "EmailSendResult",
 ]
