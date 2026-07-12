@@ -44,7 +44,9 @@ class SizingTests(TestCase):
         self.profile = _profile(self.user)
 
     def _inp(self, **kw):
-        base = dict(requested_qty=Decimal("10"), side="BUY", symbol="AAPL",
+        # requested_qty=0 ("unspecified") so these tests exercise the sizing MATH
+        # without the RISK-3 requested-qty clamp (covered by its own tests below).
+        base = dict(requested_qty=Decimal("0"), side="BUY", symbol="AAPL",
                     price=Decimal("100"), equity=Decimal("100000"), regime_label="BULL")
         base.update(kw)
         return SizingInputs(**base)
@@ -84,6 +86,25 @@ class SizingTests(TestCase):
         self.assertGreaterEqual(boosted, base)
         self.assertLessEqual(cut, base)
 
+    def test_sentiment_cut_factor_is_half(self):
+        # RISK-4 / AC-08-6 (OQ-1 ruling): long into sentiment < -0.5 ⇒ ×0.5, not ×0.70.
+        # Use a smaller position so max_position_pct is not the binding constraint.
+        base = compute_size(self._inp(regime_label="BEAR", sentiment_polarity=0.0), self.profile).qty
+        cut = compute_size(self._inp(regime_label="BEAR", sentiment_polarity=-0.6), self.profile).qty
+        self.assertEqual(cut, base * Decimal("0.5"))
+
+    def test_leverage_cap_clamps_notional(self):
+        # RISK-2: leverage_cap=1.0 caps notional at equity → qty ≤ equity/price.
+        p = _profile(create_user(email="lev@example.com"), leverage_cap=Decimal("1.0"),
+                     max_position_pct=Decimal("50"), risk_per_trade_pct=Decimal("5"))
+        r = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000")), p)
+        self.assertLessEqual(r.qty, Decimal("1000"))  # 100000 * 1.0 / 100
+
+    def test_requested_qty_clamps_down(self):
+        # RISK-3: a small requested_qty caps the computed size; it never sizes up.
+        capped = compute_size(self._inp(requested_qty=Decimal("3")), self.profile).qty
+        self.assertEqual(capped, Decimal("3"))
+
     def test_sentiment_boost_respects_position_clamp(self):
         # The +10% sentiment boost must not breach max_position_pct (200 here).
         r = compute_size(self._inp(sentiment_polarity=0.9), self.profile)
@@ -92,7 +113,7 @@ class SizingTests(TestCase):
     def test_soft_stop_halves(self):
         normal = compute_size(self._inp(intraday_dd_pct=0.0), self.profile).qty
         stopped = compute_size(self._inp(intraday_dd_pct=6.0), self.profile).qty  # >5% soft stop
-        self.assertLessEqual(stopped, normal)
+        self.assertEqual(stopped, normal * Decimal("0.5"))
 
 
 class KillSwitchEngineTests(TestCase):
@@ -294,12 +315,64 @@ class ProcessAlertSizingTests(TestCase):
         _profile(self.user)  # risk 1%, max_position 20%
         from unittest import mock
 
+        # Request a large qty so the sizing clamp-down (not the RISK-3 requested
+        # cap) is what governs the final size.
         with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
-            self._post(valid_alert(symbol="AAPL", qty=1, idempotency_key="sz-1"))
+            self._post(valid_alert(symbol="AAPL", qty=1000, idempotency_key="sz-1"))
         order = Order.objects.get()
         # clamped by max_position_pct: 100000*20%/100(price default) = 200
         self.assertEqual(order.qty, Decimal("200"))
         self.assertTrue(SizingDecision.objects.filter(order=order, result="OK").exists())
+
+    def test_requested_qty_caps_order_qty(self):
+        # RISK-3: an alert qty=1 with a profile is NOT inflated to 200 — capped at 1.
+        _profile(self.user)
+        from unittest import mock
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(symbol="AAPL", qty=1, idempotency_key="rq-1"))
+        self.assertEqual(Order.objects.get().qty, Decimal("1"))
+
+    def test_soft_stop_fires_on_real_intraday_drawdown(self):
+        # RISK-1: intraday DD from equity vs last_equity trips the soft-stop (halves).
+        _profile(self.user)
+        from unittest import mock
+
+        with mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=fake_factory(equity=Decimal("90000"), last_equity=Decimal("100000")),
+        ):
+            self._post(valid_alert(symbol="AAPL", qty=1000, idempotency_key="ss-1"))
+        dec = SizingDecision.objects.get()
+        self.assertTrue(dec.inputs.get("soft_stop_applied"))
+        # 90000*20%/100 = 180 → ×0.5 soft-stop = 90.
+        self.assertEqual(Order.objects.get().qty, Decimal("90"))
+
+    def test_asset_class_not_permitted_rejects(self):
+        # RISK-2: an asset class outside permitted_asset_classes is rejected.
+        _profile(self.user, permitted_asset_classes=["OPTION"])
+        from unittest import mock
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(symbol="AAPL", qty=1, idempotency_key="ac-1"))
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "SIZING_ASSET_CLASS_BLOCKED")
+
+    def test_max_concurrent_rejects_new_symbol(self):
+        # RISK-2: at max_concurrent open positions, a new symbol is rejected.
+        from apps.brokers.models import BrokerAccount
+        _profile(self.user, max_concurrent=2)
+        ba = BrokerAccount.objects.filter(user=self.user).first()
+        Position.objects.create(user=self.user, broker_account=ba, symbol="MSFT", qty=Decimal("10"))
+        Position.objects.create(user=self.user, broker_account=ba, symbol="TSLA", qty=Decimal("5"))
+        from unittest import mock
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(symbol="AAPL", qty=1, idempotency_key="mc-1"))
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "SIZING_MAX_CONCURRENT")
 
     def test_crisis_rejects(self):
         _profile(self.user)
@@ -329,7 +402,7 @@ class ProcessAlertSizingTests(TestCase):
             "apps.brokers.services.build_adapter",
             side_effect=fake_factory(buying_power=Decimal("200000"), equity=Decimal("100000")),
         ):
-            self._post(valid_alert(symbol="AAPL", qty=1, idempotency_key="eq-1"))
+            self._post(valid_alert(symbol="AAPL", qty=1000, idempotency_key="eq-1"))
         # 100000*20%/100 = 200 (would be 400 if sized off buying_power).
         self.assertEqual(Order.objects.get().qty, Decimal("200"))
 
@@ -369,7 +442,7 @@ class ProcessAlertSizingTests(TestCase):
         with mock.patch(
             "apps.brokers.services.build_adapter", side_effect=fake_factory(quote_price=None)
         ):
-            self._post(valid_alert(symbol="AAPL", qty=1, idempotency_key="lp-1",
+            self._post(valid_alert(symbol="AAPL", qty=1000, idempotency_key="lp-1",
                                    order_type="LMT", limit_price="100"))
         order = Order.objects.get()
         self.assertNotEqual(order.status, Order.Status.REJECTED)
@@ -403,10 +476,20 @@ class RiskApiTests(TestCase):
         cache.clear()
         self.user = create_user()
 
-    def test_profile_get_creates_default(self):
+    def test_profile_get_returns_defaults_without_persisting(self):
+        # RISK-3: GET returns defaults but must NOT create a row (a persisted
+        # profile turns sizing on; merely viewing the page should not).
         resp = self.client.get(f"{API}/profile/", **auth_headers(self.user))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["data"]["permitted_asset_classes"], ["STOCK", "ETF"])
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+
+    def test_profile_put_creates_row(self):
+        # First write creates it lazily.
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+        self.client.put(f"{API}/profile/", data={"risk_per_trade_pct": 2.0},
+                        content_type="application/json", **auth_headers(self.user))
+        self.assertTrue(RiskProfile.objects.filter(user=self.user).exists())
 
     def test_profile_validation(self):
         # risk_per_trade_pct > 5 rejected (AC-08-2)

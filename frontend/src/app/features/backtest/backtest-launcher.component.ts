@@ -247,7 +247,11 @@ const KNOWN_ERRORS = new Set([
             </thead>
             <tbody>
               @for (r of facade.runs(); track r.id) {
-                <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <tr class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
+                    tabindex="0" role="button"
+                    [attr.aria-label]="r.strategy_name + ' — ' + r.symbols.join(', ')"
+                    (keydown.enter)="onOpen(r.id)"
+                    (keydown.space)="$event.preventDefault(); onOpen(r.id)">
                   <td class="px-3 py-2 whitespace-nowrap cursor-pointer" (click)="onOpen(r.id)">{{ r.created_at | date:'short' }}</td>
                   <td class="px-3 py-2 font-medium cursor-pointer" (click)="onOpen(r.id)">{{ r.strategy_name }}</td>
                   <td class="px-3 py-2 font-mono text-xs cursor-pointer" (click)="onOpen(r.id)">{{ r.symbols.join(', ') }}</td>

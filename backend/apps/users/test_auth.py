@@ -380,3 +380,53 @@ class LettersAndDigitsValidatorTest(TestCase):
         v = LettersAndDigitsValidator()
         with self.assertRaises(ValidationError):
             v.validate("abcdefghijkl")
+
+
+# =========================================================================
+# C1 — auth rate-limit key: per-email buckets, not one global "anon"
+# =========================================================================
+@override_settings(RATELIMIT_ENABLE=True)
+class RateLimitKeyTests(TestCase):
+    """C1: each submitted email must get its own login-rate-limit bucket.
+
+    Before the fix, ``_email_keyer`` read ``request.data`` on the raw Django
+    ``HttpRequest``, raised, and collapsed every email into the single
+    ``"anon"`` bucket — so five attempts on one email throttled *everyone*.
+    Login rate is 5/m.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _login(self, email):
+        return self.client.post(
+            f"{API}auth/login/",
+            {"email": email, "password": "wrong-password"},
+            content_type="application/json",
+        )
+
+    def test_two_emails_get_independent_buckets(self):
+        # Exhaust email A's 5/m bucket; the 6th is limited.
+        for _ in range(5):
+            self.assertNotEqual(self._login("alice@example.com").status_code, 429)
+        self.assertEqual(self._login("alice@example.com").status_code, 429)
+        # Email B is a *different* bucket — its first request is NOT limited.
+        # (Under the old bug both share "anon", so B would be the 7th and 429.)
+        self.assertNotEqual(self._login("bob@example.com").status_code, 429)
+
+    def test_email_keyer_returns_distinct_keys(self):
+        from apps.users.views import _email_keyer
+
+        class _Req:
+            def __init__(self, body):
+                self.body = body
+
+        a = _email_keyer("grp", _Req(b'{"email": "a@example.com"}'))
+        b = _email_keyer("grp", _Req(b'{"email": "b@example.com"}'))
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, "a@example.com")
+        # Case-insensitive; empty/garbage body falls back to "anon" (no raise).
+        self.assertEqual(_email_keyer("grp", _Req(b'{"email": "A@Example.com"}')), "a@example.com")
+        self.assertEqual(_email_keyer("grp", _Req(b"")), "anon")
+        self.assertEqual(_email_keyer("grp", _Req(b"not json")), "anon")

@@ -270,6 +270,12 @@ FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:4444")
 # without redeploying. See plan-progress-tracker.md M02 §15.
 MFA_ENABLED = env.bool("MFA_ENABLED", default=True)
 
+# C3 — step-up MFA brute-force throttle (verify_mfa_code). After this many
+# failures within the window, step-up checks are rejected pre-verification and a
+# security audit event is written.
+MFA_STEPUP_MAX_FAILURES = env.int("MFA_STEPUP_MAX_FAILURES", default=5)
+MFA_STEPUP_WINDOW_SECONDS = env.int("MFA_STEPUP_WINDOW_SECONDS", default=900)
+
 # Fernet key-encryption key (KEK) for MFA secrets at rest. In dev/test we
 # derive a deterministic KEK from SECRET_KEY so the test suite + a fresh
 # `runserver` work without provisioning. In prod, FERNET_KEK MUST be a real
@@ -748,3 +754,7 @@ DEBUG_ERROR_ENDPOINT_ENABLED = env.bool("DEBUG_ERROR_ENDPOINT_ENABLED", default=
 # ---------------------------------------------------------------------------
 METRICS_BASIC_AUTH_USERNAME = env("METRICS_BASIC_AUTH_USERNAME", default="")
 METRICS_BASIC_AUTH_PASSWORD = env("METRICS_BASIC_AUTH_PASSWORD", default="")
+# M1: when True, /metrics refuses to serve (401) if basic-auth creds are unset,
+# instead of falling open. Default False (dev/test stay open); prod sets True so
+# an unconfigured deploy fails CLOSED rather than exposing metrics to the world.
+METRICS_REQUIRE_AUTH = env.bool("METRICS_REQUIRE_AUTH", default=False)

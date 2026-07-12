@@ -5,7 +5,7 @@
  * realtime updates over the DashboardWsService via DashboardFacade. Everything
  * unsubscribes on destroy.
  */
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -15,11 +15,13 @@ import { ApiError } from '../../core/models/auth.models';
 import { StreamStatus } from '../../core/models/brokers.models';
 import { AuthFacade } from '../../abstraction/facades/auth.facade';
 import { DashboardFacade } from '../../abstraction/facades/dashboard.facade';
+import { OnboardingFacade } from '../../abstraction/facades/onboarding.facade';
 import { RegimeFacade } from '../../abstraction/facades/regime.facade';
 import { RiskFacade } from '../../abstraction/facades/risk.facade';
 import { SentimentFacade } from '../../abstraction/facades/sentiment.facade';
 import { RegimeBadgeComponent } from './regime-badge.component';
 import { SentimentPanelComponent } from './sentiment-panel.component';
+import { OnboardingChecklistComponent } from '../shared/onboarding/onboarding-checklist.component';
 
 /** Risk error codes with a dedicated translated message. */
 const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', 'UNKNOWN']);
@@ -27,7 +29,7 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent, OnboardingChecklistComponent],
   template: `
     <!-- ========== Halt banner (any active kill switch) ========== -->
     @if (risk.haltActive()) {
@@ -58,6 +60,21 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
         </div>
       </div>
 
+      <!-- ========== Getting-started checklist (empty state, AC-10.5-5) ========== -->
+      @if (onboarding.incomplete()) {
+        <app-onboarding-checklist />
+      }
+
+      <!-- Honest 403: until MFA is enrolled every data endpoint 403s — say so
+           once, rather than letting each panel lie with "No data yet". -->
+      @if (mfaRequired()) {
+        <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+          <a routerLink="/settings/security/mfa/setup" class="font-medium underline">
+            {{ 'dashboard.mfa_required' | translate }}
+          </a>
+        </div>
+      }
+
       <!-- ========== Market sentiment (M07) ========== -->
       <app-sentiment-panel />
 
@@ -74,7 +91,11 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
       <section>
         <h2 class="text-lg font-semibold mb-3">{{ 'dashboard.broker_status.title' | translate }}</h2>
         @if (facade.brokerStatus().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'dashboard.broker_status.empty' | translate }}</p>
+          @if (mfaRequired()) {
+            <p class="text-sm text-amber-700">{{ 'dashboard.requires_mfa' | translate }}</p>
+          } @else {
+            <p class="text-sm text-gray-500">{{ 'dashboard.broker_status.empty' | translate }}</p>
+          }
         } @else {
           <div class="flex flex-wrap gap-3">
             @for (bs of facade.brokerStatus(); track bs.id) {
@@ -100,7 +121,11 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
         @if (facade.loading()) {
           <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
         } @else if (facade.positions().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'dashboard.positions.empty' | translate }}</p>
+          @if (mfaRequired()) {
+            <p class="text-sm text-amber-700">{{ 'dashboard.requires_mfa' | translate }}</p>
+          } @else {
+            <p class="text-sm text-gray-500">{{ 'dashboard.positions.empty' | translate }}</p>
+          }
         } @else {
           <table class="w-full border border-gray-200 text-sm">
             <thead class="bg-gray-50 text-left">
@@ -135,7 +160,11 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
       <section>
         <h2 class="text-lg font-semibold mb-3">{{ 'dashboard.fills.title' | translate }}</h2>
         @if (facade.fills().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'dashboard.fills.empty' | translate }}</p>
+          @if (mfaRequired()) {
+            <p class="text-sm text-amber-700">{{ 'dashboard.requires_mfa' | translate }}</p>
+          } @else {
+            <p class="text-sm text-gray-500">{{ 'dashboard.fills.empty' | translate }}</p>
+          }
         } @else {
           <ul class="divide-y border border-gray-200 rounded">
             @for (f of facade.fills(); track f.id) {
@@ -208,7 +237,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   sentiment = inject(SentimentFacade);
   risk = inject(RiskFacade);
   auth = inject(AuthFacade);
+  onboarding = inject(OnboardingFacade);
   private fb = inject(FormBuilder);
+
+  /** True when MFA is not yet enrolled — the reason every data panel 403s
+   * (live-verified). Drives the honest "enable 2FA" state instead of the
+   * misleading "No data yet" empties. */
+  readonly mfaRequired = computed(() => this.onboarding.status()?.mfa_enrolled === false);
 
   readonly isProd = environment.production;
   toast = signal(false);
@@ -222,6 +257,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    void this.onboarding.load(); // refresh getting-started state on each visit (AC-10.5-5)
     void this.facade.loadSnapshot();
     this.facade.start();
     void this.regime.loadCurrent();

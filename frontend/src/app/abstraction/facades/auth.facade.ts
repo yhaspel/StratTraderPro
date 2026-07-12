@@ -1,17 +1,19 @@
 /** Auth facade — orchestrates API calls, store updates, and navigation. */
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthApi } from '../../core/services/auth.api';
 import { AuthStore } from '../stores/auth.store';
 import { ApiError, AuthTokenPair, LoginResult } from '../../core/models/auth.models';
 import { environment } from '../../../environments/environment';
+import { DashboardWsService } from '../../core/services/ws.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private api = inject(AuthApi);
   private store = inject(AuthStore);
   private router = inject(Router);
+  private ws = inject(DashboardWsService);
 
   // Expose store signals for templates
   readonly user = this.store.user;
@@ -20,6 +22,23 @@ export class AuthFacade {
   readonly mfaToken = this.store.mfaToken;
   readonly isAuthenticated = this.store.isAuthenticated;
   readonly isMfaPending = this.store.isMfaPending;
+
+  // Whether Google sign-in is configured + enabled in THIS deploy. Starts null
+  // ("unknown"); the Google button stays hidden until confirmed true, so an
+  // unconfigured deploy never shows a button that dead-ends on 503 (§Google fix).
+  private readonly _googleAvailable = signal<boolean | null>(null);
+  readonly googleAvailable = this._googleAvailable.asReadonly();
+
+  /** Probe the backend once for Google-OAuth availability (idempotent). */
+  async loadGoogleAvailability(): Promise<void> {
+    if (this._googleAvailable() !== null) { return; }
+    try {
+      const res = await firstValueFrom(this.api.oauthGoogleAvailable());
+      this._googleAvailable.set(!!res.data?.enabled);
+    } catch {
+      this._googleAvailable.set(false); // fail safe: hide rather than dead-end
+    }
+  }
 
   async register(email: string, displayName: string, password: string): Promise<boolean> {
     this.store.setLoading();
@@ -192,6 +211,19 @@ export class AuthFacade {
     await this.router.navigate(['/login']);
   }
 
+  /** M10.5 §7.1/AC-10.5-3 — user-initiated sign-out from the shell user menu:
+   * tears down the shared dashboard WebSocket (C-FE-4), revokes on the server
+   * (best-effort), clears auth state, and lands on the public landing ("/"). */
+  async signOut(): Promise<void> {
+    this.ws.forceDisconnect();
+    const refresh = this.store.refreshToken();
+    if (refresh) {
+      try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
+    }
+    this.store.clearAuth();
+    await this.router.navigate(['/']);
+  }
+
   async refreshSession(): Promise<boolean> {
     const refresh = this.store.refreshToken();
     if (!refresh) return false;
@@ -243,8 +275,11 @@ export class AuthFacade {
   }
 
   private handleError(e: unknown): void {
-    const err = (e as { error?: { error?: ApiError } })?.error?.error;
-    if (err) {
+    // C-FE-3: read the standardized `appError` envelope the errorInterceptor
+    // attaches (same convention as every other facade), not the raw
+    // `e.error.error`. Falls back to UNKNOWN, which has an en.json key.
+    const err = (e as { appError?: { apiError?: ApiError } })?.appError?.apiError;
+    if (err?.code) {
       this.store.setError(err);
     } else {
       this.store.setError({ code: 'UNKNOWN', message: 'An unexpected error occurred.' });

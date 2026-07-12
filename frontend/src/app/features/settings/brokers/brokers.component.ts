@@ -9,6 +9,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiError } from '../../../core/models/auth.models';
 import {
@@ -36,7 +37,7 @@ const KNOWN_ERRORS = new Set([
 @Component({
   selector: 'app-brokers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe],
+  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RouterLink],
   template: `
     <div class="mx-auto max-w-3xl p-6 space-y-8">
       <h1 class="text-2xl font-bold">{{ 'brokers.title' | translate }}</h1>
@@ -174,7 +175,7 @@ const KNOWN_ERRORS = new Set([
         <h2 class="text-lg font-semibold mb-1">{{ 'brokers.connect.title' | translate }}</h2>
         <p class="text-sm text-gray-600 mb-4">
           {{ 'brokers.connect.help' | translate }}
-          <a href="https://alpaca.markets/docs/trading/paper-trading/" target="_blank" rel="noopener noreferrer"
+          <a routerLink="/help/alpaca-paper-connect"
              class="text-blue-600 hover:underline">{{ 'brokers.connect.help_link' | translate }}</a>
         </p>
 
@@ -221,13 +222,17 @@ const KNOWN_ERRORS = new Set([
       </section>
 
       <!-- ========== Connect TradeStation ========== -->
+      <!-- §7.9: TradeStation is not enabled in any deployed config (flag OFF,
+           M05 follow-up). Don't show a button that looks functional — disable it
+           and say so honestly rather than 404/500 on click. -->
       <section class="border rounded-lg p-6">
         <h2 class="text-lg font-semibold mb-1">{{ 'brokers.connect_tradestation.title' | translate }}</h2>
         <p class="text-sm text-gray-600 mb-4">{{ 'brokers.connect_tradestation.help' | translate }}</p>
-        <button type="button" (click)="onConnectTradeStation()"
-                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        <button type="button" disabled aria-disabled="true"
+                class="bg-gray-300 text-gray-600 px-4 py-2 rounded cursor-not-allowed">
           {{ 'brokers.connect_tradestation.button' | translate }}
         </button>
+        <p class="mt-2 text-xs text-gray-500">{{ 'brokers.connect_tradestation.unavailable' | translate }}</p>
         @if (tsError(); as err) {
           <p class="mt-4 text-sm text-red-700">
             @if (knownError(err.code)) {

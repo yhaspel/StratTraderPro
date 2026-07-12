@@ -21,6 +21,9 @@ function buildFacade(overrides: Record<string, unknown> = {}): Partial<AuthFacad
     resetFormState: jasmine.createSpy('resetFormState'),
     status: (() => 'idle') as unknown as AuthFacade['status'],
     error: (() => null) as unknown as AuthFacade['error'],
+    // The embedded <app-google-button> probes these on init.
+    googleAvailable: (() => false) as unknown as AuthFacade['googleAvailable'],
+    loadGoogleAvailability: jasmine.createSpy('loadGoogleAvailability').and.returnValue(Promise.resolve()),
     ...overrides,
   } as Partial<AuthFacade>;
 }

@@ -39,6 +39,18 @@ make down
 
 > **Note:** `make up` includes the ngrok tunnel by default so the local backend is reachable on a public HTTPS URL (needed for TradingView webhook testing and AC-00-10). To start without the tunnel, use `docker compose up -d` directly. To bring just ngrok up alongside an existing stack, use `make tunnel`.
 
+## Using the app
+
+Open `http://localhost:4444`:
+
+- **Signed out** you land on the marketing page — click **Sign in** or **Create account** (no URL typing needed).
+- **Signed in** every screen sits inside one **app shell**: a header with the primary nav (**Dashboard · Strategies · Backtest · Risk · Orders · Settings**, plus **Admin** for staff), a **user menu** (top-right) with **Settings**, **Help**, and **Sign out**, and — while impersonating — the impersonation banner.
+- A brand-new account sees a **Getting started** checklist on the dashboard: **① enable two-factor auth → ② connect a broker → ③ add a strategy (with its webhook) → ④ see your first paper fill.** Each step deep-links to the right screen. Until MFA is enrolled, the data panels honestly say *"Enable two-factor authentication to use this"* rather than "no data yet" (every data endpoint 403s without MFA).
+- **Help** is at `/help` (an index of all articles) and inline **?** links next to jargon open the matching article at `/help/<slug>`.
+- **Sign out** from the user menu clears your session, tears down the dashboard WebSocket, and returns you to the landing page.
+
+> Paper trading only — StratTraderPro never places live or real-money orders.
+
 ## Architecture
 
 ```

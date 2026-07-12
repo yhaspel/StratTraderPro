@@ -16,29 +16,39 @@ import { GoogleButtonComponent } from '../google-button/google-button.component'
 
       @if (facade.error(); as err) {
         <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-          {{ 'auth.login.error.' + err.code | translate : { default: err.message } }}
+          {{ 'auth.login.error.' + err.code | translate }}
         </div>
       }
 
-      <app-google-button class="block mb-4" />
-
-      <div class="my-4 flex items-center text-xs text-gray-500">
-        <span class="flex-1 border-t border-gray-300"></span>
-        <span class="px-3">{{ 'oauth.or' | translate }}</span>
-        <span class="flex-1 border-t border-gray-300"></span>
-      </div>
+      <app-google-button />
 
       <form [formGroup]="form" (ngSubmit)="onSubmit()">
         <div class="mb-4">
           <label for="email" class="block text-sm font-medium mb-1">{{ 'auth.login.email' | translate }}</label>
           <input id="email" type="email" formControlName="email" autocomplete="email"
+                 [attr.aria-invalid]="isInvalid('email')"
                  class="w-full border rounded px-3 py-2" />
+          @if (isInvalid('email')) {
+            <p class="text-xs text-red-600 mt-1" role="alert">
+              @if (form.controls.email.errors?.['required']) {
+                {{ 'auth.login.errors.email_required' | translate }}
+              } @else {
+                {{ 'auth.login.errors.email_invalid' | translate }}
+              }
+            </p>
+          }
         </div>
 
         <div class="mb-4">
           <label for="password" class="block text-sm font-medium mb-1">{{ 'auth.login.password' | translate }}</label>
           <input id="password" type="password" formControlName="password" autocomplete="current-password"
+                 [attr.aria-invalid]="isInvalid('password')"
                  class="w-full border rounded px-3 py-2" />
+          @if (isInvalid('password')) {
+            <p class="text-xs text-red-600 mt-1" role="alert">
+              {{ 'auth.login.errors.password_required' | translate }}
+            </p>
+          }
         </div>
 
         <button type="submit" [disabled]="form.invalid || facade.status() === 'loading'"
@@ -72,8 +82,17 @@ export class LoginComponent {
     this.facade.resetFormState();
   }
 
+  /** Show a field's error only once the user has interacted with it. */
+  isInvalid(name: 'email' | 'password'): boolean {
+    const c = this.form.controls[name];
+    return c.invalid && (c.dirty || c.touched);
+  }
+
   async onSubmit(): Promise<void> {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
     const { email, password } = this.form.getRawValue();
     await this.facade.login(email, password);
   }

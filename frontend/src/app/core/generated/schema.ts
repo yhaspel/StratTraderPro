@@ -366,6 +366,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/oauth/google/available/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether Google sign-in is configured + enabled in this deploy.
+         * @description GET /api/v1/auth/oauth/google/available/
+         *
+         *     Read-only, side-effect-free probe (no session cookie, no state) the frontend
+         *     calls before rendering the "Continue with Google" button. Mirrors the enable
+         *     condition in :class:`OAuthGoogleStartView` exactly, so a deploy with Google
+         *     OAuth unconfigured never shows a button that dead-ends on the ``/start/``
+         *     503 ``FEATURE_DISABLED`` (raw JSON) response.
+         */
+        get: operations["auth_oauth_google_available"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/oauth/google/start/": {
         parameters: {
             query?: never;
@@ -785,6 +811,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["fills_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET the onboarding checklist state. Auth required, but NOT MFA-gated. */
+        get: operations["onboarding_status"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1387,6 +1430,10 @@ export interface components {
          * @enum {string}
          */
         ModeEnum: "anchored" | "rolling";
+        /** @description M10.5 §9 — the four onboarding booleans + a derived ``complete`` flag. */
+        OnboardingStatusEnvelope: {
+            data: components["schemas"]["_OnboardingData"];
+        };
         PasswordReset: {
             /** Format: email */
             email: string;
@@ -1450,6 +1497,13 @@ export interface components {
             is_verified: boolean;
             /** Format: date-time */
             created_at: string;
+        };
+        _OnboardingData: {
+            mfa_enrolled: boolean;
+            broker_connected: boolean;
+            strategy_ready: boolean;
+            first_fill_seen: boolean;
+            complete: boolean;
         };
     };
     responses: never;
@@ -1879,6 +1933,24 @@ export interface operations {
         };
     };
     auth_oauth_exchange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_oauth_google_available: {
         parameters: {
             query?: never;
             header?: never;
@@ -2513,6 +2585,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    onboarding_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingStatusEnvelope"];
+                };
             };
         };
     };

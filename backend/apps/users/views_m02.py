@@ -79,9 +79,16 @@ def _validation_fail(serializer):
     )
 
 
-def _current_family_jti(request) -> str | None:
-    """Pull the family_id of the access-token in use, so the sessions list
-    can mark the entry that issued *this* request."""
+def _current_family_id(request) -> str | None:
+    """Pull the ``family_id`` claim of the access token in use, so callers can
+    mark or preserve the refresh family that issued *this* request.
+
+    The access token carries ``family_id`` directly (services.py:104), so this
+    value must be matched against ``RefreshTokenFamily.family_id`` — NOT against
+    ``current_jti`` (a rotating per-refresh value that a ``family_id`` never
+    equals). Matching it against ``current_jti`` was the SEC-4 bug that revoked
+    the caller's own session on "revoke other sessions" / password change.
+    """
     auth = getattr(request, "auth", None)
     if auth is None:
         return None
@@ -416,12 +423,7 @@ class PasswordChangeView(APIView):
         # Revoke every refresh family except the current one (so the active
         # session keeps working — the user shouldn't be logged out from the
         # device they just changed the password on).
-        current_jti = _current_family_jti(request)
-        current_family_id = None
-        if current_jti:
-            fam = RefreshTokenFamily.objects.filter(current_jti=current_jti, user=user).first()
-            if fam:
-                current_family_id = str(fam.family_id)
+        current_family_id = _current_family_id(request)
         services.revoke_other_sessions(
             user, except_family_id=current_family_id, reason="password_changed",
         )
@@ -446,7 +448,7 @@ class SessionsListView(APIView):
     def get(self, request):
         return ok({
             "sessions": services.list_user_sessions(
-                request.user, current_jti=_current_family_jti(request),
+                request.user, current_family_id=_current_family_id(request),
             ),
         })
 
@@ -466,14 +468,7 @@ class SessionsRevokeView(APIView):
 
         user = request.user
         if ser.validated_data.get("all"):
-            current_jti = _current_family_jti(request)
-            current_family_id = None
-            if current_jti:
-                fam = RefreshTokenFamily.objects.filter(
-                    user=user, current_jti=current_jti
-                ).first()
-                if fam:
-                    current_family_id = str(fam.family_id)
+            current_family_id = _current_family_id(request)
             count = services.revoke_other_sessions(
                 user, except_family_id=current_family_id, reason="revoke_all",
             )

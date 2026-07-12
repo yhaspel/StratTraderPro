@@ -86,9 +86,10 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
     if inp.sentiment_polarity > 0.7 and is_long:
         qty *= 1.10
     elif inp.sentiment_polarity < -0.5 and is_long:
-        qty *= 0.70
+        qty *= 0.5  # RISK-4 / AC-08-6 (OQ-1 ruling): de-risk longs into negative sentiment.
 
-    # Soft-stop reduction (AC-08-12).
+    # Soft-stop reduction (AC-08-12 / RISK-1). intraday_dd_pct is now a real
+    # broker-equity drawdown (integration.apply_sizing), so this can actually fire.
     soft_applied = inp.intraday_dd_pct >= float(profile.soft_stop_pct)
     if soft_applied:
         qty *= 0.5
@@ -96,12 +97,29 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
     # max_position_pct is a hard ceiling — the sentiment boost must not breach it.
     qty = min(qty, max_qty_by_pos)
 
+    # RISK-2: leverage_cap clamps gross notional to equity × leverage_cap.
+    leverage_cap = float(getattr(profile, "leverage_cap", 0) or 0)
+    max_qty_by_leverage = None
+    if leverage_cap > 0:
+        max_qty_by_leverage = (equity * leverage_cap) / (price * float(inp.contract_multiplier or 1))
+        qty = min(qty, max_qty_by_leverage)
+
+    # RISK-3: never size ABOVE what the alert requested — a "qty": 1 alert must
+    # not be sized up to 20% of equity. requested_qty <= 0 means "unspecified"
+    # (the backtester passes 0), so it only clamps DOWN, never forces zero.
+    req_qty = float(inp.requested_qty or 0)
+    if req_qty > 0:
+        qty = min(qty, req_qty)
+
     qty = _round_to_lot(qty, float(inp.lot_size or 1))
     meta = {
         "regime_label": label, "regime_scale": scale, "risk_pct": round(risk_pct, 4),
         "stop_dist": round(stop_dist, 4), "raw_qty": round(raw_qty, 6),
         "max_qty_by_pos": round(max_qty_by_pos, 6), "sentiment": inp.sentiment_polarity,
         "soft_stop_applied": soft_applied,
+        "leverage_cap": leverage_cap,
+        "max_qty_by_leverage": round(max_qty_by_leverage, 6) if max_qty_by_leverage is not None else None,
+        "requested_qty": req_qty,
     }
     if qty <= 0:
         return SizingResult.reject("SIZING_ZERO", meta)

@@ -339,6 +339,25 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/auth/oauth/google/available/:
+    get:
+      operationId: auth_oauth_google_available
+      description: |-
+        GET /api/v1/auth/oauth/google/available/
+
+        Read-only, side-effect-free probe (no session cookie, no state) the frontend
+        calls before rendering the "Continue with Google" button. Mirrors the enable
+        condition in :class:`OAuthGoogleStartView` exactly, so a deploy with Google
+        OAuth unconfigured never shows a button that dead-ends on the ``/start/``
+        503 ``FEATURE_DISABLED`` (raw JSON) response.
+      summary: Whether Google sign-in is configured + enabled in this deploy.
+      tags:
+      - oauth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/v1/auth/oauth/google/start/:
     get:
       operationId: auth_oauth_google_start
@@ -937,6 +956,19 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/onboarding/status/:
+    get:
+      operationId: onboarding_status
+      description: GET the onboarding checklist state. Auth required, but NOT MFA-gated.
+      tags:
+      - onboarding
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatusEnvelope'
+          description: ''
   /api/v1/orders/:
     get:
       operationId: orders_list
@@ -1584,6 +1616,15 @@ components:
       description: |-
         * `anchored` - anchored
         * `rolling` - rolling
+    OnboardingStatusEnvelope:
+      type: object
+      description: M10.5 §9 — the four onboarding booleans + a derived ``complete``
+        flag.
+      properties:
+        data:
+          $ref: '#/components/schemas/_OnboardingData'
+      required:
+      - data
     PasswordReset:
       type: object
       properties:
@@ -1731,3 +1772,22 @@ components:
       - email
       - id
       - is_verified
+    _OnboardingData:
+      type: object
+      properties:
+        mfa_enrolled:
+          type: boolean
+        broker_connected:
+          type: boolean
+        strategy_ready:
+          type: boolean
+        first_fill_seen:
+          type: boolean
+        complete:
+          type: boolean
+      required:
+      - broker_connected
+      - complete
+      - first_fill_seen
+      - mfa_enrolled
+      - strategy_ready

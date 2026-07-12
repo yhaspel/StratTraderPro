@@ -81,6 +81,8 @@ class AuditEventType(models.TextChoices):
     # audit.*
     AUDIT_INTEGRITY_FAILURE = "audit.integrity_failure", "Audit integrity failure"
     AUDIT_VERIFIER_COMPLETED = "audit.verifier_completed", "Audit verifier completed"
+    # security.* (C3 — step-up MFA brute-force throttle)
+    MFA_STEPUP_THROTTLED = "security.mfa_stepup_throttled", "MFA step-up throttled"
 
 
 def auth_event_type(value: str) -> str:

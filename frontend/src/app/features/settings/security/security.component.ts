@@ -53,6 +53,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               type="password"
               formControlName="password"
               autocomplete="current-password"
+              aria-label="Current password"
               [placeholder]="'security.mfa.password_placeholder' | translate"
               class="w-full border rounded px-3 py-2"
             />
@@ -62,6 +63,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               formControlName="code"
               autocomplete="one-time-code"
               maxlength="6"
+              aria-label="Authenticator code"
               [placeholder]="'security.mfa.totp_placeholder' | translate"
               class="w-full border rounded px-3 py-2 font-mono"
             />
@@ -73,6 +75,9 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               {{ 'security.mfa.disable_cta' | translate }}
             </button>
           </form>
+        }
+        @if (mfa.error(); as err) {
+          <p role="alert" class="mt-3 text-sm text-red-600">{{ err.message }}</p>
         }
       </section>
 
@@ -86,6 +91,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               type="password"
               formControlName="password"
               autocomplete="current-password"
+              aria-label="Current password"
               [placeholder]="'security.mfa.password_placeholder' | translate"
               class="w-full border rounded px-3 py-2"
             />
@@ -95,6 +101,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               formControlName="code"
               autocomplete="one-time-code"
               maxlength="6"
+              aria-label="Authenticator code"
               [placeholder]="'security.mfa.totp_placeholder' | translate"
               class="w-full border rounded px-3 py-2 font-mono"
             />
@@ -113,6 +120,9 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
                 @for (c of codes; track c) { <li class="bg-white px-2 py-1 rounded">{{ c }}</li> }
               </ul>
             </div>
+          }
+          @if (mfa.error(); as err) {
+            <p role="alert" class="mt-3 text-sm text-red-600">{{ err.message }}</p>
           }
         </section>
       }
@@ -133,6 +143,9 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             {{ 'security.sessions.revoke_all' | translate }}
           </button>
         </div>
+        @if (sessions.error(); as err) {
+          <p role="alert" class="mb-3 text-sm text-red-600">{{ err.message }}</p>
+        }
         @if (sessions.loading()) {
           <p class="text-gray-500">{{ 'common.loading' | translate }}</p>
         } @else if (sessions.sessions().length === 0) {
@@ -180,6 +193,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             type="password"
             formControlName="current"
             autocomplete="current-password"
+            aria-label="Current password"
             [placeholder]="'security.password.current' | translate"
             class="w-full border rounded px-3 py-2"
           />
@@ -187,6 +201,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             type="password"
             formControlName="next"
             autocomplete="new-password"
+            aria-label="New password"
             [placeholder]="'security.password.next' | translate"
             class="w-full border rounded px-3 py-2"
           />

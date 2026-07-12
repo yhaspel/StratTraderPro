@@ -4,7 +4,8 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change) — the rule lives in the project-root `MEMORY.md`.
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
-**Last verified:** 2026-07-11 (M10 **closed** — operator track live-verified; 11 defects found & fixed, see the M10 close-out below. HEAD `036b892`, CI green.)
+**Last verified:** 2026-07-12 (**M10.5 implemented + gauntlet-green + live-verified**, branch `feature/m10.5-app-shell-and-operability`, not yet merged/tagged). Backend: `pytest` green (SQLite, `config.settings.test`; the 5 `test_alert_rules.py` tests need the repo root and only pass in CI) + `-m pg` **8**, `ruff`/`bandit` clean, `makemigrations --check` clean, prod-import smoke clean. Frontend: `ngc` clean, `ng build` OK, karma **99 passed**. Live E2E (Chrome): landing→login, shell + nav + logout, getting-started checklist, authed 404, help viewer — all pass. AC-by-AC + gauntlet output: `M10.5-EXECUTION-REPORT.md`.
+**Prior:** 2026-07-11 (M10 **closed** — operator track live-verified; 11 defects found & fixed, see the M10 close-out below. HEAD `036b892`, CI green.)
 **Verification at HEAD (`d574057`):** backend `pytest` **587 passed** (SQLite) + **8 `-m pg`** (Postgres lane), `ruff` clean, `bandit` clean (medium+), `makemigrations --check` clean, prod-import smoke clean; frontend `ngc --noEmit` clean, `pnpm build` (449.56 kB), `pnpm run test:ci` **61 karma**; Docker image builds + Trivy HIGH/CRITICAL clean. GitHub CI: all 5 checks green.
 
 > **2026-07-08 — M04–M08 review remediation** (`fix/m04-m08-review-remediation`): an
@@ -28,13 +29,27 @@
 | **M04** | **Webhook ingest + broker adapter + Alpaca paper execution** | ✅ **Phase B–F implemented (2026-07-07)** — CI-green; live-paper smoke deferred | `v0.4.0-alpaca-paper` (tag pending) |
 | M04A | IBKR Web API OAuth migration | ❌ Scrapped 2026-07-05 → superseded by the Alpaca pivot (ADR-041) |  |
 | **M05** | **Order lifecycle + TradeStation (descoped)** | ✅ **Implemented (2026-07-07)** — order-lifecycle half full; TS behind flag OFF; live TS OAuth deferred | `v0.5.0-tradestation` (tag pending) |
-| **M06** | **Market data + regime classifier** | ✅ **Implemented (2026-07-07)** — FMP/FRED + Bar store + rule/HMM/ensemble; live keys/backfill/retrain deferred | `v0.6.0-regime` (tag pending) |
-| **M07** | **Sentiment pipeline** | ✅ **Implemented (2026-07-07)** — fetchers/tagger/tiered scorers (fakes)/EWMA/API; model weights + benchmark deferred | `v0.7.0-sentiment` (tag pending) |
+| **M06** | **Market data + regime classifier** | ✅ **Code merged (2026-07-07)** — FMP/FRED + Bar store + rule/HMM/ensemble. ⚠️ **INERT — produces no output** (no API keys, no intraday task; AC-06-2 never written). See INERT ledger. | `v0.6.0-regime` (tag pending) |
+| **M07** | **Sentiment pipeline** | ✅ **Code merged (2026-07-07)** — fetchers/tagger/tiered scorers (fakes)/EWMA/API. ⚠️ **INERT — polarity 0.00** (fake scorers default; registry seeding shipped in M10.5). See INERT ledger. | `v0.7.0-sentiment` (tag pending) |
 | **M08** | **Risk engine, sizing & kill switches** | ✅ **Implemented (2026-07-08)** — sizing + 4-level kill switches on `TradingHalt`; staging p99 + Risk Ops "live" deferred | `v0.8.0-risk` (tag pending) |
 | **M09** | **Walk-forward backtester** | ✅ **Implemented (2026-07-08)** — vectorbt sweep + custom replay engine, PBO/CSCV, tearsheet PDF/HTML/JSON, dedicated `backtest` queue, `/backtest` UI; PR #28 merged `afe6c24`; staging SLAs + Railway worker + real-symbol PDF deferred | `v0.9.0-backtest` (tag pending) |
 | **M10** | **Admin portal, chained audit log & observability polish** | ✅ **DONE (2026-07-11)** — code merged `d574057` (PR #29); **operator track completed and verified live 2026-07-11**: Grafana Cloud (6 dashboards, 21 alert rules, contact points, notification policy, Tempo+OTel, Sentry↔Tempo), Railway exporters/services, Sentry+GitHub wiring. **11 defects found and fixed during the live bring-up (`bugs/`), 3 of them S1** — see the note below; the observability stack was *entirely inert* before this pass. | `v0.10.0-admin` (tag created locally, **not pushed**) |
+| **M10.5** | **App shell, navigation, operability & review remediation** | 🚧 **In progress (2026-07-12)** — one `ShellComponent` wraps every authed route (nav + user menu + logout + impersonation slot + skip link + toast host); honest landing with Sign-in/Create-account CTAs; real 404; getting-started checklist + `GET /onboarding/status/`; help viewer `/help/:slug` + index; shared UI kit + global toasts. **Security C1/C2/C3/SEC-4/H8/M1 fixed** (per-email auth rate-limit key, prod fail-closed SECRET_KEY/FERNET_KEK, MFA step-up throttle, session-revoke-own-session bug, Django `/admin` unmounted in prod, `/metrics` fail-closed). **Risk truthfulness RISK-1..5** (soft-stop wired to real intraday DD; `max_concurrent`/`leverage_cap`/`permitted_asset_classes` enforced; `requested_qty` clamp; ×0.5 bear+sentiment factor per OQ-1; `seed_tickers`). Frontend C-FE-1..4 + swallowed-error sweep; a11y on touched screens. **See INERT ledger below.** | `v0.10.5-app-shell` (pending) |
 | M11 | Hardening, security, load test & docs | ⏳ Not started — plan + one-shot prompt **re-verified & frozen 2026-07-12**; **§7.0 (SERVICE_ROLE dispatch, carried from BUG-011) is the first task**, gated by AC-11-14 [CI] + AC-11-15 [LIVE] | — |
 | M12 | Beta & sign-off | ⏳ Not started | — |
+
+### INERT features (M10.5 audit, 2026-07-12)
+
+Code that is merged + CI-green but **structurally incapable of producing output in any deployed config**. Recorded honestly so "implemented" is never confused with "produces output". Each names the owning fix.
+
+1. **Regime plane** — no `FMP_API_KEY`/`FRED_API_KEY` ⇒ no feature vectors ⇒ no HMM ⇒ `regime.no_data` forever (live-verified). No `marketdata/tasks.py` intraday task (AC-06-2 never written). **Owner:** operator keys + 10-yr backfill (M11/ops).
+2. **Sentiment** — `SENTIMENT_FAKE_SCORERS=True` default + (until M10.5) an unseeded `TickerRegistry` ⇒ market polarity `0.00` (live-verified). **Owner:** RISK-5 `seed_tickers` (shipped here — run it) + real FinBERT/LLM scorers (operator/M07-followup).
+3. **TradeStation** — flag OFF ⇒ no TS `BrokerAccount` can be created; no `tradestation/streams.py`. M10.5 disables the `/settings/brokers` "Connect TradeStation" button + notes it is unavailable. **Owner:** M05 follow-up.
+4. **Backtest worker** — no Railway `worker-backtest` consumer ⇒ prod backtests sit `QUEUED` forever. **Owner:** M11 §7.0 (`SERVICE_ROLE` dispatch).
+5. **Soft-stop (AC-08-12)** — **RESOLVED here (RISK-1):** `apply_sizing` now passes a real broker-equity intraday drawdown, so the soft-stop can fire (test `test_soft_stop_fires_on_real_intraday_drawdown`).
+6. **Alpaca missed-fill recovery (AC-04-11)** — `catch_up_account` replays only if `adapter.recent_fills` exists; `AlpacaAdapter` has none (only the fake). **Owner:** M11 (needs the real Alpaca activities endpoint). Do NOT claim AC-04-11 met for the real broker.
+
+**Overstated-claim corrections:** M02's "revoke other sessions" logged you out of your *own* session (SEC-4 — **fixed here**). M06/M07 "implemented" overstates — key ACs were never written (regime intraday task; real scorers), not merely "keys deferred": they are **code-merged, no live output**. M08 soft-stop was dead code (**fixed here**). M04 AC-04-11 is not met for the real broker. **`vectorbt==1.0.0` pin:** confirmed installed + importable in the backend image on 2026-07-12 (operator re-check: `pip index versions vectorbt`).
 
 ### M10 close-out — the observability stack was inert until 2026-07-11
 

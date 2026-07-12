@@ -117,16 +117,50 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
         )
         return SizingResult.reject(reason, inputs)
 
+    # RISK-2: reject asset classes the profile does not permit (order.asset_class
+    # is the trusted server-side classification). Enforced before the broker read
+    # so a blocked class never even touches the account.
+    permitted = profile.permitted_asset_classes or []
+    asset_class = getattr(order, "asset_class", None)
+    if permitted and asset_class and asset_class not in permitted:
+        return _persist_reject(
+            "SIZING_ASSET_CLASS_BLOCKED", meta={"asset_class": asset_class, "permitted": permitted}
+        )
+
+    # RISK-2: reject once the user is already at max_concurrent OPEN positions and
+    # this order would open a *new* symbol (adds/closes on held symbols are fine).
+    max_concurrent = int(getattr(profile, "max_concurrent", 0) or 0)
+    if max_concurrent > 0:
+        from apps.orders.models import Position
+
+        open_positions = list(
+            Position.objects.filter(user=alert.user).exclude(qty=0).values_list("symbol", flat=True)
+        )
+        if symbol.upper() not in {s.upper() for s in open_positions} and len(open_positions) >= max_concurrent:
+            return _persist_reject(
+                "SIZING_MAX_CONCURRENT", meta={"open": len(open_positions), "max_concurrent": max_concurrent}
+            )
+
     # Equity — fresh broker read. Fail CLOSED: a transient broker hiccup must
     # never size a small account off a $100k constant (FIX-H1 / FIX-H2).
     try:
-        equity = adapter.get_account().equity
+        acct = adapter.get_account()
     except Exception:  # noqa: BLE001 — broker read failed → reject, never size off a default
         logger.warning("sizing.equity_read_failed", extra={"order": str(order.id)})
         return _persist_reject("SIZING_NO_EQUITY")
-    equity = _dec(equity)
+    equity = _dec(acct.equity)
     if equity <= 0:
         return _persist_reject("SIZING_NO_EQUITY")
+
+    # RISK-1: real intraday drawdown from broker equity vs the day-open equity
+    # (last_equity), so the soft-stop (sizing.py) can actually fire. Only a DROP
+    # counts; a green day yields 0.
+    last_equity = _dec(getattr(acct, "last_equity", 0) or 0)
+    intraday_dd_pct = (
+        float((last_equity - equity) / last_equity * 100)
+        if last_equity > 0 and equity < last_equity
+        else 0.0
+    )
 
     # Price — never fabricate one (FIX-H3).
     price = _resolve_price(adapter, symbol, price_hint)
@@ -142,7 +176,7 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
         equity=equity,
         regime_label=_latest_regime_label(),
         sentiment_polarity=_latest_sentiment(symbol),
-        intraday_dd_pct=0.0,
+        intraday_dd_pct=intraday_dd_pct,
         atr14=_atr14(symbol),
     )
     result = compute_size(inp, profile)

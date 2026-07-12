@@ -13,6 +13,43 @@ DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 # ---------------------------------------------------------------------------
+# C2 — fail CLOSED on missing / insecure signing + encryption keys.
+# base.py falls back to a PUBLIC dev default for SECRET_KEY (and derives the
+# JWT signing key + Fernet KEK from it) so tests/runserver work unprovisioned.
+# In prod that default forges JWTs and derives the KEK for every stored broker
+# secret/TOTP — so re-read both with NO default (django-environ raises when
+# unset) and reject the known insecure values. Fails the boot early.
+# ---------------------------------------------------------------------------
+import base64 as _b64  # noqa: E402
+import hashlib as _hashlib  # noqa: E402
+
+from django.core.exceptions import ImproperlyConfigured  # noqa: E402
+
+_INSECURE_SECRET = "insecure-dev-key-change-in-prod"
+
+SECRET_KEY = env("SECRET_KEY")  # no default → ImproperlyConfigured if unset
+if SECRET_KEY == _INSECURE_SECRET:
+    raise ImproperlyConfigured(
+        "SECRET_KEY is the insecure dev default — set a real SECRET_KEY in prod."
+    )
+
+FERNET_KEK = env("FERNET_KEK")  # no default → ImproperlyConfigured if unset
+_insecure_kek = _b64.urlsafe_b64encode(
+    _hashlib.sha256(_INSECURE_SECRET.encode("utf-8")).digest()
+).decode("ascii")
+if FERNET_KEK == _insecure_kek:
+    raise ImproperlyConfigured(
+        "FERNET_KEK is the SHA-derived dev default — set a real FERNET_KEK in prod."
+    )
+
+# Defense in depth: the JWT signing key (base.py defaults it to SECRET_KEY) must
+# not be unset or the insecure default either.
+if SIMPLE_JWT.get("SIGNING_KEY") in ("", None, _INSECURE_SECRET):  # noqa: F405
+    raise ImproperlyConfigured(
+        "SIMPLE_JWT SIGNING_KEY is unset or the insecure default in prod."
+    )
+
+# ---------------------------------------------------------------------------
 # Security
 # ---------------------------------------------------------------------------
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -49,10 +86,14 @@ LOGGING["handlers"]["console"]["formatter"] = "json"
 # ---------------------------------------------------------------------------
 import logging as _logging  # noqa: E402
 
+# M1 — /metrics fails CLOSED in prod: if basic-auth creds are unset the endpoint
+# returns 401 (see config/metrics_endpoint._auth_ok) rather than exposing metrics
+# openly. Still warn loudly so the operator knows to provision the creds.
+METRICS_REQUIRE_AUTH = True
 if not (METRICS_BASIC_AUTH_USERNAME and METRICS_BASIC_AUTH_PASSWORD):  # noqa: F405
     _logging.getLogger("config.metrics_endpoint").warning(
-        "METRICS_BASIC_AUTH_USERNAME/PASSWORD unset — /metrics is served WITHOUT "
-        "basic auth in production. Set both env vars (backend + grafana-agent)."
+        "METRICS_BASIC_AUTH_USERNAME/PASSWORD unset — /metrics will 401 (fail "
+        "closed) in production until both env vars are set (backend + grafana-agent)."
     )
 
 # ---------------------------------------------------------------------------

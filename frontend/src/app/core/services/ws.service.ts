@@ -29,6 +29,10 @@ export class DashboardWsService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private closedByClient = false;
+  // C-FE-4: reference-count attached subscribers (dashboard + backtest share
+  // this singleton). disconnect() only closes the socket when the LAST
+  // subscriber detaches; logout calls forceDisconnect() to tear it down outright.
+  private refs = 0;
 
   private readonly _events = new Subject<DashboardEvent>();
   /** Parsed `{ type, data }` frames from the server. */
@@ -38,6 +42,7 @@ export class DashboardWsService {
   readonly connected = this._connected.asReadonly();
 
   connect(): void {
+    this.refs += 1;
     // SSR / no-window guard.
     if (typeof window === 'undefined' || typeof WebSocket === 'undefined') { return; }
     if (this.socket &&
@@ -78,7 +83,20 @@ export class DashboardWsService {
     };
   }
 
+  /** Detach one subscriber. Closes the socket only when the last one leaves. */
   disconnect(): void {
+    this.refs = Math.max(0, this.refs - 1);
+    if (this.refs > 0) { return; }
+    this._close();
+  }
+
+  /** Tear the socket down unconditionally (logout — C-FE-4/AC-10.5-3). */
+  forceDisconnect(): void {
+    this.refs = 0;
+    this._close();
+  }
+
+  private _close(): void {
     this.closedByClient = true;
     this.stopHeartbeat();
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }

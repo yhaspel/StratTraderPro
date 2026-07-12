@@ -526,6 +526,7 @@ class SessionsTests(TestCase):
         # Two families
         issue_token_pair(user)
         current = issue_token_pair(user)
+        current_family = RefreshTokenFamily.objects.get(current_jti=_jti(current["refresh"]))
         resp = self.client.get(
             f"{API}users/me/sessions/",
             HTTP_AUTHORIZATION=f"Bearer {current['access']}",
@@ -533,6 +534,11 @@ class SessionsTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         sessions = resp.json()["data"]["sessions"]
         self.assertEqual(len(sessions), 2)
+        # SEC-4: exactly one session is flagged "current", and it is the family
+        # that issued this request (matched by family_id, not current_jti).
+        current_flagged = [s for s in sessions if s["current"]]
+        self.assertEqual(len(current_flagged), 1)
+        self.assertEqual(current_flagged[0]["family_id"], str(current_family.family_id))
 
     def test_revoke_one_session(self):
         user = _create_user()
@@ -550,10 +556,14 @@ class SessionsTests(TestCase):
         self.assertTrue(target_family.is_revoked)
 
     def test_revoke_all_other_sessions(self):
+        # SEC-4: revoke-all-other must revoke every family EXCEPT the caller's
+        # own, and the caller's session must keep working. Families A/B/C.
         user = _create_user()
-        issue_token_pair(user)
-        issue_token_pair(user)
+        fam_a = RefreshTokenFamily.objects.get(current_jti=_jti(issue_token_pair(user)["refresh"]))
+        fam_b = RefreshTokenFamily.objects.get(current_jti=_jti(issue_token_pair(user)["refresh"]))
         current = issue_token_pair(user)
+        fam_current = RefreshTokenFamily.objects.get(current_jti=_jti(current["refresh"]))
+
         resp = self.client.post(
             f"{API}users/me/sessions/revoke/",
             {"all": True},
@@ -561,7 +571,75 @@ class SessionsTests(TestCase):
             HTTP_AUTHORIZATION=f"Bearer {current['access']}",
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertGreaterEqual(resp.json()["data"]["revoked"], 2)
+        self.assertEqual(resp.json()["data"]["revoked"], 2)
+
+        for fam in (fam_a, fam_b):
+            fam.refresh_from_db()
+            self.assertTrue(fam.is_revoked)
+        fam_current.refresh_from_db()
+        self.assertFalse(fam_current.is_revoked)  # caller's own family survives
+
+    def test_password_change_preserves_current_session(self):
+        # SEC-4: password change revokes other families but keeps the caller's.
+        user = _create_user()
+        fam_other = RefreshTokenFamily.objects.get(current_jti=_jti(issue_token_pair(user)["refresh"]))
+        current = issue_token_pair(user)
+        fam_current = RefreshTokenFamily.objects.get(current_jti=_jti(current["refresh"]))
+
+        resp = self.client.post(
+            f"{API}users/me/password/",
+            {"current_password": GOOD_PW, "new_password": NEW_PW},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {current['access']}",
+        )
+        self.assertEqual(resp.status_code, 200)
+        fam_other.refresh_from_db()
+        fam_current.refresh_from_db()
+        self.assertTrue(fam_other.is_revoked)
+        self.assertFalse(fam_current.is_revoked)
+
+
+class MfaStepUpThrottleTests(TestCase):
+    """C3 — verify_mfa_code brute-force throttle (all three step-up callers use it)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_throttled_after_max_failures_and_audits(self):
+        from apps.users.mfa import verify_mfa_code
+        user = _create_user()
+        _enroll_mfa(user)
+        # 5 bad codes are checked and fail; the 5th crosses the cap and audits.
+        for _ in range(5):
+            self.assertFalse(verify_mfa_code(user, "000000"))
+        self.assertTrue(
+            AuditLog.objects.filter(event_type="security.mfa_stepup_throttled").exists()
+        )
+
+    def test_sixth_attempt_rejected_pre_check(self):
+        from apps.users.mfa import verify_mfa_code
+        user = _create_user()
+        secret = _enroll_mfa(user)
+        for _ in range(5):
+            verify_mfa_code(user, "000000")
+        # Correct code is refused once the cap is hit (pre-verification rejection).
+        good = pyotp.TOTP(secret, interval=30, digits=6).now()
+        self.assertFalse(verify_mfa_code(user, good))
+
+    def test_good_code_before_cap_resets_counter(self):
+        from apps.users.mfa import verify_mfa_code
+        user = _create_user()
+        secret = _enroll_mfa(user)
+        for _ in range(4):
+            self.assertFalse(verify_mfa_code(user, "000000"))
+        good = pyotp.TOTP(secret, interval=30, digits=6).now()
+        self.assertTrue(verify_mfa_code(user, good))  # resets the counter
+        # Counter reset: a fresh failure does not trip the throttle.
+        self.assertFalse(verify_mfa_code(user, "000000"))
+        self.assertFalse(
+            AuditLog.objects.filter(event_type="security.mfa_stepup_throttled").exists()
+        )
 
 
 def _jti(refresh: str) -> str:

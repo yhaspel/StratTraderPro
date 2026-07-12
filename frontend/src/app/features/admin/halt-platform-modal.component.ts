@@ -9,28 +9,22 @@
 import {
   ChangeDetectionStrategy, Component, EventEmitter, Output, inject, signal, computed,
 } from '@angular/core';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
 import { ApiError } from '../../core/models/auth.models';
 import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
+import { ModalComponent } from '../shared/ui/modal.component';
 
 const CONFIRM_PHRASE = 'HALT PLATFORM';
 
 @Component({
   selector: 'app-halt-platform-modal',
   standalone: true,
-  imports: [TranslateModule, TotpInputComponent],
+  imports: [TranslateModule, TotpInputComponent, ModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="fixed inset-0 bg-black/50 z-40" (click)="onBackdropClick($event)">
-      <div class="bg-white rounded-lg shadow-xl max-w-md mx-auto mt-16 p-6"
-           (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
-        <div class="flex items-start justify-between mb-4">
-          <h2 class="text-xl font-bold text-red-700">{{ 'admin.halt.title' | translate }}</h2>
-          <button type="button" (click)="closed.emit()" [attr.aria-label]="'common.close' | translate"
-                  class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
-        </div>
-
+    <app-modal [open]="true" [heading]="modalHeading()" (closed)="closed.emit()">
+        <p class="text-sm text-red-700 font-semibold mb-2">⚠ {{ 'admin.halt.title' | translate }}</p>
         <p class="text-sm text-gray-600 mb-4">{{ 'admin.halt.warning' | translate }}</p>
 
         <label for="halt-confirm-input" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
@@ -43,10 +37,10 @@ const CONFIRM_PHRASE = 'HALT PLATFORM';
                [class.border-green-400]="phraseOk()"
                [attr.aria-invalid]="confirmText().length > 0 && !phraseOk()" />
 
-        <label class="block text-xs font-semibold text-gray-700 uppercase mb-2">
+        <span class="block text-xs font-semibold text-gray-700 uppercase mb-2">
           {{ 'admin.halt.mfa_label' | translate }}
-        </label>
-        <app-totp-input (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
+        </span>
+        <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
 
         <div class="mt-4">
           <label for="halt-reason-input" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
@@ -77,8 +71,7 @@ const CONFIRM_PHRASE = 'HALT PLATFORM';
             {{ (submitting() ? 'admin.halt.engaging' : 'admin.halt.engage') | translate }}
           </button>
         </div>
-      </div>
-    </div>
+    </app-modal>
   `,
 })
 export class HaltPlatformModalComponent {
@@ -86,6 +79,11 @@ export class HaltPlatformModalComponent {
   @Output() halted = new EventEmitter<void>();
 
   private admin = inject(AdminFacade);
+  private translate = inject(TranslateService);
+
+  modalHeading(): string {
+    return this.translate.instant('admin.halt.title');
+  }
 
   confirmText = signal('');
   mfaCode = signal('');
@@ -125,9 +123,5 @@ export class HaltPlatformModalComponent {
 
   knownError(code: string): boolean {
     return code === 'CONFIRM_PHRASE_MISMATCH' || code === 'MFA_REQUIRED';
-  }
-
-  onBackdropClick(ev: Event): void {
-    if (ev.target === ev.currentTarget) { this.closed.emit(); }
   }
 }

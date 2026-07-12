@@ -75,7 +75,17 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
             </div>
           </div>
         } @else {
-          <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+          @if (admin.error(); as err) {
+            <p class="text-sm text-red-700" role="alert">
+              @if (err.code === 'MFA_REQUIRED') {
+                {{ 'admin.overview.kpis_mfa_required' | translate }}
+              } @else {
+                {{ 'admin.overview.kpis_error' | translate }}
+              }
+            </p>
+          } @else {
+            <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+          }
         }
       </section>
 
@@ -107,10 +117,10 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
         <!-- Inline release (MFA only; no confirm phrase) -->
         @if (releaseOpen()) {
           <div class="mt-4 border-t pt-4 space-y-3">
-            <label class="block text-xs font-semibold text-gray-700 uppercase">
+            <span class="block text-xs font-semibold text-gray-700 uppercase">
               {{ 'admin.halt.mfa_label' | translate }}
-            </label>
-            <app-totp-input (codeChange)="releaseMfa.set($event)" [disabled]="releasing()" />
+            </span>
+            <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="releaseMfa.set($event)" [disabled]="releasing()" />
             @if (releaseError(); as err) {
               <p class="text-sm text-red-700">
                 @if (err.code === 'MFA_REQUIRED') {

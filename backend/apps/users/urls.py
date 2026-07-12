@@ -11,6 +11,7 @@ from allauth.socialaccount.providers.google.views import (
 from django.urls import path
 from django.views.generic import RedirectView
 
+from .onboarding import OnboardingStatusView
 from .views import (
     CurrentUserView,
     LoginView,
@@ -35,6 +36,7 @@ from .views_m02 import (
 )
 from .views_oauth import (
     OAuthExchangeView,
+    OAuthGoogleAvailableView,
     OAuthGoogleStartView,
     OAuthPostCallbackView,
 )
@@ -58,6 +60,9 @@ urlpatterns = [
     ),
     path("users/me/", CurrentUserView.as_view(), name="users-me"),
 
+    # ---- M10.5 — onboarding checklist (auth-only, NOT MFA-gated) ----
+    path("onboarding/status/", OnboardingStatusView.as_view(), name="onboarding-status"),
+
     # ---- M02 — MFA ----
     path("auth/mfa/enroll/", MFAEnrollView.as_view(), name="auth-mfa-enroll"),
     path("auth/mfa/enroll/confirm/", MFAEnrollConfirmView.as_view(), name="auth-mfa-enroll-confirm"),
@@ -77,6 +82,7 @@ urlpatterns = [
 
     # ---- M2.5 — Google OAuth ----
     # Our wrappers (custom JSON-friendly start, post-callback bridge, exchange)
+    path("auth/oauth/google/available/", OAuthGoogleAvailableView.as_view(), name="auth-oauth-google-available"),
     path("auth/oauth/google/start/", OAuthGoogleStartView.as_view(), name="auth-oauth-google-start"),
     path("auth/oauth/google/post-callback/", OAuthPostCallbackView.as_view(), name="auth-oauth-google-post-callback"),
     path("auth/oauth/exchange/", OAuthExchangeView.as_view(), name="auth-oauth-exchange"),

@@ -103,3 +103,7 @@ frontend/out-tsc/
 
 .claude/worktrees/
 _tmp_*
+
+# ===== Finder / editor duplicate dirs & files (e.g. "security 2/") =====
+*\ 2/
+*\ 2.*

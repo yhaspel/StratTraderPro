@@ -1,8 +1,7 @@
 {
   "app": {
     "title": "StratTraderPro",
-    "tagline": "Regime-aware algorithmic trading — powered by webhooks, sentiment, and market breadth.",
-    "status": "Platform scaffold — staging environment"
+    "tagline": "Regime-aware algorithmic trading — powered by webhooks, sentiment, and market breadth."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -12,7 +11,13 @@
     "admin": "Admin",
     "settings": "Settings",
     "login": "Log In",
-    "logout": "Log Out"
+    "logout": "Log Out",
+    "orders": "Orders",
+    "getting_started": "Getting started",
+    "primary": "Primary navigation",
+    "open_menu": "Open menu",
+    "skip_to_content": "Skip to content",
+    "help": "Help"
   },
   "common": {
     "loading": "Loading...",
@@ -38,7 +43,13 @@
         "INVALID_CREDENTIALS": "Invalid email or password.",
         "ACCOUNT_LOCKED": "Account temporarily locked. Please try again later.",
         "EMAIL_NOT_VERIFIED": "Please verify your email before signing in.",
-        "RATE_LIMITED": "Too many attempts. Please wait and try again."
+        "RATE_LIMITED": "Too many attempts. Please wait and try again.",
+        "UNKNOWN": "Something went wrong. Please try again."
+      },
+      "errors": {
+        "email_required": "Email is required.",
+        "email_invalid": "Enter a valid email address.",
+        "password_required": "Password is required."
       }
     },
     "register": {
@@ -49,7 +60,15 @@
       "password_hint": "At least 12 characters, with letters and digits.",
       "submit": "Create account",
       "have_account": "Already have an account?",
-      "login_link": "Sign in"
+      "login_link": "Sign in",
+      "errors": {
+        "email_required": "Email is required.",
+        "email_invalid": "Enter a valid email address.",
+        "display_name_required": "Display name is required.",
+        "password_required": "Password is required.",
+        "password_min": "Password must be at least 12 characters.",
+        "password_letters_digits": "Password must include both letters and digits."
+      }
     },
     "verify_email": {
       "verifying": "Verifying your email...",
@@ -60,7 +79,10 @@
       "description": "We sent a verification link to your email. Click it to activate your account.",
       "sent": "Verification email sent!",
       "submit": "Resend email",
-      "back_to_login": "Back to sign in"
+      "back_to_login": "Back to sign in",
+      "email": "Email address",
+      "need_email": "Enter the email address you signed up with.",
+      "error": "We couldn't resend the verification email. Please try again."
     },
     "reset": {
       "title": "Reset your password",
@@ -68,7 +90,8 @@
       "email": "Email address",
       "submit": "Send reset link",
       "sent": "If an account with that email exists, we sent a reset link. Check your inbox.",
-      "back_to_login": "Back to sign in"
+      "back_to_login": "Back to sign in",
+      "error": "We couldn't send the reset link. Please try again."
     },
     "reset_confirm": {
       "title": "Choose a new password",
@@ -332,7 +355,8 @@
     "connect_tradestation": {
       "title": "Connect TradeStation",
       "help": "Authorize StratTraderPro to trade through your TradeStation account via OAuth.",
-      "button": "Connect TradeStation"
+      "button": "Connect TradeStation",
+      "unavailable": "TradeStation connection is not yet available."
     },
     "mode": {
       "label": "Mode",
@@ -379,7 +403,9 @@
     "dev": {
       "send_test_alert": "Send test alert",
       "alert_sent": "Test alert sent"
-    }
+    },
+    "mfa_required": "Enable two-factor authentication to use this",
+    "requires_mfa": "Requires two-factor authentication"
   },
   "orders": {
     "title": "Orders",
@@ -774,7 +800,9 @@
       "halted": "Platform is halted — all trading is blocked.",
       "halt_banner": "PLATFORM HALTED — all trading is blocked for every user.",
       "release": "Release halt",
-      "releasing": "Releasing…"
+      "releasing": "Releasing…",
+      "kpis_error": "Couldn't load the platform snapshot.",
+      "kpis_mfa_required": "Enable two-factor authentication to use this."
     },
     "halt": {
       "title": "Halt the entire platform",
@@ -930,6 +958,73 @@
       "order.cancelled": "Order cancelled",
       "risk.kill_switch_on": "Kill switch armed",
       "risk.kill_switch_off": "Kill switch released"
+    }
+  },
+  "landing": {
+    "hero": {
+      "subtitle": "Regime-aware paper trading — turn TradingView alerts into risk-checked Alpaca paper orders."
+    },
+    "cta": {
+      "sign_in": "Sign in",
+      "create_account": "Create account"
+    },
+    "how": {
+      "title": "How it works"
+    },
+    "steps": {
+      "alert": {
+        "title": "TradingView alert",
+        "body": "Your strategy fires a TradingView alert when its entry or exit conditions hit."
+      },
+      "webhook": {
+        "title": "Secure webhook",
+        "body": "The alert reaches StratTraderPro over a signed, per-strategy webhook."
+      },
+      "risk": {
+        "title": "Risk engine",
+        "body": "Regime- and sentiment-aware sizing plus kill switches decide what actually gets sent."
+      },
+      "broker": {
+        "title": "Alpaca paper broker",
+        "body": "Approved orders are placed on your connected Alpaca paper account and tracked live."
+      }
+    },
+    "disclaimer": "Paper trading only. StratTraderPro does not place live or real-money orders."
+  },
+  "errors": {
+    "not_found": {
+      "title": "Page not found",
+      "body": "The page you're looking for doesn't exist or has moved.",
+      "home": "Go home"
+    }
+  },
+  "help": {
+    "not_found": {
+      "title": "Help article not found",
+      "body": "We couldn't find that help article.",
+      "home": "Back to dashboard"
+    },
+    "index": {
+      "title": "Help topics",
+      "subtitle": "Guides for the jargon and workflows in StratTraderPro."
+    }
+  },
+  "onboarding": {
+    "title": "Getting started",
+    "subtitle": "Complete these steps to start paper trading.",
+    "done": "Done",
+    "fill_hint": "Send a test alert to your webhook to see your first paper fill.",
+    "steps": {
+      "mfa": "Enable two-factor authentication",
+      "broker": "Connect a broker",
+      "strategy": "Add a strategy with its webhook",
+      "fill": "See your first paper fill"
+    },
+    "cta": {
+      "enable": "Enable",
+      "connect": "Connect",
+      "add": "Add",
+      "view": "View dashboard"
     }
   }
 }

@@ -69,7 +69,9 @@ class SizingParityTests(TestCase):
             stop_distance=Decimal("2.0"), side="BUY",  # replay populates from adapter stops
         )
         prod_inp = SizingInputs(  # mirror apply_sizing's construction with integration helpers
-            requested_qty=Decimal("5"), side="BUY", symbol=SYMBOL, price=last_close, equity=equity,
+            # requested_qty=0 ("unspecified") on both sides so the RISK-3 clamp is
+            # non-binding and the parity comparison stays apples-to-apples.
+            requested_qty=Decimal("0"), side="BUY", symbol=SYMBOL, price=last_close, equity=equity,
             regime_label=integration._latest_regime_label(),
             sentiment_polarity=integration._latest_sentiment(SYMBOL),
             intraday_dd_pct=0.0, atr14=integration._atr14(SYMBOL),
@@ -93,9 +95,14 @@ class SizingParityTests(TestCase):
         self.assertEqual(q_replay.qty, q_prod.qty)
         self.assertEqual(q_replay.qty, Decimal("160.0"))
 
-    def test_requested_qty_is_unread_by_compute_size(self):
+    def test_requested_qty_caps_computed_size(self):
+        # RISK-3: a positive requested_qty clamps the computed size DOWN (never up);
+        # 0 means "unspecified" (the backtester's mode) and a huge value is non-binding.
         inp = build_sizing_inputs(symbol=SYMBOL, price=Decimal("119"), equity=Decimal("100000"),
                                   atr14=Decimal("2.5"), stop_distance=None)
-        a = compute_size(replace(inp, requested_qty=Decimal("0")), self.profile)
-        b = compute_size(replace(inp, requested_qty=Decimal("999999")), self.profile)
-        self.assertEqual(a.qty, b.qty)  # requested_qty must not influence the size
+        unbounded = compute_size(replace(inp, requested_qty=Decimal("0")), self.profile)
+        self.assertTrue(unbounded.ok and unbounded.qty > Decimal("1"))
+        capped = compute_size(replace(inp, requested_qty=Decimal("1")), self.profile)
+        self.assertEqual(capped.qty, Decimal("1"))  # never exceeds what the alert requested
+        huge = compute_size(replace(inp, requested_qty=Decimal("999999")), self.profile)
+        self.assertEqual(huge.qty, unbounded.qty)  # a huge request does not change sizing

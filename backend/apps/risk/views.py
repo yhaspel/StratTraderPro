@@ -43,13 +43,26 @@ def _get_or_create_profile(user) -> RiskProfile:
     return profile
 
 
+def _profile_for_read(user) -> RiskProfile:
+    """RISK-3: return the saved profile, or an UNSAVED default instance for GET.
+
+    A persisted RiskProfile turns sizing ON (integration.apply_sizing keys off
+    its existence), so merely *opening* the risk page must not create one. The
+    profile is created lazily on the first write (PUT).
+    """
+    existing = RiskProfile.objects.filter(user=user).first()
+    if existing is not None:
+        return existing
+    return RiskProfile(user=user, permitted_asset_classes=RiskProfile.default_permitted())
+
+
 class RiskProfileView(APIView):
     permission_classes = [IsAuthenticatedAndMFAEnforced]
     mfa_required = True
 
     @extend_schema(operation_id="risk_profile_get", tags=["risk"])
     def get(self, request):
-        return ok(RiskProfileSerializer(_get_or_create_profile(request.user)).data)
+        return ok(RiskProfileSerializer(_profile_for_read(request.user)).data)
 
     @extend_schema(operation_id="risk_profile_put", tags=["risk"])
     def put(self, request):

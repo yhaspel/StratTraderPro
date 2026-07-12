@@ -103,8 +103,8 @@ type Action = 'disable' | 'enable' | 'impersonate';
                        (input)="reason.set($any($event.target).value)" autocomplete="off"
                        class="w-full text-sm border rounded px-3 py-2" />
               </div>
-              <label class="block text-xs font-semibold text-gray-700 uppercase">{{ 'admin.detail.mfa' | translate }}</label>
-              <app-totp-input (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
+              <span class="block text-xs font-semibold text-gray-700 uppercase">{{ 'admin.detail.mfa' | translate }}</span>
+              <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
               @if (actionError(); as err) {
                 <p class="text-sm text-red-700">
                   @if (err.code === 'MFA_REQUIRED') {
