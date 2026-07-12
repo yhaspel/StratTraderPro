@@ -121,6 +121,11 @@ export class AuthApi {
   }
 
   // ---- M2.5 — Google OAuth ----
+  /** Side-effect-free probe: is Google sign-in configured + enabled here? */
+  oauthGoogleAvailable(): Observable<ApiEnvelope<{ enabled: boolean }>> {
+    return this.http.get<ApiEnvelope<{ enabled: boolean }>>(`${BASE}/auth/oauth/google/available/`);
+  }
+
   oauthGoogleStart(): Observable<ApiEnvelope<{ authorize_url: string }>> {
     return this.http.get<ApiEnvelope<{ authorize_url: string }>>(`${BASE}/auth/oauth/google/start/`);
   }

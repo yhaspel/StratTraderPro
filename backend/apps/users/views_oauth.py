@@ -65,6 +65,31 @@ def _feature_disabled_response():
 
 
 # ---------------------------------------------------------------------------
+# 0. Availability probe — lets the frontend decide whether to show the button
+# ---------------------------------------------------------------------------
+class OAuthGoogleAvailableView(APIView):
+    """GET /api/v1/auth/oauth/google/available/
+
+    Read-only, side-effect-free probe (no session cookie, no state) the frontend
+    calls before rendering the "Continue with Google" button. Mirrors the enable
+    condition in :class:`OAuthGoogleStartView` exactly, so a deploy with Google
+    OAuth unconfigured never shows a button that dead-ends on the ``/start/``
+    503 ``FEATURE_DISABLED`` (raw JSON) response.
+    """
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        operation_id="auth_oauth_google_available",
+        tags=["oauth"],
+        summary="Whether Google sign-in is configured + enabled in this deploy.",
+    )
+    def get(self, request):
+        enabled = bool(is_enabled("GOOGLE_OAUTH_ENABLED") and settings.GOOGLE_OAUTH_CLIENT_ID)
+        return ok({"enabled": enabled})
+
+
+# ---------------------------------------------------------------------------
 # 1. Start — return the authorize URL for the frontend
 # ---------------------------------------------------------------------------
 class OAuthGoogleStartView(APIView):

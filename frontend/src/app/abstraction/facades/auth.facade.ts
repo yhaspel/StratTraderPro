@@ -1,5 +1,5 @@
 /** Auth facade — orchestrates API calls, store updates, and navigation. */
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthApi } from '../../core/services/auth.api';
@@ -22,6 +22,23 @@ export class AuthFacade {
   readonly mfaToken = this.store.mfaToken;
   readonly isAuthenticated = this.store.isAuthenticated;
   readonly isMfaPending = this.store.isMfaPending;
+
+  // Whether Google sign-in is configured + enabled in THIS deploy. Starts null
+  // ("unknown"); the Google button stays hidden until confirmed true, so an
+  // unconfigured deploy never shows a button that dead-ends on 503 (§Google fix).
+  private readonly _googleAvailable = signal<boolean | null>(null);
+  readonly googleAvailable = this._googleAvailable.asReadonly();
+
+  /** Probe the backend once for Google-OAuth availability (idempotent). */
+  async loadGoogleAvailability(): Promise<void> {
+    if (this._googleAvailable() !== null) { return; }
+    try {
+      const res = await firstValueFrom(this.api.oauthGoogleAvailable());
+      this._googleAvailable.set(!!res.data?.enabled);
+    } catch {
+      this._googleAvailable.set(false); // fail safe: hide rather than dead-end
+    }
+  }
 
   async register(email: string, displayName: string, password: string): Promise<boolean> {
     this.store.setLoading();

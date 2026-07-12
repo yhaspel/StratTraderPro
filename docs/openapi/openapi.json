@@ -339,6 +339,25 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/auth/oauth/google/available/:
+    get:
+      operationId: auth_oauth_google_available
+      description: |-
+        GET /api/v1/auth/oauth/google/available/
+
+        Read-only, side-effect-free probe (no session cookie, no state) the frontend
+        calls before rendering the "Continue with Google" button. Mirrors the enable
+        condition in :class:`OAuthGoogleStartView` exactly, so a deploy with Google
+        OAuth unconfigured never shows a button that dead-ends on the ``/start/``
+        503 ``FEATURE_DISABLED`` (raw JSON) response.
+      summary: Whether Google sign-in is configured + enabled in this deploy.
+      tags:
+      - oauth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
   /api/v1/auth/oauth/google/start/:
     get:
       operationId: auth_oauth_google_start

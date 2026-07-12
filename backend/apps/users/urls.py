@@ -36,6 +36,7 @@ from .views_m02 import (
 )
 from .views_oauth import (
     OAuthExchangeView,
+    OAuthGoogleAvailableView,
     OAuthGoogleStartView,
     OAuthPostCallbackView,
 )
@@ -81,6 +82,7 @@ urlpatterns = [
 
     # ---- M2.5 — Google OAuth ----
     # Our wrappers (custom JSON-friendly start, post-callback bridge, exchange)
+    path("auth/oauth/google/available/", OAuthGoogleAvailableView.as_view(), name="auth-oauth-google-available"),
     path("auth/oauth/google/start/", OAuthGoogleStartView.as_view(), name="auth-oauth-google-start"),
     path("auth/oauth/google/post-callback/", OAuthPostCallbackView.as_view(), name="auth-oauth-google-post-callback"),
     path("auth/oauth/exchange/", OAuthExchangeView.as_view(), name="auth-oauth-exchange"),

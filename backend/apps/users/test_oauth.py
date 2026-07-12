@@ -335,6 +335,30 @@ class OAuthGoogleStartViewTests(TestCase):
 
 
 # =========================================================================
+class OAuthGoogleAvailableViewTests(TestCase):
+    """The frontend probes this before rendering the Google button, so it must
+    mirror the /start/ enable condition exactly (no dead-end buttons)."""
+
+    @override_settings(GOOGLE_OAUTH_ENABLED=True, GOOGLE_OAUTH_CLIENT_ID="fake-client-id")
+    def test_enabled_when_configured(self):
+        resp = self.client.get(f"{API}auth/oauth/google/available/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["data"]["enabled"])
+
+    @override_settings(GOOGLE_OAUTH_ENABLED=False, GOOGLE_OAUTH_CLIENT_ID="fake-client-id")
+    def test_disabled_when_flag_off(self):
+        resp = self.client.get(f"{API}auth/oauth/google/available/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["data"]["enabled"])
+
+    @override_settings(GOOGLE_OAUTH_ENABLED=True, GOOGLE_OAUTH_CLIENT_ID="")
+    def test_disabled_when_unconfigured(self):
+        resp = self.client.get(f"{API}auth/oauth/google/available/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["data"]["enabled"])
+
+
+# =========================================================================
 # Settings-level OAuth config
 # =========================================================================
 class OAuthSettingsTests(TestCase):

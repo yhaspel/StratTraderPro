@@ -45,6 +45,11 @@
         "EMAIL_NOT_VERIFIED": "Please verify your email before signing in.",
         "RATE_LIMITED": "Too many attempts. Please wait and try again.",
         "UNKNOWN": "Something went wrong. Please try again."
+      },
+      "errors": {
+        "email_required": "Email is required.",
+        "email_invalid": "Enter a valid email address.",
+        "password_required": "Password is required."
       }
     },
     "register": {
@@ -55,7 +60,15 @@
       "password_hint": "At least 12 characters, with letters and digits.",
       "submit": "Create account",
       "have_account": "Already have an account?",
-      "login_link": "Sign in"
+      "login_link": "Sign in",
+      "errors": {
+        "email_required": "Email is required.",
+        "email_invalid": "Enter a valid email address.",
+        "display_name_required": "Display name is required.",
+        "password_required": "Password is required.",
+        "password_min": "Password must be at least 12 characters.",
+        "password_letters_digits": "Password must include both letters and digits."
+      }
     },
     "verify_email": {
       "verifying": "Verifying your email...",
