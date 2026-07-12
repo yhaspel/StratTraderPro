@@ -3,7 +3,21 @@
 | | |
 |---|---|
 | **Severity** | S3 — frontend sourcemaps can never resolve, so the whole sourcemap setup buys nothing |
-| **Status** | FIXED — pending live verification |
+| **Status** | **FIXED & VERIFIED LIVE** 2026-07-11 |
+
+> **Verified on production** after `83ab7d8` deployed. `GET /config.js` now serves:
+>
+> ```js
+> window.STP_CONFIG = { ..., sentryEnvironment: 'production',
+>                       release: '83ab7d8953799cda661720fdedb48e671f7094f8' };
+> ```
+>
+> `release` was `''`; it is now the full commit SHA, defaulted from
+> `RAILWAY_GIT_COMMIT_SHA` by `docker/15-release-default.envsh`. It **matches the
+> `${GITHUB_SHA}` that CI uploads sourcemaps under**, which is the whole point —
+> frontend stack traces will now de-minify instead of silently failing to match a
+> release. All five `STP_CONFIG` vars are substituted; no `${...}` literals survive
+> (BUG-004 still holding).
 | **Area** | Deploy / provenance |
 | **Found** | 2026-07-11 |
 

@@ -22,21 +22,29 @@ picked up later without re-deriving the investigation.
 |----|-------|-----|--------|------|
 | [BUG-001](BUG-001-otel-web-tier-never-traced.md) | OTel never traced the web tier (entrypoint ordering) | S2 | FIXED | Observability |
 | [BUG-002](BUG-002-otlp-endpoint-missing-signal-path.md) | OTLP exporter given base URL; `/v1/traces` never appended | S2 | FIXED | Observability |
-| [BUG-003](BUG-003-healthz-reports-stale-git-sha.md) | `/healthz` reports a stale commit SHA | S3 | OPEN | Deploy/Provenance |
+| [BUG-003](BUG-003-healthz-reports-stale-git-sha.md) | Frontend shipped `release: ''` — Sentry sourcemaps could never resolve (original "stale SHA" premise was a measurement error) | S3 | **FIXED & VERIFIED** | Deploy/Provenance |
 | [BUG-004](BUG-004-nginx-envsubst-filter-too-narrow.md) | Frontend Sentry never worked (nginx envsubst allowlist + empty `SENTRY_DSN`) | S2 | **FIXED & VERIFIED** | Frontend/Config |
-| [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | "Free tier limit for Metrics" — caused by the **scrape interval**, not the series count | S3 | FIXED (awaiting deploy) | Observability/Ops |
+| [BUG-005](BUG-005-grafana-free-tier-metrics-limit.md) | "Free tier limit for Metrics" — caused by the **scrape interval**, not the series count | S3 | **FIXED & VERIFIED** (DPM 1.98→0.96) | Observability/Ops |
 | [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | FIXED | Observability |
-| [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job runs **neither** lint nor tests — no frontend spec has ever executed | S2 | FIXED (awaiting CI) | CI |
-| [BUG-008](BUG-008-no-dead-mans-switch-alerting-fails-silent.md) | No dead-man's switch: a dead metrics pipeline is indistinguishable from "all healthy" | **S1** | FIXED (blocked by 009) | Alerting |
+| [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job ran **neither** lint nor tests — no frontend spec had ever executed | S2 | **FIXED & VERIFIED** (67 specs now run) | CI |
+| [BUG-008](BUG-008-no-dead-mans-switch-alerting-fails-silent.md) | No dead-man's switch: a dead metrics pipeline was indistinguishable from "all healthy" | **S1** | **FIXED & VERIFIED** (caught BUG-011 within 60s) | Alerting |
 | [BUG-009](BUG-009-all-alert-rules-imported-paused.md) | **Every imported alert rule was PAUSED — the M10 alerting stack had never been able to fire** | **S1** | FIXED (all 21 live) | Alerting |
 | [BUG-010](BUG-010-worker-beat-metrics-endpoints-unscrapeable.md) | celery-worker + celery-beat metrics endpoints unscrapeable in both envs | S2 | CLOSED — symptom of 011 | Observability/Railway |
 | [BUG-011](BUG-011-celery-worker-and-beat-are-not-running-celery.md) | **`celery-worker` + `celery-beat` were running gunicorn, not Celery — the default queue had no consumer and beat had never run, in both envs** | **S1/P0** | **FIXED & VERIFIED** | Railway/Celery |
 
 BUG-004 is fixed, guarded in CI, and verified live: the SPA now serves a real DSN
 and Sentry recorded `STRATTRADERPRO-2` — the first frontend event this project has
-ever had. Two loose ends are tracked in its follow-up: remove the Railway
-service-level `NGINX_ENVSUBST_FILTER` override (the CI guard protects the image,
-not Railway), and fix `release: ''` (BUG-003) so sourcemaps actually resolve.
+ever had. **Both follow-ups are now closed too** (2026-07-11):
+
+- The Railway service-level `NGINX_ENVSUBST_FILTER` override has been **deleted on
+  both frontend services**. While it existed it shadowed the image's `ENV`, so the
+  CI guard was protecting an artifact nobody ran. The Dockerfile value —
+  `^(BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE)$`, cross-checked
+  against the template by `scripts/check_envsubst_filter.py` — is now the single
+  source of truth, and the guard finally protects production. Verified after
+  redeploy: `/config.js` is fully substituted on both envs, no `${...}` literals.
+- `release: ''` is fixed (BUG-003) and verified — it now carries the full commit SHA,
+  matching the release CI uploads sourcemaps under.
 
 ## Gotchas (not bugs — traps that will cost you time again)
 
