@@ -1,0 +1,97 @@
+name: Load-test canary
+
+# M11 §7.4 — a SCALED-DOWN canary (NOT the full 100-WS / 20-rps / 10-min run).
+# It boots the local compose stack, seeds a small fixture set, drives ~10 WS
+# dashboards + ~2 webhooks/sec for 60s headless, and FAILS on any 5xx. It is
+# deliberately gated OFF per-commit: manual dispatch + a weekly cron only, so it
+# never blocks normal CI. The full-scale run + ingest→submit and 50-user L1
+# flatten measurements are operator-run on a dedicated stack (see
+# docs/ops/load-test-results.md).
+#
+# Seeds are `--no-broker`, so webhook-driven orders are cleanly rejected by the
+# worker (NO_BROKER_CONNECTED) without touching real Alpaca — the canary's job is
+# "no 5xx + the WS/webhook surfaces are alive", not fills.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays 06:17 UTC — weekly, off the per-commit path
+
+concurrency:
+  group: loadtest-canary
+  cancel-in-progress: true
+
+jobs:
+  canary:
+    name: Canary — 10 WS / 2 rps / 60s (no 5xx)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start stack
+        run: docker compose up -d --build
+
+      - name: Wait for backend (/healthz)
+        run: |
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:8777/healthz; then echo "backend up"; exit 0; fi
+            sleep 2
+          done
+          echo "backend failed to start"; docker compose logs backend; exit 1
+
+      - name: Wait for ws (daphne :8788)
+        run: |
+          for i in $(seq 1 30); do
+            # daphne answers HTTP too (config.asgi http branch); any response = up.
+            if curl -sf -o /dev/null http://localhost:8788/healthz \
+               || curl -s -o /dev/null http://localhost:8788/; then echo "ws up"; exit 0; fi
+            sleep 2
+          done
+          echo "ws failed to start"; docker compose logs ws; exit 1
+
+      - name: Seed fixtures (10 users, no broker)
+        run: |
+          docker compose exec -T backend \
+            python /app/loadtest/seed.py --count 10 --no-broker \
+            --base-url http://localhost:8777 --ws-url ws://localhost:8788
+          test -f backend/loadtest/fixtures.json
+
+      - name: Set up Python + install locust
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install harness deps
+        run: pip install -r backend/loadtest/requirements.txt
+
+      - name: Canary — 20 webhooks/sec surface (60s, fail on any 5xx)
+        env:
+          LT_FIXTURES: backend/loadtest/fixtures.json
+          LT_WEBHOOK_WAIT: "0.5"   # ~2 rps/user * 4 users = ~8 rps canary
+        run: |
+          locust -f backend/loadtest/locustfile.py WebhookUser \
+            --headless -u 4 -r 4 -t 60s \
+            --exit-code-on-error 1 --only-summary
+
+      - name: Canary — 10 WS dashboards (30s)
+        env:
+          LT_FIXTURES: backend/loadtest/fixtures.json
+        run: |
+          locust -f backend/loadtest/locustfile.py WsDashboardUser \
+            --headless -u 10 -r 10 -t 30s \
+            --exit-code-on-error 1 --only-summary
+
+      - name: Assert no 5xx in backend logs
+        run: |
+          if docker compose logs backend | grep -E 'HTTP/1\.1" 5[0-9][0-9] '; then
+            echo "found 5xx responses in backend logs"; exit 1
+          fi
+          echo "no 5xx in backend logs"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

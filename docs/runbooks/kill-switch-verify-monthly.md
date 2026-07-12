@@ -1,5 +1,7 @@
 # Runbook — Monthly kill-switch verification drill
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Cadence:** Monthly (§5 DoD — "runbook committed and dated"). Record the run
 date and the metric deltas each time you execute it.

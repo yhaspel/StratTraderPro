@@ -5,9 +5,14 @@
 #   - CVE-2025-64458 (HIGH, DoS on Windows)
 # All three are fixed in Django 5.1.14.
 Django>=5.1.14,<5.2
-djangorestframework>=3.14,<3.15
+# DRF 3.15.2 clears PYSEC-2026-1304 (XSS in the break_long_headers template
+# filter) flagged by pip-audit (M11 §7.2).
+djangorestframework>=3.15.2,<3.16
 django-cors-headers>=4.3,<4.4
-djangorestframework-simplejwt>=5.3,<5.4
+# SimpleJWT 5.5.1 clears PYSEC-2026-1305 (a disabled user could still use a live
+# access token — missing user validation in for_user). Directly relevant to the
+# M11 GDPR delete/anonymize flow (M11 §7.2).
+djangorestframework-simplejwt>=5.5.1,<5.6
 django-filter>=23.5,<24.0
 django-environ>=0.11,<0.12
 
@@ -42,6 +47,11 @@ python-ulid>=3.0,<4.0
 
 # Database
 psycopg2-binary>=2.9,<2.10
+
+# Object storage (M11 §7.7) — S3-compatible abstraction for GDPR data export +
+# the weekly pg_dump offload. Cloudflare R2 in prod; FileSystemStorage in dev;
+# moto in tests. django-storages[s3] pulls boto3. Signed-URL TTL is 24h.
+django-storages[s3]>=1.14,<1.15
 
 # HTTP
 httpx>=0.26,<0.27
@@ -84,7 +94,10 @@ alpaca-py>=0.43,<0.44
 # served by a dedicated ASGI process (docker-compose `ws` service).
 channels>=4.1,<4.2
 channels-redis>=4.2,<4.3
-daphne>=4.1,<4.2
+# daphne 4.2.2 clears PYSEC-2026-213 (unbounded WS frame/message size — DoS on
+# the public /ws/dashboard/) and PYSEC-2026-214 (header-separator smuggling),
+# both flagged by pip-audit (M11 §7.2).
+daphne>=4.2.2,<4.3
 
 # Market data + regime classifier (M06)
 # numpy/pandas for the feature pipeline; hmmlearn (GaussianHMM) for the nightly

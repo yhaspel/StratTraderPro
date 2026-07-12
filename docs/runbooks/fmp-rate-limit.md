@@ -1,5 +1,7 @@
 # Runbook — FMP rate limit / outage
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist — the token-bucket rate limit, retry/backoff,
 circuit breaker, and cache-fallback are built and unit-tested (M06, AC-06-9).

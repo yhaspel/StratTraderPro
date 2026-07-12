@@ -1,5 +1,7 @@
 # Runbook — Monthly audit-integrity verification spot-check
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Cadence:** Monthly. Record the run date and the observed values each time.
 Mirrors the `docs/runbooks/kill-switch-verify-monthly.md` precedent — a dated,

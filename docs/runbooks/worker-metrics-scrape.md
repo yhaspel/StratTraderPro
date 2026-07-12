@@ -1,5 +1,7 @@
 # Runbook — Scraping task-process Prometheus metrics (FIX-C1, M10 §6.5b)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Implemented in code + compose (M10, FIX-C1). The worker/beat/streams
 processes each expose a `/metrics` port, the postgres/redis exporters exist, and

@@ -1,5 +1,7 @@
 # Runbook — Backtest run stuck / slow / queue not draining
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist. The dedicated `backtest` Celery queue, the
 `worker-backtest` compose service, cooperative cancellation, the nightly artifact

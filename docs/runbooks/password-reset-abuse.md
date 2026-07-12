@@ -1,5 +1,7 @@
 # Runbook: Password Reset Abuse
 
+**Last reviewed:** 2026-07-12
+
 ## Symptoms
 
 - A user reports receiving many password reset emails they didn't request.

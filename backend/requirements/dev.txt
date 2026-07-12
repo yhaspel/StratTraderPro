@@ -16,3 +16,6 @@ pytest>=7.4
 pytest-django>=4.7
 pytest-cov>=4.1
 factory-boy>=3.3
+# M11 §7.7 — mock S3 for the GDPR export storage tests (no external MinIO needed
+# in CI). moto[s3] intercepts boto3 calls in-process.
+moto[s3]>=5.0,<6.0

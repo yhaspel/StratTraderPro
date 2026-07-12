@@ -109,3 +109,30 @@ rows will fail to decrypt — but that's only the tiny window of MFA
 enrollments performed after Step 2 deployed and before rollback. Those
 users will need to re-enroll. Comms template in
 `docs/runbooks/mfa-rotation-rollback-comms.md` (TBD).
+
+---
+
+## M11 §7.12 — Rotation rehearsal (measured 2026-07-12)
+
+The rotation was rehearsed locally to time the `MultiFernet` re-encryption pass. The M11 PR
+**leaves the code at single-key `Fernet(settings.FERNET_KEK)`** — the `MultiFernet` swap is a
+rotation-time-only edit (frozen decision §5), never committed to `settings`.
+
+Rehearsal (5000 simulated stored secrets — MFA TOTP + webhook `sig` + broker keys across users):
+
+```
+secrets rotated       : 5000
+seed (encrypt old)    : 45.6 ms
+MultiFernet.rotate    : 84.8 ms   (17.0 us/secret)   <- decrypt-with-old, re-encrypt-with-new
+verify new-key decrypt: 34.7 ms
+all decrypt under new : True
+```
+
+**Extrapolation:** at ~17 µs/secret the re-encryption pass is dominated by the DB round-trips,
+not the crypto — even 100k stored secrets re-encrypt in <2s of pure crypto. Batch the
+`save(update_fields=[...])` writes; the wall-clock is I/O-bound.
+
+**The rehearsal confirms the runbook's three-step swap works:** (1) introduce
+`MultiFernet([Fernet(new), Fernet(old)])`, (2) `mf.rotate(ciphertext)` every stored secret and
+save, (3) revert to single-key `Fernet(new)` and drop the old KEK from Railway. Every rotated
+secret decrypts under the new single key. No committed `MultiFernet`.

@@ -14,3 +14,6 @@ ignore = ["S101"]
 # Tests legitimately use hardcoded credentials and small import-shuffles.
 "**/tests.py" = ["S105", "S106"]
 "**/test_*.py" = ["S105", "S106"]
+# M11 load-test tooling (not shipped app code): non-crypto `random` for traffic
+# mixing (S311), fixture secrets (S105/S106), and best-effort teardown (S110).
+"loadtest/*.py" = ["S311", "S105", "S106", "S110"]

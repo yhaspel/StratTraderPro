@@ -108,6 +108,8 @@ MIDDLEWARE = [
     # M10 §6.6 — mint/propagate a request_id (ULID) as early as possible.
     "config.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # M11 §7.1 — CSP (report-only) + Permissions-Policy on every Django response.
+    "config.security_headers.SecurityHeadersMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -633,6 +635,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.audit.tasks.verify_audit_integrity",
         "schedule": crontab(hour=8, minute=0),
     },
+    # M11 §7.7 — nightly (02:00 UTC) anonymize-in-place of accounts whose 30-day
+    # soft-delete has expired. Default `celery` queue.
+    "users-anonymize-expired": {
+        "task": "apps.users.tasks.anonymize_expired_accounts",
+        "schedule": crontab(hour=2, minute=0),
+    },
     # M10 — refresh celery_queue_depth{queue} gauge every 30s (default queue).
     "admin-queue-depths": {
         "task": "apps.admin_portal.tasks.update_queue_depths",
@@ -687,6 +695,31 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ---------------------------------------------------------------------------
+# Storages (M11 §7.7) — the ``exports`` alias holds GDPR personal-data ZIPs.
+# Dev/test use FileSystemStorage; prod overrides ``exports`` with an
+# S3-compatible backend (Cloudflare R2) in prod.py. Accessed in code via
+# ``django.core.files.storage.storages["exports"]``.
+# ---------------------------------------------------------------------------
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "exports": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": str(BASE_DIR / "export_storage"),
+            "base_url": "/media/exports/",
+        },
+    },
+}
+# Signed-URL TTL for a produced export (frozen decision §4.2). Read by prod.py's
+# S3 backend config; the filesystem dev backend ignores it.
+EXPORT_SIGNED_URL_TTL_SECONDS = env.int("EXPORT_SIGNED_URL_TTL_SECONDS", default=86_400)
+# Whether the export storage is usable. Filesystem (dev/test) is always ready;
+# prod flips this False when the R2 bucket env is unset so the export task leaves
+# the job PENDING with an operator note instead of failing (risk §17).
+EXPORTS_STORAGE_READY = True
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 # NOTE (M10 §6.1): the sensitive-key scrubber (SENSITIVE_KEYS + _scrub_sensitive)
@@ -696,8 +729,11 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     # M10 §6.6 — inject request_id + task_id into every record.
+    # M11 §7.1 — scrub_sensitive redacts secret-named extra= fields (the wiring
+    # M10 flagged as missing; ADR-100 key set).
     "filters": {
         "request_context": {"()": "config.request_context.RequestContextFilter"},
+        "scrub_sensitive": {"()": "config.log_scrub.SensitiveDataFilter"},
     },
     "formatters": {
         "json": {
@@ -712,7 +748,7 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
-            "filters": ["request_context"],
+            "filters": ["request_context", "scrub_sensitive"],
         },
     },
     "root": {
@@ -758,3 +794,23 @@ METRICS_BASIC_AUTH_PASSWORD = env("METRICS_BASIC_AUTH_PASSWORD", default="")
 # instead of falling open. Default False (dev/test stay open); prod sets True so
 # an unconfigured deploy fails CLOSED rather than exposing metrics to the world.
 METRICS_REQUIRE_AUTH = env.bool("METRICS_REQUIRE_AUTH", default=False)
+
+# ---------------------------------------------------------------------------
+# Security response headers (M11 §7.1 V9 / §4.6)
+# ---------------------------------------------------------------------------
+# Django's SecurityMiddleware handles these two natively (HSTS is set in prod.py):
+SECURE_CONTENT_TYPE_NOSNIFF = True  # X-Content-Type-Options: nosniff
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+# CSP + Permissions-Policy are added by config.security_headers.SecurityHeadersMiddleware.
+# CSP ships REPORT-ONLY (frozen decision §4.6); flip via CSP_REPORT_ONLY=false once
+# violation reports are clean. The Django tier serves JSON + the Swagger/browsable
+# API — a strict default-src is safe for JSON and only *reported* for the API UIs.
+CSP_REPORT_ONLY = env.bool("CSP_REPORT_ONLY", default=True)
+CSP_POLICY = env(
+    "CSP_POLICY",
+    default="default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+)
+PERMISSIONS_POLICY = env(
+    "PERMISSIONS_POLICY",
+    default="geolocation=(), microphone=(), camera=(), payment=()",
+)

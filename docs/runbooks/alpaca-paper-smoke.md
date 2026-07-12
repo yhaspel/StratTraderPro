@@ -1,5 +1,7 @@
 # Runbook — Alpaca paper end-to-end smoke test (M04 §10.4)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist — run once against staging with real Alpaca
 paper keys to close M04 §10.4 / AC-04-7 / AC-04-8. Log the run in the M04 PR

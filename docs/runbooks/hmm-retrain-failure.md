@@ -1,5 +1,7 @@
 # Runbook — HMM retrain failure / stale regime model
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist — the nightly retrain, the non-regression swap
 guard, and the rule-only staleness fallback are built and unit-tested (M06,

@@ -79,7 +79,7 @@ const SPARK_PAD = 3;
       <div>
         <div class="mb-1 text-xs font-medium text-gray-500">{{ 'sentiment.recent_news' | translate }}</div>
         @if (topArticles().length === 0) {
-          <p class="text-xs text-gray-400">{{ 'sentiment.no_data' | translate }}</p>
+          <p class="text-xs text-gray-500">{{ 'sentiment.no_data' | translate }}</p>
         } @else {
           <ul class="divide-y border border-gray-200 rounded">
             @for (a of topArticles(); track a.id) {
@@ -90,7 +90,7 @@ const SPARK_PAD = 3;
                 </span>
                 <a [href]="a.url" target="_blank" rel="noopener"
                    class="flex-1 truncate text-gray-800 hover:underline">{{ a.title }}</a>
-                <span class="shrink-0 text-xs text-gray-400">{{ a.source }}</span>
+                <span class="shrink-0 text-xs text-gray-500">{{ a.source }}</span>
                 @if (a.impact != null) {
                   <span class="shrink-0 text-xs text-gray-500">
                     {{ 'sentiment.impact' | translate }} {{ fmtImpact(a.impact) }}

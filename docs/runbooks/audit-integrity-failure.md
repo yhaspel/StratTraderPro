@@ -1,5 +1,7 @@
 # Runbook — Audit-log integrity failure
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable. The nightly verifier
 (`apps.audit.tasks.verify_audit_integrity`, beat 08:00 UTC ≈ 04:00 ET), the hash

@@ -196,7 +196,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
         <div class="flex items-center justify-between">
           <h2 id="order-detail-title" class="text-lg font-semibold">{{ 'orders.detail.title' | translate }}</h2>
           <button type="button" (click)="onClose()"
-                  class="text-gray-400 hover:text-gray-700 text-sm">
+                  class="text-gray-500 hover:text-gray-700 text-sm">
             {{ 'orders.detail.close' | translate }}
           </button>
         </div>
@@ -277,7 +277,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
               @for (f of o.fills; track f.id) {
                 <li class="px-3 py-2 flex items-center justify-between text-sm">
                   <span class="font-mono text-gray-600">{{ fmtQty(f.qty) }} &#64; {{ fmtMoney(f.price) }}</span>
-                  <span class="text-xs text-gray-400">{{ f.ts | date:'short' }}</span>
+                  <span class="text-xs text-gray-500">{{ f.ts | date:'short' }}</span>
                 </li>
               }
             </ul>

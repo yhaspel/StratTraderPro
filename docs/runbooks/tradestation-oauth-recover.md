@@ -1,5 +1,7 @@
 # Runbook — TradeStation OAuth (connect, refresh, recover)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** **NOT YET LIVE-VERIFIED — approval-gated.** The TradeStation adapter
 and its entire OAuth2/PKCE flow ship behind `BROKER_TRADESTATION_ENABLED`

@@ -1,0 +1,5 @@
+# M11 §7.4 load-test harness — host-side deps (install into a throwaway venv or backend/.venv).
+# Pinned loosely; the harness only uses stable public APIs of each.
+locust>=2.20,<3
+websocket-client>=1.7,<2   # sync WS client for the 100-dashboard scenario
+pyotp>=2.9,<3              # compute a valid TOTP for the L1 kill-switch MFA step-up

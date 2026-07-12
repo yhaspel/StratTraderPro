@@ -1,5 +1,7 @@
 # Runbook — llm-worker cold start / bringing up Tier-2
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** Executable checklist — the tiered scorer, the flag gating, the
 FakeScorer default, and the FinBERT-only degradation are built and unit-tested

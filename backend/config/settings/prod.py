@@ -97,6 +97,39 @@ if not (METRICS_BASIC_AUTH_USERNAME and METRICS_BASIC_AUTH_PASSWORD):  # noqa: F
     )
 
 # ---------------------------------------------------------------------------
+# GDPR export storage (M11 §7.7) — Cloudflare R2 (S3-compatible). Only switch to
+# the S3 backend when a bucket is configured; otherwise keep the filesystem
+# default and mark storage NOT ready so the export task leaves jobs PENDING with
+# an operator note (risk §17) instead of crashing on an unconfigured backend.
+# ---------------------------------------------------------------------------
+_exports_bucket = env("EXPORTS_BUCKET", default="")
+if _exports_bucket:
+    STORAGES["exports"] = {  # noqa: F405
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": _exports_bucket,
+            "access_key": env("AWS_ACCESS_KEY_ID", default=""),
+            "secret_key": env("AWS_SECRET_ACCESS_KEY", default=""),
+            # R2 (or any S3-compatible) endpoint, e.g. https://<acct>.r2.cloudflarestorage.com
+            "endpoint_url": env("AWS_S3_ENDPOINT_URL", default=""),
+            "region_name": env("AWS_S3_REGION_NAME", default="auto"),
+            # 24h presigned download URLs (frozen decision §4.2).
+            "querystring_auth": True,
+            "querystring_expire": EXPORT_SIGNED_URL_TTL_SECONDS,  # noqa: F405
+            "default_acl": None,  # R2 is private-by-default; no ACLs
+            "file_overwrite": True,
+        },
+    }
+    EXPORTS_STORAGE_READY = True
+else:
+    EXPORTS_STORAGE_READY = False
+    _logging_gdpr = __import__("logging").getLogger("apps.users.gdpr")
+    _logging_gdpr.warning(
+        "EXPORTS_BUCKET unset — GDPR exports stay PENDING until Cloudflare R2 is "
+        "provisioned (set EXPORTS_BUCKET + AWS_* + AWS_S3_ENDPOINT_URL). See docs/ops/prod-bringup.md."
+    )
+
+# ---------------------------------------------------------------------------
 # Sentry
 # ---------------------------------------------------------------------------
 # Derive Sentry environment from Railway's auto-injected RAILWAY_ENVIRONMENT_NAME

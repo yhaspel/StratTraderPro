@@ -1,5 +1,7 @@
 # Runbook — Incident triage (alert → severity → cause → runbook → escalation)
 
+**Last reviewed:** 2026-07-12
+
 **Owner:** Yuval
 **Status:** The alert rules are committed as code at
 `infra/grafana/alerts/alert-rules.yaml` (a pytest cross-checks every referenced

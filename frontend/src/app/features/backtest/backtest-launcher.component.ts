@@ -66,7 +66,7 @@ const KNOWN_ERRORS = new Set([
             @if (selectedNoAdapter()) {
               <p class="mt-1 text-xs text-amber-700" role="alert">⚠ {{ 'backtest.launcher.no_adapter_banner' | translate }}</p>
             } @else {
-              <p class="mt-1 text-xs text-gray-400">{{ 'backtest.launcher.no_adapter_note' | translate }}</p>
+              <p class="mt-1 text-xs text-gray-500">{{ 'backtest.launcher.no_adapter_note' | translate }}</p>
             }
           </div>
 
@@ -76,7 +76,7 @@ const KNOWN_ERRORS = new Set([
             <input id="bt-symbols" type="text" formControlName="symbols" autocomplete="off" spellcheck="false"
                    [placeholder]="'backtest.form.symbols_placeholder' | translate"
                    class="w-full border rounded px-3 py-2 font-mono text-sm" />
-            <p class="mt-1 text-xs" [class.text-gray-400]="!symbolsError()" [class.text-red-700]="symbolsError()">
+            <p class="mt-1 text-xs" [class.text-gray-500]="!symbolsError()" [class.text-red-700]="symbolsError()">
               {{ symbolsError() ? (symbolsError()! | translate) : ('backtest.form.symbols_help' | translate) }}
             </p>
           </div>
@@ -109,7 +109,7 @@ const KNOWN_ERRORS = new Set([
               <label for="bt-step" class="block text-sm font-medium mb-1">{{ 'backtest.form.step_days' | translate }}</label>
               <input id="bt-step" type="number" [value]="form.controls.test_window_days.value" readonly
                      class="w-full border rounded px-3 py-2 font-mono text-sm bg-gray-50 text-gray-500" />
-              <p class="mt-1 text-xs text-gray-400">{{ 'backtest.form.step_help' | translate }}</p>
+              <p class="mt-1 text-xs text-gray-500">{{ 'backtest.form.step_help' | translate }}</p>
             </div>
           </div>
 
@@ -161,7 +161,7 @@ const KNOWN_ERRORS = new Set([
             @if (paramGridError(); as e) {
               <p class="mt-1 text-xs text-red-700">{{ e }}</p>
             } @else {
-              <p class="mt-1 text-xs text-gray-400">{{ 'backtest.form.param_grid_help' | translate }}</p>
+              <p class="mt-1 text-xs text-gray-500">{{ 'backtest.form.param_grid_help' | translate }}</p>
             }
           </div>
 
@@ -193,7 +193,7 @@ const KNOWN_ERRORS = new Set([
                 <label for="bt-ret" class="block text-sm font-medium mb-1">{{ 'backtest.form.retention_days' | translate }}</label>
                 <input id="bt-ret" type="number" min="1" max="365" step="1" formControlName="retention_days"
                        class="w-full border rounded px-3 py-2 font-mono text-sm" />
-                <p class="mt-1 text-xs text-gray-400">{{ 'backtest.form.retention_help' | translate }}</p>
+                <p class="mt-1 text-xs text-gray-500">{{ 'backtest.form.retention_help' | translate }}</p>
               </div>
             </div>
           </details>
@@ -259,7 +259,7 @@ const KNOWN_ERRORS = new Set([
                     <span class="text-xs px-2 py-0.5 rounded" [class]="statusClass(r.status)">
                       {{ ('backtest.status.' + r.status) | translate }}
                     </span>
-                    @if (isActive(r.status)) { <span class="ml-1 text-xs text-gray-400 font-mono">{{ r.pct }}%</span> }
+                    @if (isActive(r.status)) { <span class="ml-1 text-xs text-gray-500 font-mono">{{ r.pct }}%</span> }
                   </td>
                   <td class="px-3 py-2 text-right font-mono" (click)="onOpen(r.id)">{{ fmtPbo(r.worst_pbo) }}</td>
                   <td class="px-3 py-2 text-right font-mono" (click)="onOpen(r.id)">{{ fmtDuration(r.duration_seconds) }}</td>

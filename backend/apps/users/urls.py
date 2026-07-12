@@ -23,6 +23,14 @@ from .views import (
     ResendVerificationView,
     VerifyEmailView,
 )
+from .views_gdpr import (
+    AccountDeleteCancelView,
+    AccountDeleteView,
+    DataExportRequestView,
+    DataExportStatusView,
+    TermsAcceptView,
+    TermsCurrentView,
+)
 from .views_m02 import (
     MFABackupRegenerateView,
     MFADisableView,
@@ -79,6 +87,16 @@ urlpatterns = [
     path("users/me/password/", PasswordChangeView.as_view(), name="users-me-password"),
     path("users/me/sessions/", SessionsListView.as_view(), name="users-me-sessions"),
     path("users/me/sessions/revoke/", SessionsRevokeView.as_view(), name="users-me-sessions-revoke"),
+
+    # ---- M11 §7.7 — GDPR personal-data export + 30-day soft delete ----
+    path("users/me/export/", DataExportRequestView.as_view(), name="users-me-export"),
+    path("users/me/export/<uuid:job_id>/", DataExportStatusView.as_view(), name="users-me-export-status"),
+    path("users/me/delete/", AccountDeleteView.as_view(), name="users-me-delete"),
+    path("users/me/delete/cancel/", AccountDeleteCancelView.as_view(), name="users-me-delete-cancel"),
+
+    # ---- M11 §7.8 — Terms of Service / Privacy acceptance ----
+    path("terms/current/", TermsCurrentView.as_view(), name="terms-current"),
+    path("terms/accept/", TermsAcceptView.as_view(), name="terms-accept"),
 
     # ---- M2.5 — Google OAuth ----
     # Our wrappers (custom JSON-friendly start, post-callback bridge, exchange)

@@ -137,7 +137,7 @@ type Action = 'disable' | 'enable' | 'impersonate';
               @for (a of u.recent_audit; track a.id) {
                 <li class="px-3 py-2 flex items-center justify-between">
                   <span class="font-medium">{{ eventLabel(a.event_type) }}</span>
-                  <span class="text-xs text-gray-400">{{ a.occurred_at | date:'short' }}</span>
+                  <span class="text-xs text-gray-500">{{ a.occurred_at | date:'short' }}</span>
                 </li>
               }
             </ul>

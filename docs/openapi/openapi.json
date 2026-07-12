@@ -1286,6 +1286,36 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/terms/accept/:
+    post:
+      operationId: v1_terms_accept_create
+      summary: Record Terms/Privacy acceptance
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/_TermsAccept'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/_TermsAccept'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_TermsAccept'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/v1/terms/current/:
+    get:
+      operationId: v1_terms_current_retrieve
+      summary: Current ToS/Privacy versions + whether the user must re-accept
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
   /api/v1/users/me/:
     get:
       operationId: users_me
@@ -1315,6 +1345,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
           description: ''
+  /api/v1/users/me/delete/:
+    post:
+      operationId: v1_users_me_delete_create
+      summary: Schedule a 30-day soft account deletion
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/delete/cancel/:
+    post:
+      operationId: v1_users_me_delete_cancel_create
+      summary: Cancel a pending account deletion
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/export/:
+    get:
+      operationId: v1_users_me_export_retrieve
+      summary: Start a personal-data export
+      tags:
+      - v1
+      responses:
+        '202':
+          description: No response body
+  /api/v1/users/me/export/{job_id}/:
+    get:
+      operationId: v1_users_me_export_retrieve_2
+      summary: Personal-data export status + signed download URL
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
   /api/v1/users/me/password/:
     post:
       operationId: users_me_password_change
@@ -1791,3 +1864,15 @@ components:
       - first_fill_seen
       - mfa_enrolled
       - strategy_ready
+    _TermsAccept:
+      type: object
+      properties:
+        tos_version:
+          type: string
+          maxLength: 32
+        privacy_version:
+          type: string
+          maxLength: 32
+      required:
+      - privacy_version
+      - tos_version
