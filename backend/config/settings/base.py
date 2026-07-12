@@ -633,6 +633,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.audit.tasks.verify_audit_integrity",
         "schedule": crontab(hour=8, minute=0),
     },
+    # M11 §7.7 — nightly (02:00 UTC) anonymize-in-place of accounts whose 30-day
+    # soft-delete has expired. Default `celery` queue.
+    "users-anonymize-expired": {
+        "task": "apps.users.tasks.anonymize_expired_accounts",
+        "schedule": crontab(hour=2, minute=0),
+    },
     # M10 — refresh celery_queue_depth{queue} gauge every 30s (default queue).
     "admin-queue-depths": {
         "task": "apps.admin_portal.tasks.update_queue_depths",
@@ -685,6 +691,31 @@ LOCALE_PATHS = [BASE_DIR / "locale"]
 # ---------------------------------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# ---------------------------------------------------------------------------
+# Storages (M11 §7.7) — the ``exports`` alias holds GDPR personal-data ZIPs.
+# Dev/test use FileSystemStorage; prod overrides ``exports`` with an
+# S3-compatible backend (Cloudflare R2) in prod.py. Accessed in code via
+# ``django.core.files.storage.storages["exports"]``.
+# ---------------------------------------------------------------------------
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "exports": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": str(BASE_DIR / "export_storage"),
+            "base_url": "/media/exports/",
+        },
+    },
+}
+# Signed-URL TTL for a produced export (frozen decision §4.2). Read by prod.py's
+# S3 backend config; the filesystem dev backend ignores it.
+EXPORT_SIGNED_URL_TTL_SECONDS = env.int("EXPORT_SIGNED_URL_TTL_SECONDS", default=86_400)
+# Whether the export storage is usable. Filesystem (dev/test) is always ready;
+# prod flips this False when the R2 bucket env is unset so the export task leaves
+# the job PENDING with an operator note instead of failing (risk §17).
+EXPORTS_STORAGE_READY = True
 
 # ---------------------------------------------------------------------------
 # Logging

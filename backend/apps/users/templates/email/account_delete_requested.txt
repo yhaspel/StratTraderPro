@@ -1,0 +1,9 @@
+{% load i18n %}{% blocktrans %}Hi {{ display_name }},{% endblocktrans %}
+
+{% blocktrans %}We received a request to delete your StratTraderPro account. It is scheduled for permanent anonymization on {{ pending_delete_at }}.{% endblocktrans %}
+
+{% blocktrans %}If you change your mind, sign in and cancel the deletion any time before then — nothing is removed until that date.{% endblocktrans %}
+
+{% blocktrans %}If you did not request this, cancel it and reset your password immediately.{% endblocktrans %}
+
+— {% trans "The StratTraderPro team" %}

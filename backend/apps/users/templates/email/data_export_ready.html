@@ -1,0 +1,10 @@
+{% load i18n %}<!doctype html>
+<html>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #1f2937;">
+    <p>{% blocktrans %}Hi {{ display_name }},{% endblocktrans %}</p>
+    <p>{% blocktrans %}Your StratTraderPro personal-data export is ready.{% endblocktrans %}</p>
+    <p><a href="{{ url }}">{% trans "Download your data export" %}</a></p>
+    <p>{% blocktrans %}This link expires in 24 hours. For your security, broker API keys and MFA secrets are redacted from the export.{% endblocktrans %}</p>
+    <p>— {% trans "The StratTraderPro team" %}</p>
+  </body>
+</html>

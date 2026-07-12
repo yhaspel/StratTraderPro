@@ -48,6 +48,11 @@ python-ulid>=3.0,<4.0
 # Database
 psycopg2-binary>=2.9,<2.10
 
+# Object storage (M11 §7.7) — S3-compatible abstraction for GDPR data export +
+# the weekly pg_dump offload. Cloudflare R2 in prod; FileSystemStorage in dev;
+# moto in tests. django-storages[s3] pulls boto3. Signed-URL TTL is 24h.
+django-storages[s3]>=1.14,<1.15
+
 # HTTP
 httpx>=0.26,<0.27
 

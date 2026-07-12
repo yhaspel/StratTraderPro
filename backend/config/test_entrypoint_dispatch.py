@@ -42,7 +42,7 @@ def _run(env_overrides, *, unset=()):
     for key in ("SERVICE_ROLE", "STP_ENTRYPOINT_DRY_RUN", "RAILWAY_ENVIRONMENT_NAME", *unset):
         env.pop(key, None)
     env.update(env_overrides)
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603 — fixed, trusted path (the repo's own entrypoint)
         [str(ENTRYPOINT)],
         env=env,
         capture_output=True,
@@ -130,7 +130,7 @@ def test_entrypoint_is_committed_executable():
     """The image CMD is exec-form; a non-exec entrypoint dies 'permission denied'."""
     git = shutil.which("git")
     if git:
-        out = subprocess.run(
+        out = subprocess.run(  # noqa: S603 — fixed argv, git resolved via shutil.which
             [git, "ls-files", "-s", "docker/entrypoint.sh"],
             cwd=REPO_ROOT, capture_output=True, text=True, check=False,
         ).stdout.strip()

@@ -74,6 +74,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # M11 §7.7 — 30-day soft account delete. Set to now+30d on a delete request;
+    # a nightly job anonymizes-in-place on expiry (the User row is NEVER hard
+    # deleted — its PK keeps AuditLog.user/actor FKs resolving). Cleared on cancel.
+    pending_delete_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["display_name"]
@@ -374,3 +378,106 @@ class OAuthExchangeCode(models.Model):
         row.consumed_at = timezone.now()
         row.save(update_fields=["consumed_at"])
         return row.user
+
+
+# ---------------------------------------------------------------------------
+# M11 §7.8 — Versioned Terms of Service / Privacy Policy + acceptance
+# ---------------------------------------------------------------------------
+class TermsDocument(models.Model):
+    """A versioned legal document (ToS or Privacy). The *current* document of a
+    kind is the one with the greatest ``effective_from`` that is <= now. The SPA
+    re-prompts for acceptance whenever the accepted version differs from current.
+    """
+
+    class Kind(models.TextChoices):
+        TERMS = "terms", "Terms of Service"
+        PRIVACY = "privacy", "Privacy Policy"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=16, choices=Kind.choices, db_index=True)
+    version = models.CharField(max_length=32)
+    text = models.TextField(blank=True, default="")
+    # URL the SPA links to for the full rendered document (optional).
+    url = models.CharField(max_length=256, blank=True, default="")
+    effective_from = models.DateTimeField(default=timezone.now, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "users_terms_document"
+        constraints = [
+            models.UniqueConstraint(fields=["kind", "version"], name="uq_terms_kind_version"),
+        ]
+        indexes = [models.Index(fields=["kind", "effective_from"])]
+
+    def __str__(self):
+        return f"TermsDocument<{self.kind} {self.version}>"
+
+    @classmethod
+    def current(cls, kind: str):
+        """The in-force document of ``kind`` (latest effective_from <= now), or None."""
+        return (
+            cls.objects.filter(kind=kind, effective_from__lte=timezone.now())
+            .order_by("-effective_from")
+            .first()
+        )
+
+
+class TermsAcceptance(models.Model):
+    """One row per (user, acceptance event). Immutable audit of consent — the IP
+    and timestamp make the acceptance legally meaningful (§12)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="terms_acceptances"
+    )
+    tos_version = models.CharField(max_length=32)
+    privacy_version = models.CharField(max_length=32)
+    accepted_at = models.DateTimeField(auto_now_add=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        db_table = "users_terms_acceptance"
+        indexes = [models.Index(fields=["user", "accepted_at"])]
+
+    def __str__(self):
+        return f"TermsAcceptance<{self.user_id} tos={self.tos_version} priv={self.privacy_version}>"
+
+
+# ---------------------------------------------------------------------------
+# M11 §7.7 — GDPR personal-data export job
+# ---------------------------------------------------------------------------
+class DataExportJob(models.Model):
+    """Tracks an async personal-data export. The ZIP is streamed to S3-compatible
+    storage (``STORAGES['exports']``) and delivered via a 24h signed URL."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        READY = "ready", "Ready"
+        FAILED = "failed", "Failed"
+        EXPIRED = "expired", "Expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="export_jobs"
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True)
+    # Storage key of the produced ZIP within STORAGES['exports']; empty until READY.
+    file_key = models.CharField(max_length=256, blank=True, default="")
+    size_bytes = models.BigIntegerField(default=0)
+    error = models.CharField(max_length=256, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    ready_at = models.DateTimeField(null=True, blank=True)
+    # Signed-URL / retention expiry (created_at + 24h).
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "users_data_export_job"
+        indexes = [models.Index(fields=["user", "created_at"])]
+
+    def __str__(self):
+        return f"DataExportJob<{self.id} {self.status}>"
+
+    @property
+    def is_expired(self) -> bool:
+        return bool(self.expires_at and self.expires_at < timezone.now())

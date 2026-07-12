@@ -83,6 +83,14 @@ class AuditEventType(models.TextChoices):
     AUDIT_VERIFIER_COMPLETED = "audit.verifier_completed", "Audit verifier completed"
     # security.* (C3 — step-up MFA brute-force throttle)
     MFA_STEPUP_THROTTLED = "security.mfa_stepup_throttled", "MFA step-up throttled"
+    # account.* / terms.* (M11 §7.7/§7.8 — GDPR export/delete + terms acceptance)
+    ACCOUNT_EXPORT_REQUESTED = "account.export_requested", "Data export requested"
+    ACCOUNT_EXPORT_READY = "account.export_ready", "Data export ready"
+    ACCOUNT_EXPORT_FAILED = "account.export_failed", "Data export failed"
+    ACCOUNT_DELETE_REQUESTED = "account.delete_requested", "Account deletion requested"
+    ACCOUNT_DELETE_CANCELLED = "account.delete_cancelled", "Account deletion cancelled"
+    ACCOUNT_ANONYMIZED = "account.anonymized", "Account anonymized"
+    TERMS_ACCEPTED = "terms.accepted", "Terms accepted"
 
 
 def auth_event_type(value: str) -> str:

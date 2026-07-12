@@ -13,6 +13,8 @@ from apps.audit.models import AuditLog
 from apps.audit.verifier import verify_chain
 
 _BEFORE = [("audit", "0002_chain_triggers"), ("users", "0003_oauth_exchange_code")]
+# The migration-under-test target (running audit.0003 folds AuthEvent -> AuditLog).
+# NOTE: this is NOT necessarily the graph head — tearDown restores to the real head.
 _AFTER = [("audit", "0003_migrate_auth_events"), ("users", "0004_drop_auth_event")]
 
 
@@ -24,8 +26,15 @@ class AuthEventDataMigrationTests(TransactionTestCase):
         return executor
 
     def tearDown(self):
-        # Leave the DB at head for the rest of the suite.
-        self._migrate(_AFTER)
+        # Leave the DB at the ACTUAL head for the rest of the suite. Migrating to
+        # a hardcoded ("users", "0004") un-applies any later migration (e.g.
+        # M11's users.0005 pending_delete_at + terms tables), which then makes
+        # every subsequent TransactionTestCase see a stale schema ("no column
+        # pending_delete_at"). Restore to the graph's leaf nodes so this is
+        # future-proof to new migrations.
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(executor.loader.graph.leaf_nodes())
 
     def test_auth_events_become_a_verified_chain(self):
         executor = self._migrate(_BEFORE)
