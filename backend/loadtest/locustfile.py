@@ -36,7 +36,7 @@ import uuid
 from pathlib import Path
 
 import gevent
-from locust import User, HttpUser, between, events, task
+from locust import HttpUser, User, between, events, task
 
 # --- fixtures ----------------------------------------------------------------
 _DEFAULT_FIXTURES = Path(__file__).resolve().parent / "fixtures.json"
