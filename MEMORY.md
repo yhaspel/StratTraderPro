@@ -7,7 +7,7 @@
 
 - **`project-plan/PROGRESS.md` is the canonical status file. Update it with every development milestone**: phase start/close, acceptance-criteria pass, tag push, scope change, broker/provider decision. One dated line in the right section is enough; don't let it rot.
 - `project-plan/plan-progress-tracker.md` holds the detailed per-task tables — update it when closing a phase, but PROGRESS.md wins on conflict.
-- **Never report milestone status from the trackers alone.** They have lagged reality before. Verify against code, migrations, tests, ADRs, and runbooks first (PROGRESS.md bottom section has the verification commands).
+- **Never report milestone status from the trackers alFFone.** They have lagged reality before. Verify against code, migrations, tests, ADRs, and runbooks first (PROGRESS.md bottom section has the verification commands).
 
 ## 2. Broker state (as of 2026-07-05)
 
@@ -30,7 +30,7 @@
 | Fernet KEK | `FERNET_KEK` env — wraps MFA secrets, webhook secrets, and (M04+) broker keys. Rotation runbook: `docs/runbooks/mfa-kek-rotation.md` |
 | IBKR paper account | `DUN167649` — **parked**. `TWS_USERID`/`TWS_PASSWORD` are slated for removal from all env stores during M04 §6.9, followed by password rotation at IBKR. Don't re-add. |
 | Google OAuth | Client ID/secret in Railway env (both environments); GCP console app still in *Testing* mode with `yuval3000@gmail.com` as test user. Setup runbook: `docs/runbooks/google-oauth-setup.md` |
-| Staging URLs | backend `backend-staging-4b6d.up.railway.app`, frontend `frontend-staging-9011.up.railway.app`; prod `backend-production-f3e8` / `frontend-production-c977f` |
+| Staging URLs | backend `backepnd-staging-4b6d.up.railway.app`, frontend `frontend-staging-9011.up.railway.app`; prod `backend-production-f3e8` / `frontend-production-c977f` |
 
 ## 4. The local CI gauntlet — run before claiming "ready to push"
 
