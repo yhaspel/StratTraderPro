@@ -405,24 +405,29 @@ def _summarize_user_agent(ua: str) -> str:
     return f"{browser} on {os_label}"
 
 
-def serialize_session(family, *, current_jti: Optional[str] = None) -> dict:
-    """Render a RefreshTokenFamily for the sessions UI."""
+def serialize_session(family, *, current_family_id: Optional[str] = None) -> dict:
+    """Render a RefreshTokenFamily for the sessions UI.
+
+    ``current_family_id`` is the ``family_id`` claim of the access token making
+    the request (see views_m02._current_family_id) — the "current" flag matches
+    against ``family.family_id``, never ``current_jti`` (SEC-4).
+    """
     return {
         "family_id": str(family.family_id),
         "created_at": family.created_at.isoformat(),
         "last_used_at": family.last_used_at.isoformat() if family.last_used_at else None,
         "ip_masked": _mask_ip(family.ip),
         "device": _summarize_user_agent(family.user_agent),
-        "current": bool(current_jti and family.current_jti == current_jti),
+        "current": bool(current_family_id and str(family.family_id) == current_family_id),
     }
 
 
-def list_user_sessions(user, *, current_jti: Optional[str] = None) -> list[dict]:
+def list_user_sessions(user, *, current_family_id: Optional[str] = None) -> list[dict]:
     """All non-revoked refresh families for ``user``, current first."""
     families = list(
         user.refresh_families.filter(revoked_at__isnull=True).order_by("-last_used_at", "-created_at")
     )
-    return [serialize_session(f, current_jti=current_jti) for f in families]
+    return [serialize_session(f, current_family_id=current_family_id) for f in families]
 
 
 def revoke_other_sessions(user, *, except_family_id: Optional[str] = None, reason: str = "user_revoke") -> int:

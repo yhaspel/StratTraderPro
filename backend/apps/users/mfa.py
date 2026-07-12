@@ -208,15 +208,60 @@ def verify_mfa_code(user, code: str) -> bool:
     """Step-up re-prompt check for sensitive actions (broker removal — M04;
     L1 kill-switch — M08). Accepts a TOTP code or a single-use backup code for
     an MFA-enrolled user. Returns False for non-enrolled users or bad codes.
+
+    C3 — rate-limited: after ``MFA_STEPUP_MAX_FAILURES`` failures within
+    ``MFA_STEPUP_WINDOW_SECONDS`` the check is rejected *pre-verification*, so a
+    stolen access token cannot brute-force a fresh TOTP (valid_window=1 ⇒ ~3/10⁶
+    live) to release a kill switch, remove a broker, or take an admin action. A
+    ``security.mfa_stepup_throttled`` audit event is written when the cap trips;
+    a correct code before the cap resets the counter.
     """
+    from django.conf import settings
+    from django.core.cache import cache
+
     from .models import MFADevice
 
     if not code or not getattr(user, "mfa_enabled", False):
         return False
+
+    max_failures = getattr(settings, "MFA_STEPUP_MAX_FAILURES", 5)
+    window = getattr(settings, "MFA_STEPUP_WINDOW_SECONDS", 900)
+    cache_key = f"mfa_stepup_fail:{user.pk}"
+
+    if (cache.get(cache_key) or 0) >= max_failures:
+        return False  # already throttled — audit row emitted at the transition
+
     device = MFADevice.objects.filter(user=user, verified=True).first()
-    if device is not None and verify_totp(decrypt_secret(device.secret_encrypted), code):
+    verified = (
+        device is not None and verify_totp(decrypt_secret(device.secret_encrypted), code)
+    ) or consume_backup_code(user, code)
+    if verified:
+        cache.delete(cache_key)
         return True
-    return consume_backup_code(user, code)
+
+    try:
+        failures = cache.incr(cache_key)
+    except ValueError:  # first miss — set the key + window TTL
+        cache.set(cache_key, 1, timeout=window)
+        failures = 1
+    if failures >= max_failures:
+        _emit_stepup_throttled(user, failures, window)
+    return False
+
+
+def _emit_stepup_throttled(user, failures: int, window: int) -> None:
+    """Write the C3 audit event; never raises (audit.emit swallows its own errors)."""
+    try:
+        from apps.audit.events import AuditEventType
+        from apps.audit.services import emit
+
+        emit(
+            AuditEventType.MFA_STEPUP_THROTTLED,
+            user=user,
+            metadata={"failures": failures, "window_seconds": window},
+        )
+    except Exception:  # noqa: BLE001 — audit must never break the security check
+        logger.warning("Failed to emit MFA step-up throttle audit event", exc_info=True)
 
 
 __all__ = [

@@ -1,6 +1,8 @@
 """Auth views (M01 + M02)."""
 from __future__ import annotations
 
+import json
+
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.db import IntegrityError, transaction
@@ -50,11 +52,20 @@ User = get_user_model()
 # Helpers
 # ---------------------------------------------------------------------------
 def _email_keyer(group, request):
-    """django-ratelimit key fn — limits per submitted email when present."""
+    """django-ratelimit key fn — limits per submitted email.
+
+    C1: django-ratelimit wraps ``as_view()`` and calls this with the *raw*
+    Django ``HttpRequest`` (before DRF wraps it), so ``request.data`` does not
+    exist — reading it raised and every request collapsed into the single
+    ``"anon"`` bucket, turning login/register/password-reset/resend into a
+    5-requests-to-DoS-everyone surface. Parse the JSON body directly instead so
+    each submitted email gets its own bucket.
+    """
     try:
-        return (request.data or {}).get("email", "") or "anon"
-    except Exception:
-        return "anon"
+        email = (json.loads(request.body or b"{}") or {}).get("email", "")
+    except (ValueError, TypeError, AttributeError):
+        email = ""
+    return (email or "").strip().lower() or "anon"
 
 
 def _handle_validation(serializer):

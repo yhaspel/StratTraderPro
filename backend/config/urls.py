@@ -59,9 +59,6 @@ urlpatterns = [
     path("healthz", healthz, name="healthz"),
     path("readyz", readyz, name="readyz"),
 
-    # Admin
-    path("admin/", admin.site.urls),
-
     # OpenAPI
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
@@ -95,6 +92,17 @@ urlpatterns = [
     # M10 — admin portal (staff-only; different path space than Django admin at /admin/).
     path("api/v1/admin/", include("apps.admin_portal.urls")),
 ]
+
+
+# ---------------------------------------------------------------------------
+# H8 — Django's stock /admin/ is an unthrottled staff-password surface (session
+# auth, no MFA, no lockout, editable is_staff/is_superuser) that bypasses the
+# M10 IsAdminAndMFAEnforced design. Mount it ONLY in DEBUG (local dev); in prod
+# rely on the /api/v1/admin/ portal. Unmounting means /admin/login/ 404s in prod
+# rather than accepting credentials.
+# ---------------------------------------------------------------------------
+if settings.DEBUG:
+    urlpatterns.insert(2, path("admin/", admin.site.urls))
 
 
 # ---------------------------------------------------------------------------

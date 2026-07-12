@@ -45,7 +45,10 @@ def _auth_ok(authorization: str) -> bool:
     user = getattr(settings, "METRICS_BASIC_AUTH_USERNAME", "") or ""
     pw = getattr(settings, "METRICS_BASIC_AUTH_PASSWORD", "") or ""
     if not user and not pw:
-        return True  # open in dev/test
+        # M1: fail CLOSED when required (prod) — an unconfigured deploy must 401,
+        # not expose /metrics. Open only where METRICS_REQUIRE_AUTH is False
+        # (dev/test), where no scrape creds are provisioned.
+        return not bool(getattr(settings, "METRICS_REQUIRE_AUTH", False))
     if not authorization.startswith("Basic "):
         return False
     try:
