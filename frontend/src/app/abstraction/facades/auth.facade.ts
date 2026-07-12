@@ -198,7 +198,7 @@ export class AuthFacade {
    * tears down the shared dashboard WebSocket (C-FE-4), revokes on the server
    * (best-effort), clears auth state, and lands on the public landing ("/"). */
   async signOut(): Promise<void> {
-    this.ws.disconnect();
+    this.ws.forceDisconnect();
     const refresh = this.store.refreshToken();
     if (refresh) {
       try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
@@ -258,8 +258,11 @@ export class AuthFacade {
   }
 
   private handleError(e: unknown): void {
-    const err = (e as { error?: { error?: ApiError } })?.error?.error;
-    if (err) {
+    // C-FE-3: read the standardized `appError` envelope the errorInterceptor
+    // attaches (same convention as every other facade), not the raw
+    // `e.error.error`. Falls back to UNKNOWN, which has an en.json key.
+    const err = (e as { appError?: { apiError?: ApiError } })?.appError?.apiError;
+    if (err?.code) {
       this.store.setError(err);
     } else {
       this.store.setError({ code: 'UNKNOWN', message: 'An unexpected error occurred.' });

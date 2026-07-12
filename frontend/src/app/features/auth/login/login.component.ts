@@ -16,7 +16,7 @@ import { GoogleButtonComponent } from '../google-button/google-button.component'
 
       @if (facade.error(); as err) {
         <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-          {{ 'auth.login.error.' + err.code | translate : { default: err.message } }}
+          {{ 'auth.login.error.' + err.code | translate }}
         </div>
       }
 

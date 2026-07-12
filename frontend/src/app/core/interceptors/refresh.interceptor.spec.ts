@@ -71,6 +71,28 @@ describe('refreshInterceptor', () => {
     controller.expectOne(`${API}/protected`).flush({}, { status: 401, statusText: 'Unauthorized' });
   });
 
+  it('does NOT refresh or logout on a 401 from /auth/login/ (C-FE-1)', (done) => {
+    store.setAuthed(
+      { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
+      'access', 'refresh'
+    );
+    const refreshSpy = spyOn(facade, 'refreshSession').and.returnValue(Promise.resolve(true));
+    const logoutSpy = spyOn(facade, 'logout').and.returnValue(Promise.resolve());
+
+    http.post(`${API}/v1/auth/login/`, {}).subscribe({
+      error: (err: HttpErrorResponse) => {
+        expect(err.status).toBe(401);
+        expect(refreshSpy).not.toHaveBeenCalled();
+        expect(logoutSpy).not.toHaveBeenCalled();
+        done();
+      },
+    });
+    controller.expectOne(`${API}/v1/auth/login/`).flush(
+      { error: { code: 'INVALID_CREDENTIALS', message: 'bad' } },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+  });
+
   it('retries the request with new access token after successful refresh', async () => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
