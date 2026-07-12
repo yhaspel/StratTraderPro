@@ -7,9 +7,10 @@ services:
       POSTGRES_USER: stp_user
       POSTGRES_PASSWORD: stp_local_pw
     ports:
-      # Host 5433 avoids a clash with another local Postgres on 5432; the app
-      # containers still reach this DB internally as postgres:5432.
-      - "5433:5432"
+      # Host 5434 avoids a clash with other local Postgres instances (5432 is
+      # the system default; 5433 is taken by another project's docker-db). The
+      # app containers still reach this DB internally as postgres:5432.
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

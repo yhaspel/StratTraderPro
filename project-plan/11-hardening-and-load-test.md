@@ -2,9 +2,9 @@
 
 > **Week:** 11
 > **Duration:** 5 working days (planning-calendar label, not an execution constraint)
-> **Depends on:** M10 (Admin Portal, Chained Audit Log & Observability) — **merged** PR #29 `d574057`, tag `v0.10.0-admin` (created, unpushed)
+> **Depends on:** M10 (Admin Portal, Chained Audit Log & Observability) — **merged** PR #29 `d574057`, tag `v0.10.0-admin` (created, unpushed); **operator track closed & live-verified 2026-07-11** (`8ecb292`)
 > **Unlocks:** M12 (Beta + Signoff)
-> **Status:** `REVIEWED & FROZEN 2026-07-10`
+> **Status:** `REVIEWED & FROZEN 2026-07-12` (re-verified against `main` @ `8ecb292` after the M10 live bring-up)
 
 ## 0. Ground-truth reconciliation (read first)
 
@@ -25,6 +25,9 @@ This plan was reviewed against the **actual codebase at `main` after M10 merged*
 13. **Prod web tier is gunicorn WSGI** (`config.wsgi`, gthread); `/ws/dashboard/` is served by a **separate daphne ASGI service**. `/metrics` is now wired into both `wsgi.py` and `asgi.py` with basic auth (`METRICS_BASIC_AUTH_*`, M10). Any cross-cutting hook must live in both entrypoints + worker init or it ships prod-dark.
 14. **Railway topology is NOT "6 services."** Documented staging = 4 (backend, frontend, Postgres, grafana-agent). The real target set (derived from the docker-compose service set + `infra/grafana-agent/` + M10's exporters) is larger: backend, frontend, Postgres, Redis, worker, worker-backtest, beat, streams, ws (daphne), grafana-agent, postgres-exporter, redis-exporter. (`grafana-agent` is not a compose service — it deploys from `infra/grafana-agent/`.) §7.9 re-derives this; standing up prod is operator-heavy.
 15. **`strattraderpro.com` is not registered/verified** and no Cloudflare account is wired — AC-11-10 is almost entirely operator/[LIVE].
+16. **M10's operator track is CLOSED, not open** (verified live 2026-07-11, `PROGRESS.md` + `8ecb292`). Grafana Cloud has the 6 dashboards and **21 alert rules imported and unpaused**, email + Telegram contact points and the notification policy are live, Tempo/OTel and the Sentry↔Tempo join work, the postgres/redis exporters and every long-lived service are deployed, `METRICS_BASIC_AUTH_*` and `TASK_METRICS_PORT` are set in both envs, and **all 14 scrape targets are `up == 1`**. Earlier drafts of this plan (and the M10 execution report's Section B, written at merge time) treat these as pending — **they are not.** The only known M10 operator carryover is the **restricted audit DB role** (`M10-cowork-followups.md` A6 — verify at run time) and the unpushed tags. Consequence for M11: burn-rate alerts can actually be imported and fire-tested, and infra metrics are capturable.
+17. **The M10 live bring-up found 11 defects that CI could not see** (`bugs/BUG-001`…`011`, 3 of them S1); all are FIXED except as noted. Two bear directly on M11: **BUG-011** (blank Railway start command → a Celery service silently ran gunicorn for two months) is the reason for **§7.0**, which is M11's first task; and **BUG-009** (every imported Grafana rule arrived `isPaused: true`, so the alerting stack could never fire) means **any alert rule M11 adds must be verified `isPaused == false` after import** — importing is not enabling. The governing lesson, from `bugs/README.md`: *a clean bill of health can be produced by the defect itself* — prefer end-to-end assertions over any component's self-report. Apply that to every AC below.
+18. **CI is stronger than earlier drafts assumed.** `.github/workflows/ci.yml` has **six** jobs: `backend-lint-test` (ruff, bandit, SQLite lane, `-m pg` lane), `frontend-lint-test` (which now runs **Karma — `pnpm test:ci`, 67 specs — BUG-007**), `e2e-smoke`, `block-legacy-ibkr-creds` (the TWS grep gate), `block-unsubstituted-runtime-config` (`scripts/check_envsubst_filter.py`, BUG-004), and `image-scan` (Trivy). M11 **adds** gates; it weakens none of these six. Still absent (net-new for M11): `pip-audit`, `pnpm audit`, any Playwright/axe job, and any enforcing bundle gate.
 
 ## 1. Purpose
 
@@ -33,7 +36,7 @@ Prepare the platform for external users with a deliberate hardening pass: a secu
 ## 2. In Scope
 
 - OWASP ASVS L2 subset walkthrough with per-control evidence (file / PR / test), committed as a signed checklist.
-- Dependency audit + upgrade: add `pip-audit` (Python) and `pnpm audit` (Node) CI gates; resolve all HIGH+ findings or record a waiver; clear the open Dependabot PRs.
+- Dependency audit + upgrade: add `pip-audit` (Python — **no severity threshold**; it fails on any advisory, suppressed only per-ID) and `pnpm audit --audit-level=high` (Node) CI gates; resolve findings or record an explicit waiver; clear the open Dependabot PRs.
 - Manual pentest-like probing (auth, authz, injection, SSRF, file upload, webhook replay/spoof of the static `sig`, open-redirect).
 - Add Content-Security-Policy + verify the rest of the security-header set (HSTS/Referrer-Policy/X-Content-Type-Options/Permissions-Policy).
 - Load test against **local docker-compose with `FakeBrokerAdapter`** (deterministic; real Alpaca paper caps at ~200 req/min and cannot absorb 20 orders/sec): 100 concurrent WS dashboards + 20 webhooks/sec, plus the 50-user simultaneous **L1** flatten. A scaled-down canary runs weekly in CI.
@@ -45,8 +48,8 @@ Prepare the platform for external users with a deliberate hardening pass: a secu
 - Secret-rotation rehearsal on staging/local: DB password, Fernet KEK (via a temporary `MultiFernet` swap), JWT signing key.
 - Accessibility audit: add `@axe-core/playwright` gate + manual keyboard pass over auth, dashboard, strategies, backtest, risk, and the M10 admin pages.
 - Performance budget enforcement in CI (Angular raw-initial budget hard-fail; optional gzipped tracking).
-- **Service-role dispatch in the image entrypoint (§7.12) — carried from M10, do first.** A blank Railway start command currently makes a service *silently become a web server* (BUG-011: `celery-worker`/`celery-beat` ran gunicorn for two months). Make `SERVICE_ROLE` required and fail loudly when it is unset, removing the dangerous default rather than merely version-controlling the value.
-- **Operator-track (documented, not executed by the autonomous run):** production Railway project, custom domains, Cloudflare + WAF, R2 bucket, exporter services, Grafana Cloud alert import + sample-fire.
+- **Service-role dispatch in the image entrypoint (§7.0) — carried from M10, do first.** A blank Railway start command makes a service *silently become a web server* (BUG-011: `celery-worker`/`celery-beat` ran gunicorn for two months). Make `SERVICE_ROLE` required and fail loudly when it is unset, removing the dangerous default rather than merely version-controlling the value. (BUG-011 was fixed *live* by typing start commands into Railway; those text boxes are exactly what §7.0 replaces.)
+- **Operator-track (documented, not executed by the autonomous run):** the **`SERVICE_ROLE` cutover** (set the env on every Railway service, delete every Custom Start Command — AC-11-15), production Railway project, custom domains, Cloudflare + WAF, R2 bucket, Grafana Cloud import of the **new burn-rate rules** + unpause + fire/receive. (The exporters, contact points, and the 21 existing rules are **already live** — §0.16 — so this list is shorter than earlier drafts assumed.)
 
 ## 3. Out of Scope
 
@@ -67,6 +70,7 @@ Prepare the platform for external users with a deliberate hardening pass: a secu
 6. **CSP ships report-only first, then enforce.** Add `django-csp` (or a static header via `SecurityMiddleware`); start `Content-Security-Policy-Report-Only`, capture violations, then flip to enforcing in the same PR only if the app pages are clean; otherwise leave report-only and document the flip as follow-up.
 7. **Chaos "broker 5xx storm" targets Alpaca's REST path** (the only broker in the production hot path), injected via `FakeBrokerAdapter`/mock — **not** TradeStation (flag OFF, zero live traffic). The TradeStation retry/backoff code is covered by an adapter-level unit test instead.
 8. **Terms/Privacy are drafted in-repo and flagged for counsel.** A minimum-viable ToS is usable at beta; counsel sign-off is tracked as an open item, not a merge blocker.
+9. **`SERVICE_ROLE` dispatch removes the default; it does not merely version-control it** (§7.0, rejected alternative: `railway.json` config-as-code). Unset or unrecognised → `exit 1`, never a `web` fallback. The dispatcher is a committed `docker/entrypoint.sh` with a dry-run mode so it is testable in CI without docker-in-docker, and `docker-compose.yml` drives every service through it (no `command:` overrides) so the path that ships is the path that is tested. Do not "simplify" any part of this.
 
 ## 5. Acceptance Criteria
 
@@ -74,7 +78,7 @@ Each AC is tagged **[CI]** (provable by the autonomous run: unit/integration/loc
 
 | # | Tag | Criterion |
 |---|-----|-----------|
-| AC-11-1 | [CI] | `pip-audit` + `pnpm audit` run in CI and fail on HIGH+; all current HIGH+ findings resolved or covered by a recorded waiver; open Dependabot PRs triaged (merged or documented). |
+| AC-11-1 | [CI] | `pip-audit` + `pnpm audit` run in CI and fail the job on findings; all current findings resolved or covered by a recorded waiver; open Dependabot PRs triaged (merged or documented). **Note the two tools gate differently and the spec must not pretend otherwise: `pnpm audit --audit-level=high` filters by severity; `pip-audit` has *no* severity threshold** — it fails on any known advisory, and its only suppression is `--ignore-vuln <ID>`. So the Python gate is "zero un-waived advisories", the Node gate is "zero un-waived HIGH+", and every waiver on either side is an entry in `docs/security/dependency-waivers.md` (ID, why, revisit-by date). |
 | AC-11-2 | [CI] | OWASP ASVS L2 subset checklist (§7.1) shows Pass / Documented-Waiver for each applicable control, each with file/PR/test evidence, committed at `docs/security/asvs-l2-evidence.md`. |
 | AC-11-3 | [CI] | Load test (local compose, `FakeBrokerAdapter`): 100 concurrent WS dashboards + 20 webhooks/sec sustained 10 min; **no 5xx**; p95 alert-ingest→order-submit ≤ 1.5s (measures the platform path, excludes real-broker latency by design). Results in `docs/ops/load-test-results.md`. |
 | AC-11-4 | [CI] | 50-user simultaneous **L1** halt+flatten: all flatten orders submitted within 10s; p99 ≤ 8s (completes deferred M08 AC-08-11). |
@@ -87,6 +91,8 @@ Each AC is tagged **[CI]** (provable by the autonomous run: unit/integration/loc
 | AC-11-11 | [CI] | `@axe-core/playwright` audit: 0 critical, 0 serious on auth, dashboard, strategies, backtest, risk, and admin pages; runs as a CI job (new). Manual keyboard-nav pass documented. |
 | AC-11-12 | [CI] | Angular initial **raw** budget enforced (CI `pnpm build` hard-fails on breach; confirm the `maximumError` actually fails the job). Threshold set to prevent regression from the current 449.56 kB (see §7.11). Lighthouse FCP ≤1.2s on throttled 4G is **[LIVE]** (needs a deployed URL). |
 | AC-11-13 | [CI]/[LIVE] | Secret-rotation rehearsal performed end-to-end for KEK (temporary `MultiFernet` swap → revert, local/staging-shaped) and JWT signing key (drain); runbooks updated with measured times. DB-password rotation on Railway is [LIVE]. |
+| AC-11-14 | [CI] | **Service-role dispatch (§7.0).** The backend image dispatches on `SERVICE_ROLE`; an **unset or unrecognised** value **exits non-zero with a loud message and never falls back to `web`** — proven by a dry-run test asserting exit≠0 + the message. All seven roles (`web`, `web-dev`, `worker`, `worker-backtest`, `beat`, `streams`, `ws`) resolve to their **pinned expected command literal** (string equality — an exit-0 check alone proves nothing). The six backend-image compose services drive through the dispatcher (no `command:` override), so the E2E smoke exercises the real entrypoint; a `docker run -e SERVICE_ROLE=web` boot check covers the production role. |
+| AC-11-15 | [LIVE] | `SERVICE_ROLE` set on **every** Railway service in **both** environments, all **Custom Start Commands deleted** (the image becomes the single source of truth), staging first then production; post-cutover `up{job=~"worker\|beat\|streams\|worker-backtest"} == 1` and `celery_queue_depth` still fresh in both envs. Operator step — the run delivers the image, the compose parity, and `docs/ops/service-role-cutover.md`. |
 
 ## 6. Definition of Done
 
@@ -94,10 +100,167 @@ Baseline DoD (`project-plan/README.md` §"Definition of Done") applies — note 
 
 - All **[CI]** acceptance criteria green in the merged PR; every **[LIVE]** item documented in the execution report's Section B with the exact operator command/procedure.
 - Release-candidate tag `v0.11.0-rc.1` **created locally, not pushed** (operator convention; a 24h prod soak is a Section-B [LIVE] step).
-- Terms of Service + Privacy Policy drafted and flagged for counsel (open item in §17), acceptance flow live and tested.
-- Ops documentation complete: every runbook has `Last reviewed: 2026-07-10` (or later) frontmatter.
+- Terms of Service + Privacy Policy drafted and flagged for counsel (tracked as a risk row in §17), acceptance flow live and tested.
+- Ops documentation complete: every runbook in `docs/runbooks/` (27 files at freeze — derive the live count, do not trust that number) carries a `Last reviewed:` frontmatter line dated **the run date or later**, on a normalized header template.
 
 ## 7. Implementation Tasks
+
+> Ordering: **§7.0 first** (it is the structural fix for the worst defect M10 surfaced, and it touches the image every other task's compose/CI run depends on). The rest may proceed in parallel.
+
+### 7.0 Service-role dispatch in the image entrypoint — **remove the silent-substitution default** (carried from M10 / BUG-011) → AC-11-14, AC-11-15
+
+**Priority: do this first.**
+
+#### What happened
+
+The `celery-worker` and `celery-beat` Railway services had an **empty Custom Start
+Command**, so they ran the image's default `CMD` — `migrate && gunicorn`. Both
+services reported **Online** and had been running a *second copy of the Django web
+server* since deploy. The default `celery` queue had no consumer and beat had never
+fired a single scheduled task, in **both** environments, including
+`apps.risk.tasks.daily_loss_watcher` (a risk control). Found 2026-07-11; see
+`bugs/BUG-011-celery-worker-and-beat-are-not-running-celery.md`.
+
+The root property is what matters: **a blank field silently substitutes a web
+server.** The service does not fail — it succeeds at being the wrong thing.
+
+**BUG-011 is already FIXED live** — by typing the correct start commands into the
+Railway UI on both envs (all 14 scrape targets now `up == 1`). **Those text boxes are
+precisely what §7.0 exists to delete.** The incident is closed; the *bug class* is not.
+
+#### The fix (frozen design — do not "simplify" this)
+
+Extract the dispatch into a committed **`docker/entrypoint.sh`** (mode `0755` — commit the
+executable bit) and make it the image's **`CMD`** — `CMD ["/usr/local/bin/entrypoint.sh"]`,
+**not `ENTRYPOINT`**, so `docker run <image> <cmd>` still overrides it for debugging.
+
+**Where the script lives matters.** Every backend-image compose service bind-mounts
+`./backend:/app`, so anything at `/app/entrypoint.sh` is **masked at runtime** and each
+service dies with "no such file". And the Dockerfile's `COPY backend/ .` does not include
+the repo's `docker/` directory. So: add an explicit
+`COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh` and keep the script **outside
+`/app`**.
+
+**Each command has a specific source. There is no single file to "copy verbatim" from —
+that is a trap:** `docker-compose.yml`'s `backend` service runs **`runserver`** (it is the
+*dev* server, on `config.settings.dev`, paired with the `./backend:/app` bind mount), so
+compose is **not** the source for the production `web` role. Take `web` from the
+Dockerfile's current `CMD`; take the other six from compose:
+
+| `SERVICE_ROLE` | Command | Source (copy exactly) |
+|---|---|---|
+| `web` | `python manage.py migrate --noinput && exec gunicorn config.wsgi:application --config /app/gunicorn.conf.py --bind 0.0.0.0:${PORT} --workers 3 --worker-class gthread --threads 4 --timeout 120 --access-logfile - --error-logfile -` | `docker/backend.Dockerfile` `CMD` — **including the two logfile flags; dropping them silences the web tier's access + error logs in every environment** |
+| `web-dev` | `python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8777` | `docker-compose.yml` `backend` — **dev only**. It must `exit 1` if `DJANGO_SETTINGS_MODULE` does not end in `.dev` **or if `RAILWAY_ENVIRONMENT_NAME` is set** (a deployed env, whatever the settings say). Two independent guards, because BUG-011 was an operator-config error and one env var is one text box away from being wrong. |
+| `worker` | `exec celery -A config.celery worker -l info --concurrency=1` | compose `worker` |
+| `worker-backtest` | `exec celery -A config.celery worker -Q backtest -l info --concurrency=1 --max-memory-per-child=2000000` | compose `worker-backtest` |
+| `beat` | `exec celery -A config.celery beat -l info -S redbeat.RedBeatScheduler` | compose `beat` |
+| `streams` | `exec python manage.py run_broker_streams` | compose `streams` |
+| `ws` | `exec daphne -b 0.0.0.0 -p ${PORT:-8788} config.asgi:application` | compose `ws` (which hard-codes `8788`) |
+
+**Port note (a live trap):** the image sets `ENV PORT=8777`, so `${PORT:-8788}` **never**
+falls back — the `ws` service would bind 8777 while compose publishes `8788:8788`, and
+`/ws/dashboard/` would be dead locally, silently breaking the 100-WS load test. Therefore
+compose's `ws` service **must** set `PORT: 8788` in its `environment:`. On Railway, `ws`
+inherits the injected `$PORT` and needs nothing. One variable, correct in both.
+
+**Unset or unrecognised `SERVICE_ROLE` must `exit 1` with a loud message naming the
+valid roles. It must NOT default to `web` (or to anything).** That single line is the
+entire point: it converts a silent wrong-process into a crash. A crashed deploy is
+visible in thirty seconds; a worker that is secretly gunicorn went unnoticed for two
+months.
+
+**Make it testable without a container:** honour `STP_ENTRYPOINT_DRY_RUN=1` by printing the
+resolved command and exiting 0 instead of `exec`-ing it. That turns AC-11-14 into an
+ordinary [CI] subprocess test with **no docker-in-docker**. Three details decide whether
+that test is worth anything:
+
+1. **It compares strings, not exit codes.** Asserting only "exit 0" passes for any
+   dispatcher that prints anything at all — the worthless self-report BUG-009 is made of.
+2. **Dry-run prints the command template *un-expanded*** (literal `${PORT}`, not the host's
+   value). The script runs on a developer host where `PORT` is unset and inside a container
+   where it is `8777` — an expanding dry-run would produce different output in the two
+   places and the test would fail against a *correct* implementation, whereupon someone
+   would "fix" it by weakening the assertion.
+3. **The expected literals live in exactly one file**, `docker/entrypoint.expected` — seven
+   `role|command` rows, **trailing newline required** (a `while read` loop silently drops a
+   final unterminated line, which would skip `ws`). The pytest test and any shell gauntlet
+   both read *that* file. Head it with a comment naming the source of each literal
+   (`docker/backend.Dockerfile` `CMD` @ `8ecb292` for `web`; `docker-compose.yml` @ `8ecb292`
+   for the rest). **Do not** assert against `docker-compose.yml` at test time — this very
+   task removes those `command:` lines from it.
+
+**Compose must go through the dispatcher too.** Replace the `command:` of the **six
+backend-image services** (`backend` → `SERVICE_ROLE: web-dev`, `worker`, `worker-backtest`,
+`beat`, `streams`, `ws`) with `SERVICE_ROLE: <role>` in `environment:`. If compose keeps
+overriding `command:`, the dispatcher ships **untested** and the E2E smoke job proves
+nothing about it — the same "guarding an artifact nobody runs" trap as the
+`NGINX_ENVSUBST_FILTER` override in BUG-004. **Leave `frontend` (`ng serve`) and `ngrok`
+alone** — different images, not roles; deleting `frontend`'s command breaks the E2E smoke.
+(The exporters and `ib-gateway` have no `command:` at all.) So the correct end state is
+"exactly two `command:` keys remain in `docker-compose.yml`" — assert *that*, not "zero".
+
+`web-dev` exists so this conversion does **not** silently swap the developer's hot-reload
+`runserver` for gunicorn (bind-mount edits would stop taking effect and Django-admin
+statics would 404 locally). Because the E2E smoke therefore boots `web-dev` rather than
+`web`, add a **direct boot check for the production role**: `docker run -e SERVICE_ROLE=web`
+against the built image and assert gunicorn answers `/healthz`. Without it, the one role
+that matters in production is proven only by a dry-run string comparison.
+
+#### Why `railway.json` config-as-code is NOT sufficient (rejected 2026-07-11)
+
+It is the tempting middle option and it does not fix the bug class. `railway.json`
+version-controls the *value*, but the dangerous **default survives**: the image `CMD`
+is still gunicorn. If the config isn't applied, is overridden in the UI, or a new
+service is added and forgotten, the container silently becomes a web server again —
+the identical failure, now with a config file that makes you *believe* it's covered.
+It buys reviewability and no safety. Only removing the default removes the failure.
+
+#### Acceptance
+
+**[CI] (AC-11-14) — provable in the run:**
+
+- Entrypoint dry-run test: all **seven** roles → the seven **pinned expected command
+  literals** (string equality, not just exit 0); unset → exit≠0 + loud message; bogus role
+  → exit≠0 + loud message; **never** resolves to `web` or any other role by default;
+  `web-dev` → exit≠0 when `DJANGO_SETTINGS_MODULE` is not a `.dev` module.
+- `docker/entrypoint.sh` is committed executable (`git ls-files -s` shows mode `100755`).
+- `docker-compose.yml` carries `SERVICE_ROLE` per service and **no `command:` override** on
+  the six backend-image services (only `frontend` and `ngrok` keep a `command:`); compose's
+  `ws` sets `PORT: 8788`. The existing E2E smoke job (`docker compose up` → `/healthz`)
+  therefore boots `web-dev`, `worker`, `beat`, `streams` and `ws` *through the dispatcher*
+  and stays green.
+- **Production-role boot check:** `docker run -e SERVICE_ROLE=web` on the built image →
+  gunicorn starts and `/healthz` answers 200 (the E2E smoke only exercises `web-dev`).
+- **These last two checks belong in CI, not only in the local gauntlet** — fold the
+  dry-run/fixture test, the `100755` mode check and the `SERVICE_ROLE=web` boot check into a
+  job (extend `image-scan`, which already builds the image, or add `entrypoint-dispatch`).
+  A one-shot local proof that no future PR re-runs is not a gate.
+- A drill in §7.5 (Day 6): clear `SERVICE_ROLE` on a compose service and confirm the
+  container **crashes** rather than quietly serving HTTP. Note `worker`/`worker-backtest`/
+  `beat`/`streams` carry `restart: on-failure`, so they will **crash-loop** rather than sit
+  in `exited` — assert on `docker inspect -f '{{.State.ExitCode}}'` + the loud log line, not
+  on `docker compose ps` status text.
+
+**[LIVE] (AC-11-15) — operator cutover, `docs/ops/service-role-cutover.md`:**
+
+- The runbook **must carry an explicit Railway-service → `SERVICE_ROLE` mapping table** for
+  both environments (`backend` → **`web`**, never `web-dev`; `celery-worker` → `worker`;
+  `celery-beat` → `beat`; `worker-backtest` → `worker-backtest`; `streams` → `streams`;
+  `ws` → `ws`). The whole task is about making a name→process mapping unambiguous; do not
+  leave the last mile to inference.
+- Set `SERVICE_ROLE` on **every** Railway service in **both** environments.
+- **Delete** every Custom Start Command (image = single source of truth).
+- Staging first: confirm `up{job=~"worker|beat|streams|worker-backtest"} == 1` and
+  `celery_queue_depth` stays fresh (proves beat → default queue → worker → metric,
+  end-to-end). Then production. Roll back by re-typing the start command.
+
+#### Interim mitigation already in place (why this can wait for M11, but not past it)
+
+The exposure has already collapsed from *"silently broken forever"* to *"loudly broken
+in five minutes"*: M10's dead-man's switch (`TargetDown`, `MetricsPipelineDown` —
+BUG-008) fires within 5 minutes if worker/beat stop scraping, and a daily scheduled
+audit re-asserts the whole beat→queue→worker loop. **That detection is a backstop, not
+a fix.** The default is still wrong.
 
 ### 7.1 OWASP ASVS L2 subset
 
@@ -119,8 +282,8 @@ Walk each applicable control; evidence by file/PR/test. Output: `docs/security/a
 
 ### 7.2 Dependency audit
 
-- Add `pip-audit` (backend) and `pnpm audit --audit-level=high` (frontend) as CI steps in `.github/workflows/ci.yml`; fail on HIGH+ unless a waiver file/annotation is present.
-- Resolve all current HIGH+ findings; upgrade pins; document unavoidable waivers in `docs/security/dependency-waivers.md`.
+- Add `pip-audit` (backend) and `pnpm audit --audit-level=high` (frontend) as CI steps in `.github/workflows/ci.yml`. **`pip-audit` has no severity gate** — it fails on any advisory; suppress only via explicit `--ignore-vuln <ID>` (each one a waiver entry). Do not invent a `--severity` flag, and do not "fix" a noisy Python gate by deleting it.
+- Resolve all current findings; upgrade pins; document unavoidable waivers in `docs/security/dependency-waivers.md` (ID, why unavoidable, revisit-by date).
 - Triage the ~5 open Dependabot PRs (node/nginx base images + GitHub Actions bumps, opened 2026-04-18): merge the safe ones or document why deferred. Keep `pnpm-lock.yaml` frozen-lockfile-clean.
 
 ### 7.3 Manual pentest-like probing
@@ -141,7 +304,7 @@ Locust (Python, aligns with stack) scripts under `backend/loadtest/` (or `infra/
 - 20 webhooks/sec to `POST /hooks/v1/{user}/{strategy}/` with a valid static `sig` + unique `idempotency_key`; mix 70% stocks, 20% ETFs, 10% options.
 - 50 simultaneous **L1** halt+flatten triggers after a market-open simulation.
 
-Capture: p50/p95/p99 for ingest→submit and for flatten; Celery queue depths over time (reuse M10's `celery_queue_depth{queue}` gauge); WebSocket reconnect rate. **Infra metrics** (DB CPU/mem/IOPS, worker CPU) require the postgres/redis exporters — capture app-level metrics locally and note infra-metric capture as a staging follow-up. Tune worker count / pool sizes from results; record in `docs/ops/load-test-results.md`. Add a **scaled-down canary** (e.g. 10 WS / 2 rps / 60s) as a `workflow_dispatch` + weekly-cron GitHub Actions job (Playwright/Locust headless), gated to not run per-commit.
+Capture: p50/p95/p99 for ingest→submit and for flatten; Celery queue depths over time (reuse M10's `celery_queue_depth{queue}` gauge); WebSocket reconnect rate. **Infra metrics** (DB/Redis throughput, connections, memory) come from the `postgres-exporter` + `redis-exporter` services, which **exist in `docker-compose.yml` and are deployed on Railway** (§0.16) — scrape them locally during the run rather than deferring; only host-level CPU/IOPS on the Railway side remains [LIVE]. Under multiproc gunicorn do **not** assert on `process_*`/`django_db_*` (they are disabled) — read the app gauges. Tune worker count / pool sizes from results; record in `docs/ops/load-test-results.md`. Add a **scaled-down canary** (e.g. 10 WS / 2 rps / 60s) as a `workflow_dispatch` + weekly-cron GitHub Actions job (Playwright/Locust headless), gated to not run per-commit.
 
 ### 7.5 Chaos drills
 
@@ -152,6 +315,7 @@ Documented in `docs/ops/chaos-drill-logs.md`, scripted where feasible (compose `
 - **Day 3 (→AC-11-6):** `run_broker_streams` crash-loop; verify DEGRADED within TTL+margin, L1 flatten via REST still works, fill catch-up on reconnect (dedupe on `broker_exec_id`).
 - **Day 4:** **Alpaca REST 5xx storm** (injected via `FakeBrokerAdapter`/mock, since Alpaca is the only live-path broker); verify bounded retry/backoff and no duplicate orders. (TradeStation retry code covered by a separate adapter unit test — it carries no live traffic, flag OFF.)
 - **Day 5:** DB failover (local: restart Postgres; staging: Railway) — measure reconnect/downtime; note the Railway-side measurement as [LIVE].
+- **Day 6 (→AC-11-14):** **Role-removal drill.** Clear `SERVICE_ROLE` on a compose service (and set a bogus value on another); confirm each container **exits non-zero with the loud message** and does **not** quietly start serving HTTP. This is the drill that would have caught BUG-011 on day one.
 
 ### 7.6 Backup & restore
 
@@ -176,81 +340,16 @@ Documented in `docs/ops/chaos-drill-logs.md`, scripted where feasible (compose `
 
 The autonomous run produces the **config + runbook**, not the live environment. Re-derive the real service set (not the stale "6"): `backend`, `frontend`, `postgres`, `redis`, `worker`, `worker-backtest`, `beat`, `streams`, `ws` (daphne), `grafana-agent`, `postgres-exporter`, `redis-exporter`. Runbook `docs/ops/prod-bringup.md` covers: separate `strattraderpro-prod` project, separate Postgres + Redis, DNS (`api.` / `app.` / optional `hooks.` `strattraderpro.com`), Cloudflare (TLS + WAF + rate-limit + bot-fight, orange-cloud, origin restricted to Cloudflare IPs), and env-var matrix (incl. M10's `METRICS_BASIC_AUTH_*`, `TASK_METRICS_PORT`, exporter targets, `SENTRY_*`). Domain purchase, Cloudflare account, and prod bring-up are operator steps.
 
-### 7.12 Service-role dispatch in the image entrypoint — **remove the silent-substitution default** (carried from M10 / BUG-011)
-
-**Priority: do this first.** It is the structural fix for the worst defect M10 surfaced.
-
-#### What happened
-
-The `celery-worker` and `celery-beat` Railway services had an **empty Custom Start
-Command**, so they ran the image's default `CMD` — `migrate && gunicorn`. Both
-services reported **Online** and had been running a *second copy of the Django web
-server* since deploy. The default `celery` queue had no consumer and beat had never
-fired a single scheduled task, in **both** environments, including
-`apps.risk.tasks.daily_loss_watcher` (a risk control). Found 2026-07-11; see
-`bugs/BUG-011-celery-worker-and-beat-are-not-running-celery.md`.
-
-The root property is what matters: **a blank field silently substitutes a web
-server.** The service does not fail — it succeeds at being the wrong thing.
-
-#### The fix (frozen design — do not "simplify" this)
-
-Make `docker/backend.Dockerfile`'s `CMD` a dispatcher on a required `SERVICE_ROLE`:
-
-| `SERVICE_ROLE` | Process |
-|---|---|
-| `web` | `migrate --noinput && gunicorn config.wsgi:application …` (today's CMD) |
-| `worker` | `celery -A config.celery worker -l info --concurrency=1` |
-| `worker-backtest` | `celery -A config.celery worker -Q backtest -l info --concurrency=1 --max-memory-per-child=2000000` |
-| `beat` | `celery -A config.celery beat -l info -S redbeat.RedBeatScheduler` |
-| `streams` | `python manage.py run_broker_streams` |
-| `ws` | `daphne config.asgi:application …` |
-
-**Unset or unrecognised `SERVICE_ROLE` must `exit 1` with a loud message. It must
-NOT default to `web`.** That single line is the entire point: it converts a silent
-wrong-process into a crash. A crashed deploy is visible in thirty seconds; a worker
-that is secretly gunicorn went unnoticed for two months.
-
-Set `SERVICE_ROLE` on all services in **both** environments. Then **delete** the
-Custom Start Commands from Railway, so the image is the single source of truth.
-Keep `docker-compose.yml` in step (it can pass `SERVICE_ROLE` per service).
-
-#### Why `railway.json` config-as-code is NOT sufficient (rejected 2026-07-11)
-
-It is the tempting middle option and it does not fix the bug class. `railway.json`
-version-controls the *value*, but the dangerous **default survives**: the image `CMD`
-is still gunicorn. If the config isn't applied, is overridden in the UI, or a new
-service is added and forgotten, the container silently becomes a web server again —
-the identical failure, now with a config file that makes you *believe* it's covered.
-It buys reviewability and no safety. Only removing the default removes the failure.
-
-#### Acceptance
-
-- Deploying any service with `SERVICE_ROLE` unset **fails the deploy** (assert in the
-  chaos-drill section, §7.5 — this is a legitimate drill: "clear the role and confirm
-  it crashes rather than quietly serving HTTP").
-- No Railway service has a Custom Start Command; all six roles boot correctly.
-- `up{job=~"worker|beat"} == 1` in both envs, and `celery_queue_depth` stays fresh
-  (proves beat → default queue → worker → metric, end-to-end).
-- Staging first, verify, then production.
-
-#### Interim mitigation already in place (why this can wait for M11, but not past it)
-
-The exposure has already collapsed from *"silently broken forever"* to *"loudly broken
-in five minutes"*: M10's dead-man's switch (`TargetDown`, `MetricsPipelineDown` —
-BUG-008) fires within 5 minutes if worker/beat stop scraping, and a daily audit
-re-asserts the whole beat→queue→worker loop. **That detection is a backstop, not a
-fix.** The default is still wrong.
-
 ### 7.10 Accessibility
 
 - Add `@axe-core/playwright`; extend the (currently auth-only) Playwright suite with specs for dashboard, strategies, backtest, risk, and the M10 admin pages; add a CI job (Playwright is not in CI today).
+- **The a11y specs must prove they reached the page.** Every target route is behind `IsAuthenticatedAndMFAEnforced`, so an unauthenticated spec silently redirects to `/login` — axe then scans the login page five times, reports 0 violations, and AC-11-11 goes green having tested nothing. Seed auth via the existing `frontend/e2e/helpers/mock-api.ts` (or a storage-state fixture) and **assert a page-identifying locator is visible *before* calling `AxeBuilder.analyze()`**. Same question as always: what would this evidence look like if the thing were broken?
 - Manual keyboard-only pass on every page; document results.
 - Focus rings visible; skip-link present; color contrast text ≥ 4.5:1, interactive ≥ 3:1.
 
 ### 7.11 Performance budget
 
-- Enforce the Angular **raw initial** budget in CI: confirm `pnpm build` actually **fails** on `maximumError` (it currently only warns at 500kB / errors at 1MB). Set `maximumError` to a regression-guard threshold above the current **449.56 kB** actual (e.g. `500kB`) so any real growth fails the build; keep lazy `admin`/`backtest` chunks out of the initial budget.
+- Enforce the Angular **raw initial** budget in CI: confirm `pnpm build` actually **fails** on `maximumError` (it currently only warns at 500kB / errors at 1MB). **Prove the gate bites** — temporarily set `maximumError` below the current 449.56 kB, observe a red build, then restore the real threshold and record both outcomes. An unproven gate is indistinguishable from no gate. Set `maximumError` to a regression-guard threshold above the current **449.56 kB** actual (e.g. `500kB`) so any real growth fails the build; keep lazy `admin`/`backtest` chunks out of the initial budget.
 - Optionally add a small script to report **gzipped** initial size for tracking (informational, not a gate) to avoid the raw-vs-gzipped ambiguity of the original draft.
 - Lighthouse-CI FCP ≤1.2s on throttled 4G is **[LIVE]** (needs a deployed URL) — document as a Section-B step.
 
@@ -290,6 +389,7 @@ Regenerate OpenAPI (`make schema`) + frontend types (`pnpm run schema:types`); n
 ## 11. Test Plan
 
 ### 11.1 Automated (CI)
+- **Entrypoint dispatch test (§7.0 / AC-11-14):** `docker/entrypoint.sh` under `STP_ENTRYPOINT_DRY_RUN=1` — **all seven** roles resolve to their pinned literal in `docker/entrypoint.expected` (string equality); unset and bogus roles exit non-zero with the loud message and never resolve to any role; `web-dev` exits non-zero on non-`.dev` settings or when `RAILWAY_ENVIRONMENT_NAME` is set. Pure subprocess test, no docker-in-docker. Plus the `100755` mode check and the `SERVICE_ROLE=web` container boot check (both in CI).
 - `pip-audit` + `pnpm audit` gates.
 - `@axe-core/playwright` a11y gate (new Playwright CI job).
 - Angular raw-initial bundle gate (build hard-fail).
@@ -314,9 +414,10 @@ Regenerate OpenAPI (`make schema`) + frontend types (`pnpm run schema:types`); n
 
 ## 13. Observability
 
-- **Verify/extend M10, don't rebuild.** M10 authored `docs/slo.md`, the six dashboards' SLO panels, and `infra/grafana/alerts/*.yaml`. M11 adds **burn-rate alerts** on top and confirms end-to-end fire+receive.
-- Fire+receive verification (email + Telegram) is **[LIVE]** (Grafana Cloud import + contact points are M10 Section-B operator steps not yet done) — M11 documents and, where a deployed env exists, executes; otherwise it's a Section-B follow-up.
-- Add metrics for the new paths: export job count/duration, delete-request count, terms-acceptance count.
+- **Verify/extend M10, don't rebuild.** M10 authored `docs/slo.md`, the six dashboards' SLO panels, and `infra/grafana/alerts/*.yaml`; **the Grafana Cloud stack is live** — 6 dashboards, 21 rules imported and **unpaused**, email + Telegram contact points, notification policy, all 14 targets `up` (§0.16). M11 adds **burn-rate alerts** on top.
+- **Importing a rule does not enable it (BUG-009).** Grafana's Prometheus-rule converter imports `isPaused: true` by default, and a paused rule reports `health: ok` forever. Every rule M11 adds must be asserted **`isPaused == false` via the Grafana API after import** — and the burn-rate rules, being `> 0`-style self-filtering expressions, are also covered by the `MetricsPipelineDown`/`TargetDown` dead-man's switch M10 added. Do not accept a rule's own health field as evidence.
+- Fire+receive (email + Telegram) is **[LIVE]** only in the sense that it runs against Grafana Cloud, which the operator drives — the contact points already exist, so this is a *do it*, not a *build it*: the run authors the rules + the verification procedure; the operator imports, unpauses, and fires.
+- Add metrics for the new paths: export job count/duration, delete-request count, terms-acceptance count. Register them in a per-app `metrics.py` at module level (multiproc-safe).
 
 ## 14. Translation & Localization
 
@@ -327,16 +428,17 @@ Regenerate OpenAPI (`make schema`) + frontend types (`pnpm run schema:types`); n
 ## 15. Documentation Deliverables
 
 - `docs/security/asvs-l2-evidence.md`, `docs/security/pentest-report.md`, `docs/security/dependency-waivers.md`.
-- `docs/ops/load-test-results.md`, `docs/ops/chaos-drill-logs.md`, `docs/ops/backup-restore.md`, `docs/ops/prod-bringup.md`.
+- `docs/ops/load-test-results.md`, `docs/ops/chaos-drill-logs.md`, `docs/ops/backup-restore.md`, `docs/ops/prod-bringup.md`, `docs/ops/service-role-cutover.md` (§7.0 / AC-11-15).
 - `docs/runbooks/secret-rotation.md` (JWT + DB) and extend `docs/runbooks/mfa-kek-rotation.md`.
 - `docs/legal/terms-of-service.md`, `docs/legal/privacy-policy.md` (drafts; flagged for counsel).
-- Runbook sweep: every `docs/runbooks/*.md` gets `Last reviewed: 2026-07-10` frontmatter (most lack it today — derive the live count with `ls docs/runbooks/*.md | wc -l` rather than trusting a hard-coded number, and normalize the header template).
-- ADR(s) for CSP, GDPR export/delete design, and the load-test target choice.
+- Runbook sweep: every `docs/runbooks/*.md` gets a `Last reviewed:` frontmatter line (most lack it today — derive the live count with `ls docs/runbooks/*.md | wc -l` rather than trusting a hard-coded number, and normalize the header template).
+- ADR(s), next free number is **103** (102 = observability topology): CSP, GDPR export/delete design, the load-test target choice, and **service-role dispatch** (record the rejected `railway.json` alternative — §7.0).
 
 ## 16. Rollback Plan
 
 - Hardening changes are largely config + CI + additive endpoints; a problematic change rolls back per-PR.
 - The new `users.0005` migration is additive (nullable `pending_delete_at` + two new tables) — reversible; no destructive column drops.
+- **§7.0 role cutover rolls back per-service in seconds:** re-type the Custom Start Command in Railway (that *is* today's state). The image change is inert for any service whose start command still overrides it, so the code can land ahead of the cutover with zero risk.
 - Cloudflare/prod infra is not created by the run, so there is nothing to tear down there.
 
 ## 17. Risks & Mitigations
@@ -349,16 +451,19 @@ Regenerate OpenAPI (`make schema`) + frontend types (`pnpm run schema:types`); n
 | Real R2 not provisioned in time | Med | Med | Build against MinIO/moto; R2 is a Section-B operator step; export degrades gracefully (job stays PENDING with a clear operator note). |
 | JWT rotation invalidates active sessions (no multi-kid) | Med | Med | Document the 15-min drain; schedule rotation in a low-traffic window; multi-kid noted as future work. |
 | CSP breaks app pages when enforced | Med | Med | Ship report-only first; flip to enforce only if violation reports are clean. |
-| M10 Section-B operator steps (Grafana import, exporters, restricted DB role) still open | High | Med | M11 observability/AC items depending on them are tagged [LIVE]; do not block the merge on them. |
+| New Grafana burn-rate rules land **paused** and silently never fire (BUG-009 repeat) | High | High | Assert `isPaused == false` via the Grafana API after import; never trust a rule's `health` field. Covered by the §13 note + the operator cutover checklist. |
+| Restricted audit DB role (M10 `M10-cowork-followups.md` A6) may still be unprovisioned | Med | Med | Verify at run time; it is the one known M10 operator carryover. ASVS V4/V8 evidence records actual state, not assumed state. |
+| §7.0 cutover deletes a Railway start command and the `SERVICE_ROLE` env is missing on that service | Low | High | The whole point: the service **crashes visibly** instead of becoming a web server. Staging first; roll back by re-typing the start command. |
 
 ## 18. Exit Gate Checklist
 
-- [ ] All **[CI]** AC (AC-11-1…9, 11, 12, 13-partial) green in the merged PR.
-- [ ] All **[LIVE]** items (AC-11-10, Lighthouse, DB-password rotation, Grafana fire+receive, R2, prod bring-up) documented in Section B with exact procedures.
-- [ ] OWASP ASVS evidence doc complete; dependency gates live; HIGH+ resolved/waived.
-- [ ] Load + chaos + backup-restore reports filed.
+- [ ] **§7.0 done first:** `SERVICE_ROLE` dispatcher shipped; unset/bogus role exits non-zero and never defaults to `web`; all **seven** roles match their pinned literal; the six backend-image compose services drive through it (no `command:` override); `SERVICE_ROLE=web` boots gunicorn; the checks live in CI (**AC-11-14**).
+- [ ] All **[CI]** AC (AC-11-1…9, 11, 12, 13-partial, 14) green in the merged PR.
+- [ ] All **[LIVE]** items (AC-11-10, AC-11-15 role cutover, Lighthouse, DB-password rotation, burn-rate rule import + **unpause** + fire/receive, R2, prod bring-up) documented in Section B with exact procedures.
+- [ ] OWASP ASVS evidence doc complete; dependency gates live; every finding resolved or waived (`pip-audit`: zero un-waived advisories; `pnpm audit`: zero un-waived HIGH+).
+- [ ] Load + chaos + backup-restore reports filed (chaos incl. the Day-6 role-removal drill).
 - [ ] GDPR export/delete + Terms acceptance flow live and tested.
-- [ ] a11y + bundle CI gates enforcing; runbook sweep done (frontmatter normalized).
+- [ ] a11y + bundle CI gates enforcing; the **six** existing CI jobs (Backend, Frontend incl. Karma, E2E smoke, both Guards, Trivy) still green and unweakened; runbook sweep done (frontmatter normalized).
 - [ ] Secret-rotation rehearsals (KEK, JWT) logged with measured times.
 - [ ] Tag `v0.11.0-rc.1` created locally (not pushed).
 

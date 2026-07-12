@@ -33,7 +33,7 @@
 | **M08** | **Risk engine, sizing & kill switches** | ✅ **Implemented (2026-07-08)** — sizing + 4-level kill switches on `TradingHalt`; staging p99 + Risk Ops "live" deferred | `v0.8.0-risk` (tag pending) |
 | **M09** | **Walk-forward backtester** | ✅ **Implemented (2026-07-08)** — vectorbt sweep + custom replay engine, PBO/CSCV, tearsheet PDF/HTML/JSON, dedicated `backtest` queue, `/backtest` UI; PR #28 merged `afe6c24`; staging SLAs + Railway worker + real-symbol PDF deferred | `v0.9.0-backtest` (tag pending) |
 | **M10** | **Admin portal, chained audit log & observability polish** | ✅ **DONE (2026-07-11)** — code merged `d574057` (PR #29); **operator track completed and verified live 2026-07-11**: Grafana Cloud (6 dashboards, 21 alert rules, contact points, notification policy, Tempo+OTel, Sentry↔Tempo), Railway exporters/services, Sentry+GitHub wiring. **11 defects found and fixed during the live bring-up (`bugs/`), 3 of them S1** — see the note below; the observability stack was *entirely inert* before this pass. | `v0.10.0-admin` (tag created locally, **not pushed**) |
-| M11 | Hardening, security, load test & docs | ⏳ Not started — **§7.12 (SERVICE_ROLE dispatch, carried from BUG-011) is the first task** | — |
+| M11 | Hardening, security, load test & docs | ⏳ Not started — plan + one-shot prompt **re-verified & frozen 2026-07-12**; **§7.0 (SERVICE_ROLE dispatch, carried from BUG-011) is the first task**, gated by AC-11-14 [CI] + AC-11-15 [LIVE] | — |
 | M12 | Beta & sign-off | ⏳ Not started | — |
 
 ### M10 close-out — the observability stack was inert until 2026-07-11
@@ -54,7 +54,7 @@ fixed and verified in production. The three that mattered:
   (empty Railway start command → image default `CMD`). The default queue had no consumer
   and beat had **never fired a scheduled task**, in both envs, including
   `daily_loss_watcher`. Fixed live; the structural fix (fail loudly instead of silently
-  substituting a web server) is **M11 §7.12**.
+  substituting a web server) is **M11 §7.0** — the first task of M11.
 - **BUG-008 (S1) — no dead-man's switch.** 14 of 17 rules are self-filtering (`… > 0`), so
   *empty = healthy*; nothing fired on **absence**, making a dead metrics pipeline
   indistinguishable from a green one. Added `MetricsPipelineDown` + `TargetDown`, which
