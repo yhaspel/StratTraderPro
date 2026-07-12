@@ -189,6 +189,25 @@ def anonymize_user(user) -> None:
 
     from .models import BackupCode, MFADevice, UserProfile
 
+    # 1) Drop credential/secret material FIRST, before scrubbing the row / clearing
+    #    pending_delete_at. If a delete FAILS (e.g. a future PROTECT FK on
+    #    BrokerAccount), we must NOT swallow it and report a false "anonymized" —
+    #    that would leave `api_*_enc` ciphertext in the DB forever while claiming
+    #    success (the exact silent-success failure this milestone exists to kill).
+    #    Letting it propagate means the nightly job logs the failure and the row
+    #    keeps `pending_delete_at`, so it retries next run.
+    MFADevice.objects.filter(user=user).delete()
+    BackupCode.objects.filter(user=user).delete()
+    try:
+        from apps.brokers.models import BrokerAccount
+    except Exception:  # noqa: BLE001 — brokers app absent in a minimal config only
+        BrokerAccount = None
+    if BrokerAccount is not None:
+        # No bare except here on purpose — a delete failure must be loud.
+        BrokerAccount.objects.filter(user=user).delete()
+
+    # 2) Scrub PII on the live row + clear the pending flag (only now that the
+    #    credential material is provably gone).
     anon_email = f"deleted-{uuid.uuid4().hex}@anonymized.invalid"
     user.email = anon_email
     user.display_name = "deleted user"
@@ -199,17 +218,6 @@ def anonymize_user(user) -> None:
     user.save(update_fields=[
         "email", "display_name", "is_active", "is_verified", "password", "pending_delete_at",
     ])
-
-    # Drop credential/secret material — decrypt targets are gone with the account.
-    MFADevice.objects.filter(user=user).delete()
-    BackupCode.objects.filter(user=user).delete()
-    # Broker accounts hold encrypted keys; drop them so no dead ciphertext lingers.
-    try:
-        from apps.brokers.models import BrokerAccount
-
-        BrokerAccount.objects.filter(user=user).delete()
-    except Exception:  # noqa: BLE001, S110 — brokers app must never block anonymization
-        pass
 
     # Scrub profile free-text but keep the row (FK from other tables may exist).
     UserProfile.objects.filter(user=user).update(

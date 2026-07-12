@@ -230,8 +230,29 @@ class AccountDeleteTests(_ExportBase):
         self.assertEqual(resp.status_code, 409)
 
     def test_anonymize_expired_keeps_pk_and_scrubs_pii(self):
+        from decimal import Decimal
+
+        from apps.orders.models import Fill, Order, Position
+
         user = create_user(email="expire@example.com", mfa=True)
-        create_broker_account(user)
+        acct = create_broker_account(user)
+        # Exercise a user WITH trading history so broker-account deletion hits the
+        # real FK graph (Order SET_NULL, Fill/Position CASCADE) — not an empty
+        # account. A silently-swallowed delete failure here would leave the
+        # encrypted keys in the DB while reporting "anonymized".
+        strat = create_strategy(user, slug="expire-strat")
+        order = Order.objects.create(
+            user=user, strategy=strat, broker_account=acct,
+            client_order_id="ex-c1", broker_order_id="ex-b1", symbol="AAPL",
+            side=Order.Side.BUY, qty=Decimal("2"), status=Order.Status.FILLED,
+        )
+        Fill.objects.create(
+            order=order, broker_account=acct, qty=Decimal("2"), price=Decimal("100"),
+            ts=timezone.now(), broker_exec_id="ex-x1",
+        )
+        Position.objects.create(
+            user=user, broker_account=acct, symbol="AAPL", qty=Decimal("2"), avg_cost=Decimal("100"),
+        )
         uid = user.id
         # Emit an audit row so we can prove the FK still resolves after anonymize.
         from apps.audit.services import emit
