@@ -53,6 +53,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               type="password"
               formControlName="password"
               autocomplete="current-password"
+              aria-label="Current password"
               [placeholder]="'security.mfa.password_placeholder' | translate"
               class="w-full border rounded px-3 py-2"
             />
@@ -62,6 +63,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               formControlName="code"
               autocomplete="one-time-code"
               maxlength="6"
+              aria-label="Authenticator code"
               [placeholder]="'security.mfa.totp_placeholder' | translate"
               class="w-full border rounded px-3 py-2 font-mono"
             />
@@ -89,6 +91,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               type="password"
               formControlName="password"
               autocomplete="current-password"
+              aria-label="Current password"
               [placeholder]="'security.mfa.password_placeholder' | translate"
               class="w-full border rounded px-3 py-2"
             />
@@ -98,6 +101,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
               formControlName="code"
               autocomplete="one-time-code"
               maxlength="6"
+              aria-label="Authenticator code"
               [placeholder]="'security.mfa.totp_placeholder' | translate"
               class="w-full border rounded px-3 py-2 font-mono"
             />
@@ -189,6 +193,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             type="password"
             formControlName="current"
             autocomplete="current-password"
+            aria-label="Current password"
             [placeholder]="'security.password.current' | translate"
             class="w-full border rounded px-3 py-2"
           />
@@ -196,6 +201,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
             type="password"
             formControlName="next"
             autocomplete="new-password"
+            aria-label="New password"
             [placeholder]="'security.password.next' | translate"
             class="w-full border rounded px-3 py-2"
           />

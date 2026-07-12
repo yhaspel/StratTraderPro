@@ -81,8 +81,8 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
                              [class.border-green-400]="nameConfirm() === f.name" />
                     </div>
                   }
-                  <label class="block text-xs font-semibold text-gray-700 uppercase">{{ 'admin.flags.mfa' | translate }}</label>
-                  <app-totp-input (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
+                  <span class="block text-xs font-semibold text-gray-700 uppercase">{{ 'admin.flags.mfa' | translate }}</span>
+                  <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
                   @if (toggleError(); as err) {
                     <p class="text-sm text-red-700">
                       @if (knownError(err.code)) {

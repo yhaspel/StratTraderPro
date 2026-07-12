@@ -4,7 +4,7 @@
  * detail drawer (order + fills lifecycle), CSV export of the filtered set, and
  * a recent reconciliation-events panel.
  */
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
@@ -107,7 +107,11 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
             <tbody>
               @for (o of facade.orders(); track o.id) {
                 <tr class="border-t border-gray-100 cursor-pointer hover:bg-gray-50"
-                    (click)="onOpen(o.id)">
+                    tabindex="0" role="button"
+                    [attr.aria-label]="('orders.detail.title' | translate) + ': ' + o.symbol"
+                    (click)="onOpen(o.id)"
+                    (keydown.enter)="onOpen(o.id)"
+                    (keydown.space)="$event.preventDefault(); onOpen(o.id)">
                   <td class="px-3 py-2 whitespace-nowrap">{{ o.created_at | date:'short' }}</td>
                   <td class="px-3 py-2">{{ o.broker || '—' }}</td>
                   <td class="px-3 py-2 font-mono text-xs">{{ o.strategy || '—' }}</td>
@@ -186,9 +190,11 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
     <!-- ========== Detail drawer ========== -->
     @if (facade.selected(); as o) {
       <div class="fixed inset-0 bg-black/30 z-40" (click)="onClose()"></div>
-      <aside class="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl z-50 overflow-y-auto p-6 space-y-4">
+      <aside #drawer role="dialog" aria-modal="true" aria-labelledby="order-detail-title"
+             tabindex="-1" (keydown.escape)="onClose()"
+             class="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl z-50 overflow-y-auto p-6 space-y-4 focus:outline-none">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">{{ 'orders.detail.title' | translate }}</h2>
+          <h2 id="order-detail-title" class="text-lg font-semibold">{{ 'orders.detail.title' | translate }}</h2>
           <button type="button" (click)="onClose()"
                   class="text-gray-400 hover:text-gray-700 text-sm">
             {{ 'orders.detail.close' | translate }}
@@ -287,6 +293,12 @@ export class OrdersComponent implements OnInit {
 
   readonly statuses = ORDER_STATUSES;
   readonly brokers = BROKERS;
+
+  /** Move focus into the detail drawer when it opens (focus management for the
+   *  inline dialog — app-modal is unsuitable for a side-panel drawer layout). */
+  @ViewChild('drawer') set drawer(ref: ElementRef<HTMLElement> | undefined) {
+    if (ref) { queueMicrotask(() => ref.nativeElement.focus()); }
+  }
 
   filterForm = this.fb.nonNullable.group({
     broker: [''],

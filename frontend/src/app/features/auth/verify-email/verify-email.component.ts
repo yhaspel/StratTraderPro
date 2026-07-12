@@ -10,6 +10,7 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
   imports: [CommonModule, RouterLink, TranslateModule],
   template: `
     <div class="mx-auto max-w-md p-6 text-center">
+      <h1 class="text-2xl font-bold mb-4">Verify email</h1>
       @if (facade.status() === 'loading') {
         <p>{{ 'auth.verify_email.verifying' | translate }}</p>
       }

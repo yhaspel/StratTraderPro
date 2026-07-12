@@ -1,6 +1,8 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TranslateModule } from '@ngx-translate/core';
 import { ShellComponent } from './shell.component';
 import { AuthStore } from '../../../abstraction/stores/auth.store';
@@ -19,6 +21,8 @@ describe('ShellComponent', () => {
       imports: [ShellComponent, TranslateModule.forRoot()],
       providers: [
         provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         { provide: AuthStore, useValue: { user: signal(user), isAuthenticated: signal(true) } },
         { provide: AuthFacade, useValue: authFacade },
         { provide: OnboardingFacade, useValue: { load, incomplete: signal(incomplete) } },

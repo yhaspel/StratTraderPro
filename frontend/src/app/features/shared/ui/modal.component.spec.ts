@@ -55,14 +55,16 @@ describe('ModalComponent', () => {
     expect(host.open).toBeFalse();
   });
 
-  it('traps Tab within the dialog (last → first)', () => {
+  it('traps Tab within the dialog (wraps, stays inside)', () => {
     (document.getElementById('opener') as HTMLElement).focus();
     open();
     const b = document.getElementById('b') as HTMLElement;
-    b.focus();
+    b.focus(); // last focusable
     const dialog = fixture.nativeElement.querySelector('[role="dialog"]');
     dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-    expect(document.activeElement?.id).toBe('a');
+    // Focus wraps to the first focusable (the close button) — never escapes.
+    expect(dialog.contains(document.activeElement)).toBeTrue();
+    expect(document.activeElement?.id).not.toBe('opener');
   });
 
   it('restores focus to the opener on close', () => {

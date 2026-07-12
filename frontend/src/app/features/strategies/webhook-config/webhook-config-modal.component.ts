@@ -19,28 +19,19 @@
  */
 import { Component, Input, Output, EventEmitter, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade';
 import { Strategy, WebhookConfig } from '../../../core/models/strategies.models';
 import { ToastService } from '../../shared/ui/toast/toast.service';
+import { ModalComponent } from '../../shared/ui/modal.component';
 
 @Component({
   selector: 'app-webhook-config-modal',
   standalone: true,
-  imports: [CommonModule, TranslateModule],
+  imports: [CommonModule, TranslateModule, ModalComponent],
   template: `
-    <div class="fixed inset-0 bg-black/50 z-40" (click)="onBackdropClick($event)">
-      <div class="bg-white rounded-lg shadow-xl max-w-3xl mx-auto mt-8 p-6 max-h-[90vh] overflow-y-auto"
-           (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
-
-        <div class="flex items-start justify-between mb-4">
-          <div>
-            <h2 class="text-xl font-bold">{{ 'webhook.modal.title' | translate }}</h2>
-            <p class="text-sm text-gray-500">{{ strategy.name }}</p>
-          </div>
-          <button type="button" (click)="closed.emit()" aria-label="Close"
-                  class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
-        </div>
+    <app-modal [open]="true" [heading]="modalHeading()" (closed)="closed.emit()">
+        <p class="text-sm text-gray-500 -mt-2 mb-4">{{ strategy.name }}</p>
 
         @if (loading()) {
           <p class="text-sm text-gray-500">{{ 'webhook.modal.loading' | translate }}</p>
@@ -143,8 +134,7 @@ import { ToastService } from '../../shared/ui/toast/toast.service';
             </p>
           }
         }
-      </div>
-    </div>
+    </app-modal>
   `,
 })
 export class WebhookConfigModalComponent implements OnInit {
@@ -153,6 +143,11 @@ export class WebhookConfigModalComponent implements OnInit {
 
   private facade = inject(StrategiesFacade);
   private toast = inject(ToastService);
+  private translate = inject(TranslateService);
+
+  modalHeading(): string {
+    return this.translate.instant('webhook.modal.title');
+  }
 
   loading = signal(true);
   saving = signal(false);
@@ -287,9 +282,5 @@ export class WebhookConfigModalComponent implements OnInit {
       idempotency_key: '{{strategy.order.id}}-{{time}}',
     };
     void this.copyToClipboard(JSON.stringify(tv, null, 2), 'tv');
-  }
-
-  onBackdropClick(ev: Event) {
-    if (ev.target === ev.currentTarget) { this.closed.emit(); }
   }
 }

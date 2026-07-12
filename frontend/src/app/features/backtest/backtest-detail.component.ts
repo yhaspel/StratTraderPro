@@ -146,7 +146,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
               }
             </div>
             <div class="relative h-80">
-              <canvas #chartCanvas></canvas>
+              <canvas #chartCanvas role="img" [attr.aria-label]="chartAriaLabel()"></canvas>
             </div>
           </section>
 
@@ -171,7 +171,12 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
                       <td class="px-3 py-2 text-right font-mono">{{ fmtMetric(s.metrics[c.key], c.kind) }}</td>
                     }
                     <td class="px-3 py-2 text-right font-mono"
-                        [class.text-red-700]="s.pbo != null && s.pbo > 0.5">{{ fmtPbo(s.pbo) }}</td>
+                        [class.text-red-700]="s.pbo != null && s.pbo > 0.5">
+                      {{ fmtPbo(s.pbo) }}
+                      @if (s.pbo != null && s.pbo > 0.5) {
+                        <span class="ml-1 font-sans not-italic" [attr.aria-label]="'high overfitting risk'">⚠ high</span>
+                      }
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -242,6 +247,20 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
   readonly effectiveSymbol = computed(
     () => this.selectedSymbol() || this.facade.report()?.symbols[0]?.symbol || '',
   );
+
+  /** Accessible name for the chart canvas (role="img"). Summarises the visible
+   *  tab and symbol so screen-reader users know what the chart depicts. */
+  readonly chartAriaLabel = computed<string>(() => {
+    const tab = this.activeTab();
+    const sym = this.effectiveSymbol();
+    const desc: Record<ChartTab, string> = {
+      equity: 'Equity curve over time',
+      drawdown: 'Drawdown over time',
+      heatmap: 'Monthly returns heatmap by year and month',
+      window: 'Out-of-sample Sharpe ratio per walk-forward window',
+    };
+    return `${desc[tab]}${sym ? ` for ${sym}` : ''}.`;
+  });
 
   constructor() {
     // Re-render whenever the report arrives or the tab/symbol changes.

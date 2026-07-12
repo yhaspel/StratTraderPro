@@ -16,7 +16,7 @@ import { ToastService } from '../shared/ui/toast/toast.service';
   template: `
     @if (admin.impersonation(); as session) {
       <div class="bg-amber-500 text-black px-4 py-2 text-sm font-semibold flex items-center justify-center gap-4"
-           role="alert">
+           role="status">
         <span>
           ⚠ {{ 'admin.impersonation.banner' | translate }}
           @if (impersonatedLabel(); as who) {

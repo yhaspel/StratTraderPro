@@ -5,7 +5,7 @@
  * close. `role="dialog" aria-modal="true"` with a labelled title (AC-10.5-13).
  */
 import {
-  ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, Output, ViewChild,
+  ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild,
 } from '@angular/core';
 
 let modalSeq = 0;
@@ -41,7 +41,7 @@ let modalSeq = 0;
     }
   `,
 })
-export class ModalComponent {
+export class ModalComponent implements OnDestroy {
   @Input() heading = '';
   @Input() closeLabel = 'Close';
   @Input() titleId = `modal-title-${++modalSeq}`;
@@ -64,6 +64,12 @@ export class ModalComponent {
   @Output() closed = new EventEmitter<void>();
   @ViewChild('dialog') dialogRef?: ElementRef<HTMLElement>;
   private previouslyFocused: HTMLElement | null = null;
+
+  ngOnDestroy(): void {
+    // Parents that render the modal via `@if` destroy it on close rather than
+    // toggling [open] to false, so restore focus here too (AC-10.5-13).
+    if (this._open) { this.restoreFocus(); }
+  }
 
   close(): void {
     this.closed.emit();
