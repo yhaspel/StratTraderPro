@@ -89,6 +89,21 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: cd backend && python -m pytest -m pg --tb=short -q
 
+      # M11 §7.2 / AC-11-1 — pip-audit has NO severity threshold: it fails on ANY
+      # advisory in the shipping closure (base + prod). Suppression is per-ID only
+      # (--ignore-vuln), and every ignored ID is a row in
+      # docs/security/dependency-waivers.md. Do not add a --severity flag (there
+      # isn't one) and do not delete the gate to quiet it.
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip install pip-audit
+          cd backend
+          pip-audit -r requirements/base.txt -r requirements/prod.txt \
+            --ignore-vuln PYSEC-2025-110 \
+            --ignore-vuln PYSEC-2025-111 \
+            --ignore-vuln PYSEC-2026-56 \
+            --ignore-vuln CVE-2026-49452
+
   # ---------- Frontend ----------
   frontend-lint-test:
     # BUG-007 — renamed. This was "Frontend — Lint & Test" while running neither:
@@ -125,6 +140,14 @@ jobs:
 
       - name: Install dependencies
         run: cd frontend && pnpm install --frozen-lockfile
+
+      # M11 §7.2 / AC-11-1 — pnpm audit DOES filter by severity: the gate is
+      # "zero un-waived HIGH+". Waivers live in package.json
+      # (pnpm.auditConfig.ignoreGhsas) and are documented in
+      # docs/security/dependency-waivers.md (3 client-SPA-N/A @angular advisories
+      # patched only in Angular 20+, plus dev/build-tooling not shipped in the bundle).
+      - name: Dependency audit (pnpm)
+        run: cd frontend && pnpm audit --audit-level=high
 
       # BUG-007 — this job was named "Lint & Test" and did NEITHER: it only ran
       # `pnpm build`. Every frontend spec in the repo had therefore never executed
