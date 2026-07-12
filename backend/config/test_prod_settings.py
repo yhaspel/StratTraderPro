@@ -42,8 +42,13 @@ class ProdKeyFailClosedTests(SimpleTestCase):
     """C2 — prod refuses to boot on missing / insecure signing + KEK keys."""
 
     def test_missing_fernet_kek_raises(self):
-        # backend/.env supplies SECRET_KEY + DATABASE_URL but not FERNET_KEK.
-        res = _import_prod({}, drop=("FERNET_KEK",))
+        # Provide SECRET_KEY + DATABASE_URL explicitly (CI has no backend/.env, so
+        # relying on it would raise on SECRET_KEY first). FERNET_KEK is the only
+        # key left unset, so the prod boot must fail CLOSED specifically on it.
+        res = _import_prod(
+            {"SECRET_KEY": _REAL_SECRET, "DATABASE_URL": "sqlite:///prodtest.db"},
+            drop=("FERNET_KEK",),
+        )
         self.assertNotEqual(res.returncode, 0, res.stderr)
         self.assertIn("FERNET_KEK", res.stderr)
 
