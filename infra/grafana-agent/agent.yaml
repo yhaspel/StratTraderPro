@@ -84,11 +84,60 @@ metrics:
               labels: { service: streams }
 
         # M10 §6.5d — DB / Redis exporters.
+        #
+        # ---------------------------------------------------------------------
+        # ACTIVE-SERIES BUDGET (2026-07-13) — measured, not guessed.
+        #
+        # The stack was at 9,130 / 10,000 active series (91% of the Grafana Cloud
+        # free tier), which is why `MetricsBudgetHigh` sat in `pending`. The split:
+        #
+        #     postgres-exporter   4,786   52%   <-- these two exporters are 76%
+        #     redis-exporter      2,185   24%   <--  of the ENTIRE budget
+        #     backend               822    9%
+        #     worker/beat/wb/streams 1,336  15%
+        #
+        # And what actually CONSUMES those exporter series, across every committed
+        # alert rule and dashboard?
+        #
+        #     pg_stat_activity_count        (DBConnectionSaturation)
+        #     pg_settings_max_connections   (DBConnectionSaturation)
+        #     ...and nothing else. Zero redis_* metrics are queried anywhere.
+        #
+        # ~7,000 series were being ingested to serve TWO. Keep-listing them frees
+        # ~76% of the budget — far more than deleting the staging environment would
+        # (~4,400), and unlike deleting staging it costs nothing: no lost coverage,
+        # no lost pre-production safety net.
+        #
+        # !! THE TRAP !!  `up` is what TargetDown and the whole dead-man's switch
+        # (BUG-008) key off. A keep-list that forgets it would silently stop these
+        # targets from reporting `up` at all — and because every liveness rule is
+        # self-filtering, the alerting would go GREEN precisely because it had gone
+        # BLIND. That is this project's signature failure and it must not be
+        # reintroduced by a cost optimisation. `up` and `scrape_*` are therefore
+        # pinned first in every keep regex below. (Vanilla Prometheus does not apply
+        # metric_relabel_configs to synthetic scrape samples, so this is belt-and-
+        # braces — but the cost of being wrong here is blindness, and the cost of
+        # the extra alternation is nothing.)
+        # ---------------------------------------------------------------------
         - job_name: postgres-exporter
           static_configs:
             - targets: [ '${POSTGRES_EXPORTER_TARGET}' ]
               labels: { service: postgres }
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: 'up|scrape_.*|pg_up|pg_stat_activity_count|pg_settings_max_connections'
+              action: keep
+
         - job_name: redis-exporter
           static_configs:
             - targets: [ '${REDIS_EXPORTER_TARGET}' ]
               labels: { service: redis }
+          metric_relabel_configs:
+            # No redis_* series is queried by any committed rule or dashboard today.
+            # The extra four are kept deliberately: system-health's text panel
+            # advertises "ops/sec, memory" for Redis, so these are the series needed
+            # to actually build those panels — at a cost of ~10 series instead of
+            # 2,185.
+            - source_labels: [__name__]
+              regex: 'up|scrape_.*|redis_up|redis_memory_used_bytes|redis_connected_clients|redis_commands_processed_total'
+              action: keep
