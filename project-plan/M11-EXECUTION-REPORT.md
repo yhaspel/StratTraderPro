@@ -55,8 +55,20 @@ Legend: ✅ met · ⏳ in progress · 🔵 live-deferred (documented, not a fail
   (not gunicorn), `streams`=run_broker_streams, `ws`=daphne:8788. `/healthz` + `/metrics` 200.
 
 **[LIVE] carryover (AC-11-15):** operator sets `SERVICE_ROLE` + deletes start commands per
-`docs/ops/service-role-cutover.md`. The merge does **not** flip the roles (an existing start
-command still overrides the image `CMD`).
+`docs/ops/service-role-cutover.md`.
+
+**✅ UPDATE (2026-07-13) — cutover EXECUTED live, both environments** (`M11-COWORK-OPERATOR-REPORT.md`).
+All ten backend-image services (staging + prod) now run via `SERVICE_ROLE`, verified by **process
+identity in deploy logs** (backend→gunicorn, workers→celery, streams→run_broker_streams), not the
+status badge. **Correction to my own claim:** I wrote "the merge does not flip the roles (a start
+command overrides the CMD)" — that was **wrong for `backend`**, which never had a start command and
+ran the image *default* `CMD`. §7.0 replaced that default with the dispatcher, so the merge's
+Railway auto-deploy **crash-looped staging `backend` for ~2h** (`SERVICE_ROLE unset`) while Railway
+showed "Online"; prod was latent. Remediated by setting `SERVICE_ROLE=web` on `backend` first; **no
+prod downtime.** **Lesson: `backend` (any image-default-CMD service) must get `SERVICE_ROLE` set AT
+the merge, not "later."** Still **outstanding to formally close AC-11-15:** the Grafana
+`up{job=~"worker|beat|streams|worker-backtest"} == 1` + `celery_queue_depth` PromQL checks (no
+Grafana session ran in the cutover).
 
 ---
 
@@ -90,15 +102,15 @@ command still overrides the image `CMD`).
 
 # Section B — Manual user steps & follow-ups (the human to-do list)
 
-### ⚠️ 1. `SERVICE_ROLE` cutover (AC-11-15) — DO THIS FIRST, staging then production
-For every Railway service in **both** environments: set `SERVICE_ROLE` to its role, then **delete
-the Custom Start Command** (the image is now the single source of truth — those text boxes were the
-live fix for BUG-011 and are exactly what this replaces). Mapping: `backend`→**`web`** (never
-`web-dev`), `celery-worker`→`worker`, `worker-backtest`→`worker-backtest`, `celery-beat`→`beat`,
-`streams`→`streams`, `ws`→`ws`. After staging: confirm `up{job=~"worker|beat|streams|worker-backtest"} == 1`
-and `celery_queue_depth` still fresh, then production. Roll back by re-typing the start command.
-**Until this is done the new entrypoint is inert** — an existing start command overrides the image
-`CMD`, so the merge deployed the *capability*, not the *change*. Procedure: `docs/ops/service-role-cutover.md`.
+### ✅ 1. `SERVICE_ROLE` cutover (AC-11-15) — **DONE live 2026-07-13, both envs** (`M11-COWORK-OPERATOR-REPORT.md`)
+All ten backend-image services (staging + prod) set `SERVICE_ROLE` and (where present) deleted the
+Custom Start Command; verified by **process identity in deploy logs**. Mapping: `backend`→**`web`**
+(never `web-dev`), `celery-worker`→`worker`, `worker-backtest`→`worker-backtest`, `celery-beat`→`beat`,
+`streams`→`streams`, `ws`→`ws`. **⚠️ My "inert until cutover" claim was wrong for `backend`** (it ran
+the image *default* `CMD`, so the merge crash-looped staging `backend` for ~2h before remediation;
+prod was latent, no downtime). **Still outstanding to formally close AC-11-15:** run the Grafana
+`up{job=~"worker|beat|streams|worker-backtest"} == 1` + `celery_queue_depth` checks (no Grafana
+session ran in the cutover). Procedure/correction: `docs/ops/service-role-cutover.md`.
 
 ### 2. Production bring-up (AC-11-10) — all operator
 Register `strattraderpro.com`; create the `strattraderpro-prod` Railway project (12-service topology
@@ -140,11 +152,13 @@ Counsel review + sign-off of `docs/legal/terms-of-service.md` + `privacy-policy.
 Verify actual state; provision if still open. (Not re-verified in this run — the shared dev DB uses
 the app role.)
 
-### 10. Merge + tag
-`gh pr merge 32 --squash --admin --delete-branch`; then `git checkout main && git pull`. Tag
-`v0.11.0-rc.1` on the merge commit locally, **do not push** (operator convention; prior tags also unpushed).
-Railway deploys `main` on merge — the additive `users.0005` migration runs, and the new entrypoint
-image ships but is **inert until step 1** (an existing start command still overrides the image CMD).
+### 10. Merge + tag — ✅ done
+Merged (`72ed231`), tag `v0.11.0-rc.1` created locally, **not pushed**. Railway deploys `main` on
+merge — the additive `users.0005` migration ran. **Correction:** the entrypoint image was **NOT
+inert for `backend`** (which runs the image default `CMD`) — the merge's auto-deploy crash-looped
+staging `backend` until `SERVICE_ROLE=web` was set (step 1, now done). Command-bearing services
+(worker/beat/worker-backtest/streams) *were* inert until their cutover. Set `SERVICE_ROLE=web` on
+`backend` **at** the merge next time.
 
 ### 11. Sanity-check the autonomous decisions
 - Bundle `maximumError` = **520kB** (over the 472.91 kB actual).

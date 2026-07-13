@@ -381,8 +381,11 @@ BUG-011's whole lesson: a service reporting **Online** proves nothing. Assert en
 
 - **Per-service:** roll back a bad deploy via Railway → service → Deployments → previous
   healthy deploy → Rollback.
-- **`SERVICE_ROLE` mistake:** re-type the old Custom Start Command in Railway (seconds) —
-  the image change is inert while a start command overrides it (`service-role-cutover.md`).
+- **`SERVICE_ROLE` mistake:** for the command-bearing services, re-type the old Custom Start
+  Command (seconds) — the image change is inert while a start command overrides it. **`backend`
+  runs the image *default* `CMD` and has no start command to re-type** — for it, fix by setting
+  `SERVICE_ROLE=web` (or roll back the deploy). On a **fresh** prod project this is a non-issue
+  because every service gets `SERVICE_ROLE` at creation (§2.2). See `service-role-cutover.md`.
 - **Whole environment:** because prod is a **separate project**, tearing it down is
   deleting the `strattraderpro-prod` project — staging is untouched. Nothing in Cloudflare
   is created by the app, so remove the DNS records / zone manually if abandoning the domain.

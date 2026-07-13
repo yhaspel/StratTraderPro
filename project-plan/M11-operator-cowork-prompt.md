@@ -44,10 +44,21 @@ PARTS below **in order**. PART A is the most important and the lowest risk; do i
 
 ## PART A — `SERVICE_ROLE` cutover on the EXISTING Railway services (AC-11-15) — **DO THIS FIRST**
 
+> **✅ COMPLETED live 2026-07-13** (both envs) — see `project-plan/M11-COWORK-OPERATOR-REPORT.md`.
+> **⚠️ The premise below was partly wrong and caused a real (remediated) staging outage:** it is
+> NOT true that the change is "inert until you set `SERVICE_ROLE`" for **`backend`**. `backend`
+> never had a Custom Start Command — it ran the image *default* `CMD`, which §7.0 replaced with
+> the dispatcher, so the merge's auto-deploy **crash-looped staging `backend`** (`SERVICE_ROLE
+> unset`) while Railway showed "Online". **Set `SERVICE_ROLE=web` on `backend` BEFORE/AT the
+> merge.** Command-bearing services (worker/beat/worker-backtest/streams) *are* inert until their
+> cutover. Still outstanding to formally close AC-11-15: the Grafana `up{}`/`celery_queue_depth`
+> PromQL checks in the verification below (they were not run during the cutover).
+
 **Why:** M11 §7.0 baked service-role dispatch into the backend image so a blank start command
-**crashes loudly** instead of silently running a web server (BUG-011). Until you set
-`SERVICE_ROLE` on each service and **delete its Custom Start Command**, the image change is
-**inert** — an existing start command still overrides the image. This part flips it on.
+**crashes loudly** instead of silently running a web server (BUG-011). For the services that
+already have a Custom Start Command, the image change is inert until you set `SERVICE_ROLE` and
+**delete** the command; for **`backend`** (no start command → runs the image default `CMD`) it is
+**not** inert — set `SERVICE_ROLE=web` first or it crash-loops. This part flips it on.
 
 **Scope:** the CURRENT Railway project's **backend-image** services, in **both** the `staging`
 and `production` environments. First open Railway and **list the services** in each environment.

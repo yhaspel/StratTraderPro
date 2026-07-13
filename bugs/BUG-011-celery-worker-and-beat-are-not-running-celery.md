@@ -132,9 +132,23 @@ Note what had never executed in production until now: **`apps.risk.tasks.daily_l
   Compose drives all six backend-image services through the dispatcher; a CI job
   (`entrypoint-dispatch`) proves the seven roles resolve to pinned literals, `SERVICE_ROLE=web`
   boots gunicorn, and an unset role crashes. **The operator cutover (set `SERVICE_ROLE` on every
-  Railway service, delete every Custom Start Command) is the remaining [LIVE] step, AC-11-15** —
-  until then the image change is inert (an existing start command overrides the image `CMD`).
-  Procedure: `docs/ops/service-role-cutover.md`; design: `docs/adr/103-service-role-dispatch.md`.
+  Railway service, delete every Custom Start Command) is the remaining [LIVE] step, AC-11-15.**
+- ⚠️ **Correction (2026-07-13, live cutover — `project-plan/M11-COWORK-OPERATOR-REPORT.md`):**
+  the earlier claim that "the image change is inert until the cutover (an existing start command
+  overrides the `CMD`)" was **wrong for `backend`**. Ironically for this very bug: `backend` never
+  had a start command — it ran the image's *default* `CMD` (the same mechanism that made
+  `celery-worker`/`beat` run gunicorn here). §7.0 replaced that default `CMD` with the dispatcher,
+  so when the M11 merge auto-deployed `main`, **staging `backend` crash-looped for ~2h**
+  (`entrypoint: FATAL: SERVICE_ROLE is unset`) while Railway showed **"Online"** — BUG-009 in
+  mirror image (last time "Online" hid the *wrong* process; this time it hid *no* process). Prod
+  `backend` was latent (still on the pre-M11 image). Remediated live by setting `SERVICE_ROLE=web`
+  on `backend` (both envs) + cutting over the command-bearing services; all ten backend-image
+  services verified by **process identity in deploy logs**, no prod downtime. **Lesson: any service
+  that runs the image default `CMD` (here `backend`) must get its `SERVICE_ROLE` set AT the merge —
+  it is not a "later, at leisure" cutover.** Procedure: `docs/ops/service-role-cutover.md`;
+  design: `docs/adr/103-service-role-dispatch.md`.
+- Add an operational check that each service is running the process it claims to be
+  (e.g. assert `up{job="worker"} == 1` at M12 sign-off, now that `TargetDown` exists).
 - Add an operational check that each service is running the process it claims to be
   (e.g. assert `up{job="worker"} == 1` at M12 sign-off, now that `TargetDown` exists).
 

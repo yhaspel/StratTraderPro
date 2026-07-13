@@ -15,10 +15,23 @@ queue had no consumer and beat never fired. M11 §7.0 replaced the default with 
 `SERVICE_ROLE` dispatcher (`docker/entrypoint.sh`) that **crashes loudly** when the
 role is unset instead of impersonating the web tier.
 
-**The image change is inert until this cutover.** An existing Custom Start Command
-**overrides the image `CMD`**, so merging §7.0 shipped the *capability*, not the
-*change*. This runbook performs the change: set `SERVICE_ROLE` on every service and
-**delete every Custom Start Command** so the image becomes the single source of truth.
+**⚠️ CORRECTION (2026-07-13, from the live cutover — `M11-COWORK-OPERATOR-REPORT.md`):
+"the image change is inert until this cutover" is FALSE for any service that had NO Custom
+Start Command.** It is inert only for the services whose start command overrides the new
+image `CMD` (the ones given commands during the 2026-07-11 BUG-011 fix: `celery-worker`,
+`celery-beat`, `worker-backtest`, `streams`). **`backend` never had a start command** — it
+ran the image's *default* `CMD` (which used to be gunicorn, correct for the web tier). §7.0
+replaced that default `CMD` with the dispatcher, so **`backend` crash-loops on its very next
+Railway deploy (`entrypoint: FATAL: SERVICE_ROLE is unset`) unless `SERVICE_ROLE=web` is set
+first.** The M11 merge auto-deployed `main` and did exactly that to **staging `backend`
+(~2h crash-loop, while Railway showed "Online")**; prod `backend` was latent (survived only
+because it had not redeployed since the merge).
+
+**Therefore: set `SERVICE_ROLE=web` on `backend` in BOTH environments BEFORE or immediately
+at the merge — do not wait.** The command-bearing services can be cut over at leisure (their
+start command keeps them on the old behaviour until you delete it); `backend` cannot. This
+runbook still performs the full change: set `SERVICE_ROLE` on every service and **delete
+every Custom Start Command** so the image becomes the single source of truth.
 
 ## Railway service → `SERVICE_ROLE` mapping (both environments)
 
@@ -74,8 +87,11 @@ Only when staging is green, repeat for **production**.
 ## Rollback
 
 Per-service, in seconds: re-type the old Custom Start Command in Railway (that is
-today's pre-cutover state). Because the image change is inert while a start command
-exists, there is zero risk in landing the code ahead of the cutover.
+today's pre-cutover state). This holds for the **command-bearing** services (the code is
+inert for them while a start command exists). **`backend` is the exception** — it had no
+start command, so its rollback is to re-add `SERVICE_ROLE=web` (or roll back to the pre-M11
+deploy), not to re-type a command. Landing the code ahead of the cutover is zero-risk **only
+for the command-bearing services**; for `backend`, set `SERVICE_ROLE=web` at the merge.
 
 ## The failure mode this prevents
 

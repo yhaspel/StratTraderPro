@@ -82,12 +82,16 @@ failure.
   image; a missing role crashes loudly instead of impersonating the web tier; the
   shipped path is the tested path (compose + E2E smoke run through the dispatcher);
   the `web` gunicorn boot is proven in CI (`entrypoint-dispatch` job).
-- **Cost / migration:** this is inert until the operator cutover (AC-11-15). An
-  existing Railway Custom Start Command **overrides the image `CMD`**, so merging
-  this ADR deploys the *capability*, not the *change*. The operator must set
-  `SERVICE_ROLE` on every service in both environments and **delete every Custom
-  Start Command** (`docs/ops/service-role-cutover.md`), staging first. Rollback is
-  per-service in seconds: re-type the start command.
+- **Cost / migration:** the operator must set `SERVICE_ROLE` on every service in both
+  environments and **delete every Custom Start Command** (`docs/ops/service-role-cutover.md`),
+  staging first. **CORRECTION (2026-07-13, live cutover): this is inert *only* for services
+  that HAD a start command** (which overrides the new image `CMD`). **`backend` had none** —
+  it ran the image *default* `CMD`, which this ADR replaced with the dispatcher, so `backend`
+  **crash-loops on its next deploy unless `SERVICE_ROLE=web` is set first**. The M11 merge's
+  auto-deploy did exactly that to staging `backend` (~2h crash-loop while Railway showed
+  "Online"; prod latent). So `backend` must get `SERVICE_ROLE=web` at the merge — it is not a
+  "later, at leisure" cutover like the command-bearing services. Rollback is per-service in
+  seconds: re-type the start command (for `backend`, set `SERVICE_ROLE=web` / roll back the deploy).
 - **Interim safety already in place:** M10's dead-man's switch (`TargetDown`,
   `MetricsPipelineDown`) now fires within 5 minutes if a worker/beat stops scraping,
   and a daily scheduled audit re-asserts the beat→queue→worker loop. That detection
