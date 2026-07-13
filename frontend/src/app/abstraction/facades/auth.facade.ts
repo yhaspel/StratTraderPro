@@ -28,15 +28,52 @@ export class AuthFacade {
   // unconfigured deploy never shows a button that dead-ends on 503 (§Google fix).
   private readonly _googleAvailable = signal<boolean | null>(null);
   readonly googleAvailable = this._googleAvailable.asReadonly();
+  private googleProbe: Promise<void> | null = null;
 
-  /** Probe the backend once for Google-OAuth availability (idempotent). */
+  /**
+   * Probe the backend once for Google-OAuth availability.
+   *
+   * BUG: the first version cached `false` on ANY thrown error. A 502 from the
+   * platform while the backend was redeploying is not an answer — but it was
+   * being treated as one, so "Continue with Google" silently vanished from
+   * /login and /register for the whole session, and only came back on a reload
+   * that happened to land after the backend was up. That is the "Google sign-in
+   * is missing" report; reproduced live (502 -> no button, 200 -> button).
+   *
+   * So: only a RESPONSE from the backend is an answer.
+   *   - 2xx            -> trust `data.enabled` (true shows the button, false hides it).
+   *   - 4xx            -> the backend spoke and refused: the feature is off. Hide.
+   *   - 5xx / 0 / net  -> nobody answered. Retry briefly, and if we still have
+   *                       nothing, leave the state `null` (unknown) so the NEXT
+   *                       mount re-probes instead of caching a lie forever.
+   *
+   * Concurrent callers (login + register both mount the button) share one probe.
+   */
   async loadGoogleAvailability(): Promise<void> {
     if (this._googleAvailable() !== null) { return; }
-    try {
-      const res = await firstValueFrom(this.api.oauthGoogleAvailable());
-      this._googleAvailable.set(!!res.data?.enabled);
-    } catch {
-      this._googleAvailable.set(false); // fail safe: hide rather than dead-end
+    if (this.googleProbe) { return this.googleProbe; }
+    this.googleProbe = this.probeGoogle().finally(() => { this.googleProbe = null; });
+    return this.googleProbe;
+  }
+
+  private async probeGoogle(): Promise<void> {
+    const backoffMs = [300, 900];   // 3 attempts total; ~1.2s worst case
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await firstValueFrom(this.api.oauthGoogleAvailable());
+        this._googleAvailable.set(!!res.data?.enabled);
+        return;
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status ?? 0;
+        if (status >= 400 && status < 500) {
+          this._googleAvailable.set(false);  // a real "no" from the backend
+          return;
+        }
+        if (attempt >= backoffMs.length) {
+          return;  // still unknown — stay null so a later mount tries again
+        }
+        await new Promise((r) => setTimeout(r, backoffMs[attempt]));
+      }
     }
   }
 

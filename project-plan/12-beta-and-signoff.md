@@ -141,6 +141,7 @@ Current state: 13 orphaned static HTML articles exist in `frontend/src/assets/he
 - Priority 8: Per-symbol regime classifier — full spec already exists at `project-plan/06A-per-symbol-regime.md`.
 - Priority 9: Portfolio-level risk (VaR, correlation caps).
 - Priority 10: `es` locale (first non-English language; see §13).
+- Priority 11 (**do this BEFORE the beta cohort lands — see §6.1**): move transactional email off the interim sending domain. Prod currently sends as `no-reply@mathventure.io` because that is the only domain verified in Resend; it is unrelated to the product and reads as a phishing signal to a new user clicking a verification link. Success criteria: a StratTraderPro-branded domain verified in Resend (DKIM + SPF + DMARC green), `DEFAULT_FROM_EMAIL` updated on `backend` / `celery-worker` / `celery-beat` in both Railway environments, and a live register → deliver → verify round-trip re-run. Effort: ~1h once the domain exists. Dependency: owning the domain. Background + the sandbox-sender bug it replaced: PROGRESS.md "Open items & known debt".
 
 Each entry: 1-line summary, success criteria, rough effort, dependencies. Cross-link parked items from PROGRESS.md "Open items & known debt" so nothing is orphaned.
 
