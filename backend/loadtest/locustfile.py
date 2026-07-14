@@ -108,6 +108,12 @@ class WsDashboardUser(User):
     def on_stop(self):
         self._stop = True
 
+    @task
+    def _idle(self):
+        # The WS lifecycle runs in the greenlet spawned by on_start; locust still
+        # requires at least one task to schedule. Keep the user alive cheaply.
+        gevent.sleep(1)
+
     def _run(self):
         import websocket  # websocket-client (sync); gevent patches its socket
 

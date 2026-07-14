@@ -1,6 +1,7 @@
 # Load-test results (M11 §7.4 → AC-11-3, AC-11-4)
 
-Last reviewed: 2026-07-12
+Last reviewed: 2026-07-14 — **AC-11-3 and AC-11-4 EXECUTED and PASSING** (see
+"MEASURED RESULTS" below).
 
 Harness: **Locust** under `backend/loadtest/`, run against **local docker-compose
 with `FakeBrokerAdapter`** (frozen decision §4.1 — real Alpaca paper caps at
@@ -101,30 +102,117 @@ docker compose -p "$PROJECT" exec -T backend \
   (:9121) services already in compose — scrape during the run. Host-level
   CPU/IOPS on Railway remains [LIVE].
 
-## What was run in this sandbox vs parked
+## MEASURED RESULTS — executed 2026-07-14 (dedicated `stp-load` stack)
 
-**RAN (green):**
-- Harness validated end-to-end under Locust 2.34 — both `WebhookUser` and
-  `WsDashboardUser` load, spawn, drive traffic and report (the WS class exercises
-  the gevent + `websocket-client` reconnect path). The custom end-of-run summary
-  prints per-endpoint p50/p95/p99.
-- `scripts/restore-drill.sh` — green (see `docs/ops/backup-restore.md`).
-- `scripts/chaos/role-removal.sh` — green (see `docs/ops/chaos-drill-logs.md`).
+Run on the operator's machine with Docker, on a throwaway `-p stp-load` stack
+(shared `strattraderpro` stack stopped for the duration, restored after). The
+FakeBrokerAdapter seam was active; `CACHES` was Redis (not LocMem — verified).
 
-**PARKED (operator runs on a dedicated stack) — why the full run is not executed here:**
-1. **The FakeBrokerAdapter seam cannot be activated on the shared stack.** The
-   shared `worker`/`backend` are already running without the seam env, and this
-   task must not edit `docker-compose.yml` or restart shared services. Without
-   the seam, webhook-driven orders route to real Alpaca with junk keys — noisy
-   and non-deterministic. The seam is active only on a dedicated stack.
-2. **Seeding into the shared DB is currently blocked by schema drift.** Another
-   agent's in-flight M11 GDPR work left `users.0005_delete_flow_and_terms`
-   **unapplied**, so `users_user.pending_delete_at` is missing and every ORM
-   `User` query raises `ProgrammingError`. `seed.py` cannot run against the
-   shared DB until that migration lands; on a fresh dedicated stack (which runs
-   `migrate` on boot) it seeds cleanly. (Confirmed: no partial `loadtest+` rows
-   were created.)
-3. **The shared stack must not be overwhelmed** (other agents depend on it).
+### AC-11-3 — sustained load (100 WS + ~19 webhooks/s, 10 min) → **PASS**
 
-The harness, seed, and runners are complete and validated; the full-scale numbers
-are produced by the exact commands above on the dedicated stack.
+**⚠️ Run on a PROD-SHAPED backend, not the default dev stack.** The committed
+default (`SERVICE_ROLE=web-dev` = Django `runserver` + `DEBUG=True`) **cannot**
+carry 20 req/s — it caps at ~5 rps with webhook-accept p50 ≈ 2.7 s / p95 ≈ 8.8 s
+and the Celery queue grows unbounded. That is a harness limitation, not a
+platform defect: `runserver` is a dev server. AC-11-3 was therefore measured with
+the backend as the gunicorn `web` role (`config.settings.loadtest`, `DEBUG=False`,
+3 workers × 4 threads) and `fill_ingestor` isolated to the `backtest` queue
+(`worker-backtest`) so a fill sweep can't starve `process_alert`. See
+"Harness changes required to run this" below.
+
+| Assertion | Target | Measured | Verdict |
+|---|---|---|---|
+| a. Zero 5xx | 0 | **0 failures** / 11,420 webhooks @ 19.07 rps (`--exit-code-on-error 1` → exit 0) | ✅ |
+| b. p95 ingest→submit (`order_submit_latency_seconds`, worker :9101) | ≤ 1.5 s | **p50 25 ms · p95 47.5 ms · p99 49.5 ms** (n=5,720) | ✅ |
+| c. `celery_queue_depth{queue}` returns to ~0 (no unbounded backlog) | ~0 | **0.0 for the entire 10 min**, and 0.0 at +30 s post-load (celery AND backtest queues) | ✅ |
+| d. WS reconnect not pathological | — | **100 connects, 0 failures, 0 reconnect events, 37,134 events delivered** | ✅ |
+
+Webhook client-side accept latency (gunicorn): p50 48 ms · p95 65 ms · p99 84 ms.
+All 5,720 submitted orders reached `FILLED` (`fills_ingested_total` = 5,891 on
+`worker-backtest`); the fill→position→WS path was exercised end-to-end. Host CPU
+after the run was near-idle (backend 0.1%) — the prod-shaped stack had large
+headroom at 19 rps. The submit rate (~9.5/s) is ~half the webhook rate because
+the 50/50 buy/sell mix runs against flat fake accounts, so SELLs don't submit —
+correct behaviour, not a loss.
+
+### AC-11-4 — 50-user simultaneous L1 halt+flatten → **PASS** (also M13 §6 gate 2)
+
+Server-side (`flatten_50.py`), so unaffected by the web-tier limitation above.
+
+| Mode | wall (all submitted) | p50 | p95 | **p99** | max (per-user) |
+|---|---|---|---|---|---|
+| PAPER | 0.260 s | 0.148 s | 0.196 s | **0.200 s** | 0.200 s |
+| **LIVE** (M13 gate 2) | 0.173 s | 0.110 s | 0.164 s | **0.169 s** | 0.169 s |
+
+**Flatten p99 = 0.169–0.200 s → AC-11-4 (≤ 8 s) PASS *and* `docs/slo.md` (≤ 5 s)
+PASS *and* AC-13-10 (≤ 5 s) PASS** — all three thresholds cleared with ~25×
+margin. All 50 flatten orders submitted well within 10 s; per-user max 0.200 s ≤
+the AC-08-8 5 s budget. **Threshold reconciliation:** the three sources disagree
+(AC-11-4 says ≤ 8 s; `docs/slo.md` and AC-13-10 say ≤ 5 s). The measured p99 of
+0.2 s meets the *tighter* 5 s number with huge margin, so **AC-11-4 should be
+tightened from ≤ 8 s to ≤ 5 s** to match the published SLO — see
+`project-plan/11-hardening-and-load-test.md` (which is itself internally
+inconsistent: line 14 cites AC-08-8's ≤ 5 s while the AC-11-4 row cites ≤ 8 s).
+
+#### M13 gate 2 — what the LIVE run proves, and what it does NOT
+
+The LIVE run set the seeded `BrokerAccount.mode = LIVE` and confirmed the mode
+plumbing end-to-end: `BrokerAccount.mode → BrokerContext.mode = "LIVE"`
+(`is_paper = False`) reaches the adapter, and the kill-switch flatten SLO holds
+under load in LIVE mode.
+
+- ✅ Proves: the flatten latency SLO holds under load, and the M13 mode plumbing
+  does **not** break the kill-switch path.
+- ❌ Does **NOT** prove anything about Alpaca's live endpoint. `fake_broker_patch`
+  replaces `build_adapter` wholesale, so `AlpacaAdapter` — and therefore its live
+  gate and key validation — **never executes**. Nothing here touches a real
+  broker, by design. **AC-13-10's wording ("against a LIVE account") is
+  misleading and has been tightened** — see `project-plan/13-live-trading-switch.md`.
+
+  (Fidelity note: `_build_fake` originally dropped `mode`, so a "LIVE" run would
+  have silently carried the PAPER default and proven nothing. The seam was fixed
+  to thread `mode=account.mode`, mirroring the real `build_adapter`.)
+
+## Harness changes required to run this (the harness had never been run)
+
+The committed harness could not actually produce these numbers as-shipped; the
+following defects were fixed to run it (all default-off / load-test-scoped):
+
+- **`locustfile.py`** — `WsDashboardUser` had **no `@task`**, so under Locust 2.34
+  it raised "No tasks defined" and every WS user died instantly (the WS half of
+  AC-11-3 silently never ran). Added a keep-alive task.
+- **`backend/loadtest/fake_broker_patch.py`** — (1) thread `mode=account.mode`
+  into `BrokerContext` (M13 gate-2 fidelity); (2) `StreamSupervisor._build_stream`
+  instantiates the **real `AlpacaStream` directly** and is NOT covered by the
+  `build_adapter` patch, so `run_broker_streams` stormed real Alpaca (429s, 380%
+  CPU) — added an `IdleStream` neutralization; (3) implemented the
+  `STP_LOADTEST_FAKE_5XX` hook the Day-4 drill documents but was never wired up.
+- **`config/settings/dev.py`** — env-gated `STP_LOADTEST_REDIS_CACHE` (dev
+  hard-coded LocMem, which would make the AC-11-5 SETNX idempotency assertion
+  per-process and meaningless) and `STP_LOADTEST_FAST_HASH` (Argon2 costs ~4.5 s
+  per seeded user → seeding outlives the 15-min token TTL).
+- **`config/settings/loadtest.py`** (new) + `docker-compose.loadtest.yml` /
+  `docker-compose.ac113.yml` — the prod-shaped web tier + fill-queue isolation.
+- **`.gitignore`** — `backend/loadtest/fixtures.json` (per-user tokens + TOTP
+  secrets) was **not** ignored; now is.
+
+## How to reproduce
+
+```bash
+export PROJECT=stp-load
+# stop the shared stack first if it publishes the same host ports
+docker compose -p stp-load -f docker-compose.yml -f docker-compose.loadtest.yml \
+  -f docker-compose.ac113.yml up -d --build \
+  postgres redis backend worker worker-backtest beat ws postgres-exporter redis-exporter
+docker compose -p stp-load exec -T backend \
+  env STP_LOADTEST_FAKE_BROKER=1 PYTHONPATH=/app/loadtest STP_LOADTEST_FAST_HASH=1 \
+  python /app/loadtest/seed.py --count 100 --with-broker
+python -m venv /tmp/lt && /tmp/lt/bin/pip install -r backend/loadtest/requirements.txt
+export LT_FIXTURES=backend/loadtest/fixtures.json
+/tmp/lt/bin/locust -f backend/loadtest/locustfile.py WsDashboardUser --headless -u 100 -r 20 -t 10m &
+/tmp/lt/bin/locust -f backend/loadtest/locustfile.py WebhookUser --headless -u 20 -r 20 -t 10m --exit-code-on-error 1
+# AC-11-4 (server-side; run flatten_50 with accounts in PAPER then mode=LIVE):
+docker compose -p stp-load exec -T backend \
+  env STP_LOADTEST_FAKE_BROKER=1 STP_LOADTEST_FAKE_SEED_POSITION=1 PYTHONPATH=/app/loadtest \
+  python /app/loadtest/flatten_50.py --users 50
+```

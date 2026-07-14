@@ -1,0 +1,29 @@
+# M11 §7.4 / §7.5 load-test + chaos overlay. Applied ONLY to the dedicated
+# `stp-load` stack:  docker compose -p stp-load -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build
+#
+# Deliberately NOT named docker-compose.override.yml so it never auto-loads onto
+# the shared dev stack (which must never run the fake-broker seam — see
+# backend/loadtest/fake_broker_patch.py). It enables three things on the order
+# path (backend/worker/streams):
+#   STP_LOADTEST_FAKE_BROKER=1 + PYTHONPATH=/app/loadtest  -> build_adapter -> FakeBrokerAdapter
+#   STP_LOADTEST_REDIS_CACHE=1                             -> django-redis cache (not LocMem),
+#                                                            so the idempotency SETNX guard is shared
+services:
+  backend:
+    environment:
+      STP_LOADTEST_FAKE_BROKER: "1"
+      PYTHONPATH: "/app/loadtest"
+      STP_LOADTEST_REDIS_CACHE: "1"
+      STP_LOADTEST_FAST_HASH: "1"
+  worker:
+    environment:
+      STP_LOADTEST_FAKE_BROKER: "1"
+      PYTHONPATH: "/app/loadtest"
+      STP_LOADTEST_REDIS_CACHE: "1"
+      STP_LOADTEST_FAST_HASH: "1"
+  streams:
+    environment:
+      STP_LOADTEST_FAKE_BROKER: "1"
+      PYTHONPATH: "/app/loadtest"
+      STP_LOADTEST_REDIS_CACHE: "1"
+      STP_LOADTEST_FAST_HASH: "1"

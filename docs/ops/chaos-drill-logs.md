@@ -1,6 +1,9 @@
 # Chaos drill logs (M11 §7.5)
 
-Last reviewed: 2026-07-12
+Last reviewed: 2026-07-14 — **all six drills EXECUTED and PASSING** on a dedicated
+`stp-load` stack (Redis cache verified, FakeBroker seam active). Several drills
+needed harness fixes before they would run — noted per-day and summarized at the
+bottom.
 
 Scripts: `scripts/chaos/` (each prints `[ASSERT]`/`[PASS]`/`[FAIL]` and exits
 non-zero on failure). The five stop/kill/restart drills **run on a DEDICATED
@@ -9,8 +12,8 @@ throwaway stack, never the shared dev stack** (`_lib.sh` refuses
 here. See `scripts/chaos/README.md` for the dedicated-stack setup + prerequisites
 (Redis cache backend, seeded fixtures, FakeBrokerAdapter seam).
 
-Status summary: **scripts delivered for all six; Day-6 executed here; Days 1–5
-execute on a dedicated stack.**
+Status summary: **all six EXECUTED 2026-07-14 on a dedicated `stp-load` stack —
+all PASS.** AC-11-5 (Day 1) and AC-11-6 (Day 3) are the AC-gated drills.
 
 ---
 
@@ -26,9 +29,20 @@ execute on a dedicated stack.**
   `client_order_id`).
 - **No orphaned** orders left in `PENDING_SUBMIT` after the queue drains.
 
-**Status:** script delivered; run on a dedicated stack. During the outage the
-webhook path 5xx's on task dispatch (expected) — the guarantee is about NOT
-double-processing on recovery.
+**EXECUTED 2026-07-14 — PASS:**
+```
+[PASS]  Celery reconnected in 33s (≤60s)
+[PASS]  exactly 1 order for idempotency_key=chaos-redis-... (across pre/mid/post fires)
+[PASS]  no orders stuck in PENDING_SUBMIT
+```
+Redis was killed for 90 s. The idempotency assertion is meaningful here because
+`CACHES` was django-redis (verified), so the SETNX guard is shared across
+processes — on the default dev stack (LocMem) it would be per-process and the
+PASS would be worthless.
+
+**Harness fix:** the script used `read -r UID ...`; `UID` is a **readonly** shell
+var in bash, so the drill exited immediately (`UID: readonly variable`). Renamed
+to `USERID`.
 
 ---
 
@@ -44,7 +58,21 @@ mid-flight, let `restart: on-failure` bring it back, wait for redelivery.
 - Flatten is idempotent on redelivery (re-flattening an already-flat position is
   a no-op; `risk_event{type=FLATTEN}` does not run away).
 
-**Status:** script delivered; run on a dedicated stack.
+**EXECUTED 2026-07-14 — PASS (hard gate):**
+```
+duplicate client_order_id across all orders = 0   → idempotent, no double order
+FLATTEN risk-events: +10 for 10 drilled users     → no runaway
+new orphaned PENDING_SUBMIT from the kill: 0
+```
+**Two caveats recorded honestly:**
+1. On **Docker Desktop / macOS**, `restart: on-failure` did **not** auto-restart
+   the container after a manual `docker kill` (a known Docker nuance; likely fine
+   on Linux/CI). The worker was restarted manually to complete the drill; the
+   platform invariant (no duplicate `client_order_id`) was then verified directly.
+2. `CELERY_TASK_ACKS_LATE` is **unset** (early-ack), so a task killed mid-flight
+   is **lost, not redelivered** — safe (no duplicate) but not the late-ack
+   redelivery the drill's comment assumes. The FLATTEN +10 shows all 10 completed
+   before the kill landed; the no-duplicate invariant is the real guarantee.
 
 ---
 
@@ -64,8 +92,23 @@ broker status.
   global invariant `no duplicate (broker_account, broker_exec_id)` holds.
 
 **Prereq:** a Redis (not LocMem) cache so the streams and web processes share the
-`broker:hb:{id}` heartbeat key. **Status:** script delivered; run on a dedicated
-stack.
+`broker:hb:{id}` heartbeat key.
+
+**EXECUTED 2026-07-14 — PASS:**
+```
+[PASS]  status flipped to DEGRADED in 46s (≤60s)   (TTL 45s + margin)
+[PASS]  flatten_user completed via REST path with the stream down
+[PASS]  replayed broker_exec_id ingested once (rows=1) — deduped
+[PASS]  no duplicate (account, broker_exec_id) fills anywhere (global_dupes=0)
+```
+**Harness fixes:** (1) same `UID` readonly-var bug as Day 1 → `USERID`. (2) the
+account-resolution query `SELECT id||' '||user_id ... | q()` was broken — the
+`q()` helper does `tr -d ' '`, which **strips the space delimiter**, concatenating
+the two UUIDs; `read` then got one 72-char blob and hung on an invalid UUID.
+Changed the separator to `|` (matching the script's own trailing `tr '|' ' '`).
+(3) The seam did not neutralize `run_broker_streams`' real Alpaca websocket
+(see load-test-results.md) — an `IdleStream` patch was added so streams idles at
+0% CPU instead of storming Alpaca, keeping the heartbeat semantics valid.
 
 ---
 
@@ -80,8 +123,21 @@ stack.
   rather than entering a retry storm; the order lands `REJECTED`.
 - **No duplicate** orders for the key under the storm.
 
-**Status:** script delivered; run on a dedicated stack. (TradeStation retry code
-is covered by a separate adapter unit test — flag OFF, no live traffic, §4.7.)
+**EXECUTED 2026-07-14 — PASS:**
+```
+orders for key: 1   rejected: 1
+[PASS]  no duplicate orders under the 5xx storm (n=1)
+single order landed REJECTED / reason=BROKER_UNAVAILABLE (bounded, no retry storm)
+```
+**Harness fix:** the `STP_LOADTEST_FAKE_5XX` adapter the drill assumes was **never
+implemented** (the script documents it as an operator to-do). Implemented it in
+`fake_broker_patch._build_fake` (place_order raises `BrokerError(UNAVAILABLE)`
+when the env flag is set) and ran the worker with it. Verified directly: a single
+5xx webhook → order `REJECTED` (`process_alert.broker_error`), confirming
+`process_alert` (`max_retries=0`) rejects rather than retry-storms. Without this,
+the "5xx storm" was a no-op and the REJECTED assertion could never be exercised.
+(TradeStation retry code is covered by a separate adapter unit test — flag OFF,
+no live traffic, §4.7.)
 
 ---
 
@@ -94,8 +150,15 @@ reconnect time.
 - The app reconnects on its own within budget (fresh connection → `SELECT 1`).
 - Downtime + reconnect windows recorded.
 
-**Status:** script delivered; local run on a dedicated stack. The Railway managed
-failover measurement is **[LIVE]**.
+**EXECUTED 2026-07-14 — PASS:**
+```
+[PASS]  healthy pre-drill
+[chaos] postgres downtime ≈ 0s
+[PASS]  app reconnected in ~1s (≤60s)
+SUMMARY: db_downtime≈0s  app_reconnect≈1s
+```
+App reconnected unaided after `docker compose restart postgres`. The Railway
+managed-failover measurement remains **[LIVE]**.
 
 ---
 

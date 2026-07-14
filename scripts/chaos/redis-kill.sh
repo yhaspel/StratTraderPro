@@ -20,7 +20,7 @@ RECOVER_BUDGET="${RECOVER_BUDGET:-60}"
 IDEM="chaos-redis-$(date +%s)"   # one repeated key we fire multiple times
 
 # Pick a seeded user for the repeated-key probe.
-read -r UID SID SECRET < <(c exec -T backend python - <<'PY'
+read -r USERID SID SECRET < <(c exec -T backend python - <<'PY'
 import json,pathlib
 f=pathlib.Path("/app/loadtest/fixtures.json")
 u=json.loads(f.read_text())["users"][0]
@@ -28,7 +28,7 @@ print(u["user_id"], u["strategy_id"], u["webhook_secret"])
 PY
 )
 post_repeat() { # fire the SAME idempotency_key
-  c exec -T backend python - "$UID" "$SID" "$SECRET" "$IDEM" <<'PY'
+  c exec -T backend python - "$USERID" "$SID" "$SECRET" "$IDEM" <<'PY'
 import json,sys,urllib.request
 uid,sid,secret,idem=sys.argv[1:5]
 body=json.dumps({"strategy":"loadtest","action":"buy","symbol":"AAPL","qty":1,
