@@ -391,12 +391,17 @@ jobs:
           # compose, settings and infra. Docs/plans are allowlisted because they
           # legitimately DISCUSS the flag (this is why the earlier IBKR guard
           # allowlists docs/ and project-plan/ too).
+          # Test files are allowlisted too: @override_settings(ENABLE_LIVE_TRADING=True)
+          # is process-local test config, never a deployed env — the exact thing
+          # M13's test suite must exercise. This guard is about committed *config*
+          # (env files, compose, settings, infra), not test doubles.
           MATCHES=$(git grep -inE "ENABLE_LIVE_TRADING[[:space:]]*[=:][[:space:]]*[\"']?(true|1|yes|on)\b" -- \
             ':!.github/workflows/ci.yml' \
             ':!docs' \
             ':!project-plan' \
             ':!MEMORY.md' \
-            ':!*.md' || true)
+            ':!*.md' \
+            ':!*/test_*.py' || true)
           if [ -n "$MATCHES" ]; then
             echo "::error::ENABLE_LIVE_TRADING is armed in committed config. Real-money trading must never be enabled by a commit — it is an operator act on a deployed env, gated by 13-live-trading-switch.md §6."
             echo "$MATCHES"

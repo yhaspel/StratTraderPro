@@ -68,6 +68,12 @@ def _exprs_from_alerts() -> list[str]:
 
 def _metric_candidates(expr: str) -> set[str]:
     e = re.sub(r'"[^"]*"', "", expr)          # strip string literals
+    # grouping modifiers take LABEL names, not metrics: by(env)/without(...)/
+    # on(...)/ignoring(...)/group_left(...)/group_right(...). Strip their arg
+    # lists so labels like `env` aren't mistaken for unexported series.
+    e = re.sub(
+        r"\b(?:by|without|on|ignoring|group_left|group_right)\s*\([^)]*\)", " ", e
+    )
     e = re.sub(r"\{[^}]*\}", "", e)            # strip label matchers
     e = re.sub(r"\[[^\]]*\]", "", e)           # strip range selectors
     e = re.sub(r"\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b", " ", e)  # strip numeric literals (incl. 5e9)
