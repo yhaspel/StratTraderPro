@@ -125,14 +125,27 @@ def build_order_request(req: OrderRequest, client_order_id: str):
 # ---------------------------------------------------------------------------
 # Response mapping
 # ---------------------------------------------------------------------------
-def map_account(acct) -> Account:
+def map_account(acct, *, is_paper: bool = True) -> Account:
+    """Map Alpaca's account payload to our DTO.
+
+    M13 — ``is_paper`` is passed in by the adapter from ``ctx.mode`` rather than
+    hard-coded. It used to be ``True`` unconditionally, which meant
+    ``get_account()`` on a LIVE account returned an ``Account`` claiming to be
+    paper. Anything downstream that trusted ``Account.is_paper`` — a UI badge, a
+    guard, a future safety check — would have been reading a lie originating from
+    the one layer that is supposed to be broker truth.
+
+    Alpaca's payload carries no paper/live discriminator, so the account row is
+    the only thing that knows. Defaults to True so a caller that forgets stays on
+    the safe side.
+    """
     return Account(
         account_number=str(getattr(acct, "account_number", "") or ""),
         buying_power=_dec(getattr(acct, "buying_power", None)),
         cash=_dec(getattr(acct, "cash", None)),
         currency=str(getattr(acct, "currency", "USD") or "USD"),
         status=_enum_value(getattr(acct, "status", "ACTIVE")).upper() or "ACTIVE",
-        is_paper=True,
+        is_paper=is_paper,
         equity=_dec(getattr(acct, "equity", None)),
         last_equity=_dec(getattr(acct, "last_equity", None)),
     )

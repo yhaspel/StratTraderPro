@@ -16,6 +16,16 @@ class BrokerErrorCode:
 
     AUTH_FAILED = "BROKER_AUTH_FAILED"
     LIVE_KEYS_FORBIDDEN = "BROKER_LIVE_KEYS_FORBIDDEN"
+    # M13 F-4 — the mirror image of LIVE_KEYS_FORBIDDEN. A LIVE account holding
+    # paper keys would quietly execute against the paper endpoint while every
+    # screen, order and audit row said "LIVE". A live account that isn't live is
+    # exactly as much of a lie as a paper account that isn't paper, so both
+    # directions are rejected.
+    PAPER_KEYS_ON_LIVE = "BROKER_PAPER_KEYS_ON_LIVE"
+    # M13 — live trading requested while the master gate is off.
+    LIVE_TRADING_DISABLED = "BROKER_LIVE_TRADING_DISABLED"
+    # M13 F-5 — a live account may not run without a usable risk profile.
+    LIVE_REQUIRES_RISK_PROFILE = "BROKER_LIVE_REQUIRES_RISK_PROFILE"
     RATE_LIMITED = "BROKER_RATE_LIMITED"
     UNSUPPORTED_ASSET = "ORDER_UNSUPPORTED_ASSET"
     UNSUPPORTED_ORDER_TYPE = "ORDER_UNSUPPORTED_TYPE"

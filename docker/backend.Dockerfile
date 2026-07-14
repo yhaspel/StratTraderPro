@@ -41,6 +41,22 @@ COPY backend/ .
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
 
+# M11 operator follow-up — bake the commit SHA INTO the image.
+#
+# /healthz previously reported a stale SHA in production (said e5ecd75, was running
+# dd93bcb). Every other source of the SHA is runtime state and can drift from the
+# code actually in the container. A value written here cannot: it ships with the
+# layer it describes. config/settings/base.py reads this file FIRST, above every
+# env var (see _resolve_git_sha).
+#
+# Railway exposes RAILWAY_GIT_COMMIT_SHA to the builder; declaring the ARG lets it
+# through. If it is absent (plain `docker build`, or a Railway change that stops
+# providing it) the file is simply empty and the old env-var chain still applies —
+# so this fails SOFT and can never make /healthz worse than it is today.
+ARG RAILWAY_GIT_COMMIT_SHA=""
+RUN printf '%s' "${RAILWAY_GIT_COMMIT_SHA}" > /app/.git_sha \
+    && echo "baked git sha: [$(cat /app/.git_sha)]"
+
 # Collect static files
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 

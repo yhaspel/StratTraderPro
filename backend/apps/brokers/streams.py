@@ -127,6 +127,12 @@ class StreamSupervisor:
             api_key_id=decrypt_key(account.api_key_id_enc),
             api_secret=decrypt_key(account.api_secret_enc),
             account_number=account.account_number,
+            # M13 — WITHOUT THIS LINE the whole mode-aware stream is inert.
+            # BrokerContext.mode defaults to PAPER, so a LIVE account would build
+            # a PAPER stream, place real orders through the live REST endpoint and
+            # never receive a single fill — while the heartbeat stayed green.
+            # The endpoint is only as correct as the context that reaches it.
+            mode=account.mode,
         )
 
     def _build_adapter(self, account: BrokerAccount):

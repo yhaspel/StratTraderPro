@@ -55,6 +55,11 @@ def build_adapter(account: BrokerAccount) -> BrokerAdapter:
         api_key_id=decrypt_key(account.api_key_id_enc),
         api_secret=decrypt_key(account.api_secret_enc),
         account_number=account.account_number,
+        # M13 — the account row is the single source of truth for execution mode.
+        # Without this line every adapter would silently fall back to the PAPER
+        # default and a LIVE account would trade paper: the exact silent-success
+        # failure this codebase keeps getting bitten by.
+        mode=account.mode,
     )
     if account.broker == BrokerAccount.Broker.ALPACA:
         if not is_enabled("BROKER_ALPACA_ENABLED"):
@@ -65,16 +70,46 @@ def build_adapter(account: BrokerAccount) -> BrokerAdapter:
     if account.broker == BrokerAccount.Broker.TRADESTATION:
         if not is_enabled("BROKER_TRADESTATION_ENABLED"):
             raise BrokerError(BrokerErrorCode.DISABLED, "TradeStation is disabled by ops.")
+        # M13 — TradeStation is PAPER-ONLY (TradeStationPaperAdapter, and M13 §4
+        # puts TS live out of scope). But "out of scope" in a spec does not stop a
+        # row being written: BrokerAccount.mode accepts LIVE for ANY broker, and
+        # the TS adapter ignores mode entirely. A TS account marked LIVE would
+        # therefore execute against the paper endpoint while every screen, order
+        # and audit row said LIVE — mislabelling instead of refusing.
+        #
+        # Out-of-scope must FAIL, not silently degrade. Refuse it at the one
+        # choke point every TS adapter is built through.
+        if account.mode == BrokerAccount.Mode.LIVE:
+            raise BrokerError(
+                BrokerErrorCode.LIVE_TRADING_DISABLED,
+                "TradeStation does not support live trading on this platform; "
+                "the account is paper-only.",
+            )
         from .tradestation.adapter import TradeStationPaperAdapter
 
         return TradeStationPaperAdapter(account)
     raise BrokerError(BrokerErrorCode.UNAVAILABLE, f"Unknown broker {account.broker!r}.")
 
 
-def build_adapter_from_keys(*, api_key_id: str, api_secret: str, broker: str) -> BrokerAdapter:
+def build_adapter_from_keys(
+    *, api_key_id: str, api_secret: str, broker: str, mode: str = "PAPER"
+) -> BrokerAdapter:
     """Build a throwaway adapter from raw keys for a pre-persistence connection
-    test (POST /brokers/). Used before we know the account number."""
-    ctx = BrokerContext(account_id="pending", user_id="pending", api_key_id=api_key_id, api_secret=api_secret)
+    test (POST /brokers/). Used before we know the account number.
+
+    M13 — ``mode`` must be threaded through here too. The pre-persistence test is
+    what tells the user "your keys work"; if it always tested PAPER, a user
+    connecting a LIVE account would get a green check from the *paper* endpoint
+    and only discover the truth once real orders started flowing. Defaults to
+    PAPER so an un-updated caller cannot accidentally reach live.
+    """
+    ctx = BrokerContext(
+        account_id="pending",
+        user_id="pending",
+        api_key_id=api_key_id,
+        api_secret=api_secret,
+        mode=mode,
+    )
     if broker == BrokerAccount.Broker.ALPACA:
         if not is_enabled("BROKER_ALPACA_ENABLED"):
             raise BrokerError(BrokerErrorCode.DISABLED, "Alpaca is disabled by ops.")

@@ -85,12 +85,33 @@ LOGGING["handlers"]["console"]["formatter"] = "json"
 # Metrics exposition — warn loudly if basic auth is unconfigured in prod.
 # ---------------------------------------------------------------------------
 import logging as _logging  # noqa: E402
+import os as _os  # noqa: E402
 
 # M1 — /metrics fails CLOSED in prod: if basic-auth creds are unset the endpoint
 # returns 401 (see config/metrics_endpoint._auth_ok) rather than exposing metrics
 # openly. Still warn loudly so the operator knows to provision the creds.
 METRICS_REQUIRE_AUTH = True
-if not (METRICS_BASIC_AUTH_USERNAME and METRICS_BASIC_AUTH_PASSWORD):  # noqa: F405
+
+# M11 operator follow-up — the warning below is about the *Django* /metrics WSGI
+# endpoint (config/metrics_endpoint.py, mounted in config/wsgi.py). ONLY the web
+# role serves it. The async roles (worker / worker-backtest / beat / streams) expose
+# their series through a completely different server — `config.task_metrics`, a
+# plain prometheus_client HTTP server on TASK_METRICS_PORT (9101-9104) that does
+# not read these settings at all.
+#
+# Emitting this warning from every role was actively misleading: it told the
+# operator that setting METRICS_BASIC_AUTH_* on the workers would change
+# something. It would not. Scope the warning to the role that actually serves the
+# endpoint, so a real gap on `web` stays loud and the workers stay quiet.
+#
+# (SERVICE_ROLE unset → we are not under the entrypoint dispatcher, e.g. a
+# management command or a shell. Warn, because we cannot prove we are not `web`.)
+_SERVICE_ROLE = _os.environ.get("SERVICE_ROLE", "")
+_SERVES_DJANGO_METRICS = _SERVICE_ROLE in ("", "web", "web-dev")
+
+if _SERVES_DJANGO_METRICS and not (
+    METRICS_BASIC_AUTH_USERNAME and METRICS_BASIC_AUTH_PASSWORD  # noqa: F405
+):
     _logging.getLogger("config.metrics_endpoint").warning(
         "METRICS_BASIC_AUTH_USERNAME/PASSWORD unset — /metrics will 401 (fail "
         "closed) in production until both env vars are set (backend + grafana-agent)."

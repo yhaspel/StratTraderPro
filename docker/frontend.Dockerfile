@@ -48,6 +48,33 @@ RUN chmod +x /docker-entrypoint.d/15-release-default.envsh
 
 COPY --from=builder /app/dist/strattraderpro/browser /usr/share/nginx/html
 
+# M11 perf follow-up (AC-11-12) — PRE-COMPRESS the static bundle at build time.
+#
+# nginx's `gzip on` compresses on the fly at `gzip_comp_level` which DEFAULTS TO 1
+# — the weakest setting. That is what production was serving: main.js came down at
+# 47,990 B when the same bytes at gzip -9 are 41,228 B. Across the initial payload
+# that is 168.2 kB vs 144.3 kB — ~0.12 s of pure transfer on a Slow-4G link, paid
+# on every cold load, for nothing.
+#
+# Compressing here (once, at build) instead of per-request means we can afford -9
+# and nginx spends ZERO CPU on it: `gzip_static on` just serves the .gz next to the
+# original. Clients that don't send Accept-Encoding: gzip still get the plain file.
+#
+# Brotli was measured and REJECTED: brotli-11 gives 128.2 kB vs gzip-9's 144.3 kB —
+# only ~0.08 s more — and the official nginx image ships no ngx_brotli, so it would
+# mean swapping the base image and losing the upstream entrypoint's envsubst step.
+# That step is load-bearing (BUG-004: a broken NGINX_ENVSUBST_FILTER served the SPA
+# a literal "${SENTRY_DSN}" and Sentry silently no-op'd) and is CI-guarded. Trading
+# that for 80 ms is a bad deal. Revisit in M14, where the serving layer is already
+# being touched for prerendering.
+#
+# -k keeps the original (nginx needs BOTH files present).
+RUN find /usr/share/nginx/html \
+      -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' \) \
+      -size +256c \
+      -exec gzip -9 -k -f {} \; \
+ && echo "pre-compressed $(find /usr/share/nginx/html -name '*.gz' | wc -l) assets"
+
 EXPOSE 80
 
 # Use the upstream entrypoint (handles envsubst then exec's nginx -g 'daemon off;')

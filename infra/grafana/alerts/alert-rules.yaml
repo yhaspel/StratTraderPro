@@ -82,10 +82,49 @@ groups:
       - alert: DBConnectionSaturation
         # Railway managed Postgres does not expose CPU via the exporter; alert on
         # a connection-count saturation proxy. Actual CPU alert = Railway dashboard.
-        expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
+        #
+        # ---------------------------------------------------------------------
+        # FIXED 2026-07-13 — this rule COULD NEVER FIRE. It was inert from the day
+        # it was written, and it reported itself healthy the entire time.
+        #
+        # The old expression divided the two series directly:
+        #
+        #     pg_stat_activity_count / pg_settings_max_connections > 0.8
+        #
+        # PromQL vector-to-vector binary ops match on the FULL label set. But:
+        #
+        #     pg_stat_activity_count      {env, job, instance, service, cluster,
+        #                                  datname, state, usename, backend_type,
+        #                                  wait_event, wait_event_type}
+        #     pg_settings_max_connections {env, job, instance, service, cluster}
+        #
+        # The left side carries six labels the right side does not, so NOTHING ever
+        # matched and the expression returned an empty vector — every evaluation,
+        # forever. Verified against live data: the expression returns 0 series both
+        # today and 2h before the exporter keep-list landed, while both inputs are
+        # present (48 and 2 series). So this is NOT fallout from the keep-list; it
+        # is original.
+        #
+        # And of course the rule is self-filtering (the `> 0.8` lives inside the
+        # PromQL), so empty -> NoData -> noDataState=OK -> "Normal". A dead alert,
+        # permanently green. Same family as BUG-008/BUG-009/BUG-011: the failure
+        # disabled its own detector.
+        #
+        # Fix: aggregate BOTH sides down to a common label set (env) before
+        # dividing, so the match can actually succeed. Verified live:
+        # production 2/100 = 0.02, staging 2/100 = 0.02.
+        # ---------------------------------------------------------------------
+        expr: |
+          sum by (env) (pg_stat_activity_count)
+          / max by (env) (pg_settings_max_connections) > 0.8
         for: 5m
         labels: {severity: warning}
-        annotations: {summary: "Postgres connections > 80% of max"}
+        annotations:
+          summary: "Postgres connections > 80% of max ({{ $labels.env }})"
+          description: >-
+            Connection-count saturation proxy. Both sides are aggregated to `env`
+            before dividing — dividing the raw series never matches (see the
+            comment above; it left this rule unable to fire for its whole life).
 
   - name: backtest-ops
     folder: StratTraderPro

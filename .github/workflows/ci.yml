@@ -364,6 +364,56 @@ jobs:
           fi
           echo "No legacy IBKR credentials in active code/config."
 
+  # ---------- Guard: live trading must stay OFF in committed config (M13 AC-13-16) ----------
+  # M13 makes real-money execution reachable. The ONLY thing between a beta user
+  # and a live order is `ENABLE_LIVE_TRADING`, and M12 runs a 3-5 user PAPER beta
+  # (M12 §3: "Live trading enablement (v0.2; ENABLE_LIVE_TRADING stays False)")
+  # on a build that now contains the live code path.
+  #
+  # "The flag is off" was a convention. This project has been burned twice by a
+  # control that was assumed to be in force and was not (BUG-009: every alert rule
+  # silently paused; BUG-011: workers silently running gunicorn) — in both cases
+  # the system cheerfully reported healthy. A convention is not a control.
+  #
+  # Enabling live trading is an OPERATOR act on a deployed environment, performed
+  # deliberately once project-plan/13-live-trading-switch.md §6 is fully green. It
+  # is never a commit. So: no committed config may arm it.
+  block-live-trading-enabled:
+    name: Guard — live trading stays disabled
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Grep for a committed ENABLE_LIVE_TRADING=true
+        run: |
+          # Match ENABLE_LIVE_TRADING set to any truthy value, in env files,
+          # compose, settings and infra. Docs/plans are allowlisted because they
+          # legitimately DISCUSS the flag (this is why the earlier IBKR guard
+          # allowlists docs/ and project-plan/ too).
+          MATCHES=$(git grep -inE "ENABLE_LIVE_TRADING[[:space:]]*[=:][[:space:]]*[\"']?(true|1|yes|on)\b" -- \
+            ':!.github/workflows/ci.yml' \
+            ':!docs' \
+            ':!project-plan' \
+            ':!MEMORY.md' \
+            ':!*.md' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::ENABLE_LIVE_TRADING is armed in committed config. Real-money trading must never be enabled by a commit — it is an operator act on a deployed env, gated by 13-live-trading-switch.md §6."
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "ENABLE_LIVE_TRADING is not armed in any committed config."
+
+      - name: Assert the code default is False
+        run: |
+          # Defence in depth: even if no config sets it, the *default* must be
+          # False, so a fresh environment (e.g. the new prod project from M11
+          # PART H) that never sets the var is paper-only by construction.
+          grep -qE 'ENABLE_LIVE_TRADING\s*=\s*env\.bool\(\s*"ENABLE_LIVE_TRADING"\s*,\s*default=False\s*\)' \
+            backend/config/settings/base.py \
+            || { echo "::error::ENABLE_LIVE_TRADING no longer defaults to False in settings/base.py"; exit 1; }
+          echo "ENABLE_LIVE_TRADING defaults to False — an unset env is paper-only."
+
   # ---------- Guard: nginx runtime-config substitution (BUG-004) ----------
   # NGINX_ENVSUBST_FILTER is an anchored allowlist. Any ${VAR} in
   # docker/nginx.conf.template that is missing from it is NOT substituted and its

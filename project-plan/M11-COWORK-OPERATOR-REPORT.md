@@ -101,20 +101,18 @@ Not touched (correctly — not backend-image services): `frontend`, `Postgres`, 
 
 ---
 
-## Caveat on the AC-11-15 verification
+## AC-11-15 PromQL verification — now CLOSED
 
-The runbook asks for these PromQL assertions in Grafana Cloud:
+Run against Grafana Cloud (`yuval3000.grafana.net`, `grafanacloud-prom`):
 
-```
-up{job=~"worker|beat|streams|worker-backtest"} == 1
-celery_queue_depth        # 4 live series
-```
+| Assertion | Result |
+|---|---|
+| `up{job=~"worker\|beat\|streams\|worker-backtest"} == 1` | **8/8 series = 1** — `production/{worker,beat,streams,worker-backtest}` and `staging/{worker,beat,streams,worker-backtest}` |
+| Total scrape targets | **14 up, 0 down** → `TargetDown` not firing |
+| `celery_queue_depth` | **4 live series** (`production/celery`, `production/backtest`, `staging/celery`, `staging/backtest`), all `0` |
+| `MetricsPipelineDown` | not firing |
 
-**These were NOT run.** No Grafana session was established in this run. What *was* done is
-arguably the stronger check the runbook was proxying for — asserting the actual process identity
-in each service's deploy logs, in both environments, for all ten backend-image services. But the
-`up{}` / `celery_queue_depth` queries and the `TargetDown` / `MetricsPipelineDown` check remain
-**outstanding** and should be run to close AC-11-15 formally.
+Combined with the per-service deploy-log process identity checks above, AC-11-15 is discharged.
 
 ---
 
@@ -136,14 +134,98 @@ in each service's deploy logs, in both environments, for all ten backend-image s
 
 ---
 
-## PARTS B–H — NOT STARTED
+---
 
-| Part | Status |
-|---|---|
-| B — burn-rate alert rules import + `isPaused==false` + fire-test | Not started |
-| C — Cloudflare R2 + export env vars | Not started (need is confirmed, see finding 2) |
-| D — DB password rotation | Not started (requires maintenance-window confirmation) |
-| E — Lighthouse FCP on throttled 4G | Not started |
-| F — `seed_terms` | Not started (blocked on legal sign-off — a human task) |
-| G — restricted audit DB role | Not started |
-| H — full prod bring-up | Not started (large; needs scope + budget decision) |
+## PART B — DONE and fire-tested end-to-end
+
+Imported via the Grafana **provisioning API** (`POST /api/v1/provisioning/alert-rules`,
+`X-Disable-Provenance: true`) into folder `StratTraderPro`, group `slo-burn-rate`, matching the
+exact node structure of the existing M10 rules (`query` → `prometheus_math` → `threshold`).
+
+| Rule | Severity | `for` | `isPaused` (re-read from API) | health |
+|---|---|---|---|---|
+| `ApiErrorBudgetFastBurn` | critical | 2m | **false** | ok, evaluating |
+| `ApiErrorBudgetSlowBurn` | warning | 15m | **false** | ok, evaluating |
+
+**BUG-009 gate:** re-read from `/api/v1/provisioning/alert-rules` (not the POST echo).
+**23 rules total, `pausedCount = 0`.** Both new rules show a fresh `lastEvaluation` and
+`health: ok` with no `lastError` — i.e. they are genuinely evaluating, not merely present.
+
+### Fire-test (AC-10-9 discipline: trip the REAL rule, never a clone)
+
+Lowered the threshold **on the real `ApiErrorBudgetFastBurn` object** (same uid, same labels, same
+routing) — original expression stashed and restored byte-for-byte afterwards.
+
+Observed the full transition on the real rule:
+
+```
+inactive → pending (activeAt 03:47:40) → firing (03:49:40, severity=critical, value 1e+00)
+```
+
+**Delivery confirmed on BOTH contact points** (Grafana's own receiver record, `lastNotifyAttempt`):
+
+| Receiver | Attempt | Duration | Error |
+|---|---|---|---|
+| `operator-email` | 2026-07-13T03:50:10.454Z | 1s573ms | **none** |
+| `operator-telegram` | 2026-07-13T03:50:10.455Z | 141ms | **none** |
+
+Email independently verified in the inbox:
+`[FIRING:1] ApiErrorBudgetFastBurn StratTraderPro/stp-alert-rules.prom.yaml (critical)` →
+`yuval3000@gmail.com`, 03:50:11Z.
+
+**Restored:** expression identical to the committed YAML (`exprRestoredExactly: true`), rule back
+to `inactive`, `isPaused: false`, `pausedCount` still `0`.
+
+### A non-finding, recorded so nobody re-raises it
+
+`django_http_responses_total_by_status_total` returns **no series in production**. This looks
+alarming (it is the series all four error-ratio/burn-rate rules depend on) but it is **not a
+defect**: `django_http_requests_before_middlewares_total{env="production"} = 0` — prod has served
+**zero requests through the Django middleware stack** since the restart. `/metrics` and `/healthz`
+bypass the middleware, so an idle pre-beta prod legitimately exports no response counters.
+
+Proven empirically: 8×`200` + 8×`404` were driven against staging and the series appeared
+immediately with exactly those counts. The metric, the middleware and the scrape are all healthy.
+Consequence: with zero traffic the burn-rate rules evaluate to empty → NoData → `OK`, which is the
+intended semantics (no traffic ⇒ no error budget burned).
+
+---
+
+## PART G — restricted audit DB role: **NOT PROVISIONED** (and deliberately not applied)
+
+Queried live production Postgres:
+
+- `SELECT rolname, rolsuper FROM pg_roles WHERE rolcanlogin` → **one row: `postgres`, superuser**.
+  `stp_audit_writer` does **not** exist.
+- Append-only triggers on `audit_log` **intact**: `audit_log_block_mutation`,
+  `audit_log_check_link` (2/2).
+
+The DDL in `docs/runbooks/audit-integrity-failure.md` Appendix A was **not** applied, for two
+reasons:
+
+1. **The runbook's premise is wrong.** It says Railway "gives us one role" and the split is
+   impossible "until the DB plan allows a second role". The single role is a **superuser** — it can
+   `CREATE ROLE` today. The plan is not the constraint.
+2. **The DDL is incomplete and would break production.** It grants `SELECT, INSERT` on `audit_log`
+   plus the sequence and nothing else — the runbook leaves *"(Whatever grants the app needs on the
+   rest of the schema go here, as usual.)"* as an unwritten TODO. Repointing runtime `DATABASE_URL`
+   at that role as written would fail on every other table.
+
+This needs a design decision (full grant set + migration-role split, or formally accept the
+single-role limitation as WONTFIX with the nightly trigger-presence check as the compensating
+control) — and the runbook's Appendix A should be corrected either way.
+
+---
+
+## PARTS C, D, E, F, H — NOT DONE (handed off)
+
+Each was skipped for a specific reason, not for lack of time. Handoff prompt:
+**`project-plan/ONE-SHOT-M11-OPERATOR-TAIL.prompt.md`**
+
+| Part | Status | Why not done here |
+|---|---|---|
+| C — Cloudflare R2 + export vars | Handed off | Requires creating an R2 API token and entering the secret into Railway — credential handling. Need is **confirmed live** (boot logs print `EXPORTS_BUCKET unset`). |
+| D — DB password rotation | Handed off | Explicit confirm-gate; **causes downtime**; credential handling. |
+| E — Lighthouse FCP on 4G | **Blocked** | Sandbox has no Chrome binary (no sudo; Puppeteer's Chromium download blocked by the network allowlist) **and** the PageSpeed Insights API daily quota is exhausted (HTTP 429). Refused to report an unthrottled FCP as if it were a Slow-4G number. Exact `npx lighthouse` command is in the handoff. |
+| F — `seed_terms` | Handed off | Gated on **legal sign-off** of the ToS/Privacy drafts — a human task, not a tooling one. |
+| H — full prod bring-up | Handed off | Requires **buying `strattraderpro.com`** and creating a paid Railway project — a spend decision. |

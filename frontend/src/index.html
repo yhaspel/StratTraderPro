@@ -13,8 +13,23 @@
        Read by auth.facade for OAuth flows that need the absolute backend URL
        (so the session cookie set during /start/ persists across Google's
        redirect back to the backend domain). Falls back to no-op if the file
-       is missing (e.g. ng serve without nginx). -->
-  <script src="/config.js"></script>
+       is missing (e.g. ng serve without nginx).
+
+       M11 perf follow-up (AC-11-12) — `defer` is load-bearing, not cosmetic.
+       As a plain classic script in <head> this BLOCKED HTML parsing and therefore
+       first paint: the browser stopped, opened a request for 326 bytes, and
+       waited a full round-trip (~150 ms on the Slow-4G profile) before it could
+       render anything at all. For a client-rendered SPA, whose FCP is already
+       floored by the JS round-trip, paying an extra serialised RTT up front is
+       the worst place to spend time.
+
+       `defer` is SAFE here, and the ordering is guaranteed rather than lucky:
+       deferred classic scripts and module scripts share one execution list, run
+       after parsing, in DOCUMENT ORDER. This tag sits in <head>; Angular's
+       main.js is a module at the end of <body>. So window.STP_CONFIG is always
+       assigned before the app bootstraps and reads it (core/runtime-config.ts).
+       Nothing consumes STP_CONFIG during parse — only at bootstrap. -->
+  <script src="/config.js" defer></script>
 </head>
 <body>
   <app-root></app-root>

@@ -178,8 +178,26 @@ class BrokerContext:
     api_secret: str = field(repr=False, default="")
     account_number: str = ""
 
+    # M13 — execution mode, carried from BrokerAccount.mode ("PAPER" | "LIVE").
+    #
+    # The adapter derives its endpoint from THIS, never from a global setting
+    # (M13 F-3). `ENABLE_LIVE_TRADING` is permission to *create* a live account;
+    # it is not a mode. A PAPER account therefore keeps hitting the paper
+    # endpoint even when the global flag is on.
+    #
+    # Defaults to PAPER: any caller that forgets to pass a mode gets the safe
+    # one. Live has to be asked for, explicitly, every time.
+    mode: str = "PAPER"
+
+    @property
+    def is_paper(self) -> bool:
+        return self.mode != "LIVE"
+
     def __repr__(self) -> str:  # pragma: no cover — redaction guard
-        return f"BrokerContext(account_id={self.account_id!r}, user_id={self.user_id!r})"
+        return (
+            f"BrokerContext(account_id={self.account_id!r}, "
+            f"user_id={self.user_id!r}, mode={self.mode!r})"
+        )
 
 
 # ---------------------------------------------------------------------------

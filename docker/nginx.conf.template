@@ -5,9 +5,36 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Gzip
+    # ---------------------------------------------------------------------
+    # Compression (M11 perf follow-up, AC-11-12)
+    #
+    # `gzip on` alone was a trap: nginx's default gzip_comp_level is **1**, the
+    # weakest setting, and nothing here overrode it. Production was shipping
+    # main.js at 47,990 B when the same bytes at -9 are 41,228 B. Across the
+    # initial payload that is 168.2 kB vs 144.3 kB — ~0.12 s of transfer on a
+    # Slow-4G link, on every cold load.
+    #
+    # gzip_static: docker/frontend.Dockerfile pre-compresses every JS/CSS/HTML/SVG
+    # asset at gzip -9 during the image build. nginx now serves that .gz directly —
+    # best ratio AND zero per-request CPU. If a .gz is missing (or the client sends
+    # no Accept-Encoding), we fall back to compressing on the fly, now at level 6.
+    #
+    # gzip_vary is not cosmetic: without it a shared cache (Cloudflare, per
+    # docs/ops/prod-bringup.md §4) can hand a gzipped body to a client that never
+    # asked for one. Serving compressed bytes to a client that can't decode them
+    # is a blank page — a silent, total failure. Pin it.
+    #
+    # Brotli: measured (brotli-11 = 128.2 kB vs gzip-9's 144.3 kB, ~0.08 s better)
+    # and deliberately NOT adopted — the official nginx image has no ngx_brotli, so
+    # it would mean replacing the base image and the upstream envsubst entrypoint
+    # (BUG-004 territory). Not worth 80 ms. Deferred to M14.
+    # ---------------------------------------------------------------------
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+    gzip_static on;
+    gzip_comp_level 6;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_types text/plain text/css application/json application/javascript text/javascript text/xml application/xml image/svg+xml;
     gzip_min_length 256;
 
     # Angular SPA — fallback to index.html for client-side routing.

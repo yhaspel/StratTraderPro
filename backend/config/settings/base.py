@@ -2,6 +2,7 @@
 Base settings for StratTraderPro.
 Shared across dev, prod, and test environments.
 """
+import contextlib
 import os
 import subprocess
 from datetime import timedelta
@@ -27,25 +28,51 @@ ALLOWED_HOSTS: list[str] = []
 # ---------------------------------------------------------------------------
 # Git version (used in /healthz)
 # ---------------------------------------------------------------------------
-# Resolution order:
-#   1. `git rev-parse` — works in local dev where the repo is mounted.
-#   2. `GIT_SHA` env var — explicit override (e.g., baked into a CI image).
-#   3. `RAILWAY_GIT_COMMIT_SHA` — auto-injected by Railway on every deploy;
-#      trimmed to the short form. This is what makes /healthz on Railway
-#      report the real commit instead of "unknown".
-#   4. Literal "unknown".
-try:
-    GIT_SHA = (
-        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
-        .decode("ascii")
-        .strip()
-    )
-except Exception:
-    GIT_SHA = (
-        env("GIT_SHA", default="")
-        or env("RAILWAY_GIT_COMMIT_SHA", default="")[:7]
-        or "unknown"
-    )
+# M11 operator follow-up (2026-07-13): prod `/healthz` was reporting `e5ecd75`
+# while actually running `dd93bcb` — a *stale* SHA, which is worse than no SHA:
+# it is a deploy marker that silently lies. Root cause: every source below except
+# the image itself is RUNTIME state, and runtime state can drift from the code in
+# the container (a Railway redeploy triggered by a variable change does not
+# necessarily refresh `RAILWAY_GIT_COMMIT_SHA`, and an explicitly-set `GIT_SHA`
+# never refreshes at all).
+#
+# The only source that CANNOT lie is one baked into the image at build time,
+# because it ships with — and is therefore pinned to — the code it describes.
+#
+# Resolution order (most trustworthy first):
+#   1. `/app/.git_sha` — written by docker/backend.Dockerfile at BUILD time from
+#      the RAILWAY_GIT_COMMIT_SHA build arg. Immutable image identity. If this
+#      file exists and is non-empty, it is the truth and nothing can override it.
+#   2. `git rev-parse` — local dev, where the repo is mounted and IS the truth.
+#   3. `GIT_SHA` env var — explicit CI override.
+#   4. `RAILWAY_GIT_COMMIT_SHA` — runtime injection; kept as a last resort but
+#      known to go stale (see above), so it must never outrank the baked value.
+#   5. Literal "unknown" — honest ignorance beats a confident wrong answer.
+def _resolve_git_sha() -> str:
+    # A failure to resolve the SHA must never break boot — an unreadable file or
+    # a missing `git` is a cosmetic problem, and /healthz falling back to
+    # "unknown" is the correct, honest outcome.
+    with contextlib.suppress(Exception):  # pragma: no cover - defensive
+        baked = BASE_DIR / ".git_sha"
+        if baked.is_file():
+            sha = baked.read_text(encoding="ascii").strip()
+            if sha:
+                return sha[:7]
+
+    with contextlib.suppress(Exception):
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("ascii")
+            .strip()
+        )
+
+    return env("GIT_SHA", default="") or env("RAILWAY_GIT_COMMIT_SHA", default="")[:7] or "unknown"
+
+
+GIT_SHA = _resolve_git_sha()
 
 # ---------------------------------------------------------------------------
 # Installed apps

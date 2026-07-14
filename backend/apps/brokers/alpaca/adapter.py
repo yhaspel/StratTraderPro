@@ -1,10 +1,19 @@
-"""AlpacaAdapter (M04 §6.2) — paper trading only.
+"""AlpacaAdapter (M04 §6.2; mode switch M13).
 
-``TradingClient(paper=True)`` is hard-coded: the live endpoint is unreachable
-by construction in M04. Live API keys (``AK``/``BK`` prefix) are rejected up
-front with ``BROKER_LIVE_KEYS_FORBIDDEN`` so a mistaken paste can never reach a
-real account. Every broker call is wrapped for latency/audit and retried with
-jittered backoff on 429/5xx.
+Execution mode comes from the **BrokerAccount** (``ctx.mode``), never from a
+global setting: ``TradingClient(paper=self.is_paper)``. ``ENABLE_LIVE_TRADING``
+is permission to *create* a live account — it is not a mode, and flipping it
+must never move an existing paper account onto the live endpoint (M13 F-3).
+
+Key shape is validated against the declared mode in both directions (M13 F-4):
+live-shaped keys (``AK``/``BK``) on a PAPER account are refused with
+``BROKER_LIVE_KEYS_FORBIDDEN`` — the guard that stops a mistaken paste reaching
+a real account — and paper-shaped keys (``PK``) on a LIVE account are refused
+with ``BROKER_PAPER_KEYS_ON_LIVE``, so an account labelled LIVE can never
+quietly execute against the paper endpoint.
+
+Every broker call is wrapped for latency/audit and retried with jittered
+backoff on 429/5xx.
 """
 from __future__ import annotations
 
@@ -28,12 +37,19 @@ from ..base import (
     PositionDTO,
 )
 from ..errors import BrokerError, BrokerErrorCode
+from ..live_gate import live_trading_permitted
 from . import mapping
-from .errors import RETRYABLE_STATUS, looks_like_live_key, map_api_error
+from .errors import (
+    RETRYABLE_STATUS,
+    looks_like_live_key,
+    looks_like_paper_key,
+    map_api_error,
+)
 
 logger = logging.getLogger(__name__)
 
 PAPER_BASE_URL = "https://paper-api.alpaca.markets"
+LIVE_BASE_URL = "https://api.alpaca.markets"
 _MAX_RETRIES = 3
 # Bound every Alpaca HTTP call so a black-holed TCP connection can't wedge a
 # Celery worker or the streams catch-up forever (FIX-H7). Mirrors the TS client.
@@ -77,6 +93,19 @@ class AlpacaAdapter:
         self._client = client  # injectable for tests
         self._data_client = data_client  # market-data client for get_quote (FIX-H3)
 
+    # -- mode ---------------------------------------------------------------
+    @property
+    def is_paper(self) -> bool:
+        """The endpoint follows the ACCOUNT, not a global flag (M13 F-3).
+
+        `settings.ENABLE_LIVE_TRADING` is permission to *create* a LIVE account.
+        It is deliberately NOT consulted here: if it were, flipping that one env
+        var would silently move every existing paper account onto the live
+        endpoint — turning a permission into a mode, which is precisely the
+        class of blast-radius mistake this design exists to prevent.
+        """
+        return self.ctx.is_paper
+
     # -- client -------------------------------------------------------------
     @property
     def client(self):
@@ -87,7 +116,7 @@ class AlpacaAdapter:
                 TradingClient(
                     api_key=self.ctx.api_key_id,
                     secret_key=self.ctx.api_secret,
-                    paper=True,
+                    paper=self.is_paper,
                 )
             )
         return self._client
@@ -130,17 +159,41 @@ class AlpacaAdapter:
 
     # -- protocol -----------------------------------------------------------
     def connect(self) -> ConnectionInfo:
-        if looks_like_live_key(self.ctx.api_key_id):
-            raise BrokerError(
-                BrokerErrorCode.LIVE_KEYS_FORBIDDEN,
-                "These look like live trading keys; only Alpaca paper keys are allowed.",
-            )
+        # M13 F-4 — key shape must agree with the account's declared mode, in
+        # BOTH directions. Checked before any key leaves the process.
+        if self.is_paper:
+            if looks_like_live_key(self.ctx.api_key_id):
+                raise BrokerError(
+                    BrokerErrorCode.LIVE_KEYS_FORBIDDEN,
+                    "These look like LIVE trading keys, but this account is PAPER. "
+                    "Connect a new account in live mode instead — an account's mode "
+                    "cannot be changed after it is created.",
+                )
+        else:
+            # Belt and braces: the API layer already refuses to create a LIVE
+            # account while the gate is off (M13 F-2). Re-assert it at the
+            # adapter, because this is the last place before real money — and a
+            # row created while the flag was on must not keep trading live after
+            # the operator turns it back off.
+            if not live_trading_permitted():
+                raise BrokerError(
+                    BrokerErrorCode.LIVE_TRADING_DISABLED,
+                    "Live trading is disabled on this deployment.",
+                )
+            if looks_like_paper_key(self.ctx.api_key_id):
+                raise BrokerError(
+                    BrokerErrorCode.PAPER_KEYS_ON_LIVE,
+                    "These look like PAPER keys, but this account is LIVE. A live "
+                    "account trading on the paper endpoint would misreport every "
+                    "order it places.",
+                )
+
         acct = self.get_account()
         return ConnectionInfo(
             account_number=acct.account_number,
             buying_power=acct.buying_power,
             currency=acct.currency,
-            is_paper=True,
+            is_paper=self.is_paper,
         )
 
     def disconnect(self) -> None:
@@ -148,7 +201,9 @@ class AlpacaAdapter:
 
     def get_account(self) -> Account:
         raw = self._call("get_account", lambda: self.client.get_account())
-        return mapping.map_account(raw)
+        # M13 — the account row is the only thing that knows paper vs live;
+        # Alpaca's payload carries no discriminator.
+        return mapping.map_account(raw, is_paper=self.is_paper)
 
     def get_quote(self, symbol: str):
         """Latest trade price for sizing (FIX-H3). Best-effort — returns None on

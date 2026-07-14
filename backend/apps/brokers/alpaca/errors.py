@@ -9,13 +9,32 @@ from ..errors import BrokerError, BrokerErrorCode
 # HTTP statuses the caller may safely retry with backoff.
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 # Alpaca API key ID prefixes: paper keys start with "PK". Live trading keys
-# start with "AK"; broker-API keys with "BK". We hard-reject the live prefix so
-# a pasted live key can never reach the (paper-only) endpoint (AC-04-6).
+# start with "AK"; broker-API keys with "BK".
+#
+# M04 hard-rejected the live prefix outright (AC-04-6), because the adapter was
+# paper-only by construction. M13 makes the endpoint mode-dependent, so the
+# check becomes mode-AWARE rather than being dropped — and it now runs in BOTH
+# directions (M13 F-4):
+#
+#   live-shaped key on a PAPER account → BROKER_LIVE_KEYS_FORBIDDEN
+#       (unchanged; this is the guard that stops a mistaken paste reaching a
+#        real account, and it is the single most valuable line here)
+#   paper-shaped key on a LIVE account → BROKER_PAPER_KEYS_ON_LIVE
+#       (new; stops an account labelled LIVE from silently trading paper)
+#
+# The prefixes are a heuristic, not a security boundary — Alpaca itself is the
+# authority, and it will reject a mismatched key with 401/403. This check exists
+# to fail *early and legibly*, before any key leaves the process.
 LIVE_KEY_PREFIXES = ("AK", "BK")
+PAPER_KEY_PREFIXES = ("PK",)
 
 
 def looks_like_live_key(api_key_id: str) -> bool:
     return bool(api_key_id) and api_key_id.upper().startswith(LIVE_KEY_PREFIXES)
+
+
+def looks_like_paper_key(api_key_id: str) -> bool:
+    return bool(api_key_id) and api_key_id.upper().startswith(PAPER_KEY_PREFIXES)
 
 
 def _status_of(exc) -> int | None:
