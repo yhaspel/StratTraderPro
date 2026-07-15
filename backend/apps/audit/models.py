@@ -21,16 +21,23 @@ class AuditLog(models.Model):
     # hashed value in pre_save → every row would fail verification, and the
     # historical AuthEvent backfill (0003) could not insert past timestamps.
     occurred_at = models.DateTimeField(default=timezone.now, db_index=True)
+    # DO_NOTHING + db_constraint=False: the audit log is append-only (0002
+    # triggers), so a user delete must NOT emit an UPDATE (SET_NULL) or a
+    # cascading DELETE against audit_log — the trigger blocks both. Dropping the
+    # DB FK lets the user_id/actor_id UUID dangle after the user row is gone,
+    # preserving the immutable row (and its hash) exactly as written.
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
         null=True,
         blank=True,
         related_name="audit_events",
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
         null=True,
         blank=True,
         related_name="audit_actions",

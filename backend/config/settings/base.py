@@ -802,19 +802,6 @@ OTEL_SERVICE_NAME = "strattraderpro-backend"
 OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
 
 # ---------------------------------------------------------------------------
-# Deliberate-error endpoint (AC-10-10 verification only).
-#
-# Mounts /__debug__/boom/, which raises an unhandled exception so a REAL Sentry
-# issue is produced carrying the request_id + OTel trace_id tags — that shared
-# trace_id is what makes the Sentry → Grafana Tempo click-through work.
-#
-# Off by default, and config/urls.py additionally REFUSES to mount it when the
-# environment is production, so a stray flag cannot arm it there. Intended for
-# staging, briefly, then turned back off.
-# ---------------------------------------------------------------------------
-DEBUG_ERROR_ENDPOINT_ENABLED = env.bool("DEBUG_ERROR_ENDPOINT_ENABLED", default=False)
-
-# ---------------------------------------------------------------------------
 # Metrics exposition basic auth (M10 §6.5a). Unset → open (dev/test); prod warns.
 # ---------------------------------------------------------------------------
 METRICS_BASIC_AUTH_USERNAME = env("METRICS_BASIC_AUTH_USERNAME", default="")
