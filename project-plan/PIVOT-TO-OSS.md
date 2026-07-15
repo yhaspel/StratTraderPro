@@ -308,7 +308,7 @@ No workflow uses `pull_request_target`. `ci.yml` uses plain `pull_request`, so f
 | `backend/config/settings/prod.py:126-151` | Without Cloudflare R2, `EXPORTS_STORAGE_READY = False` → **GDPR export jobs sit PENDING forever, silently**. `base.py:730-747` already has a working FileSystemStorage `exports` backend. **Fall back to it** instead of marking storage not-ready |
 | `CONTRIBUTING.md` | Assumes a solo dev with a deploy pipeline (`main` is "always **deployable to staging**"). Rewrite for **fork-and-PR from strangers** |
 | `docs/runbooks/*` | `**Audience:** SRE / platform team` and `Customer support` → "you, running your own instance". Rename `platform-halt.md` — it implies you can halt everyone's trading |
-| Runbooks + `setup-guides/grafana-setup.md` | Scrub `yuval3000@gmail.com`, `yuval3000.grafana.net`, `backend-staging-4b6d.up.railway.app`, `backend-production-f3e8.up.railway.app`, `grafanacloud-yuval3000-prom`, Sentry org/project IDs in `bugs/BUG-004:137-139` → placeholders |
+| Runbooks + `setup-guides/grafana-setup.md` | Scrub the owner's personal email, Grafana org (`*.grafana.net` / `grafanacloud-*`), the real Railway prod/staging hostnames, and the Sentry org/project IDs in `bugs/BUG-004:137-139` → placeholders |
 
 **AC:** no personal email, no real Railway hostname, no Grafana org, no Sentry org ID in any
 tracked file. Export works on a self-hosted prod instance with no R2.

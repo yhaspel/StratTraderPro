@@ -8,8 +8,7 @@
 `backend/apps/users/models.py` (`DataExportJob`), `backend/apps/users/migrations/0005_delete_flow_and_terms.py`,
 `backend/apps/users/metrics_gdpr.py`, `backend/apps/users/test_gdpr.py`,
 `backend/config/settings/base.py` (`STORAGES['exports']`), `backend/config/settings/prod.py`,
-`backend/apps/audit/models.py` (FK `on_delete`), `backend/apps/audit/migrations/0002_chain_triggers.py` (append-only trigger),
-`docs/ops/prod-bringup.md`
+`backend/apps/audit/models.py` (FK `on_delete`), `backend/apps/audit/migrations/0002_chain_triggers.py` (append-only trigger)
 
 ## Context
 
@@ -138,9 +137,9 @@ keep an inert, scrubbed PK row forever, which is an acceptable cost.
   `STORAGES['exports']` to `S3Storage` **only if `EXPORTS_BUCKET` is set**; otherwise
   `EXPORTS_STORAGE_READY=False` (`prod.py:124-125`, `base.py:717-720`) and `run_data_export`
   leaves the job **`PENDING`** with an operator note rather than crashing on an unconfigured
-  backend (`tasks.py:53-61`; risk §17). The operator provisions the R2 bucket plus
-  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_S3_ENDPOINT_URL` per
-  `docs/ops/prod-bringup.md`; until then export requests queue harmlessly.
+  backend (`tasks.py:53-61`; risk §17). To use object storage the operator provisions an
+  S3-compatible bucket plus `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_S3_ENDPOINT_URL`;
+  otherwise prod falls back to the filesystem `exports` backend and requests complete locally.
 - **Reversibility costs 30 days of retained PII.** Soft delete deliberately keeps the account's
   PII for up to 30 days so a mistaken request can be cancelled — a conscious tradeoff over
   immediate erasure. After expiry, the scrubbed PK row persists indefinitely (it is inert and
