@@ -107,3 +107,6 @@ _tmp_*
 # ===== Finder / editor duplicate dirs & files (e.g. "security 2/") =====
 *\ 2/
 *\ 2.*
+
+# ===== M11 load-test fixtures — per-user tokens + TOTP secrets, NEVER commit =====
+backend/loadtest/fixtures.json

@@ -31,9 +31,19 @@ LOGGING["handlers"]["console"]["formatter"] = "console"
 if not SENTRY_DSN:
     SENTRY_DSN = ""
 
-# Simpler cache for dev
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+# Simpler cache for dev. The M11 load/chaos stack sets STP_LOADTEST_REDIS_CACHE=1
+# to keep base.py's shared django-redis backend instead — LocMem is per-process,
+# which would make the cross-process idempotency SETNX guard (AC-11-5) meaningless.
+if not env.bool("STP_LOADTEST_REDIS_CACHE", default=False):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
     }
-}
+
+# The M11 load harness seeds 100 throwaway users; Argon2 (the default) costs ~4.5s
+# per password hash, so seeding outlasts the 15-min access-token TTL and corrupts
+# late WS reconnects. STP_LOADTEST_FAST_HASH=1 swaps in MD5 for the throwaway
+# fixtures only — never enabled on the shared dev stack (default off).
+if env.bool("STP_LOADTEST_FAST_HASH", default=False):
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

@@ -1,0 +1,28 @@
+# AC-11-3 prod-shaped overlay. Layered on top of docker-compose.loadtest.yml:
+#   docker compose -p stp-load -f docker-compose.yml -f docker-compose.loadtest.yml -f docker-compose.ac113.yml up -d ...
+# Backend runs the gunicorn `web` role (not the dev runserver) with DEBUG=False,
+# and fill_ingestor is drained on worker-backtest so it can't starve the order
+# worker. All app roles share config.settings.loadtest.
+services:
+  backend:
+    environment:
+      SERVICE_ROLE: web
+      DJANGO_SETTINGS_MODULE: config.settings.loadtest
+      PORT: "8777"
+  worker:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.loadtest
+  worker-backtest:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.loadtest
+      STP_LOADTEST_FAKE_BROKER: "1"
+      PYTHONPATH: "/app/loadtest"
+      STP_LOADTEST_REDIS_CACHE: "1"
+      STP_LOADTEST_FAST_HASH: "1"
+  beat:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.loadtest
+  ws:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.loadtest
+      STP_LOADTEST_REDIS_CACHE: "1"

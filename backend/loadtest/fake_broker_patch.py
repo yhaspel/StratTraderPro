@@ -55,7 +55,13 @@ def _build_fake(account):
     from apps.brokers.fake import FakeBrokerAdapter
 
     adapter = FakeBrokerAdapter(
-        BrokerContext(account_id=str(account.id), user_id=str(account.user_id)),
+        # Mirror the real build_adapter (brokers.services): the account row is the
+        # single source of truth for execution mode. Threading mode here is what
+        # makes the M13 gate-2 LIVE run actually carry BrokerAccount.mode=LIVE
+        # through to BrokerContext.mode — without it a "LIVE" run silently falls
+        # back to the PAPER default and proves nothing about the mode plumbing.
+        BrokerContext(account_id=str(account.id), user_id=str(account.user_id),
+                      mode=account.mode),
         # A generous default so 20 rps of market orders always fill deterministically.
         buying_power="100000000",
         equity="100000000",
@@ -65,6 +71,17 @@ def _build_fake(account):
             symbol="AAPL", qty=Decimal("100"), avg_cost=Decimal("100"),
             market_price=Decimal("100"), side=Side.BUY,
         )
+    if os.environ.get("STP_LOADTEST_FAKE_5XX") == "1":
+        # AC-11-§7.5 Day-4 drill (alpaca-5xx-storm.sh): every place_order raises
+        # BrokerError(UNAVAILABLE), simulating an Alpaca REST 5xx storm so the
+        # platform's bounded-failure path (max_retries=0 → REJECTED, no retry
+        # storm, no duplicate order) can be exercised without a live broker.
+        from apps.brokers.errors import BrokerError, BrokerErrorCode
+
+        def _raise_5xx(req, client_order_id):  # noqa: ANN001
+            raise BrokerError(BrokerErrorCode.UNAVAILABLE, "loadtest fake 5xx storm")
+
+        adapter.place_order = _raise_5xx  # type: ignore[assignment]
     return adapter
 
 
@@ -82,11 +99,41 @@ def patch_build_adapter() -> bool:
         return False
 
     svc.build_adapter = _build_fake  # type: ignore[assignment]
-    # The streams supervisor imports build_adapter lazily inside a method, so the
-    # module-level rebind above is picked up on next call. No extra patch needed.
+    # NOTE: the original claim that patching build_adapter also covers the streams
+    # supervisor is WRONG. StreamSupervisor._build_stream (apps/brokers/streams.py)
+    # instantiates AlpacaStream DIRECTLY — it never calls build_adapter — so on a
+    # load stack with fake/bogus-cred accounts run_broker_streams storms the REAL
+    # Alpaca paper websocket (429s, pegged CPU). Neutralise that path too so the
+    # seam is actually self-contained (and AC-11-6's heartbeat semantics stay valid
+    # without touching a real broker).
+    _patch_streams()
     _PATCHED = True
     logger.warning("loadtest.fake_broker.patched build_adapter -> FakeBrokerAdapter")
     return True
+
+
+def _patch_streams() -> None:
+    """Replace StreamSupervisor._build_stream with a quiet in-memory stream that
+    never connects to Alpaca. It blocks (0% CPU) representing a healthy, idle
+    stream, so run_forever's touch_heartbeat keeps the account CONNECTED until the
+    process is stopped — exactly the state AC-11-6 (streams-kill) drills against."""
+    try:
+        from apps.brokers import streams as st
+    except Exception:  # noqa: BLE001 — django not set up yet; caller retries
+        return
+
+    import threading
+
+    class _IdleStream:  # pragma: no cover — infra glue
+        def run(self):
+            # Block until the process is torn down. No sockets, no polling.
+            threading.Event().wait()
+
+    def _fake_build_stream(self, account):  # noqa: ANN001
+        return _IdleStream()
+
+    st.StreamSupervisor._build_stream = _fake_build_stream  # type: ignore[assignment]
+    logger.warning("loadtest.fake_broker.patched StreamSupervisor._build_stream -> IdleStream")
 
 
 def maybe_patch_from_env() -> bool:

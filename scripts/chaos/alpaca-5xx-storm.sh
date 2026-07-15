@@ -18,7 +18,7 @@ source "$(dirname "$0")/_lib.sh"
 
 IDEM="chaos-5xx-$(date +%s)"
 
-read -r UID SID SECRET < <(c exec -T backend python - <<'PY'
+read -r USERID SID SECRET < <(c exec -T backend python - <<'PY'
 import json,pathlib
 u=json.loads(pathlib.Path("/app/loadtest/fixtures.json").read_text())["users"][0]
 print(u["user_id"], u["strategy_id"], u["webhook_secret"])
@@ -37,7 +37,7 @@ NOTE
 
 step "fire the same idempotency_key 5 times into the 5xx storm"
 for i in 1 2 3 4 5; do
-  c exec -T backend python - "$UID" "$SID" "$SECRET" "$IDEM" <<'PY'
+  c exec -T backend python - "$USERID" "$SID" "$SECRET" "$IDEM" <<'PY'
 import json,sys,urllib.request
 uid,sid,secret,idem=sys.argv[1:5]
 body=json.dumps({"strategy":"loadtest","action":"buy","symbol":"AAPL","qty":1,

@@ -23,7 +23,7 @@ TTL="${BROKER_STREAM_HEARTBEAT_TTL:-45}"
 BUDGET="${DEGRADED_BUDGET:-60}"
 
 # Resolve a connected broker account id + its user for the status check.
-read -r ACCT UID < <(q "SELECT id||' '||user_id FROM brokers_account WHERE status='CONNECTED' LIMIT 1" | tr '|' ' ')
+read -r ACCT USERID < <(q "SELECT id||'|'||user_id FROM brokers_account WHERE status='CONNECTED' LIMIT 1" | tr '|' ' ')
 [ -n "${ACCT:-}" ] || { fail "no CONNECTED broker account — seed with --with-broker first"; exit 1; }
 log "probing broker account ${ACCT}"
 
@@ -63,7 +63,7 @@ ELAPSED=$(( $(date +%s) - T0 ))
                  || fail "status did NOT flip to DEGRADED within ${BUDGET}s"
 
 step "ASSERT L1 flatten still works via REST while the stream is DOWN"
-FL=$(c exec -T backend python - "${UID}" <<'PY'
+FL=$(c exec -T backend python - "${USERID}" <<'PY'
 import sys,django,os
 os.environ.setdefault("DJANGO_SETTINGS_MODULE","config.settings.dev"); django.setup()
 from apps.risk import killswitch
