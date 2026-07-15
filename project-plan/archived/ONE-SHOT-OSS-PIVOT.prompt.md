@@ -1,3 +1,11 @@
+> **⚙️ SPENT ONE-SHOT — shipped; not a work item.**
+> This is the agent prompt that drove the OSS pivot (verify → publish → harden). Executed and the
+> repo made public; the remaining WP-3/WP-7 tail was finished 2026-07-15 (PR #35/#36). Moved to
+> `archived/` on 2026-07-15 — historical record only, **do not re-run.** The durable record of what
+> shipped lives in `project-plan/PROGRESS.md` and `project-plan/PIVOT-TO-OSS.md`.
+
+---
+
 # ONE-SHOT — OSS pivot: verify, publish, harden
 
 **For:** Claude CLI, run from the repo root on the host machine.

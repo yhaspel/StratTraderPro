@@ -376,7 +376,7 @@ README/LICENSE state.
 to and including the commit is Cowork's; everything that needs the real toolchain, a container
 runtime, or credentials is the CLI's.
 
-**Handoff artefact:** `project-plan/ONE-SHOT-OSS-PIVOT.prompt.md` — a Claude CLI prompt covering
+**Handoff artefact:** `project-plan/archived/ONE-SHOT-OSS-PIVOT.prompt.md` — a Claude CLI prompt covering
 WP-8 and WP-9, following the existing `ONE-SHOT-*` convention.
 
 ---

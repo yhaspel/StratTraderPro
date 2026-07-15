@@ -15,9 +15,9 @@
 6. **2026-07-14 OSS pivot:** StratTraderPro stopped being a hosted service and became open-source, self-hosted software (`PIVOT-TO-OSS.md`). The hosted/beta/prod/counsel tracks are void; M12 was scrapped; the engineering is unaffected. Live specs were amended in place to strike void operator sections while keeping shipped engineering honest.
 7. **Superseded material moves to [`archived/`](./archived/)** with a banner explaining its status — reference material, not work items. Two kinds live there:
    - **Scrapped** plans (`❌ SCRAPPED` banner — void premise): `04A-IBKR-Web-API.md`, `12-beta-and-signoff.md`, `analysis-cost-and-business-model.md`, `M10-cowork-followups.md`, `M11-operator-cowork-prompt.md`, `ONE-SHOT-M12.prompt.md`, `ONE-SHOT-M11-OPERATOR-TAIL.prompt.md`, and the `debug-and-verifications/` M04 IB-Gateway spike trail.
-   - **Spent** one-shot prompts (`⚙️ SPENT` banner — the agent prompts that built now-shipped milestones, moved out of the active plan on 2026-07-14): the `ONE-SHOT-M04-M08*`, `ONE-SHOT-M09`, `ONE-SHOT-M10`, `ONE-SHOT-M11*`, and `ONE-SHOT-REVIEW-FIXES` prompts.
+   - **Spent** one-shot prompts (`⚙️ SPENT` banner — the agent prompts that built now-shipped milestones, moved out of the active plan on 2026-07-14): the `ONE-SHOT-M04-M08*`, `ONE-SHOT-M09`, `ONE-SHOT-M10`, `ONE-SHOT-M11*`, `ONE-SHOT-REVIEW-FIXES`, `ONE-SHOT-OSS-PIVOT`, and `ONE-SHOT-ACCOUNT-CLEANUP` prompts (the last two archived 2026-07-15).
 
-   The only live one-shot is `ONE-SHOT-OSS-PIVOT.prompt.md`; the durable record of shipped work is `PROGRESS.md` + each `M*-EXECUTION-REPORT.md`.
+   No live one-shots remain — every one-shot prompt is now archived. The durable record of shipped work is `PROGRESS.md` + each `M*-EXECUTION-REPORT.md`.
 
 ## Milestones
 
