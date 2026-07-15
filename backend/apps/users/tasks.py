@@ -57,7 +57,10 @@ def run_data_export(self, job_id: str):
     from django.conf import settings
 
     if not getattr(settings, "EXPORTS_STORAGE_READY", True):
-        job.error = "Export storage is not configured. Set EXPORTS_BUCKET + AWS_* for S3/R2, or rely on the local filesystem default."
+        job.error = (
+            "Export storage is not configured. Set EXPORTS_BUCKET + AWS_* for "
+            "S3/R2, or rely on the local filesystem default."
+        )
         job.save(update_fields=["error"])
         logger.warning("gdpr.export.storage_not_ready job_id=%s", job.id)
         return
