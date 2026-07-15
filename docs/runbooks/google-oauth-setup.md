@@ -1,7 +1,7 @@
 # Runbook — Google OAuth setup (reproducible)
 
 **Severity:** N/A (greenfield setup)
-**Audience:** SRE / platform team
+**Audience:** you, running your own instance
 **Last reviewed:** 2026-05-02
 **Last executed:** 2026-05-02 (M2.5 bootstrap)
 
@@ -16,8 +16,8 @@ OAuth credentials, or recovering from a compromised Client Secret.
 - Backend deploys whose redirect URIs you want to register. Default for
   StratTraderPro:
   - `http://localhost:8777/api/v1/auth/oauth/google/callback/` (dev)
-  - `https://backend-staging-4b6d.up.railway.app/api/v1/auth/oauth/google/callback/`
-  - `https://backend-production-f3e8.up.railway.app/api/v1/auth/oauth/google/callback/`
+  - `https://your-backend-staging.example.com/api/v1/auth/oauth/google/callback/`
+  - `https://your-backend.example.com/api/v1/auth/oauth/google/callback/`
 
 ## Outcome
 
@@ -101,7 +101,7 @@ JSON with an `authorize_url` containing your Client ID. If it returns a
 
 ### Step 6 — Smoke test
 
-1. Open the frontend (`https://frontend-{env}-...up.railway.app/login`).
+1. Open the frontend (`https://frontend-{env}-...example.com/login`).
 2. Click **Continue with Google**.
 3. Complete the Google consent screen.
 4. Land on `/dashboard` (no MFA case) or `/login/mfa` (MFA case).
@@ -134,7 +134,7 @@ which can take weeks.
 - **Google shows "Error 400: redirect_uri_mismatch"** — the redirect URI
   the backend constructed doesn't match any of the three registered URIs.
   Check `Authorized redirect URIs` in the GCP credential detail page,
-  ensure the exact `https://backend-{env}-{hash}.up.railway.app/api/v1/auth/oauth/google/callback/`
+  ensure the exact `https://backend-{env}-{hash}.example.com/api/v1/auth/oauth/google/callback/`
   is present (note trailing slash matters).
 - **Backend returns `EXCHANGE_INVALID` on every callback** — the
   exchange code is being consumed by an interceptor before reaching the

@@ -1,7 +1,7 @@
 # Runbook — rotating the MFA key-encryption key (FERNET_KEK)
 
 **Severity:** P2 (planned), P0 (suspected leak)
-**Audience:** SRE on-call, platform team
+**Audience:** you, running your own instance
 **Last reviewed:** 2026-05-01 (M02)
 
 ## What this protects

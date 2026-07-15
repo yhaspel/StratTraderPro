@@ -1,5 +1,11 @@
 # M11 Operator Follow-ups — one-shot prompt for Claude Cowork
 
+> **Status: ❌ SCRAPPED 2026-07-14 — OSS pivot; do not run.**
+> Superseded by `project-plan/PIVOT-TO-OSS.md`. Browser-driven operator PARTS A–H against a hosted
+> Railway/Grafana/Sentry stack; parts C/D/E/F/H are void or moot under self-hosting. The one live
+> finding (PART G — the audit-integrity runbook DDL bug) was transplanted and fixed in WP-3c before
+> archiving. Kept as a record.
+
 > Paste everything below the line into Claude Cowork. It drives the browser on a Chrome
 > instance already logged into Railway, Cloudflare, Grafana Cloud, GitHub, Sentry, Resend,
 > Alpaca, and the domain registrar. It executes the M11 Section-B operator to-do list.
@@ -259,7 +265,7 @@ authoritative, step-by-step runbook and includes:
 - Generating the three prod-only secrets `SECRET_KEY` / `JWT_SIGNING_KEY` / `FERNET_KEK` (§2.4).
 - DNS `api.` / `app.` (+ optional `hooks.`) via Cloudflare, **Proxied** (§3).
 - Cloudflare TLS **Full (strict)**, WAF (managed + OWASP), rate-limit rules, Bot Fight, and the
-  **origin lock** so the bare `*.up.railway.app` cannot bypass the WAF (§4).
+  **origin lock** so the bare `*.example.com` cannot bypass the WAF (§4).
 - The full env-var matrix (§6) — including the R2 vars from PART C above and
   `METRICS_BASIC_AUTH_*` matching the grafana-agent.
 - The 8-point bring-up verification (§7) — **do not trust "Online."**

@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: CI only reads the repo. GITHUB_TOKEN gets no write scopes,
+# so a fork PR cannot use it to mutate the repo. Any job needing more must
+# declare its own narrower `permissions:`.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -355,8 +361,7 @@ jobs:
             ':!docker/ib-gateway' \
             ':!docker-compose.yml' \
             ':!docs' \
-            ':!project-plan' \
-            ':!MEMORY.md' || true)
+            ':!project-plan' || true)
           if [ -n "$MATCHES" ]; then
             echo "::error::Legacy IBKR credentials (TWS_/DEBUG_VNC) found outside the allowlist:"
             echo "$MATCHES"
@@ -399,7 +404,6 @@ jobs:
             ':!.github/workflows/ci.yml' \
             ':!docs' \
             ':!project-plan' \
-            ':!MEMORY.md' \
             ':!*.md' \
             ':!*/test_*.py' || true)
           if [ -n "$MATCHES" ]; then

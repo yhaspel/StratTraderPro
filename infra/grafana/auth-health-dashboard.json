@@ -521,8 +521,8 @@
       {
         "current": {
           "selected": false,
-          "text": "grafanacloud-yuval3000-prom",
-          "value": "grafanacloud-yuval3000-prom"
+          "text": "grafanacloud-YOUR_ORG-prom",
+          "value": "grafanacloud-YOUR_ORG-prom"
         },
         "hide": 0,
         "includeAll": false,

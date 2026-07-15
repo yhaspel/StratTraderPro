@@ -3,7 +3,7 @@ Auth Prometheus counters (M01 plan §12).
 
 These are scraped by django-prometheus' /metrics endpoint and shipped by the
 Railway grafana-agent to Grafana Cloud. The Auth Health dashboard
-(https://yuval3000.grafana.net/d/stp-auth-health) and its three alert rules
+(https://YOUR_ORG.grafana.net/d/stp-auth-health) and its three alert rules
 all read these series.
 
 Result-label vocabulary is fixed — adding a new value is fine, but renaming

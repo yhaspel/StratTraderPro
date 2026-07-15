@@ -1,17 +1,17 @@
 # Grafana Cloud Setup — Auth Health Dashboard
 
 > **Phase:** M01 (Auth Foundation) — exit-gate item 01.11.5
-> **Owner:** @yuval3000 (manual)
+> **Owner:** @yhaspel (manual)
 > **Time:** ~30–45 min
 > **Outcome:** A live **Auth Health** dashboard in Grafana Cloud scraping Prometheus metrics from the Railway-staging backend, with three alerts wired up.
 >
-> **Status (2026-05-01):** Sections 0–3 complete. Pipeline verified: `up{service="backend"}` returns `1` in Grafana Cloud Explore (datasource `grafanacloud-yuval3000-prom`). Section 4 (dashboard import) and Section 5 (alert verification) outstanding.
+> **Status (2026-05-01):** Sections 0–3 complete. Pipeline verified: `up{service="backend"}` returns `1` in Grafana Cloud Explore (datasource `grafanacloud-YOUR_ORG-prom`). Section 4 (dashboard import) and Section 5 (alert verification) outstanding.
 
 ## Deployed configuration (cheatsheet)
 
 | | Actual | Notes |
 |---|---|---|
-| Grafana stack slug | `yuval3000` | Auto-generated from email; the guide's example "strattraderpro" was never created. Datasource is therefore `grafanacloud-yuval3000-prom`. |
+| Grafana stack slug | `YOUR_ORG` | Auto-generated from your Grafana signup email; the guide's example "strattraderpro" was never created. Datasource is therefore `grafanacloud-YOUR_ORG-prom`. |
 | Region | `prod-eu-central-0` | Affects remote_write URL only; query latency from us-east4 backend → eu-central-0 cloud is acceptable for 30s scrapes. |
 | API token name | `strattraderpro-staging` | No expiry. Stored locally in `.env.grafana.local` (gitignored). |
 | API token scope | `set:alloy-data-write` | Replaces the old `MetricsPublisher` role; superset that covers Prometheus write. |
@@ -28,12 +28,12 @@ Please collect / decide the following and paste them back into the chat (or save
 
 | # | Item | Where to get it | Stored as |
 |---|------|------------------|-----------|
-| 1 | Grafana Cloud account email + org slug | grafana.com signup → org URL e.g. `https://yuval3000.grafana.net` | — |
+| 1 | Grafana Cloud account email + org slug | grafana.com signup → org URL e.g. `https://YOUR_ORG.grafana.net` | — |
 | 2 | Grafana Cloud **Prometheus remote_write** endpoint URL | Grafana Cloud → *Connections → Prometheus → Send Metrics* | env: `GRAFANA_PROM_URL` |
 | 3 | Grafana Cloud **Prometheus username** (numeric instance ID) | Same page as #2 | env: `GRAFANA_PROM_USER` |
 | 4 | Grafana Cloud **API token** (scope: `MetricsPublisher`) | Grafana Cloud → *Security → Access Policies → Add token* | env: `GRAFANA_PROM_TOKEN` (GitHub Actions secret + Railway service var) |
 | 5 | Notification target for alerts (email / Slack webhook / PagerDuty key) | Your choice | Configured inside Grafana UI |
-| 6 | Confirmation that Railway staging is up and `/metrics` returns 200 | ✅ `curl https://backend-staging-4b6d.up.railway.app/metrics` (custom domain not yet wired) | — |
+| 6 | Confirmation that Railway staging is up and `/metrics` returns 200 | ✅ `curl https://your-backend-staging.example.com/metrics` (custom domain not yet wired) | — |
 
 Once you give me items **1–5**, I can hand you a ready-to-import dashboard JSON and the exact `prometheus.yml` / Railway env-var diff. Item 6 is a precondition — if staging isn't deployed yet, finish M00.9.3 / M00.9.7 first.
 
@@ -56,7 +56,7 @@ Once you give me items **1–5**, I can hand you a ready-to-import dashboard JSO
 ## 2. Create the Grafana Cloud account
 
 1. Go to https://grafana.com/auth/sign-up/create-user.
-2. Sign up with `yuval3000@gmail.com`. Pick the **Free** tier (10k active series, 50 GB logs — plenty for staging).
+2. Sign up with `you@example.com`. Pick the **Free** tier (10k active series, 50 GB logs — plenty for staging).
 3. Choose a stack name, e.g. `strattraderpro`. Your stack URL becomes `https://strattraderpro.grafana.net`.
 4. From *Home → Connections → Add new connection → Hosted Prometheus metrics*, copy:
    - **Remote write endpoint** (`https://prometheus-prod-XX-prod-XX-XXXXX.grafana.net/api/prom/push`)
@@ -133,13 +133,13 @@ Steps once metrics are flowing:
 >
 > **Source JSON:** `infra/grafana/system-health-dashboard.json`
 > **UID after import:** `stp-system-health` (loads at `/d/stp-system-health`)
-> **Datasource:** same `grafanacloud-yuval3000-prom` Auth Health uses.
+> **Datasource:** same `grafanacloud-YOUR_ORG-prom` Auth Health uses.
 
 ### 7.1 Import procedure
 
 1. Grafana → *Dashboards → New → Import*.
 2. Paste the contents of `infra/grafana/system-health-dashboard.json`. Or upload the file directly.
-3. When prompted for the data source, pick `grafanacloud-yuval3000-prom` (auto-detected via the `${DS_PROMETHEUS}` template variable, same pattern Auth Health uses).
+3. When prompted for the data source, pick `grafanacloud-YOUR_ORG-prom` (auto-detected via the `${DS_PROMETHEUS}` template variable, same pattern Auth Health uses).
 4. Save into folder **StratTraderPro** (next to Auth Health).
 5. Confirm panels render. Six rows:
    - **Backend Health** — `up`, request rate by status class, p50/p95/p99 latency, 5xx error rate %.
@@ -153,7 +153,7 @@ Steps once metrics are flowing:
 
 | Var | Default | Source query | Purpose |
 |---|---|---|---|
-| `DS_PROMETHEUS` | `grafanacloud-yuval3000-prom` | datasource picker | Same convention as Auth Health. |
+| `DS_PROMETHEUS` | `grafanacloud-YOUR_ORG-prom` | datasource picker | Same convention as Auth Health. |
 | `env` | `All` (multi-select) | `label_values(up{job="backend"}, env)` | Defaults to All so cross-env regressions stand out at a glance. Override to `staging` or `production` for env-specific drill-down. |
 
 ### 7.3 Verification (closes 00.7.5b)

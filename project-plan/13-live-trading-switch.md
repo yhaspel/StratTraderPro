@@ -5,6 +5,12 @@
 **Owner:** Yuval
 **Created:** 2026-07-13
 
+> **OSS-pivot note (2026-07-14):** the live-trading engineering shipped and merged (M13, commit on
+> `main`). The hosted-service enablement gates below are **void** per the 2026-07-14 OSS pivot;
+> live trading is now each self-hoster's own decision on their own instance (PIVOT-TO-OSS D6). The
+> surviving §6 items are recommendations, not operator gates; the shipped CI controls (AC-13-16/17)
+> stay.
+
 ---
 
 ## 0. The one-paragraph version
@@ -21,7 +27,7 @@ prerequisites (§6).
 
 ## 1. Why this is a milestone and not a config toggle
 
-Four gates, only one of which is code:
+~~Four~~ Three gates, only one of which is code (the fourth, legal/counsel, is **void** — OSS pivot):
 
 1. **Alpaca live eligibility for Israeli residents is UNCONFIRMED.** `MEMORY.md` §2 says to check
    with Alpaca support *before any live scope*. If Alpaca will not open a live account, this entire
@@ -34,8 +40,10 @@ Four gates, only one of which is code:
 3. **The kill switch has never been load-tested.** M11 §7.4/§7.5 (Locust + chaos drills) are still
    un-run. `docs/slo.md` claims kill-switch flatten p99 ≤ 5s. That number is currently **unproven**,
    and it is precisely the control that matters when real money is moving.
-4. **Legal.** `docs/legal/terms-of-service.md` states *"Mode in force: **PAPER TRADING ONLY** —
-   `ENABLE_LIVE_TRADING=false`. No real money moves."* and is not counsel-approved.
+4. ~~**Legal.** `docs/legal/terms-of-service.md` states *"Mode in force: **PAPER TRADING ONLY** —
+   `ENABLE_LIVE_TRADING=false`. No real money moves."* and is not counsel-approved.~~ **VOID (OSS
+   pivot):** there is no hosted ToS to counsel-approve; a self-hoster runs under their own terms and
+   their broker's agreement.
 
 ## 2. Frozen decisions
 
@@ -77,8 +85,9 @@ Four gates, only one of which is code:
   or with `daily_loss_usd = 0` (the documented "no USD limit" escape hatch), is refused at connect
   time. Paper may run unguarded; live may not.
 - **F-6. `ENABLE_LIVE_TRADING` stays `false` in every committed config,** including
-  `.env.example`, compose, and both Railway environments. Turning it on is an operator act,
-  recorded, with §6 satisfied.
+  `.env.example` and compose ~~, and both Railway environments~~. Turning it on is a deliberate act
+  on the self-hoster's own instance — never a commit (AC-13-16). *(Railway clause struck — OSS pivot;
+  there is no shared hosted environment.)*
 
 ## 3. Scope
 
@@ -141,54 +150,75 @@ inert — and a test that only checks `_build_stream()` in isolation would still
 **The endpoint is only ever as correct as the context that reaches it.** Any test for AC-13-11
 must exercise the supervisor's real context construction, not a hand-built one.
 
-## 5b. Coexisting with the M12 paper-only beta
+## 5b. ~~Coexisting with the M12 paper-only beta~~ Two shipped CI controls keep the flag off in committed config
 
-M12 §3 states: *"Live trading enablement (v0.2; `ENABLE_LIVE_TRADING` stays `False`)."* M12 runs a
+> ~~**VOID (OSS pivot):** the M12 hosted paper-only beta framing below is struck — there is no shared
+> hosted build serving beta users. The two ACs, however, are **shipped controls that survive**, with
+> their rationale rewritten below: they protect the self-hoster.~~
+
+~~M12 §3 states: *"Live trading enablement (v0.2; `ENABLE_LIVE_TRADING` stays `False`)."* M12 runs a
 3–5 user **paper** beta (AC-12-1/2/3) and ships `v0.1.0`. Once M13 merges, that beta runs on a build
 that **contains the live-trading code path**, and the only thing between beta users and real-money
-execution is the flag.
+execution is the flag.~~
 
-"The flag is off" is currently a *convention*. This project has been bitten — twice — by a control
-that was assumed to be in force and was not (BUG-009: rules paused; BUG-011: workers running the
-wrong process, both reporting healthy). A convention is not a control. Two ACs make it one:
+Every self-hoster's checkout **contains the live-trading code path** — the only thing between a
+default install and real-money execution is the flag. "The flag is off" must be more than a
+*convention*: this project has been bitten — twice — by a control that was assumed to be in force and
+was not (BUG-009: rules paused; BUG-011: workers running the wrong process, both reporting healthy).
+A convention is not a control. Two ACs make it one:
 
 | # | AC | Kind |
 |---|---|---|
-| **AC-13-16** | **CI fails if `ENABLE_LIVE_TRADING` is committed as true** (`true`/`True`/`1`/`yes`) in any tracked config: `.env.example`, `docker-compose*.yml`, `config/settings/*.py`, `infra/`, workflows. Mirrors the existing `block-legacy-ibkr-creds` guard. Docs/plans allowlisted. | CI |
-| **AC-13-17** | **When the gate is closed the LIVE option is ABSENT from the UI, not merely disabled or erroring.** No mode picker, no live affordance — the connect form is exactly what it is today. A beta user in a paper-only beta must never see a control that implies real-money trading exists. (Precedent: M10.5 *hid* the unconfigured Google button rather than shipping one that dumped users on raw JSON; the flag-off TradeStation button is disabled **with** a "not yet available" note.) | CI |
+| **AC-13-16** | **CI fails if `ENABLE_LIVE_TRADING` is committed as true** (`true`/`True`/`1`/`yes`) in any tracked config: `.env.example`, `docker-compose*.yml`, `config/settings/*.py`, `infra/`, workflows. Mirrors the existing `block-legacy-ibkr-creds` guard. Docs/plans allowlisted. **Rationale — protect the self-hoster:** arming live trading is a deliberate act on your own deployed instance, never a commit. The shipped default must stay paper so that `git clone` + `docker compose up` never puts anyone one merge away from real-money execution. | CI |
+| **AC-13-17** | **When the gate is closed the LIVE option is ABSENT from the UI, not merely disabled or erroring.** No mode picker, no live affordance — the connect form is exactly what it is today. **Rationale — protect the self-hoster:** a default install has the flag off, so nobody running the shipped default should see a control implying real-money trading exists until they have deliberately armed it on their own box. (Precedent: M10.5 *hid* the unconfigured Google button rather than shipping one that dumped users on raw JSON; the flag-off TradeStation button is disabled **with** a "not yet available" note.) | CI |
 
-AC-13-17 also protects the legal position: the ToS in force during M12 says **PAPER TRADING ONLY**.
-Showing a LIVE control under those terms is a contradiction, even if clicking it 503s.
+## 6. ~~Enablement prerequisites (ALL must be true before `ENABLE_LIVE_TRADING=true` anywhere)~~ Recommendations for a self-hoster enabling live trading
 
-## 6. Enablement prerequisites (ALL must be true before `ENABLE_LIVE_TRADING=true` anywhere)
+> **OSS pivot (2026-07-14):** these are no longer operator gates that a hosted service must clear
+> before enabling live trading for its users. There is no "for users" — each self-hoster runs their
+> own instance and trades their own money (PIVOT-TO-OSS D6). The items below are **recommendations**
+> you should weigh before you flip `ENABLE_LIVE_TRADING=true` on your own box. The two void hosted
+> gates (counsel-approved ToS, on-call go/no-go) are struck.
 
-1. ☑ **Alpaca live-account eligibility — CONFIRMED (2026-07-13, operator).** An Israeli national can
-   open and fund an Alpaca live account. This gate is closed; `MEMORY.md` §2's "unconfirmed — check
-   with Alpaca support" note is now stale and should be corrected.
-   *(Keep whatever written confirmation exists with the compliance record — this is the kind of thing
-   an auditor asks for later, and "we checked once" is not evidence.)*
-2. ☑ M11 §7.4 load test + §7.5 chaos drills **RUN 2026-07-14** (all PASS), and AC-13-10 (kill-switch
-   flatten under load) **passes against LIVE-mode accounts on the fake-broker seam** — p99 0.169s
-   (≤5s). Proves the flatten SLO + mode plumbing; the live Alpaca endpoint is deliberately not
-   exercised (see AC-13-10 note). **Gate 2 satisfied for the SLO/plumbing dimension** — the live
-   endpoint itself is validated separately by AC-13-01..09/14/15 (CI) + prod bring-up.
-3. ☐ `daily_loss_watcher` has ≥ 30 days of unbroken production execution, evidenced by
-   `up{job="beat"} == 1` continuity and at least one *deliberately provoked* L2 trip in staging.
-4. ☐ Counsel has approved a ToS/Privacy revision that removes "PAPER TRADING ONLY" and states the
-   real-money risk; `seed_terms` bumped to a new version so **every user must re-accept**.
-5. ☐ Backups + restore drill re-verified (`scripts/restore-drill.sh`) against the live-mode schema.
-6. ☐ A written go/no-go, in `docs/oncall.md`, naming who can flip the flag back off.
+1. **Alpaca live-account eligibility for your jurisdiction.** Alpaca opens live accounts only for
+   supported residencies. Confirm you can open and fund one before you build any expectation on live
+   trading. *(The original operator confirmed this for an Israeli national on 2026-07-13; your
+   jurisdiction may differ — check for yourself.)*
+2. **Exercise the kill switch and risk controls before you trust them.** M11 §7.4 load test + §7.5
+   chaos drills were **RUN 2026-07-14** (all PASS), and AC-13-10 (kill-switch flatten under load)
+   passed against LIVE-mode accounts on the fake-broker seam — p99 0.169s (≤5s). This proves the
+   flatten SLO + mode plumbing; the live Alpaca endpoint is deliberately not exercised (see AC-13-10
+   note). Re-run these on your own deployment if you have changed the sizing/risk paths.
+3. **Give `daily_loss_watcher` real runtime before you rely on it.** Recommended: ≥ 30 days of
+   unbroken execution on your instance, evidenced by `up{job="beat"} == 1` continuity, and at least
+   one *deliberately provoked* L2 trip in a paper/staging environment first.
+4. ~~Counsel has approved a ToS/Privacy revision that removes "PAPER TRADING ONLY" and states the
+   real-money risk; `seed_terms` bumped to a new version so **every user must re-accept**.~~ **VOID
+   (OSS pivot):** no hosted ToS, no user re-acceptance flow to manage — you run under your own terms
+   and your broker's agreement.
+5. **Verify your backups and a restore before real money moves.** Re-run the restore drill
+   (`scripts/restore-drill.sh`) against the live-mode schema on your own deployment.
+6. ~~A written go/no-go, in `docs/oncall.md`, naming who can flip the flag back off.~~ **VOID (OSS
+   pivot):** there is no on-call rotation on a self-hosted box; you are the only operator, and the DB
+   override is your instant kill (F-2a).
 
-**Until every box is ticked, the correct value is `false`.** The code shipped in M13 is inert and
-safe to merge with the boxes empty — that is the point of building it behind the flag.
+**The shipped default is `false`, and AC-13-16 keeps it that way in committed config.** The code
+shipped in M13 is inert until *you* deliberately arm it on your own instance — that is the point of
+building it behind the flag.
 
 ---
 
-## 7. Dependencies — can M13 be built independently of the M11 tail and M12?
+## 7. ~~Dependencies — can M13 be built independently of the M11 tail and M12?~~ VOID (OSS pivot)
 
-**Split the question. BUILDING M13 is independent. ENABLING it is not.**
+> **VOID (2026-07-14 OSS pivot):** §7.1–7.4 are struck. M13 is **merged on `main`** — the
+> build-vs-enable dependency question is resolved history, and the M11-tail / M12-beta / hosted
+> prod-rollout sequencing below assumed a single hosted deployment that no longer exists. Retained
+> struck-through as a record; nothing here gates a self-hoster. Enablement is now each self-hoster's
+> own decision (§6, PIVOT-TO-OSS D6).
 
-### 7.1 Implementation — INDEPENDENT ✅
+~~**Split the question. BUILDING M13 is independent. ENABLING it is not.**~~
+
+### 7.1 ~~Implementation — INDEPENDENT ✅~~ (void — M13 merged)
 
 M13 can be implemented, reviewed and merged **now**, without waiting for anything:
 
@@ -201,7 +231,7 @@ M13 can be implemented, reviewed and merged **now**, without waiting for anythin
 | M11 PART H (prod bring-up) | **No** | Infra. And `ENABLE_LIVE_TRADING = env.bool(..., default=False)` **fails safe**: a brand-new prod project that never sets the var is automatically paper. |
 | M12 (beta + `v0.1.0`) | **No** | M12 is release management + beta ops. It *assumes* `ENABLE_LIVE_TRADING=False`, which M13 respects by default and AC-13-16 now enforces in CI. |
 
-### 7.2 Enablement — HARD-BLOCKED on the M11 tail ⛔
+### 7.2 ~~Enablement — HARD-BLOCKED on the M11 tail ⛔~~ (void — OSS pivot)
 
 Turning the flag on is **not** independent. §6 gates map directly onto pending M11 work:
 
@@ -221,7 +251,7 @@ Turning the flag on is **not** independent. §6 gates map directly onto pending 
 And note M12 is itself blocked: its stated hard gate is *"prod Railway env live … terms-acceptance
 flow shipped"* — i.e. **M11 PART H + PART F**.
 
-### 7.3 Recommended order
+### 7.3 ~~Recommended order~~ (void — OSS pivot)
 
 ```
 Alpaca eligibility check ──────────────────┐  (do this NOW; it can invalidate everything below)
@@ -236,7 +266,7 @@ M13 code (merged, flag OFF, CI-guarded) ───┘            │
 M13 code can land **in parallel** with the M11 tail. It simply must not be *armed* until the tail,
 the drills and the legal work are done.
 
-### 7.4 The real coupling is merge-order, not dependency
+### 7.4 ~~The real coupling is merge-order, not dependency~~ (void — OSS pivot)
 
 Three pieces of frontend all touch `ShellComponent`:
 

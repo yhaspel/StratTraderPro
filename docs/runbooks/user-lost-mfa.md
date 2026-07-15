@@ -1,7 +1,7 @@
 # Runbook — user lost their MFA device (and can't use a backup code)
 
 **Severity:** P3 (user-blocking, not platform-impacting)
-**Audience:** Customer support, SRE on-call
+**Audience:** you, running your own instance
 **Last reviewed:** 2026-05-01 (M02)
 
 ## When this runbook applies

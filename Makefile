@@ -1,14 +1,30 @@
-.PHONY: up down logs shell-be shell-fe test-be test-fe build lint tunnel schema-export schema-types schema
+.PHONY: setup up down logs shell-be shell-fe test-be test-fe build lint tunnel schema-export schema-types schema
+
+# ---------- First-time setup ----------
+
+# `make setup` generates a SECRET_KEY + FERNET_KEK and writes backend/.env.
+# Idempotent: if backend/.env already exists it is left untouched (delete it to
+# regenerate). Run this once, then `docker compose up -d --build`.
+setup:
+	@if [ -f backend/.env ]; then \
+		echo "backend/.env already exists — leaving it untouched. Delete it to regenerate secrets."; \
+	else \
+		eval "$$(bash scripts/gen-secrets.sh)"; \
+		sed -e "s|^SECRET_KEY=.*|SECRET_KEY=$$SECRET_KEY|" \
+		    -e "s|^FERNET_KEK=.*|FERNET_KEK=$$FERNET_KEK|" \
+		    backend/.env.example > backend/.env; \
+		echo "✓ Wrote backend/.env with a fresh SECRET_KEY + FERNET_KEK."; \
+		echo "  Next: docker compose up -d --build"; \
+	fi
 
 # ---------- Local dev (docker-compose) ----------
 
-# `make up` boots the full stack including the ngrok tunnel (so AC-00-10 and
-# any TradingView webhook test can hit the local backend). Equivalent to:
-#   docker compose --profile tunnel up -d
-# Add `--build` if you want to force-rebuild images:
-#   docker compose --profile tunnel up --build
+# `make up` boots the full stack (postgres + redis + backend + worker + beat +
+# frontend). The ngrok tunnel is NOT included — it needs NGROK_AUTHTOKEN and is
+# only for TradingView webhook testing. Bring it up separately with `make tunnel`.
+# First run: `docker compose up -d --build` to build images.
 up:
-	docker compose --profile tunnel up -d
+	docker compose up -d
 
 down:
 	docker compose down

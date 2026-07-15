@@ -8,9 +8,9 @@
 series against the exported metric names — `config/test_alert_rules.py`). Importing
 them to Grafana Cloud + wiring contact points is the operator step in
 `docs/runbooks/alerting-setup.md`. **Companion docs:** `docs/adr/102-observability-topology.md`
-(why the alerts exist + where the series come from), `docs/oncall.md` (who
-responds), `docs/slo.md` (the four SLOs three of these alerts back),
-`docs/postmortem-template.md` (for the criticals).
+(why the alerts exist + where the series come from), `docs/slo.md` (the four SLOs
+three of these alerts back), `docs/postmortem-template.md` (for the criticals).
+On a self-hosted instance, **you** are the one who responds.
 
 ## How to read a page
 
@@ -33,7 +33,7 @@ where to go next; "Escalate" is when to open a postmortem / stop trading.
 | Alert | Severity | Fires when | Likely cause | Runbook | Escalate |
 |---|---|---|---|---|---|
 | **WebhookErrorRatioWarn** | warning | 5xx / total responses > **1%** over 5m | A view is throwing — bad deploy, DB/Redis blip, an unhandled edge in ingest or an API view | `webhook-debug.md`; check Sentry (group by `release`=GIT_SHA) | If it climbs toward 2% (the crit), treat as the crit below |
-| **WebhookErrorRatioCrit** | critical | 5xx ratio > **2%** over 5m | Sustained server errors — the webhook-availability SLO (99.9%) is at risk | `webhook-debug.md`; Sentry; `docs/slo.md` (webhook SLO + burn) | Page. If ingest is dropping alerts, consider an L3 platform halt (`platform-halt.md`) while you fix. Postmortem. |
+| **WebhookErrorRatioCrit** | critical | 5xx ratio > **2%** over 5m | Sustained server errors — the webhook-availability SLO (99.9%) is at risk | `webhook-debug.md`; Sentry; `docs/slo.md` (webhook SLO + burn) | Page. If ingest is dropping alerts, consider an L3 platform halt (`instance-halt.md`) while you fix. Postmortem. |
 | **BrokerStreamSilent** | critical | `max(broker_stream_heartbeat_age_seconds) > 120` for 2m | The trade-updates websocket is dead — no fills/acks arriving; supervisor wedged or broker-side outage | `alpaca-paper-smoke.md`, `reconcile-drift-investigation.md`; restart the `streams` service | Page. Positions/fills may be stale — reconcile before trusting the dashboard. Postmortem if fills were missed. |
 | **OrderSubmitLatencyHigh** | warning | `order_submit_latency_seconds` p95 > **2s** over 10m | Broker API slow, Alpaca degraded, or worker saturation | Check Alpaca status + `celery -A config.celery inspect stats`; `docs/slo.md` (order-submit SLO p95 ≤ 1.5s, alert at 2s) | Escalate if p95 stays > 2s — the order-submit SLO is burning |
 | **KillSwitchFlattenSlow** | critical | `killswitch_flatten_latency_seconds` p99 > **5s** over 5m | A flatten is taking too long — broker slow to `close_all_positions`, or many positions | `kill-switch-verify-monthly.md`, `strategy-flatten-limitation.md`; `docs/slo.md` (flatten SLO p99 ≤ 5s) | Page. A slow flatten means risk isn't being cut on time — verify positions actually flattened. Postmortem. |

@@ -1,7 +1,9 @@
 # StratTraderPro — Milestone Index
 
-> Breakdown of the master plan (`strat-trader-pro.md`) into 13 implementable milestones, one per week.
-> Each milestone has a stand-alone spec covering scope, acceptance criteria, definition-of-done, test plan, i18n, tech-stack notes, security, observability, and exit gate.
+> Breakdown of the master plan (`strat-trader-pro.md`) into implementable milestones (M00–M11
+> shipped, M12 scrapped, M13 merged, M14 + M15 spec). Each milestone has a stand-alone spec
+> covering scope, acceptance criteria, definition-of-done, test plan, i18n, tech-stack notes,
+> security, observability, and exit gate.
 
 ## How to use this folder
 
@@ -10,7 +12,12 @@
 3. The **Exit Gate Checklist** at the bottom of each file is the go/no-go for moving to the next milestone. Do not advance with open items unless explicitly deferred and logged in the Risk register of the master plan.
 4. **Current status lives in [`PROGRESS.md`](./PROGRESS.md)** (canonical, verified-against-code). `plan-progress-tracker.md` keeps the detailed per-task history tables.
 5. **2026-07-05 broker pivot:** the first execution broker is **Alpaca**, not IBKR — see `docs/adr/041-alpaca-over-ibkr.md`. `04-webhook-ingest-and-ibkr.md` keeps its filename but now specs the Alpaca integration.
-6. **Scrapped plans move to [`archived/`](./archived/)** with a SCRAPPED banner explaining why and what carried over — they are reference material, not work items. Currently there: `04A-IBKR-Web-API.md`.
+6. **2026-07-14 OSS pivot:** StratTraderPro stopped being a hosted service and became open-source, self-hosted software (`PIVOT-TO-OSS.md`). The hosted/beta/prod/counsel tracks are void; M12 was scrapped; the engineering is unaffected. Live specs were amended in place to strike void operator sections while keeping shipped engineering honest.
+7. **Superseded material moves to [`archived/`](./archived/)** with a banner explaining its status — reference material, not work items. Two kinds live there:
+   - **Scrapped** plans (`❌ SCRAPPED` banner — void premise): `04A-IBKR-Web-API.md`, `12-beta-and-signoff.md`, `analysis-cost-and-business-model.md`, `M10-cowork-followups.md`, `M11-operator-cowork-prompt.md`, `ONE-SHOT-M12.prompt.md`, `ONE-SHOT-M11-OPERATOR-TAIL.prompt.md`, and the `debug-and-verifications/` M04 IB-Gateway spike trail.
+   - **Spent** one-shot prompts (`⚙️ SPENT` banner — the agent prompts that built now-shipped milestones, moved out of the active plan on 2026-07-14): the `ONE-SHOT-M04-M08*`, `ONE-SHOT-M09`, `ONE-SHOT-M10`, `ONE-SHOT-M11*`, and `ONE-SHOT-REVIEW-FIXES` prompts.
+
+   The only live one-shot is `ONE-SHOT-OSS-PIVOT.prompt.md`; the durable record of shipped work is `PROGRESS.md` + each `M*-EXECUTION-REPORT.md`.
 
 ## Milestones
 
@@ -27,8 +34,12 @@
 | M08 | [08-risk-engine-and-kill-switches.md](./08-risk-engine-and-kill-switches.md) | 8 | Risk Engine + Kill Switches | Sizing + all 4 kill-switch levels ≤ 5s. |
 | M09 | [09-walk-forward-backtester.md](./09-walk-forward-backtester.md) | 9 | Walk-Forward Backtester | vectorbt + backtrader, tearsheet PDF. |
 | M10 | [10-admin-audit-observability.md](./10-admin-audit-observability.md) | 10 | Admin + Audit + Observability | Platform kill switch, audit chain, Grafana. |
+| M10.5 | [10.5-app-shell-and-operability.md](./10.5-app-shell-and-operability.md) | 10.5 | App Shell & Operability | Unified app shell, nav, help route, first-run checklist. |
 | M11 | [11-hardening-and-load-test.md](./11-hardening-and-load-test.md) | 11 | Hardening + Load Test | OWASP pass, 100-user load, runbooks. |
-| M12 | [12-beta-and-signoff.md](./12-beta-and-signoff.md) | 12 | Beta + Signoff | Private beta, bugfix, tag v0.1.0. |
+| ~~M12~~ | [archived/12-beta-and-signoff.md](./archived/12-beta-and-signoff.md) | — | ~~Beta + Signoff~~ | **❌ SCRAPPED 2026-07-14 (OSS pivot)** — no hosted beta; salvage folded into WP-2/4/9. |
+| M13 | [13-live-trading-switch.md](./13-live-trading-switch.md) | 13 | Live-Trading Switch | **Merged (inert):** `ENABLE_LIVE_TRADING` + admin gate; ships disabled-by-default (D6). |
+| M14 | [14-frontend-first-paint.md](./14-frontend-first-paint.md) | 14 | Frontend First Paint | **Spec** — prerender public routes (Option A locked), FCP ≤ 1.2 s. |
+| M15 | [15-dashboard-responsiveness.md](./15-dashboard-responsiveness.md) | 15 | Dashboard Responsiveness | **Spec** — deferred authenticated-dashboard speed levers (skeletons, PWA). |
 
 
 ## Cross-cutting conventions
@@ -47,14 +58,18 @@ StratTraderPro is **English-only at MVP** but wired for localization from day 1:
 
 ### Definition of Done (applies to every milestone unless overridden)
 
-- All acceptance criteria met and demo-able on staging.
-- Code merged to `main` via PR with at least one review (self-review w/ a written PR narrative acceptable for solo dev — but use the GitHub PR template's checklist).
+> **2026-07-14 OSS pivot:** the hosted-service DoD items below (staging deploy, Sentry release
+> triage, Grafana panels) are now **optional** — they apply only if *you* run those integrations on
+> your instance. The engineering bar (tests, coverage, no type drift, security) is unchanged.
+
+- All acceptance criteria met and demo-able locally (or on your own instance).
+- Code merged to `main` via PR (fork-and-PR for outside contributors; self-review with a written PR narrative for the maintainer) using the GitHub PR template's checklist.
 - ≥ 80% unit-test coverage on new code (enforced by CI).
 - No `TODO`/`FIXME` without a linked GitHub issue.
 - OpenAPI schema regenerated; frontend types regenerated; no type drift.
 - Structured logs + Prometheus metrics added for new code paths.
-- Sentry releases tagged; first error triaged within 24h of deploy.
-- Relevant Grafana dashboard panels added/updated.
+- *(optional — if you run Sentry)* Sentry releases tagged; errors triaged.
+- *(optional — if you run Grafana)* relevant dashboard panels added/updated.
 - Docs updated: `/docs/adr/` for architectural decisions, `/docs/runbooks/` for ops, `/docs/api/` for API changes, user-facing help in `/frontend/src/assets/help/`.
 - Translation keys extracted; `en.json` populated; no hard-coded strings in components.
 - Security: no new `bandit`/`semgrep` findings of MEDIUM+; dependency scan clean.
@@ -63,10 +78,12 @@ StratTraderPro is **English-only at MVP** but wired for localization from day 1:
 
 ### Branching & release strategy
 
-- Trunk-based with short-lived feature branches: `feat/m04-ibkr-adapter`, `fix/m04-reconnect-storm`.
-- One milestone = one release candidate tag on staging (`v0.M.0-rc.1`) with a 24-hour soak before promotion.
-- Version tags on `main` cut prod deploys via protected GitHub env.
+- Trunk-based with short-lived feature branches: `feat/m04-adapter`, `fix/m04-reconnect-storm`.
+- Outside contributions come as **fork-and-PR**; CI must be green before merge to `main`.
+- Releases are **git tags** (e.g. `v0.1.0`) on `main`. There is no hosted deploy pipeline — each
+  self-hoster deploys their own instance from a tag or from `main`.
 
 ### Ownership
 
-Solo-dev MVP. For each milestone the "owner" is Yuval. A "reviewer" role exists even for solo — it's the formal second-pass read before the exit gate.
+Open-source, self-hosted. The maintainer is Yuval; contributions are welcome via fork-and-PR (see
+`CONTRIBUTING.md`). A "reviewer" pass before the exit gate is the formal second-read.

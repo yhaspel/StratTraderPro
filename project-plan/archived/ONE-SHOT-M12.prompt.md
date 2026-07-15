@@ -1,3 +1,11 @@
+> **❌ SCRAPPED 2026-07-14 (OSS pivot) — do not run.**
+> M12 (private beta + prod sign-off) is dead under the pivot to open-source self-hosting: no hosted
+> service, no beta cohort, no prod deploy. Superseded by `PIVOT-TO-OSS.md`. Salvage already
+> reassigned there: the `/help` route (already shipped in M10.5), `scripts/smoke.sh`, and the
+> v0.1.0 public-release tag idea (WP-9). Never ran — there is no M12 execution report.
+
+---
+
 # ONE-SHOT PROMPT — Implement StratTraderPro Milestone M12 (Private Beta, Bugfix & MVP Signoff — buildable scope, autonomous)
 
 > Paste everything below the line into Claude CLI (UltraCode, Xhigh effort), running from the repo root

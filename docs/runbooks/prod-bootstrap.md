@@ -1,7 +1,7 @@
 # Runbook — bootstrapping a fresh production environment on Railway
 
 **Severity:** N/A (greenfield setup)
-**Audience:** SRE / platform team
+**Audience:** you, running your own instance
 **Last reviewed:** 2026-05-02
 **Last executed:** 2026-05-02 (initial prod bootstrap, alongside M02)
 
@@ -25,8 +25,8 @@ recovering from a destructive incident.
   all online with fresh empty Postgres + Redis volumes.
 - Three secrets unique to prod and never reused from staging:
   `SECRET_KEY`, `JWT_SIGNING_KEY` (defaults from SECRET_KEY), `FERNET_KEK`.
-- Backend reachable at `https://backend-production-<hash>.up.railway.app/`.
-- Frontend reachable at `https://frontend-production-<hash>.up.railway.app/`,
+- Backend reachable at `https://backend-production-<hash>.example.com/`.
+- Frontend reachable at `https://frontend-production-<hash>.example.com/`,
   proxying `/api/v1/*` to the prod backend (same-origin, no CORS surface).
 - Metrics flowing to Grafana Cloud tagged `env=production`.
 - Sentry events tagged `environment=production`.
@@ -96,9 +96,9 @@ but verify by clicking the eye (👁) icon on each:
 
 | Variable | Expected resolved value |
 |---|---|
-| `ALLOWED_HOSTS` | `backend-production-<hash>.up.railway.app,backend.railway.internal,frontend-production-<hash>.up.railway.app` |
+| `ALLOWED_HOSTS` | `backend-production-<hash>.example.com,backend.railway.internal,frontend-production-<hash>.example.com` |
 | `CSRF_TRUSTED_ORIGINS` | similar with `https://` prefix |
-| `FRONTEND_BASE_URL` | `https://frontend-production-<hash>.up.railway.app` |
+| `FRONTEND_BASE_URL` | `https://frontend-production-<hash>.example.com` |
 | `CORS_ALLOWED_ORIGINS` | empty is fine — frontend proxies same-origin |
 
 If any value still references `staging`, replace the literal with
@@ -108,10 +108,10 @@ auto-rebind.
 ### Step 5 — verify the backend
 
 ```bash
-curl https://backend-production-<hash>.up.railway.app/healthz
+curl https://backend-production-<hash>.example.com/healthz
 # expect: {"status":"ok","version":"<git-sha>"}
 
-curl https://backend-production-<hash>.up.railway.app/readyz
+curl https://backend-production-<hash>.example.com/readyz
 # expect: {"status":"ok","checks":{"db":"ok","redis":"ok"}}
 ```
 
@@ -121,7 +121,7 @@ ref (`${{Postgres.DATABASE_URL}}`).
 
 ### Step 6 — verify the frontend → backend wiring
 
-Open `https://frontend-production-<hash>.up.railway.app/login` in a
+Open `https://frontend-production-<hash>.example.com/login` in a
 browser and submit any garbage credentials. You should see a clean
 "Invalid email or password" message (or, today, the existing
 `auth.login.error.UNKNOWN` message — known frontend bug, see backlog).

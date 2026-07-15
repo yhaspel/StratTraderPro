@@ -6,8 +6,8 @@ expected/intentional kill-switch trip). **Blameless:** the goal is to understand
 system and prevent recurrence, never to assign fault. Describe what happened and why
 the system allowed it, not who "should have" done something.
 
-See `docs/oncall.md` and `docs/runbooks/incident-triage.md` for what pages, and
-`docs/slo.md` for error-budget accounting.
+See `docs/runbooks/incident-triage.md` for what pages, and `docs/slo.md` for
+error-budget accounting.
 
 ---
 

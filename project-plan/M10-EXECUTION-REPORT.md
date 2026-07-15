@@ -114,7 +114,7 @@ Merging deployed the `users_auth_event` → `audit_log` migration + table drop (
 ### 2. Railway env / services — ✅ mostly done via CLI (both staging + production)
 - ✅ `METRICS_BASIC_AUTH_USERNAME=metrics` / `METRICS_BASIC_AUTH_PASSWORD` on backend **and** grafana-agent — verified LIVE (`/metrics` 401 without creds, 200 with, on prod). Password stored in Railway.
 - ✅ `TASK_METRICS_PORT` on celery-worker (9101) + celery-beat (9103); agent scrape targets (WORKER/BEAT/WORKER_BACKTEST/STREAMS/POSTGRES_EXPORTER/REDIS_EXPORTER) set.
-- ✅ `AUDIT_ALERT_EMAIL=yuval3000@gmail.com`.
+- ✅ `AUDIT_ALERT_EMAIL=you@example.com`.
 - ✅ `postgres-exporter` + `redis-exporter` created + **deployed on staging**. ⏳ **prod deploy pending** (1-click in the dashboard — Cowork A1).
 - ⏳ `OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_EXPORTER_OTLP_HEADERS` — set once Grafana Cloud Tempo is up (Cowork B5/A5).
 - ⏳ Frontend `GRAFANA_URL`/`SENTRY_*`/`RELEASE` + `NGINX_ENVSUBST_FILTER` (Cowork A4).

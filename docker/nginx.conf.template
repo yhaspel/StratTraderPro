@@ -76,7 +76,7 @@ server {
     # image's envsubst step (NGINX_ENVSUBST_FILTER limits substitution to BACKEND_URL
     # so nginx variables like $uri, $host, $remote_addr survive).
     #
-    # On Railway: set BACKEND_URL=https://<api>.up.railway.app  (PUBLIC URL — see
+    # On Railway: set BACKEND_URL=https://<api>.example.com  (PUBLIC URL — see
     # railway-deployment skill, gotcha #2: private *.railway.internal DNS is
     # unreliable from nginx).
     # In docker-compose: set BACKEND_URL=http://backend:8777 (defaults to that if unset).

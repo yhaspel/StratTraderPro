@@ -4,6 +4,12 @@
 > M12 and M13.
 > **Unlocks:** AC-11-12 (FCP ≤ 1.2 s on throttled 4G), which M11 measured and **missed**.
 > **Status:** SPEC. Not started.
+>
+> **Reviewed 2026-07-14 (OSS pivot) — KEPT.** Option A (prerender the public routes) is locked; the
+> 1.2 s FCP target holds, re-justified as first-run polish (there is no public demo, so it is not
+> about bounce/SEO). Verification targets are **CI + your own instance**, not a hosted prod. The
+> deferred authenticated-dashboard speed levers (in-app skeletons, service-worker/PWA) move to
+> **M15** — see `15-dashboard-responsiveness.md`.
 > **Created:** 2026-07-13
 
 ---

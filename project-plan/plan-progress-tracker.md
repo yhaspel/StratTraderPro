@@ -2,26 +2,20 @@
 
 > **Purpose:** Track implementation progress across all milestones. Used by Claude Code instances in the IDE to understand what's been done, what's in progress, and what's next.
 >
-> **⚠️ Canonical quick-status now lives in [`PROGRESS.md`](./PROGRESS.md)** (verified against code, updated per development milestone — see the project-root `MEMORY.md` for the update rule). This file keeps the detailed per-task history tables; when the two disagree, trust `PROGRESS.md` + the code.
+> **⚠️ Canonical quick-status now lives in [`PROGRESS.md`](./PROGRESS.md)** (verified against code, updated per development milestone). This file keeps the detailed per-task history tables; when the two disagree, trust `PROGRESS.md` + the code.
 >
 > **Last updated:** 2026-07-12 — **M10.5 (App Shell, Navigation, Operability & Review Remediation) in progress.** App shell wraps all authed routes (nav + user menu + logout); honest landing + real 404; getting-started checklist + `GET /onboarding/status/`; help viewer + index; shared UI kit + toasts. **Security fixed: C1** (per-email auth rate-limit key), **C2** (prod fail-closed `SECRET_KEY`/`FERNET_KEK`), **C3** (MFA step-up throttle), **SEC-4** (session-revoke-own-session bug), **H8** (Django `/admin` unmounted in prod), **M1** (`/metrics` fail-closed). **Risk truthfulness RISK-1..5** (soft-stop wired, `max_concurrent`/`leverage_cap`/`permitted_asset_classes` enforced, `requested_qty` clamp, ×0.5 factor per OQ-1, `seed_tickers`). **INERT ledger** (regime plane, sentiment, TradeStation, backtest worker, Alpaca missed-fill recovery) added to `PROGRESS.md`. Full AC-by-AC evidence: `project-plan/M10.5-EXECUTION-REPORT.md`.
 >
 > **Previous update:** 2026-07-05 — **Broker pivot: M04 rescoped to Alpaca; M04A scrapped.** IBKR Web API consumer approval never cleared for the Interactive Israel account, and the gateway path's operational constraints (weekly dormancy re-auth, one session per Gateway boot) made it a dead end without M04A. Decision recorded in `docs/adr/041-alpaca-over-ibkr.md`; `04-webhook-ingest-and-ibkr.md` rewritten around `AlpacaAdapter` (filename kept); the M04A spec moved to `archived/04A-IBKR-Web-API.md` with a SCRAPPED banner. Phase 04 Phase B–F remain not-started and now target Alpaca.
 >
-> **Previous update:** 2026-05-08 — **M00 closed.** All ten AC-00-* criteria pass (two renegotiated and documented in `00-scoping-and-setup.md` and the `v0.0.0-scaffold` tag annotation: AC-00-1 — branch protection rule saved-not-enforced on free-tier private repo; AC-00-8 — `process_resident_memory_bytes` deferred because multi-process gunicorn excludes the prometheus_client `process_*` collector by design). Manual items 00.9.2 (branch protection), 00.9.4 (Sentry DSN — backend project live, both Railway envs configured, AC-00-7 verified), 00.9.6 (docker-compose smoke — all 7 services boot via `make up`, AC-00-2/3/4/5/8/9/10 verified via Chrome MCP), 00.9.7 (staging deploy verified — running 16+ hours, M01–M03 shipped through it), and 00.9.8 (`v0.0.0-scaffold` tag pushed, points to commit `264d90f`) all flipped to ✅. System Health dashboard 00.7.5b live at `https://yuval3000.grafana.net/d/stp-system-health`. Phase 10 carries forward three observability items as §6.5 carryover (move `/metrics` outside Django middleware, exporter wiring, Trading/Data/Backtest dashboards). Tag list on origin: `v0.0.0-scaffold`, `v0.1.0-auth`, `v0.1.1-auth-metrics`, `v0.2.0-mfa`, `v0.2.5-oauth-google`, `v0.3.0-strategies`. **Cleared to start M04.**
+> **Previous update:** 2026-05-08 — **M00 closed.** All ten AC-00-* criteria pass (two renegotiated and documented in `00-scoping-and-setup.md` and the `v0.0.0-scaffold` tag annotation: AC-00-1 — branch protection rule saved-not-enforced on free-tier private repo; AC-00-8 — `process_resident_memory_bytes` deferred because multi-process gunicorn excludes the prometheus_client `process_*` collector by design). Manual items 00.9.2 (branch protection), 00.9.4 (Sentry DSN — backend project live, both Railway envs configured, AC-00-7 verified), 00.9.6 (docker-compose smoke — all 7 services boot via `make up`, AC-00-2/3/4/5/8/9/10 verified via Chrome MCP), 00.9.7 (staging deploy verified — running 16+ hours, M01–M03 shipped through it), and 00.9.8 (`v0.0.0-scaffold` tag pushed, points to commit `264d90f`) all flipped to ✅. System Health dashboard 00.7.5b live at `https://YOUR_ORG.grafana.net/d/stp-system-health`. Phase 10 carries forward three observability items as §6.5 carryover (move `/metrics` outside Django middleware, exporter wiring, Trading/Data/Backtest dashboards). Tag list on origin: `v0.0.0-scaffold`, `v0.1.0-auth`, `v0.1.1-auth-metrics`, `v0.2.0-mfa`, `v0.2.5-oauth-google`, `v0.3.0-strategies`. **Cleared to start M04.**
 
-## Production Environment
+## Deployment
 
-| | |
-|---|---|
-| Project | `https://railway.com/project/17060567-b194-4926-a7c0-7f339e306bdf` |
-| Backend | `https://backend-production-f3e8.up.railway.app` |
-| Frontend | `https://frontend-production-c977f.up.railway.app` |
-| Bootstrapped | 2026-05-02 |
-| Runbook | `docs/runbooks/prod-bootstrap.md` |
-| KEK rotation | `docs/runbooks/mfa-kek-rotation.md` |
-
-Staging URLs remain at `backend-staging-4b6d.up.railway.app` and `frontend-staging-9011.up.railway.app`.
+> **2026-07-14 OSS pivot:** there is no shared hosted environment. Each self-hoster deploys their
+> own instance (`make setup && docker compose up -d --build`, or your own container host). The
+> historical Railway staging/production hostnames were removed. Relevant runbooks:
+> `docs/runbooks/mfa-kek-rotation.md` (KEK rotation) and the `docs/ops/` operational notes.
 
 ---
 
@@ -53,7 +47,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 00.1.5 | Issue templates (bug.yml, feature.yml, tech-debt.yml) | ✅ Done | |
 | 00.1.6 | PR template with DoD checklist | ✅ Done | |
 | 00.1.7 | Dependabot config (pip, npm, docker, weekly) | ✅ Done | |
-| 00.1.8 | CODEOWNERS set to @yuval3000 | ✅ Done | |
+| 00.1.8 | CODEOWNERS set to @yhaspel | ✅ Done | |
 
 ### 00.2 Backend Scaffold (Django)
 
@@ -97,7 +91,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 00.5.1 | Create Railway project | ✅ Done | Project `17060567-b194-4926-a7c0-7f339e306bdf`; staging + prod environments both live |
+| 00.5.1 | Create Railway project | ✅ Done | Project `YOUR_PROJECT_ID`; staging + prod environments both live |
 | 00.5.2 | Configure services (backend, worker, beat, frontend) | ✅ Done | Verified during M01.11.9 (7 services Online on staging); prod bootstrapped 2026-05-02 |
 | 00.5.3 | Add Postgres 16 + Redis 7 plugins | ✅ Done | |
 | 00.5.4 | Set environment variables | ✅ Done | |
@@ -120,8 +114,8 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 00.7.2 | django-prometheus middleware + /metrics endpoint | ✅ Done | |
 | 00.7.3 | OpenTelemetry distro auto-instrumentation | ✅ Done | Config in settings |
 | 00.7.4 | Sentry JS SDK in Angular | ✅ Done | Skeleton in main.ts |
-| 00.7.5a | Grafana Cloud account | ✅ Done | `yuval3000.grafana.net` live since M01.11.5 (2026-05-01); hosts Auth Health dashboard at `/d/stp-auth-health` and the `auth-health-email` contact point. Prometheus scraping `/metrics` from staging + prod backend services. |
-| 00.7.5b | System Health dashboard (infra) | ✅ Done | Live at `https://yuval3000.grafana.net/d/stp-system-health`. Dashboard JSON checked in at `infra/grafana/system-health-dashboard.json` (15 panels across 6 rows). v0 had a Process Resources row; replaced with **Application Activity** (top-10 routes by request rate, top-10 by p95 latency, 4xx by view) on 2026-05-08 because multi-process gunicorn excludes the prometheus_client `process_*` collector — same constraint that drove the AC-00-8 renegotiation. Verified via Chrome MCP on 2026-05-08: Backend Health row populates with both `staging` and `production` UP, Application Activity shows real per-route data once user traffic flows, Django DB row populates after the `_wrap_db_engines_for_prometheus` helper rolled out (commit `9d9c4bd`). Postgres/Redis/Celery exporter row + M04 placeholder rows render "No data" gracefully (intentional). Panels-only in v1; alerting deferred. M10 §6.5 carries forward the exporter wiring + the Trading Ops / Data Pipelines / Backtest Ops dashboards (see Phase 10 carryover table). |
+| 00.7.5a | Grafana Cloud account | ✅ Done | `YOUR_ORG.grafana.net` live since M01.11.5 (2026-05-01); hosts Auth Health dashboard at `/d/stp-auth-health` and the `auth-health-email` contact point. Prometheus scraping `/metrics` from staging + prod backend services. |
+| 00.7.5b | System Health dashboard (infra) | ✅ Done | Live at `https://YOUR_ORG.grafana.net/d/stp-system-health`. Dashboard JSON checked in at `infra/grafana/system-health-dashboard.json` (15 panels across 6 rows). v0 had a Process Resources row; replaced with **Application Activity** (top-10 routes by request rate, top-10 by p95 latency, 4xx by view) on 2026-05-08 because multi-process gunicorn excludes the prometheus_client `process_*` collector — same constraint that drove the AC-00-8 renegotiation. Verified via Chrome MCP on 2026-05-08: Backend Health row populates with both `staging` and `production` UP, Application Activity shows real per-route data once user traffic flows, Django DB row populates after the `_wrap_db_engines_for_prometheus` helper rolled out (commit `9d9c4bd`). Postgres/Redis/Celery exporter row + M04 placeholder rows render "No data" gracefully (intentional). Panels-only in v1; alerting deferred. M10 §6.5 carries forward the exporter wiring + the Trading Ops / Data Pipelines / Backtest Ops dashboards (see Phase 10 carryover table). |
 
 ### 00.8 Documentation
 
@@ -144,10 +138,10 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 00.9.1 | Push to GitHub | ✅ Done | `github.com/yhaspel/StratTraderPro`, origin set |
 | 00.9.2 | Enable branch protection | ✅ Done | Classic branch protection rule on `main` configured 2026-05-08: require PR before merging (0 required approvals so solo dev can self-merge), require Backend+Frontend+Trivy+E2E status checks, require branches up to date, require linear history, no force-push, no deletions. **Per AC-00-1 renegotiation, the rule is saved-but-not-enforced** on the personal-private free-tier repo until plan upgrade or repo public visibility — see CHANGELOG `[Unreleased]` entry under "Changed — Plan (M00 AC renegotiations)" and the v0.0.0-scaffold tag annotation. |
 | 00.9.3 | Create Railway project + services | ✅ Done | Staging + prod both running |
-| 00.9.4 | Create Sentry project, get DSN | ✅ Done | Backend Sentry project `strattraderpro-backend` live at `yuval3000.sentry.io`. `SENTRY_DSN` env var set on Railway backend service in both `staging` and `production` environments 2026-05-08; both backends redeployed and confirmed initializing the SDK. AC-00-7 verified via `railway run --service backend --environment staging python -c "..."` issuing a `capture_message` that landed in Sentry within seconds. Frontend Sentry project deferred (skeleton already wired in `frontend/src/main.ts` per M00.7.4; wire the DSN when frontend error capture becomes valuable). One known interaction surfaced during rollout: an `AttributeError: 'coroutine' object has no attribute 'headers'` on every `/metrics` scrape (allauth + ASGI + sentry-sdk's `SentryASGIMixin` mismatch) — mitigated immediately via a `before_send` filter in `prod.py` that drops the noisy event before it counts toward the 5K/month free-tier quota; underlying fix tracked as Phase 10 §6.5 carryover (10.6.5.a). |
-| 00.9.5 | Create Grafana Cloud account + dashboard | ✅ Done | Account live at `yuval3000.grafana.net` (M01.11.5 — Auth Health dashboard). System Health dashboard added 2026-05-08 (see 00.7.5b). |
+| 00.9.4 | Create Sentry project, get DSN | ✅ Done | Backend Sentry project `strattraderpro-backend` live at `YOUR_ORG.sentry.io`. `SENTRY_DSN` env var set on Railway backend service in both `staging` and `production` environments 2026-05-08; both backends redeployed and confirmed initializing the SDK. AC-00-7 verified via `railway run --service backend --environment staging python -c "..."` issuing a `capture_message` that landed in Sentry within seconds. Frontend Sentry project deferred (skeleton already wired in `frontend/src/main.ts` per M00.7.4; wire the DSN when frontend error capture becomes valuable). One known interaction surfaced during rollout: an `AttributeError: 'coroutine' object has no attribute 'headers'` on every `/metrics` scrape (allauth + ASGI + sentry-sdk's `SentryASGIMixin` mismatch) — mitigated immediately via a `before_send` filter in `prod.py` that drops the noisy event before it counts toward the 5K/month free-tier quota; underlying fix tracked as Phase 10 §6.5 carryover (10.6.5.a). |
+| 00.9.5 | Create Grafana Cloud account + dashboard | ✅ Done | Account live at `YOUR_ORG.grafana.net` (M01.11.5 — Auth Health dashboard). System Health dashboard added 2026-05-08 (see 00.7.5b). |
 | 00.9.6 | Run `docker compose up` and verify local stack | ✅ Done | Smoke test 2026-05-08 via Chrome MCP against `localhost`. All 7 services boot via `make up` (now equivalent to `docker compose --profile tunnel up -d` after the Makefile change in commit `c5a084b`): postgres, redis, backend, worker, beat, frontend, ngrok. AC-00-2/3/4/5/8/9/10 all verified in one pass — `/healthz` `{"status":"ok"}`, `/readyz` `{"checks":{"db":"ok","redis":"ok"}}`, frontend renders the `app.status` translated key, OpenAPI schema returns 29 paths under title "StratTraderPro API", `/metrics` emits `django_http_requests_total_by_view_transport_method_total` plus `django_db_query_duration_seconds_bucket` (django_prometheus engine wrapper confirmed live locally), ngrok tunnel forwards to `http://backend:8777`. README §3 updated to reflect the new `make up` behavior. |
-| 00.9.7 | Trigger staging deploy and verify AC-00-* | ✅ Done | Staging has been running for 16+ hours with M01–M03 all shipped through it. AC-00-3/4/5 verified against the public staging URLs `backend-staging-4b6d.up.railway.app` and `frontend-staging-9011.up.railway.app` throughout the M02/M2.5/M03 verification rounds; re-confirmed during the M00.9.6 smoke 2026-05-08. CI green on the latest commit (#85). |
+| 00.9.7 | Trigger staging deploy and verify AC-00-* | ✅ Done | Staging has been running for 16+ hours with M01–M03 all shipped through it. AC-00-3/4/5 verified against the public staging URLs `your-backend-staging.example.com` and `your-frontend-staging.example.com` throughout the M02/M2.5/M03 verification rounds; re-confirmed during the M00.9.6 smoke 2026-05-08. CI green on the latest commit (#85). |
 | 00.9.8 | Tag `v0.0.0-scaffold` | ✅ Done | Pushed 2026-05-08 to commit `264d90f` (M00 initial scaffold). Annotation documents both the AC-00-1 (branch-protection enforcement) and AC-00-8 (`process_resident_memory_bytes`) renegotiations. Tag object SHA `49adcc91`. Verify with `git ls-remote --tags origin v0.0.0-scaffold`. |
 
 ---
@@ -278,11 +272,11 @@ Each phase has a status badge and a table of tasks. Statuses:
 | 01.11.2 | openapi-typescript type generation | ✅ Done | `npm run schema:types` → frontend/src/app/core/generated/schema.ts; snapshot at docs/openapi/openapi.json; `make schema` re-exports from live backend |
 | 01.11.3 | Contract test (schema ↔ frontend parity) | ✅ Done | Compile-time type assertions in auth.models.contract.spec.ts; tsc --noEmit passes |
 | 01.11.4 | E2E Playwright tests | ✅ Done | frontend/e2e/ with register/login/reset/refresh specs + `installAuthMock` fixture; runs against mocked backend by default (set E2E_BASE_URL for real stack) |
-| 01.11.5 | Grafana Auth Health dashboard | ✅ Done | Live at https://yuval3000.grafana.net/d/stp-auth-health; 4 panels + 3 alert rules in folder `StratTraderPro Auth` (UID `cfkrwjgh3sxkwa`) routed to `auth-health-email` contact point → yuval3000@gmail.com. Dashboard JSON checked in at `infra/grafana/auth-health-dashboard.json` |
+| 01.11.5 | Grafana Auth Health dashboard | ✅ Done | Live at https://YOUR_ORG.grafana.net/d/stp-auth-health; 4 panels + 3 alert rules in folder `StratTraderPro Auth` (UID `cfkrwjgh3sxkwa`) routed to `auth-health-email` contact point → you@example.com. Dashboard JSON checked in at `infra/grafana/auth-health-dashboard.json` |
 | 01.11.6 | Admin registration for new models | ✅ Done | AuthEvent, RefreshTokenFamily, FailedLoginAttempt |
 | 01.11.7 | CHANGELOG update | ✅ Done | `[0.1.0-auth] 2026-05-01` documents M01 baseline; `[Unreleased]` documents the v0.1.1 patch (counters + Resend fix + multi-process + alert query fix) ahead of tagging |
 | 01.11.8 | Tag v0.1.0-auth | ✅ Done | Pushed at commit `33c48ac` |
-| 01.11.9 | Railway staging deploy (7 services) | ✅ Done | backend, frontend, Postgres, Redis, celery-worker, celery-beat, grafana-agent — all Online; project `17060567-b194-4926-a7c0-7f339e306bdf`, env `staging` |
+| 01.11.9 | Railway staging deploy (7 services) | ✅ Done | backend, frontend, Postgres, Redis, celery-worker, celery-beat, grafana-agent — all Online; project `YOUR_PROJECT_ID`, env `staging` |
 | 01.11.10 | AC-01-1..13 staging verification | ✅ Done | AC-01-1, 3, 9, 10, 13 confirmed via curl pre-email-verification. AC-01-2 (`is_verified: true` in /login response), AC-01-4 (full JWT pair w/ correct TTLs), AC-01-5 (refresh rotates to new jti, same family_id), AC-01-6 (replaying rotated refresh → `Refresh token reuse detected — family revoked` 401, replaying refresh_v2 → `Refresh token family revoked` 401), AC-01-8 (200 for both known and unknown emails — anti-enum preserved) all confirmed via curl after user clicked verification link. AC-01-7/12 covered by unit tests (rate limit masks lockout under load test from one IP); AC-01-11 covered by frontend `auth.guard.spec.ts` |
 | 01.11.11 | Prometheus auth counters wired (plan §12) | ✅ Done | `apps/users/metrics.py` — `auth_login_total{result}` (5 outcomes), `auth_refresh_total{result}` (4 outcomes), `auth_family_revocations_total`, `auth_password_reset_total{step}`. Incremented from `LoginView` (5 paths), `PasswordResetView`/`Confirm`, and `services.rotate_refresh`/`revoke_refresh`. Verified populating in Grafana Explore. |
 | 01.11.12 | Resend 422 → 500 hardening | ✅ Done | `services._send_templated` wraps `msg.send` in try/except — provider failures (Resend test-sender restriction, SMTP timeout) are logged, the user/account is still created, response stays at the expected 201/202. Anti-enum semantics preserved. |
@@ -396,7 +390,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 02.5.3.1 | Google Cloud Console: existing `strattraderpro` project, OAuth consent screen configured, `StratTraderPro Web` OAuth 2.0 Web client created with 3 redirect URIs (localhost dev + staging + prod), `yuval3000@gmail.com` added as test user. App still in **Testing mode** — publish to In Production before opening sign-up to anyone outside the test-user list. | ✅ Done | Walkthrough in `docs/runbooks/google-oauth-setup.md` |
+| 02.5.3.1 | Google Cloud Console: existing `strattraderpro` project, OAuth consent screen configured, `StratTraderPro Web` OAuth 2.0 Web client created with 3 redirect URIs (localhost dev + staging + prod), `you@example.com` added as test user. App still in **Testing mode** — publish to In Production before opening sign-up to anyone outside the test-user list. | ✅ Done | Walkthrough in `docs/runbooks/google-oauth-setup.md` |
 | 02.5.3.2 | `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` set in Railway env for **both** staging and prod backend services | ✅ Done | Set 2026-05-02 via Railway dashboard. Never committed. |
 | 02.5.3.3 | nginx runtime config injection: new `location = /config.js` block in `docker/nginx.conf.template` returns `window.STP_CONFIG = { backendUrl: '${BACKEND_URL}' }`, substituted at container start by the official nginx image's envsubst step. Frontend's `index.html` loads it before Angular bundles. Solves OAuth cookie-domain mismatch by giving the SPA the absolute backend URL at runtime. | ✅ Done | `docker/nginx.conf.template`, `frontend/src/index.html` |
 | 02.5.3.4 | Smoke-test prod and staging: register, sign in via Google, MFA challenge correctly demanded for MFA-enrolled accounts, `/api/v1/auth/oauth/exchange/` returns `{access, refresh, user}` on success | ✅ Done | Verified via Chrome connector against staging on 2026-05-02; prod auth flow verified 2026-05-03 (signed in + `/users/me/` returned 200 with valid Bearer token). |
@@ -521,7 +515,7 @@ Each phase has a status badge and a table of tasks. Statuses:
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 03.8.1 | Monaco npm import → reverted to textarea-only | ✅ Done | `npm install monaco-editor` broke the production build because Angular 19's stock esbuild has no `.ttf` loader for Monaco's codicon CSS chain. Removed from `package.json`. Modal still works via the textarea editor (live JSON-validated). Decision documented in modal docstring + `reference_monaco_angular_esbuild.md` memory. CDN AMD loader is the official fallback path if Monaco UX becomes important in a later milestone. |
-| 03.8.2 | `load_strategies` against real Trading Strategies path | ✅ Done | Path: `/Users/yuval3000/Claude Projects/Trading Strategies/Trading Strategies/top-strategies` — seeded 10 system strategies into staging Postgres on 2026-05-03. All 10 visible via `GET /api/v1/strategies/` and rendered in the list view. |
+| 03.8.2 | `load_strategies` against real Trading Strategies path | ✅ Done | Path: `<your-strategies-dir>` — seeded 10 system strategies into staging Postgres on 2026-05-03. All 10 visible via `GET /api/v1/strategies/` and rendered in the list view. |
 | 03.8.3 | Frontend smoke test on staging via Chrome MCP | ✅ Done | All 12 ACs walked through the deployed UI: list shows 10 system rows with **System** badges; webhook modal opens with URL + reveal-once secret + amber warning; Rotate increments V1→V2 with new 64-char secret; Copy TradingView template embeds the live secret in `sig`; dry-run validates good payloads (`"Payload validates against the saved schema."`); auth guard correctly redirects unauthenticated `/strategies` → `/login`; OAuth → MFA challenge → `/dashboard` flow works. |
 | 03.8.4 | A11y audit (WCAG 2.1 AA via axe-core) | ✅ Done | Audited 4 surfaces: list (0 violations), upload wizard (0), detail (1 serious — fixed: `<pre>` blocks needed `tabindex=0` + `role=region` + `aria-labelledby`), webhook modal (1 critical — fixed: 4 form inputs needed `for=`/`id=` label pairing). Final: **0/0 across all 4 surfaces.** |
 | 03.8.5 | Polish bug fixes (post-smoke-test) | ✅ Done | Two bugs found during smoke test, both fixed: (a) list view didn't re-fetch after webhook modal close so `has_webhook_config` was stale — `closeModal()` now calls `void this.facade.load()`; (b) dry-run 400 surfaced "Could not parse JSON: Http failure 400" instead of the real `STRATEGY_WEBHOOK_INVALID` message — `StrategiesFacade.dryRunWebhook` now catches `HttpErrorResponse`, unwraps the `appError` attached by the global error interceptor, and returns the structured envelope error. Modal `onTest()` restructured to disambiguate local JSON parse errors from server-side schema rejections. |
@@ -573,7 +567,7 @@ The 2026-05-15 decision below chose "Gateway now, M04A (IBKR Web API OAuth) late
 - `BrokerAdapter` protocol unchanged — the M04A design invariant holds; only the concrete adapter changed.
 - IBKR artifacts parked in-tree (ADR-040, `docker/ib-gateway/` behind a compose profile, re-auth runbook, spike script). `TWS_*` env scrub + credential rotation are M04 §6.9 tasks.
 - The 2026-05-15 "carryover items to M04A" list below is void: dormancy heartbeat and Gateway-restart-reconnect have no Alpaca equivalent; M04A kickoff is cancelled.
-- Open item for live trading later (M12+): confirm Alpaca live-account eligibility for Israeli residents (paper unaffected).
+- ✅ Closed by the 2026-07-14 OSS pivot: live trading is each self-hoster's own decision (D6, M13 ships disabled-by-default). Confirm your own jurisdiction's Alpaca live eligibility before enabling it (paper unaffected).
 
 ### Decision (2026-05-15): ship Phase B on TWS Socket API + Gateway sidecar; defer dormancy fix to M04A
 
@@ -713,8 +707,48 @@ The 50-user L1 flatten closes deferred **AC-08-11** once run on a dedicated stac
 
 ## Phase 12 — Beta & Sign-off
 
-**Status:** ⏳ Pending
+**Status:** ❌ **SCRAPPED 2026-07-14 (OSS pivot)**
 **Started:** —
 **Completed:** —
 
-> See `12-beta-and-signoff.md` for full spec.
+> Scrapped by the OSS pivot — no hosted private beta, no prod sign-off. Spec archived at
+> `archived/12-beta-and-signoff.md` (SCRAPPED banner). Salvage: `/help` route (shipped M10.5),
+> `scripts/smoke.sh` → self-hosting bootstrap, `v0.1.0` tag → public-release tag. See
+> `PIVOT-TO-OSS.md`.
+
+---
+
+## Phase 13 — Live-Trading Switch
+
+**Status:** ✅ **Merged, inert** (on `main`, `87240a3`)
+**Started:** 2026-07-13
+**Completed:** 2026-07-13
+
+> `ENABLE_LIVE_TRADING` setting + admin DB flag gate real-money execution; the adapter follows the
+> account row. Ships **disabled-by-default** (D6) — enabling it is each self-hoster's deliberate act
+> on their own instance, never a commit (CI guards AC-13-16/17). The hosted-service enablement gates
+> (counsel-approved ToS, on-call go/no-go) are void under the OSS pivot; gates 1/2/3/5 survive as
+> self-hoster recommendations. Zero code changes in the pivot. Spec: `13-live-trading-switch.md`.
+
+---
+
+## Phase 14 — Frontend First Paint
+
+**Status:** 📋 **Spec** (not started)
+**Started:** —
+**Completed:** —
+
+> Prerender the public routes (Option A, locked 2026-07-14); FCP ≤ 1.2 s target held as first-run
+> polish. Verification targets are CI + your own instance. Ships on its own, outside the pivot.
+> Spec: `14-frontend-first-paint.md`.
+
+---
+
+## Phase 15 — Dashboard Responsiveness
+
+**Status:** 📋 **Spec** (not started)
+**Started:** —
+**Completed:** —
+
+> Deferred authenticated-dashboard speed levers (in-app skeletons, service-worker/PWA) parked from
+> the M14 review; post-OSS-release polish. Spec: `15-dashboard-responsiveness.md`.
