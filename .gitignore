@@ -110,3 +110,6 @@ _tmp_*
 
 # ===== M11 load-test fixtures — per-user tokens + TOTP secrets, NEVER commit =====
 backend/loadtest/fixtures.json
+
+# osv-scanner ephemeral output (CI dependency audit)
+frontend/osv.json
