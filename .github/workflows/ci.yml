@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: CI only reads the repo. GITHUB_TOKEN gets no write scopes,
+# so a fork PR cannot use it to mutate the repo. Any job needing more must
+# declare its own narrower `permissions:`.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -141,13 +147,21 @@ jobs:
       - name: Install dependencies
         run: cd frontend && pnpm install --frozen-lockfile
 
-      # M11 §7.2 / AC-11-1 — pnpm audit DOES filter by severity: the gate is
-      # "zero un-waived HIGH+". Waivers live in package.json
-      # (pnpm.auditConfig.ignoreGhsas) and are documented in
-      # docs/security/dependency-waivers.md (3 client-SPA-N/A @angular advisories
-      # patched only in Angular 20+, plus dev/build-tooling not shipped in the bundle).
-      - name: Dependency audit (pnpm)
-        run: cd frontend && pnpm audit --audit-level=high
+      # M11 §7.2 / AC-11-1 — gate is "zero un-waived HIGH+". Waivers live in
+      # package.json (pnpm.auditConfig.ignoreGhsas), documented in
+      # docs/security/dependency-waivers.md (client-SPA-N/A @angular advisories
+      # patched only in Angular 20+, plus dev/build-tooling not shipped in the
+      # bundle). npm retired its audit endpoints (HTTP 410), breaking
+      # `pnpm audit`, so we scan the lockfile with osv-scanner (OSV.dev) and
+      # enforce the same policy in scripts/audit-gate.mjs. `|| true` lets
+      # osv-scanner emit JSON for LOW/MODERATE findings without short-circuiting;
+      # the HIGH+ gate is enforced by the script's exit code, not osv-scanner's.
+      - name: Dependency audit (osv-scanner, HIGH+ gate)
+        run: |
+          cd frontend
+          docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:latest \
+            scan source --lockfile=pnpm-lock.yaml --format=json > osv.json || true
+          node ../scripts/audit-gate.mjs osv.json package.json
 
       # BUG-007 — this job was named "Lint & Test" and did NEITHER: it only ran
       # `pnpm build`. Every frontend spec in the repo had therefore never executed
@@ -355,8 +369,7 @@ jobs:
             ':!docker/ib-gateway' \
             ':!docker-compose.yml' \
             ':!docs' \
-            ':!project-plan' \
-            ':!MEMORY.md' || true)
+            ':!project-plan' || true)
           if [ -n "$MATCHES" ]; then
             echo "::error::Legacy IBKR credentials (TWS_/DEBUG_VNC) found outside the allowlist:"
             echo "$MATCHES"
@@ -399,7 +412,6 @@ jobs:
             ':!.github/workflows/ci.yml' \
             ':!docs' \
             ':!project-plan' \
-            ':!MEMORY.md' \
             ':!*.md' \
             ':!*/test_*.py' || true)
           if [ -n "$MATCHES" ]; then

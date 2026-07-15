@@ -2,12 +2,13 @@
 Strategies app — models for M03.
 
 Tables:
-- Strategy: top-level entity. ``owner=NULL`` + ``is_system=True`` for the
-  pre-seeded catalogue; user uploads have an owner and ``is_system=False``.
+- Strategy: top-level entity. ``owner=NULL`` + ``is_system=True`` marks a
+  self-hoster-provided "system" strategy; user uploads have an owner and
+  ``is_system=False``. The repo ships ZERO strategies — a self-hoster brings
+  their own.
 - StrategyFile: bytes of the .pine, description, and webhook JSON template
   per strategy. Small-file storage in BYTEA for the MVP; ``object_url`` is
-  a stub for future S3-style migration (see analysis-cost-and-business-model
-  MIN-01).
+  a stub for future S3-style migration.
 - WebhookConfig: per-user/per-strategy HMAC secret + JSON-Schema validated
   payload template + version counter for rotation.
 

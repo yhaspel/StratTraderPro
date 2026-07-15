@@ -124,40 +124,56 @@ advisory) and any `flag.flipped` / `admin.*` rows you didn't authorize.
   last known-good backup if the content was altered, and write a full postmortem
   (`docs/postmortem-template.md`). Do not re-baseline over a tamper — restore first.
 
-## Appendix A — Restricted-role provisioning (Railway single-role caveat)
+## Appendix A — Restricted-role provisioning (two-role posture)
 
-Railway's managed Postgres gives us **one role**, and it effectively owns the
-`audit_log` table. The append-only triggers `RAISE` for **every** role including the
-owner, so day-to-day the single role cannot UPDATE/DELETE audit rows — good. But
-that same role *can* `DROP TRIGGER` (a trigger's owner may drop it), which is the
-one way the protection can be turned off from inside the app's own credentials.
+The append-only triggers `RAISE` for **every** role including the table owner, so
+day-to-day even the owning role cannot UPDATE/DELETE audit rows — good. But a
+role that **owns** `audit_log` *can* `DROP TRIGGER` (an object's owner may drop
+its triggers), which is the one way the protection can be turned off from inside
+the app's own credentials.
 
-The stronger posture — **when the DB plan allows a second role** — is to have the
-application connect as a role with **INSERT + SELECT only** on `audit_log`, and keep
-DDL (trigger create/drop, schema) under a separate migration/admin role used only
-for deploys. Provision it like this (run as the owner/admin role):
+The stronger posture — available on any self-hosted Postgres, where you control
+role creation — is to run the application on a role that is **not the owner** of
+`audit_log` and has had its mutate rights on that table revoked, while all DDL
+(trigger create/drop, migrations) runs under a **separate owner/admin role** used
+only for deploys.
+
+Provision it like this, **run as the owner/admin role** (the role migrations run
+as, which owns the tables):
 
 ```sql
--- A least-privilege role for the app's runtime connection.
-CREATE ROLE stp_audit_writer LOGIN PASSWORD '<generated>';
+-- 1. A runtime role for the app's normal connection. Owns nothing.
+CREATE ROLE stp_app LOGIN PASSWORD '<generated>';
+GRANT CONNECT ON DATABASE strattraderpro TO stp_app;
+GRANT USAGE ON SCHEMA public TO stp_app;
 
--- Only INSERT + SELECT on the audit table. No UPDATE, no DELETE, no TRUNCATE,
--- no DDL — so this role cannot drop the enforcement triggers.
-GRANT SELECT, INSERT ON TABLE audit_log TO stp_audit_writer;
-GRANT USAGE, SELECT ON SEQUENCE audit_log_id_seq TO stp_audit_writer;
+-- 2. Normal DML across the whole application schema — WITHOUT this the app
+--    cannot touch any non-audit table. This is the grant the app needs to run.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES    IN SCHEMA public TO stp_app;
+GRANT USAGE,  SELECT                 ON ALL SEQUENCES IN SCHEMA public TO stp_app;
 
--- (Whatever grants the app needs on the rest of the schema go here, as usual.)
--- Deliberately withheld on audit_log: UPDATE, DELETE, TRUNCATE, and ownership.
-REVOKE UPDATE, DELETE, TRUNCATE ON TABLE audit_log FROM stp_audit_writer;
+-- Make the above apply to tables/sequences created by FUTURE migrations too.
+-- (ALTER DEFAULT PRIVILEGES must name the role that CREATES the objects — i.e.
+--  the owner/admin role you are running this as.)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES    TO stp_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT                  ON SEQUENCES TO stp_app;
+
+-- 3. Now claw back the dangerous rights on audit_log ONLY. The role keeps
+--    INSERT + SELECT there; it is not the owner, so it also cannot DROP TRIGGER.
+REVOKE UPDATE, DELETE, TRUNCATE ON TABLE audit_log FROM stp_app;
 ```
 
-Point `DATABASE_URL` at `stp_audit_writer` for the runtime services; run migrations
-(which create/alter triggers) under the owner role via a separate
-`DATABASE_URL`/migration step. Until Railway's plan gives us that split, the
-single-role reality is documented here as a **known limitation**: the append-only
-block holds against ordinary writes, but a compromised app credential could
-`DROP TRIGGER`, which the nightly verifier's trigger-presence check is the catch-net
-for.
+Point `DATABASE_URL` at `stp_app` for the runtime services (backend, worker,
+beat, streams, ws); run migrations under the owner/admin role via a separate
+`DATABASE_URL`/migration step.
+
+If you instead run everything on a single owning role (the simplest deployment),
+the append-only block still holds against ordinary writes, but a compromised app
+credential could `DROP TRIGGER`. In that single-role mode the nightly verifier's
+trigger-presence check is your catch-net. Prefer the two-role split above when you
+can.
 
 ## Appendix B — How/when trigger removal is gated
 

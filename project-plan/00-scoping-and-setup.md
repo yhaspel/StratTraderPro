@@ -1,5 +1,8 @@
 # Milestone 00 — Scoping & Setup
 
+> **Note (2026-07-14 OSS pivot):** closed-milestone history — kept as-is. Railway / staging
+> references below are **historical**; the project is now self-hosted (see `PIVOT-TO-OSS.md`).
+>
 > **Week:** 0 (pre-week)
 > **Duration:** 3–5 working days
 > **Depends on:** none
@@ -61,13 +64,13 @@ Baseline DoD from the index applies, plus:
 
 ### 6.1 Repository
 
-- `git init` → push to GitHub `yuval3000/strattraderpro`.
+- `git init` → push to GitHub `yhaspel/StratTraderPro`.
 - Add `.gitignore` (Python, Node, Angular, JetBrains, VS Code, `.env*`).
 - Branch protection rule on `main`: require status checks `ci/backend`, `ci/frontend`, `ci/e2e`.
 - Issue templates: `bug.yml`, `feature.yml`, `tech-debt.yml`.
 - PR template with DoD checklist.
 - Dependabot config for `pip`, `npm`, `docker`, weekly schedule.
-- CODEOWNERS set to `@yuval3000`.
+- CODEOWNERS set to `@yhaspel`.
 
 ### 6.2 Backend scaffold (Django)
 
@@ -191,7 +194,7 @@ New endpoints:
 ## 11. Security Considerations
 
 - `DEBUG = False` in prod settings; enforced by `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS=31536000`.
-- CORS locked to `app.strattraderpro-staging.up.railway.app` and `http://localhost:4444`.
+- CORS locked to `app.your-staging.example.com` and `http://localhost:4444`.
 - Secrets never in repo; `git-secrets` pre-commit hook recommended.
 - `bandit` + `ruff` + `semgrep` added to CI.
 - Trivy scans Docker images; fail on HIGH+ CVEs.

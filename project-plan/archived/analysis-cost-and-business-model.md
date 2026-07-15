@@ -1,5 +1,22 @@
 # StratTraderPro — Plan Analysis, Cost Analysis & Business Model
 
+> **Status: ❌ SCRAPPED 2026-07-14 — OSS pivot; do not implement.**
+> Superseded by `project-plan/PIVOT-TO-OSS.md`. The Stripe / paid-SaaS business model is dead:
+> distributing software is not an investment service, and vectorbt's Commons Clause forbids paid
+> hosting/support anyway (D3). Kept as a record of what was deliberately **not** built (D8).
+>
+> **What carried over / was reconciled:**
+> - **HIGH-05** (tearsheets carry no financial disclaimer) — still open → **WP-5** fixes it.
+> - **MED-05** (broker-ToS credential storage) — *resolved by* self-hosting: the user holds their
+>   own keys on their own instance.
+> - **MED-09** (cross-user Kelly leak) — **verified not present:** the Kelly damper is deferred/
+>   unimplemented and `backend/apps/risk/sizing.py` is a pure function with per-call inputs and no
+>   shared cross-user state.
+> - **CRITICAL-04** (HMM pickle-in-DB RCE) — **verified fixed:** `apps/regime/models.py` persists
+>   the HMM as a `JSONField` (`params`/`state_labels`), not a pickle blob.
+> - **CRITICAL-05** ("vectorbt is AGPL") — was factually wrong; vectorbt is Apache-2.0 + Commons
+>   Clause (D3).
+
 > **Date:** 2026-04-14
 > **Author:** Software Architect / Market Analyst
 > **Scope:** Full plan review (strat-trader-pro.md + M00–M12), monthly cost breakdown, and business model recommendation.

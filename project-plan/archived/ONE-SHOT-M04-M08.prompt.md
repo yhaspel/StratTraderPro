@@ -1,3 +1,10 @@
+> **⚙️ SPENT ONE-SHOT — milestone shipped; not a work item.**
+> This is the agent prompt that built a now-merged milestone. Moved out of the active plan on
+> 2026-07-14 (OSS pivot) and kept for historical record only — **do not re-run.** The durable record
+> of what shipped lives in `project-plan/PROGRESS.md` and the matching `M*-EXECUTION-REPORT.md`.
+
+---
+
 # ONE-SHOT PROMPT — Implement StratTraderPro Milestones M04 → M08 (autonomous)
 
 > Paste everything below the line into Claude CLI (UltraCode, Xhigh effort), running from the repo root

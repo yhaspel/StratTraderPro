@@ -1,3 +1,15 @@
+> **❌ SCRAPPED 2026-07-14 (OSS pivot) — do not run.**
+> The M11 operator tail is void: PART F (seed_terms after counsel sign-off) and PART H (register
+> strattraderpro.com + a paid prod Railway project) die with the pivot. PARTS A/B already ran.
+>
+> **⚠️ PRESERVED FINDING — PART G is a real, still-unfixed bug:**
+> `docs/runbooks/audit-integrity-failure.md` Appendix A's DDL is incomplete and would break every
+> non-audit table in production if applied, and its "Railway gives us one role" premise is wrong.
+> This runbook ships in the public repo — fix or delete Appendix A before going public
+> (tracked as `PIVOT-TO-OSS.md` WP-3c).
+
+---
+
 # ONE-SHOT — M11 operator tail (PARTS C, D, E, F, H)
 
 **Context:** A Cowork browser session completed **PART A** (SERVICE_ROLE cutover, both envs),

@@ -46,7 +46,7 @@ secrets:
 
 ### Email — `operator-email`
 - Type: Email. `addresses` = `${GRAFANA_ALERT_EMAIL}` (your operator inbox —
-  `yuval3000@gmail.com`). `singleEmail: true` groups a batch into one message.
+  `you@example.com`). `singleEmail: true` groups a batch into one message.
 
 ### Telegram — `operator-telegram`
 - Type: Telegram, needs `bottoken` (`${TELEGRAM_BOT_TOKEN}`) and `chatid`
@@ -136,7 +136,7 @@ on it.
 4. Watch Inactive → Pending(activeAt) → Firing(activeAt + `for`) in the Alerting UI,
    and confirm delivery on both channels for the critical.
 5. **Restore the real threshold** and re-confirm the rule returns to Inactive and is
-   still `isPaused: false`. Record the run in `docs/oncall.md` / the drill log.
+   still `isPaused: false`. Record the run in your drill log.
 
 Note that `observability-liveness` gives you a standing check that this never
 silently rots: `MetricsPipelineDown` / `TargetDown` are the only rules that fire on

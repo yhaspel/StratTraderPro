@@ -6,9 +6,7 @@
 
 ## Context
 
-Users upload TradingView Pine strategies. The platform also pre-seeds a
-catalogue of "system" strategies migrated from the existing Trading
-Strategies project. We needed a single shape that:
+Users upload TradingView Pine strategies. We needed a single shape that:
 
 1. Carries enough metadata to render a useful detail page (description).
 2. Captures a structured payload schema so the M04 webhook ingest can

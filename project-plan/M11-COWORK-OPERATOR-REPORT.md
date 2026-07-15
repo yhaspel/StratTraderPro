@@ -103,7 +103,7 @@ Not touched (correctly — not backend-image services): `frontend`, `Postgres`, 
 
 ## AC-11-15 PromQL verification — now CLOSED
 
-Run against Grafana Cloud (`yuval3000.grafana.net`, `grafanacloud-prom`):
+Run against Grafana Cloud (`YOUR_ORG.grafana.net`, `grafanacloud-prom`):
 
 | Assertion | Result |
 |---|---|
@@ -171,7 +171,7 @@ inactive → pending (activeAt 03:47:40) → firing (03:49:40, severity=critical
 
 Email independently verified in the inbox:
 `[FIRING:1] ApiErrorBudgetFastBurn StratTraderPro/stp-alert-rules.prom.yaml (critical)` →
-`yuval3000@gmail.com`, 03:50:11Z.
+`you@example.com`, 03:50:11Z.
 
 **Restored:** expression identical to the committed YAML (`exprRestoredExactly: true`), rule back
 to `inactive`, `isPaused: false`, `pausedCount` still `0`.

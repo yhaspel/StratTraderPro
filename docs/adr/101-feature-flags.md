@@ -150,4 +150,4 @@ owner, the admin portal. Any app that needs to read a flag imports
 - `backend/config/settings/base.py` — `FEATURE_FLAGS_REGISTRY` (the 18 + admin gate)
 - ADR-100 — the `flag.flipped` audit event this emits
 - ADR-102 — the observability topology (`feature_flag_flips_total` scrape)
-- `docs/runbooks/platform-halt.md` — the admin-portal actions that read these gates
+- `docs/runbooks/instance-halt.md` — the admin-portal actions that read these gates

@@ -131,13 +131,13 @@ dev default — that is intentional (fail closed).
 
 ## 3. DNS — custom domains for `api.` / `app.` / (optional) `hooks.`
 
-Railway gives each public service a `*.up.railway.app` domain; we attach human domains and
-put Cloudflare in front. **Never advertise the raw `*.up.railway.app` domain** — it
+Railway gives each public service a `*.example.com` domain; we attach human domains and
+put Cloudflare in front. **Never advertise the raw `*.example.com` domain** — it
 bypasses Cloudflare (§4.5).
 
 1. Railway `backend` service → **Settings → Networking → Custom Domain** → add
    `api.strattraderpro.com`. Railway shows a **CNAME target** (e.g.
-   `xxxx.up.railway.app`).
+   `your-host.example.com`).
 2. Railway `frontend` service → add `app.strattraderpro.com` → note its CNAME target.
 3. **(Optional) `hooks.strattraderpro.com`** → add as a **second** custom domain on the
    **`backend`** service. This gives TradingView webhooks their own hostname so you can
@@ -147,9 +147,9 @@ bypasses Cloudflare (§4.5).
 
    | Type | Name | Target (from Railway) | Proxy |
    |---|---|---|---|
-   | CNAME | `api` | `<backend>.up.railway.app` | Proxied 🟠 |
-   | CNAME | `app` | `<frontend>.up.railway.app` | Proxied 🟠 |
-   | CNAME | `hooks` *(optional)* | `<backend>.up.railway.app` | Proxied 🟠 |
+   | CNAME | `api` | `<backend>.example.com` | Proxied 🟠 |
+   | CNAME | `app` | `<frontend>.example.com` | Proxied 🟠 |
+   | CNAME | `hooks` *(optional)* | `<backend>.example.com` | Proxied 🟠 |
 
 5. Add `api.strattraderpro.com` (and `hooks.` if used) plus `backend.railway.internal` to
    the backend's `ALLOWED_HOSTS`; add `https://app.strattraderpro.com` to
@@ -194,7 +194,7 @@ bypasses Cloudflare (§4.5).
 ### 4.5 Lock the origin to Cloudflare
 
 The goal: the Railway origin must accept traffic **only** from Cloudflare, so an attacker
-who discovers the `*.up.railway.app` URL cannot bypass the WAF.
+who discovers the `*.example.com` URL cannot bypass the WAF.
 
 - **Preferred: Authenticated Origin Pulls (mTLS).** SSL/TLS → **Origin Server →
   Authenticated Origin Pulls = On**. (Railway's managed edge does not expose an
@@ -204,7 +204,7 @@ who discovers the `*.up.railway.app` URL cannot bypass the WAF.
   **Transform Rules → Modify Request Header** injects `X-Edge-Auth: <random-secret>` on
   every proxied request; Django middleware (or the frontend nginx) **rejects any request
   missing it** in prod. This makes the bare Railway URL useless without the secret.
-- **Do not publish or link the `*.up.railway.app` domains anywhere.** Set
+- **Do not publish or link the `*.example.com` domains anywhere.** Set
   `ALLOWED_HOSTS` to the `api.`/`app.`/`hooks.` names (plus `*.railway.internal` for
   agent scrapes) so a Host-header hit on the raw domain returns 400.
 
@@ -367,7 +367,7 @@ BUG-011's whole lesson: a service reporting **Online** proves nothing. Assert en
 4. **MFA KEK loads:** sign in, Settings → Security → Set up 2FA; a QR code proves
    `FERNET_KEK` wraps a fresh TOTP secret.
 5. **Cloudflare is actually in front:** `curl -sI https://api.strattraderpro.com/healthz`
-   shows a `cf-ray` / `server: cloudflare` header. Confirm the bare `*.up.railway.app`
+   shows a `cf-ray` / `server: cloudflare` header. Confirm the bare `*.example.com`
    domain is **not** reachable without the origin-lock secret (§4.5).
 6. **GDPR export round-trip (once R2 is set):** `GET /api/v1/users/me/export/` → job →
    `GET …/export/{job_id}/` returns a signed R2 URL; download the ZIP and confirm broker
@@ -404,7 +404,7 @@ BUG-011's whole lesson: a service reporting **Online** proves nothing. Assert en
 | Prod backtests sit `QUEUED` forever | `worker-backtest` service missing | Create it (§2.2 row 3) with `SERVICE_ROLE=worker-backtest` (`backtest-stuck.md`). |
 | `/ws/dashboard/` dead in prod | `PORT` overridden on the `ws` Railway service | Remove it — Railway injects `$PORT`; only local compose needs `PORT: 8788`. |
 | GDPR export job stuck `PENDING` | R2 vars unset/wrong | Set the §6.3 `AWS_*` vars; verify the endpoint URL + token scope (§5). |
-| Bare `*.up.railway.app` serves the app | origin not locked; raw domain advertised | Apply §4.5 (Authenticated Origin Pulls or the `X-Edge-Auth` secret header); keep `ALLOWED_HOSTS` to the human names. |
+| Bare `*.example.com` serves the app | origin not locked; raw domain advertised | Apply §4.5 (Authenticated Origin Pulls or the `X-Edge-Auth` secret header); keep `ALLOWED_HOSTS` to the human names. |
 
 ---
 

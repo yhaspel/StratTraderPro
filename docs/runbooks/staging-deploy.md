@@ -6,14 +6,14 @@
 
 | Service | URL |
 |---|---|
-| Frontend (Angular SPA, nginx) | https://frontend-staging-9011.up.railway.app |
-| Backend (Django, gunicorn + uvicorn) | https://backend-staging-4b6d.up.railway.app |
-| Backend healthz | https://backend-staging-4b6d.up.railway.app/healthz |
-| Backend `/api/schema/` (proxied via frontend) | https://frontend-staging-9011.up.railway.app/api/schema/ |
+| Frontend (Angular SPA, nginx) | https://your-frontend-staging.example.com |
+| Backend (Django, gunicorn + uvicorn) | https://your-backend-staging.example.com |
+| Backend healthz | https://your-backend-staging.example.com/healthz |
+| Backend `/api/schema/` (proxied via frontend) | https://your-frontend-staging.example.com/api/schema/ |
 | Postgres (managed) | internal only — `${{Postgres.DATABASE_URL}}` |
 | Grafana Agent | internal only — pushes to `prometheus-prod-58-prod-eu-central-0.grafana.net` |
-| Grafana Cloud Explore | https://yuval3000.grafana.net/explore (datasource `grafanacloud-yuval3000-prom`) |
-| Railway project | https://railway.com/project/17060567-b194-4926-a7c0-7f339e306bdf (env: `staging`) |
+| Grafana Cloud Explore | https://YOUR_ORG.grafana.net/explore (datasource `grafanacloud-YOUR_ORG-prom`) |
+| Railway project | https://railway.com/project/YOUR_PROJECT_ID (env: `staging`) |
 
 ## Architecture (4 services, 1 environment)
 

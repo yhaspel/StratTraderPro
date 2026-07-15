@@ -405,9 +405,10 @@ STRATEGY_WEBHOOK_BASE_URL = env(
 WEBHOOK_V1_ENABLED = env.bool("WEBHOOK_V1_ENABLED", default=True)
 BROKER_ALPACA_ENABLED = env.bool("BROKER_ALPACA_ENABLED", default=True)
 
-# Hard paper-only default in M04. Live keys are rejected by validation and the
-# Alpaca adapter hard-codes the paper endpoint, so this flag alone cannot turn
-# on live trading in M04 — it is the master gate later milestones read.
+# Master gate for real-money execution. Ships DISABLED by default. Since M13 the
+# live code path exists: with this flag True AND the admin DB flag set, the
+# Alpaca adapter follows the account row to the live endpoint. Enabling it is a
+# deliberate act on your own instance, with your own money (see README Disclaimer).
 ENABLE_LIVE_TRADING = env.bool("ENABLE_LIVE_TRADING", default=False)
 
 # Webhook hardening (§6.3 / §11). Rate limit is applied BEFORE the body is read.
@@ -741,9 +742,10 @@ STORAGES = {
 # Signed-URL TTL for a produced export (frozen decision §4.2). Read by prod.py's
 # S3 backend config; the filesystem dev backend ignores it.
 EXPORT_SIGNED_URL_TTL_SECONDS = env.int("EXPORT_SIGNED_URL_TTL_SECONDS", default=86_400)
-# Whether the export storage is usable. Filesystem (dev/test) is always ready;
-# prod flips this False when the R2 bucket env is unset so the export task leaves
-# the job PENDING with an operator note instead of failing (risk §17).
+# Whether the export storage is usable. Filesystem (dev/test, and prod when no
+# S3/R2 bucket is configured) is always ready; prod uses S3/R2 only when
+# EXPORTS_BUCKET is set (see prod.py). Exports never sit PENDING for lack of an
+# object store.
 EXPORTS_STORAGE_READY = True
 
 # ---------------------------------------------------------------------------

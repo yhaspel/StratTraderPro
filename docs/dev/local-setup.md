@@ -10,7 +10,7 @@
 ## Option A: Docker (recommended)
 
 ```bash
-git clone https://github.com/yuval3000/strattraderpro.git
+git clone https://github.com/yhaspel/StratTraderPro.git
 cd strattraderpro
 cp backend/.env.example backend/.env
 make up

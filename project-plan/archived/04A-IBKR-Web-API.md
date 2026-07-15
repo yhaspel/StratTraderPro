@@ -492,7 +492,7 @@ The gate excludes this plan and superseded ADRs (those are allowed to *describe*
 
 Yuval runs through and signs off:
 
-- [ ] `rg 'TWS_USERID|TWS_PASSWORD|TWS_PAPER_USERID|TWS_PAPER_PASSWORD' /Users/yuval3000/Documents/Claude/Projects/StratTraderPro` returns nothing (modulo allowlist in §8.9.5).
+- [ ] `rg 'TWS_USERID|TWS_PASSWORD|TWS_PAPER_USERID|TWS_PAPER_PASSWORD' <repo-root>` returns nothing (modulo allowlist in §8.9.5).
 - [ ] Railway CLI: for each service, `railway variables --service <name>` shows no `TWS_*` or `TRADING_MODE` keys, in **both** production and staging environments.
 - [ ] GitHub Actions secrets list does not contain any `TWS_*` keys.
 - [ ] The rotated old IBKR passwords are confirmed invalid (attempting to log into IBKR with the old paper password fails).

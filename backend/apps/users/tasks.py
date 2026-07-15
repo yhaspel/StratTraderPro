@@ -50,12 +50,17 @@ def run_data_export(self, job_id: str):
     if job.status in (DataExportJob.Status.READY, DataExportJob.Status.EXPIRED):
         return  # idempotent — already produced
 
-    # Graceful degradation (risk §17): if prod object storage (R2) is not yet
-    # provisioned, leave the job PENDING with an operator note instead of failing.
+    # Defensive guard: if export storage is somehow marked not-ready, leave the
+    # job PENDING with a note instead of failing. In practice prod falls back to
+    # local filesystem storage (see prod.py), so this branch is not hit by a
+    # default self-hosted deploy.
     from django.conf import settings
 
     if not getattr(settings, "EXPORTS_STORAGE_READY", True):
-        job.error = "Export storage (Cloudflare R2) not configured — see docs/ops/prod-bringup.md."
+        job.error = (
+            "Export storage is not configured. Set EXPORTS_BUCKET + AWS_* for "
+            "S3/R2, or rely on the local filesystem default."
+        )
         job.save(update_fields=["error"])
         logger.warning("gdpr.export.storage_not_ready job_id=%s", job.id)
         return

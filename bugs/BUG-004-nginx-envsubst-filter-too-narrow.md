@@ -43,7 +43,7 @@ template strings**, not their values. `GET /config.js` returns something like:
 
 ```js
 window.STP_CONFIG = {
-  backendUrl: 'https://backend-production-….up.railway.app',   // substituted
+  backendUrl: 'https://backend-production-….example.com',   // substituted
   grafanaUrl: '${GRAFANA_URL}',                                // literal!
   sentryDsn: '${SENTRY_DSN}',                                  // literal!
   sentryEnvironment: '${SENTRY_ENVIRONMENT}',                  // literal!
@@ -132,11 +132,11 @@ Set `SENTRY_DSN="${{shared.SENTRY_DSN}}"` on the Railway **frontend** service in
 both environments and redeployed. The served config is now clean:
 
 ```js
-// GET https://frontend-staging-9011.up.railway.app/config.js
+// GET https://your-frontend-staging.example.com/config.js
 window.STP_CONFIG = {
-  backendUrl: 'https://backend-staging-4b6d.up.railway.app',
-  grafanaUrl: 'https://yuval3000.grafana.net',
-  sentryDsn: 'https://eb4bd…@o4511716412489728.ingest.us.sentry.io/4511716419305472',
+  backendUrl: 'https://your-backend-staging.example.com',
+  grafanaUrl: 'https://YOUR_ORG.grafana.net',
+  sentryDsn: 'https://eb4bd…@YOUR_SENTRY_ORG_ID.ingest.us.sentry.io/4511716419305472',
   sentryEnvironment: 'staging',
   release: ''
 };

@@ -118,10 +118,11 @@ if _SERVES_DJANGO_METRICS and not (
     )
 
 # ---------------------------------------------------------------------------
-# GDPR export storage (M11 §7.7) — Cloudflare R2 (S3-compatible). Only switch to
-# the S3 backend when a bucket is configured; otherwise keep the filesystem
-# default and mark storage NOT ready so the export task leaves jobs PENDING with
-# an operator note (risk §17) instead of crashing on an unconfigured backend.
+# GDPR export storage (M11 §7.7). If an S3-compatible bucket (e.g. Cloudflare R2)
+# is configured, use it; otherwise FALL BACK to the base.py FileSystemStorage
+# "exports" backend so a self-hosted instance with no object store still produces
+# exports (ZIPs under BASE_DIR/export_storage, served via /media/exports/). Either
+# way EXPORTS_STORAGE_READY stays True — jobs never sit PENDING forever.
 # ---------------------------------------------------------------------------
 _exports_bucket = env("EXPORTS_BUCKET", default="")
 if _exports_bucket:
@@ -143,11 +144,14 @@ if _exports_bucket:
     }
     EXPORTS_STORAGE_READY = True
 else:
-    EXPORTS_STORAGE_READY = False
-    _logging_gdpr = __import__("logging").getLogger("apps.users.gdpr")
-    _logging_gdpr.warning(
-        "EXPORTS_BUCKET unset — GDPR exports stay PENDING until Cloudflare R2 is "
-        "provisioned (set EXPORTS_BUCKET + AWS_* + AWS_S3_ENDPOINT_URL). See docs/ops/prod-bringup.md."
+    # No bucket configured — keep the base.py FileSystemStorage "exports" backend.
+    # Exports work locally on a self-hosted instance; ZIPs land under
+    # BASE_DIR/export_storage. Set EXPORTS_BUCKET + AWS_* + AWS_S3_ENDPOINT_URL to
+    # use S3/R2 instead (recommended for a multi-node or ephemeral-disk deploy).
+    EXPORTS_STORAGE_READY = True
+    __import__("logging").getLogger("apps.users.gdpr").info(
+        "EXPORTS_BUCKET unset — using local filesystem storage for GDPR exports "
+        "(BASE_DIR/export_storage). Set EXPORTS_BUCKET + AWS_* to use S3/R2 instead."
     )
 
 # ---------------------------------------------------------------------------

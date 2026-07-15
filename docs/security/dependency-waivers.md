@@ -7,8 +7,10 @@ Two CI gates guard dependencies, and they gate **differently**:
 - **`pip-audit`** (backend) has **no severity threshold** — it fails on *any* known
   advisory. The only suppression is `--ignore-vuln <ID>`. So the Python gate is
   **"zero un-waived advisories"**, and every ignored ID is a row below.
-- **`pnpm audit --audit-level=high`** (frontend) filters by severity — the Node gate is
-  **"zero un-waived HIGH+"**.
+- **osv-scanner + `scripts/audit-gate.mjs`** (frontend) filters by severity — the Node gate is
+  **"zero un-waived HIGH+"**. (npm retired its audit endpoints (HTTP 410), which broke
+  `pnpm audit`; osv-scanner reads `pnpm-lock.yaml` against OSV.dev instead. Waivers are still the
+  same `pnpm.auditConfig.ignoreGhsas` list in `package.json`.)
 
 CI command (backend):
 
@@ -48,7 +50,7 @@ of M11 (hardening, not features). All three advisories are **demonstrably not ap
 our single-provider consumer configuration, so waiving with this rationale is safe. The
 allauth major upgrade is tracked as dedicated follow-up work.
 
-## Frontend — pnpm audit (`pnpm.auditConfig.ignoreGhsas` in `package.json`)
+## Frontend — osv-scanner HIGH+ gate (`pnpm.auditConfig.ignoreGhsas` in `package.json`)
 
 **Resolved by upgrade:** `@angular/*` bumped **19.2.21 → 19.2.25** (the latest 19.2.x),
 clearing **GHSA-p3vc-36g9-x9gr** (Number-format DoS) and **GHSA-q6f4-qqrg-jv6x**

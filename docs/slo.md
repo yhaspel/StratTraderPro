@@ -6,7 +6,7 @@ code and three of the four have committed alert rules
 (`infra/grafana/alerts/alert-rules.yaml`). Live measurement depends on the scrape
 being provisioned (`docs/runbooks/worker-metrics-scrape.md`) and the alerts imported
 (`docs/runbooks/alerting-setup.md`). **Companion docs:**
-`docs/runbooks/incident-triage.md` (the alerts that back these), `docs/oncall.md`,
+`docs/runbooks/incident-triage.md` (the alerts that back these),
 `docs/adr/102-observability-topology.md` (where the series come from),
 `project-plan/10-admin-audit-observability.md` §6.5.
 

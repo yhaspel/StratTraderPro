@@ -220,7 +220,7 @@ The original plan's "deploy rollback event" alert has no in-code signal — repl
 ## 7. Tech Stack Notes
 
 - **No pgcrypto**: hashes are computed in Python (frozen decision 3); triggers only compare strings and raise. `pg_advisory_xact_lock` serializes chain-head reads (fine at 10–50 users; excluded high-volume events keep the lock cold).
-- **Grafana Cloud** (existing: agent remote_write via `infra/grafana-agent/`, datasource `grafanacloud-yuval3000-prom`); metrics are **pushed by the agent**, not "scraped from Grafana Cloud".
+- **Grafana Cloud** (existing: agent remote_write via `infra/grafana-agent/`, datasource `grafanacloud-YOUR_ORG-prom`); metrics are **pushed by the agent**, not "scraped from Grafana Cloud".
 - **Telegram Bot API** as a Grafana contact point (no backend Telegram code); email via existing Anymail/Resend for verifier direct-pages.
 - **python-json-logger** stays the logging stack (structlog unwired — see §6.6).
 - **python-ulid** new dependency (request IDs); OTel instrumentation pins per Day-1 spike.

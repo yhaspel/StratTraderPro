@@ -989,7 +989,7 @@
         "body": "Approved orders are placed on your connected Alpaca paper account and tracked live."
       }
     },
-    "disclaimer": "Paper trading only. StratTraderPro does not place live or real-money orders."
+    "disclaimer": "Ships with live trading disabled. Enabling it is your choice, on your instance, with your money, at your risk. Not financial advice."
   },
   "errors": {
     "not_found": {
