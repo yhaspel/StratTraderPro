@@ -1,4 +1,4 @@
-.PHONY: setup up down logs shell-be shell-fe test-be test-fe build lint tunnel schema-export schema-types schema
+.PHONY: setup up down logs shell-be shell-fe test-be test-fe build lint tunnel schema-export schema-types schema prod-shell promote-owner
 
 # ---------- First-time setup ----------
 
@@ -81,3 +81,23 @@ schema: schema-export schema-types
 tunnel:
 	docker compose --profile tunnel up -d ngrok
 	@echo "ngrok UI: http://localhost:4040"
+
+# ---------- Production (Railway) ----------
+
+# Prod ops run INSIDE the deployed backend container — the house pattern for
+# production ops (see docs/runbooks/*). One-time setup:
+#   npm i -g @railway/cli && railway login && railway link   # link to production
+# If your Railway CLI can't pass a command to `ssh`, run `railway ssh --service
+# backend` and type the `python manage.py ...` part inside the container.
+
+# Interactive Django shell against the PRODUCTION database.
+prod-shell:
+	railway ssh --service backend python manage.py shell
+
+# Promote the owner to staff + superuser (idempotent, non-destructive). Bootstraps
+# admin on a fresh instance — the M10 admin portal is is_staff-gated, so there is
+# otherwise no way to grant the first staff account through the UI.
+#   make promote-owner EMAIL=you@example.com
+EMAIL ?= owner@example.com
+promote-owner:
+	railway ssh --service backend python manage.py promote_user $(EMAIL) --staff --superuser
