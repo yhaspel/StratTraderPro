@@ -80,10 +80,10 @@ the restored copy. Scratch container removed on exit.
 
 - **Railway PITR / daily snapshot:** enable in the Railway Postgres plugin;
   confirm the 30-day window and test a point-in-time restore into a staging DB.
-- **Weekly `pg_dump` → R2:** a scheduled job dumps prod and uploads to the R2
-  bucket (SSE on; 90-day lifecycle rule). Provision the bucket + credentials per
-  `docs/ops/prod-bringup.md` §7.9; until then the offload is a no-op with a clear
-  operator note.
+- **Weekly `pg_dump` → object storage:** a scheduled job dumps the DB and uploads
+  to an S3-compatible bucket (SSE on; 90-day lifecycle rule). Provision the bucket +
+  credentials (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_S3_ENDPOINT_URL`);
+  until then the offload is a no-op with a clear operator note.
 - **Disaster restore:** `pg_restore`/`psql` the latest R2 dump (or Railway
   snapshot) into a fresh Postgres, run this drill's verification queries + the
   audit-chain re-verify before repointing the app.

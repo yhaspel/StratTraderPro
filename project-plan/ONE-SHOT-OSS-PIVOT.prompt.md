@@ -101,7 +101,7 @@ rejected, WP-4 is incomplete → halt.
 Re-run the checks Cowork ran, against the **post-edit** tree, to confirm WP-3/WP-7 landed:
 
 ```bash
-git grep -niE 'yuval3000@gmail|yuval3000\.grafana|up\.railway\.app|grafanacloud-yuval3000|o4511716412489728' -- . \
+git grep -niE 'you@example|YOUR_ORG\.grafana|up\.railway\.app|grafanacloud-YOUR_ORG|oYOUR_SENTRY_ORG' -- . \
   && echo "BLOCKER: personal/infra identifiers still present" || echo "identifiers clean"
 
 git grep -niE 'proprietary|all rights reserved' -- . \

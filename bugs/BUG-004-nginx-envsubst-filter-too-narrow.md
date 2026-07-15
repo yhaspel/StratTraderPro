@@ -136,7 +136,7 @@ both environments and redeployed. The served config is now clean:
 window.STP_CONFIG = {
   backendUrl: 'https://your-backend-staging.example.com',
   grafanaUrl: 'https://YOUR_ORG.grafana.net',
-  sentryDsn: 'https://eb4bd…@YOUR_SENTRY_ORG_ID.ingest.us.sentry.io/4511716419305472',
+  sentryDsn: 'https://eb4bd…@YOUR_SENTRY_ORG_ID.ingest.us.sentry.io/YOUR_SENTRY_PROJECT_ID',
   sentryEnvironment: 'staging',
   release: ''
 };

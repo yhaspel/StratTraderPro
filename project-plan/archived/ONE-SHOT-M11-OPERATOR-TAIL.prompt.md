@@ -110,7 +110,7 @@ unthrottled one relabelled.
 | TBT | 90 ms | — |
 | Perf score | 84 | — |
 
-Target: `https://frontend-production-c977f.up.railway.app`, form factor mobile.
+Target: `https://frontend-production-XXXX.up.railway.app`, form factor mobile.
 
 **Per this prompt's own rule, a miss is NOT a release blocker → perf follow-up.** The `[CI]` bundle
 gate (520 kB; actual 473.28 kB) is separately green — so **the bundle budget is not the problem, and
