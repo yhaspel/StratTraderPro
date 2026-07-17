@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -51,7 +51,7 @@ import { GoogleButtonComponent } from '../google-button/google-button.component'
           }
         </div>
 
-        <button type="submit" [disabled]="form.invalid || facade.status() === 'loading'"
+        <button type="submit" [disabled]="facade.status() === 'loading'"
                 class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50">
           {{ 'auth.login.submit' | translate }}
         </button>
@@ -90,10 +90,21 @@ export class LoginComponent {
 
   async onSubmit(): Promise<void> {
     if (this.form.invalid) {
+      // P2-DESIGN-6: the button stays enabled so Enter/click always reaches here;
+      // reveal the errors and move focus to the first invalid field.
       this.form.markAllAsTouched();
+      this.focusFirstInvalid();
       return;
     }
     const { email, password } = this.form.getRawValue();
     await this.facade.login(email, password);
+  }
+
+  private host = inject(ElementRef) as ElementRef<HTMLElement>;
+
+  private focusFirstInvalid(): void {
+    (this.host.nativeElement.querySelector(
+      'input.ng-invalid, select.ng-invalid, textarea.ng-invalid',
+    ) as HTMLElement | null)?.focus();
   }
 }

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AbstractControl, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -83,7 +83,7 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
           }
         </div>
 
-        <button type="submit" [disabled]="form.invalid || facade.status() === 'loading'"
+        <button type="submit" [disabled]="facade.status() === 'loading'"
                 class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50">
           {{ 'auth.register.submit' | translate }}
         </button>
@@ -121,10 +121,16 @@ export class RegisterComponent {
 
   async onSubmit(): Promise<void> {
     if (this.form.invalid) {
-      this.form.markAllAsTouched(); // reveal what's wrong if they force-submit
+      // P2-DESIGN-6: button stays enabled; reveal errors + focus the first one.
+      this.form.markAllAsTouched();
+      (this.host.nativeElement.querySelector(
+        'input.ng-invalid, select.ng-invalid, textarea.ng-invalid',
+      ) as HTMLElement | null)?.focus();
       return;
     }
     const { email, displayName, password } = this.form.getRawValue();
     await this.facade.register(email, displayName, password);
   }
+
+  private host = inject(ElementRef) as ElementRef<HTMLElement>;
 }

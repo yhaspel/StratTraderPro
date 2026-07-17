@@ -13,14 +13,16 @@
   --color-primary-700: #1d4ed8;
   --color-primary-900: #1e3a5f;
 
-  /* Accent — teal for positive signals */
-  --color-accent-500: #14b8a6;
+  /* Accent — teal for positive signals. Darkened for AA contrast (P2-DESIGN-4);
+     accent-700 is for text emphasis on white (accent-500 as text still fails AA). */
+  --color-accent-500: #0d9488;
+  --color-accent-700: #0f766e;
 
-  /* Danger — red for risk/kill-switch */
-  --color-danger-500: #ef4444;
+  /* Danger — red for risk/kill-switch. Darkened so white text passes AA (P2-DESIGN-4). */
+  --color-danger-500: #dc2626;
 
-  /* Success — green for fills/profit */
-  --color-success-500: #22c55e;
+  /* Success — green for fills/profit. Darkened for white-text contrast (P2-DESIGN-4). */
+  --color-success-500: #16a34a;
 
   /* Spacing scale */
   --space-xs: 0.25rem;

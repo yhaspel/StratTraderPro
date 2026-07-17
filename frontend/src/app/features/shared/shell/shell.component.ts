@@ -8,9 +8,11 @@
  * AuthFacade.signOut() which also tears down the shared dashboard WebSocket.
  */
 import {
-  ChangeDetectionStrategy, Component, HostListener, OnInit, inject, signal,
+  ChangeDetectionStrategy, Component, ElementRef, HostListener, OnInit, ViewChild, inject, signal,
 } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { TranslateModule } from '@ngx-translate/core';
 
 import { AuthStore } from '../../../abstraction/stores/auth.store';
@@ -147,7 +149,10 @@ interface NavItem {
       }
     </header>
 
-    <main id="main-content" class="mx-auto max-w-7xl px-4 py-6">
+    <!-- P2-DESIGN-3: SR announcement of the page change (focus moves to <main>). -->
+    <p class="sr-only" aria-live="polite" role="status">{{ routeAnnouncement() }}</p>
+
+    <main #main id="main-content" tabindex="-1" class="mx-auto max-w-7xl px-4 py-6 focus:outline-none">
       <router-outlet />
     </main>
   `,
@@ -157,9 +162,32 @@ export class ShellComponent implements OnInit {
   private auth = inject(AuthFacade);
   readonly onboarding = inject(OnboardingFacade);
   private terms = inject(TermsFacade);
+  private router = inject(Router);
 
+  @ViewChild('main') private main?: ElementRef<HTMLElement>;
   readonly menuOpen = signal(false);
   readonly drawerOpen = signal(false);
+  /** P2-DESIGN-3 — polite SR announcement of the newly-focused page. */
+  readonly routeAnnouncement = signal('');
+
+  constructor() {
+    // On each completed navigation move focus to <main> and announce the page,
+    // so keyboard/SR users aren't stranded on the clicked nav link.
+    this.router.events
+      .pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe(() => this.onNavigated());
+  }
+
+  private onNavigated(): void {
+    // Defer so the new view (its <h1>) has rendered.
+    setTimeout(() => {
+      const el = this.main?.nativeElement;
+      if (!el) { return; }
+      el.focus();
+      const heading = el.querySelector('h1')?.textContent?.trim();
+      this.routeAnnouncement.set(heading ? `${heading} — page loaded` : 'Page loaded');
+    });
+  }
 
   private readonly baseNav: NavItem[] = [
     { key: 'nav.dashboard', link: '/dashboard' },
