@@ -4,6 +4,16 @@ Pure Python, no I/O — deterministic given (inputs, profile) so it is property-
 testable and reusable by the M09 backtester. Every call site persists a
 ``SizingDecision`` (done by the caller, not here). The Kelly damper (plan §6.2)
 is deferred until the M09 ``TradeHistory`` exists.
+
+Numeric note (P3-1): the intermediate math runs in ``float`` and the result is
+converted to ``Decimal`` only at the end (``Decimal(str(qty))`` after a
+``floor``-to-lot). This is acceptable because the OUTPUT is an integer/lot count,
+not a money value — the final quantity is floored to a whole lot, so float
+rounding within the computation cannot change the floored result at any realistic
+scale (equity, price and multipliers here are far below float64's 2^53 exact
+range). Money values on the ledger (positions, fills, P&L) stay ``Decimal``
+end-to-end; only this sizing arithmetic, whose result is quantised to a lot, uses
+float — deliberately, for speed and readability.
 """
 from __future__ import annotations
 

@@ -28,7 +28,14 @@ class ReadyzTest(TestCase):
 
 class OpenAPISchemaTest(TestCase):
     def test_openapi_schema_parses_as_json(self):
-        response = self.client.get("/api/schema/", HTTP_ACCEPT="application/json")
+        # P3-5: the schema endpoint is admin-gated when not DEBUG — authenticate.
+        from apps.m04_testutils import access_token, create_user
+
+        admin = create_user(email="schemaadmin@example.com", staff=True)
+        response = self.client.get(
+            "/api/schema/", HTTP_ACCEPT="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token(admin)}",
+        )
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertIn("openapi", data)

@@ -4,10 +4,15 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework import permissions
 
+from apps.admin_portal.permissions import IsAdminAndMFAEnforced
 from apps.orders.views import FillListView, PositionListView, ReconEventListView
 from apps.webhooks.views import WebhookView
 from config.settings.base import GIT_SHA
+
+# P3-5: OpenAPI schema + Swagger UI are admin-only in prod, open in DEBUG.
+_schema_perms = [permissions.AllowAny] if settings.DEBUG else [IsAdminAndMFAEnforced]
 
 
 # ---------------------------------------------------------------------------
@@ -57,9 +62,15 @@ urlpatterns = [
     path("healthz", healthz, name="healthz"),
     path("readyz", readyz, name="readyz"),
 
-    # OpenAPI
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    # OpenAPI — P3-5: full API-surface disclosure is admin-only in prod (open in
+    # DEBUG for local dev). The schema-export pipeline reads the code, not this
+    # endpoint, so gating it doesn't affect type generation.
+    path("api/schema/", SpectacularAPIView.as_view(permission_classes=_schema_perms), name="schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema", permission_classes=_schema_perms),
+        name="swagger-ui",
+    ),
 
     # M10 §6.5a — /metrics is now served OUTSIDE the urlconf by
     # config/metrics_endpoint.py (wired into config/wsgi.py + config/asgi.py) so
