@@ -152,6 +152,7 @@
     },
     "error": {
       "MFA_CODE_INVALID": "That code didn't match. Try again.",
+      "MFA_LOCKED": "Too many incorrect codes. Please sign in again.",
       "TOKEN_INVALID": "Your sign-in session expired. Please sign in again.",
       "INVALID_CREDENTIALS": "Password or code didn't match.",
       "MFA_NOT_ENABLED": "MFA is not enabled on this account.",

@@ -39,7 +39,7 @@ from .metrics_m02 import (
 from .mfa import (
     build_provisioning_uri,
     consume_backup_code,
-    decode_mfa_token,
+    decode_mfa_token_claims,
     decrypt_secret,
     encrypt_secret,
     generate_backup_codes,
@@ -204,9 +204,25 @@ class MFAVerifyView(APIView):
             return _validation_fail(ser)
 
         try:
-            user_id = decode_mfa_token(ser.validated_data["mfa_token"])
+            user_id, mfa_jti = decode_mfa_token_claims(ser.validated_data["mfa_token"])
         except InvalidToken as exc:
             return fail("TOKEN_INVALID", str(exc) or "MFA token invalid or expired.", status=401)
+
+        # P1-1 — brute-force guards (in addition to the per-IP ratelimit above).
+        from django.core.cache import cache
+
+        max_failures = getattr(settings, "MFA_LOGIN_MAX_FAILURES", 5)
+        window = getattr(settings, "MFA_LOGIN_WINDOW_SECONDS", 900)
+        burn_key = f"mfa_login_burned:{mfa_jti}"
+        user_fail_key = f"mfa_login_fail_user:{user_id}"
+        # (a) A token burned by earlier failures cannot be reused — force a fresh
+        #     password login rather than let its full 5-min TTL be brute-forced.
+        if mfa_jti and cache.get(burn_key):
+            return fail("TOKEN_INVALID", "MFA challenge expired — sign in again.", status=401)
+        # (b) Per-user lock survives token re-minting (5/min fresh tokens otherwise
+        #     sidestep a per-token cap).
+        if (cache.get(user_fail_key) or 0) >= max_failures:
+            return fail("MFA_LOCKED", "Too many attempts. Sign in again.", status=429, **_retry_after())
 
         try:
             user = User.objects.select_related("mfa_device").get(pk=user_id)
@@ -238,7 +254,27 @@ class MFAVerifyView(APIView):
                 user=user, request=request,
                 metadata={"phase": "login", "kind": "backup" if is_backup else "totp"},
             )
+            # P1-1 — count the failure per-user (survives token re-minting) and
+            # per-token (burn this challenge token once its own cap is hit).
+            try:
+                cache.incr(user_fail_key)
+            except ValueError:
+                cache.set(user_fail_key, 1, timeout=window)
+            if mfa_jti:
+                jti_fail_key = f"mfa_login_fail_jti:{mfa_jti}"
+                try:
+                    jti_fails = cache.incr(jti_fail_key)
+                except ValueError:
+                    cache.set(jti_fail_key, 1, timeout=window)
+                    jti_fails = 1
+                if jti_fails >= max_failures:
+                    cache.set(burn_key, 1, timeout=window)
             return fail("MFA_CODE_INVALID", "Code is invalid or already used.", status=401)
+
+        # Success — clear the brute-force counters for this user + token.
+        cache.delete(user_fail_key)
+        if mfa_jti:
+            cache.delete(f"mfa_login_fail_jti:{mfa_jti}")
 
         MFA_VERIFICATIONS_TOTAL.labels(result=MFAVerifyResult.OK).inc()
         services.record_event(

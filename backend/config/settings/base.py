@@ -305,6 +305,13 @@ MFA_ENABLED = env.bool("MFA_ENABLED", default=True)
 MFA_STEPUP_MAX_FAILURES = env.int("MFA_STEPUP_MAX_FAILURES", default=5)
 MFA_STEPUP_WINDOW_SECONDS = env.int("MFA_STEPUP_WINDOW_SECONDS", default=900)
 
+# P1-1 — login MFA challenge brute-force cap. The per-IP ratelimit is only half a
+# control (attacker with the password can re-mint mfa_tokens from a distributed IP
+# pool). A per-user counter locks the challenge after this many failures within the
+# window, and the specific mfa_token's jti is burned so it cannot be reused.
+MFA_LOGIN_MAX_FAILURES = env.int("MFA_LOGIN_MAX_FAILURES", default=5)
+MFA_LOGIN_WINDOW_SECONDS = env.int("MFA_LOGIN_WINDOW_SECONDS", default=900)
+
 # Fernet key-encryption key (KEK) for MFA secrets at rest. In dev/test we
 # derive a deterministic KEK from SECRET_KEY so the test suite + a fresh
 # `runserver` work without provisioning. In prod, FERNET_KEK MUST be a real
