@@ -235,6 +235,53 @@ class PositionFillApiTests(TestCase):
         self.assertEqual(Decimal(aapl["unrealized_pnl"]), Decimal("25"))
 
 
+class ResolveNeedsReconcileTests(TestCase):
+    """P1-5: an order stranded NEEDS_RECONCILE (ambiguous submit) is resolved by
+    probing the broker by client_order_id — found ⇒ broker status; unseen ⇒ reject."""
+
+    def setUp(self):
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.account = create_broker_account(self.user)
+
+    def _order_nr(self, coid):
+        return Order.objects.create(
+            user=self.user, strategy=self.strategy, broker_account=self.account,
+            client_order_id=coid, symbol="AAPL", side=Order.Side.BUY, qty=Decimal("5"),
+            status=Order.Status.NEEDS_RECONCILE,
+        )
+
+    def test_reconcile_resolves_needs_reconcile_order(self):
+        from unittest import mock
+
+        from apps.brokers.base import OrderAck, OrderStatus
+        from apps.orders.services import resolve_needs_reconcile
+
+        order = self._order_nr("nr-1")
+        adapter = mock.Mock()
+        adapter.resolve_by_client_id.return_value = OrderAck(
+            client_order_id="nr-1", broker_order_id="bkr-9",
+            status=OrderStatus.SUBMITTED, symbol="AAPL", qty=Decimal("5"),
+        )
+        self.assertEqual(resolve_needs_reconcile(self.account, adapter), 1)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.SUBMITTED)
+        self.assertEqual(order.broker_order_id, "bkr-9")
+
+    def test_needs_reconcile_rejected_when_broker_never_saw_it(self):
+        from unittest import mock
+
+        from apps.orders.services import resolve_needs_reconcile
+
+        order = self._order_nr("nr-2")
+        adapter = mock.Mock()
+        adapter.resolve_by_client_id.return_value = None
+        resolve_needs_reconcile(self.account, adapter)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "RECONCILE_NOT_FOUND")
+
+
 class DrainStreamAckSafetyTests(TestCase):
     """P0-2: a transient ingest error must NOT ack (drop) the fill; poison goes
     to a dead-letter stream. Exercises the real Redis stream path — skipped when

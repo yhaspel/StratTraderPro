@@ -444,7 +444,8 @@
       "PARTIAL": "Partially filled",
       "FILLED": "Filled",
       "CANCELLED": "Cancelled",
-      "REJECTED": "Rejected"
+      "REJECTED": "Rejected",
+      "NEEDS_RECONCILE": "Reconciling"
     },
     "pagination": {
       "page": "Page {{page}} of {{pages}} · {{total}} total",

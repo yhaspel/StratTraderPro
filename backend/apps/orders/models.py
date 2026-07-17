@@ -57,6 +57,10 @@ class Order(models.Model):
         FILLED = "FILLED", "Filled"
         CANCELLED = "CANCELLED", "Cancelled"
         REJECTED = "REJECTED", "Rejected"
+        # P1-5 — an ambiguous submit (timeout / transient error, duplicate probe
+        # inconclusive): the order may be live at the broker. Non-terminal; the
+        # reconnect/periodic reconcile resolves it by client_order_id.
+        NEEDS_RECONCILE = "NEEDS_RECONCILE", "Needs reconcile"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(

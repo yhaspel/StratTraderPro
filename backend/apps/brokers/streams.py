@@ -85,6 +85,11 @@ def catch_up_account(account: BrokerAccount, adapter) -> dict:
                     status__in=[Order.Status.FILLED, Order.Status.CANCELLED, Order.Status.REJECTED]
                 ).update(status=status)
                 resolved += 1
+    # P1-5 — resolve orders stranded by an ambiguous submit (NEEDS_RECONCILE),
+    # regardless of local status, by probing the broker by client_order_id.
+    from apps.orders.services import resolve_needs_reconcile
+
+    resolved += resolve_needs_reconcile(account, adapter)
     return {"strategy": "position_snap", "positions_changed": changed, "orders_resolved": resolved}
 
 

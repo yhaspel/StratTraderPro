@@ -65,6 +65,49 @@ class WebhookAcceptTests(_Base):
         self.assertEqual(resp.status_code, 503)
 
 
+class WebhookAmbiguousSubmitTests(_Base):
+    """P1-5: an ambiguous submit (timeout / transient) marks the order
+    NEEDS_RECONCILE (a possibly-live order), not REJECTED; a definitive broker
+    rejection still rejects."""
+
+    def _adapter_factory(self, side_effect):
+        def _factory(account):
+            m = mock.Mock()
+            m.place_order.side_effect = side_effect
+            return m
+        return _factory
+
+    def test_ambiguous_submit_marks_needs_reconcile_not_rejected(self):
+        from apps.brokers.errors import BrokerError, BrokerErrorCode
+
+        create_broker_account(self.user)
+        err = BrokerError(BrokerErrorCode.UNAVAILABLE, "timeout", retryable=True)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=self._adapter_factory(err)):
+            self.post(valid_alert())
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.NEEDS_RECONCILE)
+        # Alert accepted (not rejected) so it isn't reprocessed.
+        self.assertEqual(AlertMessage.objects.get().status, "ACCEPTED")
+
+    def test_unexpected_exception_marks_needs_reconcile(self):
+        create_broker_account(self.user)
+        with mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=self._adapter_factory(RuntimeError("network died")),
+        ):
+            self.post(valid_alert())
+        self.assertEqual(Order.objects.get().status, Order.Status.NEEDS_RECONCILE)
+
+    def test_definitive_broker_rejection_still_rejects(self):
+        from apps.brokers.errors import BrokerError, BrokerErrorCode
+
+        create_broker_account(self.user)
+        err = BrokerError(BrokerErrorCode.ORDER_REJECTED, "rejected", retryable=False)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=self._adapter_factory(err)):
+            self.post(valid_alert())
+        self.assertEqual(Order.objects.get().status, Order.Status.REJECTED)
+
+
 class WebhookAuthTests(_Base):
     def test_wrong_sig_returns_401_no_order_audit_row(self):
         resp = self.post(valid_alert(sig="wrong-secret"))

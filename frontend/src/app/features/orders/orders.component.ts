@@ -19,6 +19,7 @@ const ORDER_STATUSES = [
   'FILLED',
   'CANCELLED',
   'REJECTED',
+  'NEEDS_RECONCILE',
 ] as const;
 
 const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
