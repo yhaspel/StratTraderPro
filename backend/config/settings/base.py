@@ -434,6 +434,11 @@ WEBHOOK_MAX_BODY_BYTES = env.int("WEBHOOK_MAX_BODY_BYTES", default=16 * 1024)
 WEBHOOK_IDEMPOTENCY_TTL_SECONDS = env.int("WEBHOOK_IDEMPOTENCY_TTL_SECONDS", default=86400)
 # Optional TradingView source-IP allowlist — empty = disabled (default).
 WEBHOOK_IP_ALLOWLIST = env.list("WEBHOOK_IP_ALLOWLIST", default=[])
+# Number of trusted proxies that append to X-Forwarded-For between the client and
+# this app (e.g. Railway edge + nginx = 2). The client IP is read as the Nth entry
+# from the RIGHT; the left-most entries are client-settable and never trusted
+# (P2-1). 0 (default) → use REMOTE_ADDR only. Set this when enabling the allowlist.
+WEBHOOK_TRUSTED_PROXY_COUNT = env.int("WEBHOOK_TRUSTED_PROXY_COUNT", default=0)
 
 # Fill transport. When True, publish_fill applies fills inline/synchronously
 # (no Redis Stream, no consumer group) so the whole webhook→fill→position→WS

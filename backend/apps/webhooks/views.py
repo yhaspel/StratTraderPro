@@ -66,19 +66,30 @@ def _err(code: str, message: str, status: int, **extra) -> JsonResponse:
 
 
 def _client_ip(request) -> str:
-    fwd = request.META.get("HTTP_X_FORWARDED_FOR")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    """Trusted client IP (P2-1). With N trusted proxies appending to
+    X-Forwarded-For, the real client is the Nth entry from the RIGHT — the
+    left-most entries are client-settable and must never be trusted (an attacker
+    could set ``X-Forwarded-For: <allowlisted_ip>`` to bypass the allowlist).
+    ``WEBHOOK_TRUSTED_PROXY_COUNT`` <= 0 → use REMOTE_ADDR only."""
+    n = int(getattr(settings, "WEBHOOK_TRUSTED_PROXY_COUNT", 0) or 0)
+    if n > 0:
+        parts = [p.strip() for p in request.META.get("HTTP_X_FORWARDED_FOR", "").split(",") if p.strip()]
+        if len(parts) >= n:
+            return parts[-n]
     return request.META.get("REMOTE_ADDR", "")
 
 
-def _rate_limited(user_id) -> bool:
-    """Fixed-window per-user counter (cache-based; works on locmem + Redis)."""
+def _rate_limited(user_id, kind: str = "ok") -> bool:
+    """Fixed-window per-user counter (cache-based; works on locmem + Redis).
+
+    P2-2: separate ``kind`` buckets so a flood of unauthenticated ("bad") requests
+    to the public URL exhausts only the abuse budget and can never starve the
+    victim's valid ("ok") alerts — a dropped exit/stop can be an unbounded loss."""
     limit = getattr(settings, "WEBHOOK_RATE_LIMIT_PER_MIN", 60)
     if limit <= 0:
         return False
     bucket = int(time.time() // 60)
-    key = f"wh:rl:{user_id}:{bucket}"
+    key = f"wh:rl:{kind}:{user_id}:{bucket}"
     try:
         cache.add(key, 0, timeout=90)
         current = cache.incr(key)
@@ -96,11 +107,6 @@ class WebhookView(View):
         if not is_enabled("WEBHOOK_V1_ENABLED"):
             WEBHOOK_RECEIVED_TOTAL.labels(result=R_DISABLED).inc()
             return _err("FEATURE_DISABLED", "Webhook ingest is disabled by ops.", 503)
-
-        # 2. rate limit BEFORE body read
-        if _rate_limited(user_id):
-            WEBHOOK_RECEIVED_TOTAL.labels(result=R_RATE_LIMITED).inc()
-            return _err("RATE_LIMITED", "Too many requests.", 429)
 
         # 3. optional source-IP allowlist
         allowlist = getattr(settings, "WEBHOOK_IP_ALLOWLIST", []) or []
@@ -147,6 +153,11 @@ class WebhookView(View):
         if not isinstance(sig, str) or not hmac.compare_digest(
             sig.encode("utf-8"), expected.encode("utf-8")
         ):
+            # P2-2: throttle bad-sig floods on a SEPARATE abuse budget so they can
+            # never starve the victim's valid alerts (the "ok" bucket below).
+            if _rate_limited(user_id, "bad"):
+                WEBHOOK_RECEIVED_TOTAL.labels(result=R_RATE_LIMITED).inc()
+                return _err("RATE_LIMITED", "Too many requests.", 429)
             AlertMessage.objects.create(
                 user=wc.user,
                 strategy=wc.strategy,
@@ -158,6 +169,12 @@ class WebhookView(View):
             WEBHOOK_RECEIVED_TOTAL.labels(result=R_SIG_BAD).inc()
             logger.warning("webhook.sig_bad", extra={"user": str(user_id), "strategy": str(strategy_id)})
             return _err("WEBHOOK_SIG_BAD", "Unauthorized.", 401)
+
+        # 7.5 rate limit AUTHENTICATED alerts on their own budget — an attacker
+        # who can't forge the secret can never exhaust this (P2-2).
+        if _rate_limited(wc.user_id, "ok"):
+            WEBHOOK_RECEIVED_TOTAL.labels(result=R_RATE_LIMITED).inc()
+            return _err("RATE_LIMITED", "Too many requests.", 429)
 
         # 8. JSON-Schema validation (sig already stripped)
         try:
