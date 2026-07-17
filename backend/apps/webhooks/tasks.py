@@ -257,6 +257,11 @@ def process_alert(self, alert_id):
         future_expiry=(future.expiry if future else ""),
         side=order_side,
     )
+    # Reload so the resolved asset_class / option / future fields are visible to
+    # the risk layer (apply_sizing reads order.asset_class + future_root to pick
+    # the permitted-class filter and the contract multiplier — P1-2). Without
+    # this the in-memory order still holds the creation-time default.
+    order.refresh_from_db()
 
     def _build_req(q):
         return OrderRequest(

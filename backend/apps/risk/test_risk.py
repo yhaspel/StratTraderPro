@@ -115,6 +115,34 @@ class SizingTests(TestCase):
         stopped = compute_size(self._inp(intraday_dd_pct=6.0), self.profile).qty  # >5% soft stop
         self.assertEqual(stopped, normal * Decimal("0.5"))
 
+    def test_option_notional_uses_100x_multiplier(self):
+        # P1-2: an option controls 100 shares — notional = qty × price × 100, so
+        # the leverage-1.0 cap binds at qty=10, not the ~1000 it would with mult=1.
+        p = _profile(create_user(email="opt@example.com"), leverage_cap=Decimal("1.0"),
+                     max_position_pct=Decimal("100"), risk_per_trade_pct=Decimal("50"))
+        r = compute_size(
+            self._inp(price=Decimal("100"), equity=Decimal("100000"),
+                      contract_multiplier=Decimal("100")), p)
+        self.assertTrue(r.ok)
+        self.assertEqual(r.qty, Decimal("10"))
+        notional = r.qty * Decimal("100") * Decimal("100")  # qty × price × multiplier
+        self.assertLessEqual(notional, Decimal("100000"))  # ≤ equity × leverage_cap
+
+    def test_leverage_cap_binds_for_options(self):
+        # The option ceiling is exactly 100× tighter than the equity ceiling.
+        p = _profile(create_user(email="optlev@example.com"), leverage_cap=Decimal("1.0"),
+                     max_position_pct=Decimal("100"), risk_per_trade_pct=Decimal("50"))
+        opt = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000"),
+                                     contract_multiplier=Decimal("100")), p).qty
+        eq = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000"),
+                                    contract_multiplier=Decimal("1")), p).qty
+        self.assertEqual(eq, opt * Decimal("100"))
+
+    def test_equity_sizing_unchanged(self):
+        # Regression: default multiplier (1) reproduces pre-P1-2 sizing exactly.
+        r = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000")), self.profile)
+        self.assertEqual(r.qty, Decimal("200"))  # equity × 20% / price
+
 
 class KillSwitchEngineTests(TestCase):
     def setUp(self):
@@ -423,6 +451,24 @@ class ProcessAlertSizingTests(TestCase):
         self.assertTrue(
             SizingDecision.objects.filter(order=order, reject_reason="NO_RISK_PROFILE").exists()
         )
+
+    def test_process_alert_option_uses_100x_multiplier(self):
+        # P1-2: an OPTION order is sized with the 100× multiplier end-to-end.
+        _profile(self.user, permitted_asset_classes=["OPTION"],
+                 max_position_pct=Decimal("100"), leverage_cap=Decimal("1.0"),
+                 risk_per_trade_pct=Decimal("50"))
+        from unittest import mock
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(
+                symbol="AAPL", qty=1000, asset_class="OPTION",
+                option_expiry="2026-12-18", option_strike=100, option_right="CALL",
+                idempotency_key="opt-mult-1",
+            ))
+        dec = SizingDecision.objects.get()
+        self.assertEqual(dec.inputs.get("contract_multiplier"), 100.0)
+        # price 100 × mult 100, leverage cap 1.0, equity 100k ⇒ ≤ 10 contracts.
+        self.assertEqual(Order.objects.get().qty, Decimal("10"))
 
     def test_paper_no_profile_places_verbatim_qty(self):
         # Regression: paper + no profile keeps M04 verbatim-qty behavior (sizing off).

@@ -15,7 +15,7 @@ from apps.admin_portal.flags import is_enabled
 
 from .metrics import SIZING_DECISIONS, SIZING_REJECT_REASON
 from .models import RiskEvent, RiskProfile, SizingDecision
-from .sizing import SizingInputs, SizingResult, compute_size
+from .sizing import SizingInputs, SizingResult, compute_size, contract_multiplier_for
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,11 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
         return _persist_reject("SIZING_NO_PRICE", equity=equity)
     price = _dec(price)
 
+    # P1-2 — the trusted server-side asset class sets the contract multiplier so
+    # option/future notional + leverage ceilings bind (an equity option controls
+    # 100 shares; a future carries a per-root point value).
+    multiplier = contract_multiplier_for(asset_class, getattr(order, "future_root", ""))
+
     inp = SizingInputs(
         requested_qty=req_qty,
         side=side,
@@ -189,6 +194,7 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
         sentiment_polarity=_latest_sentiment(symbol),
         intraday_dd_pct=intraday_dd_pct,
         atr14=_atr14(symbol),
+        contract_multiplier=multiplier,
     )
     result = compute_size(inp, profile)
     # Persist the two most safety-relevant inputs alongside the sizing meta (FIX-L3).
