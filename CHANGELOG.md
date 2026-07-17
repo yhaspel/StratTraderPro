@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Review remediation, Phase 0 (P0 · money & trust safety)
+- **P0-1 · Risk/sizing fail-open with no RiskProfile** — a user without a `RiskProfile`
+  (the default state) had the entire sizing + auto-circuit-breaker layer disabled: raw
+  webhook qty reached the broker unclamped and the L2 daily-loss auto-halt never armed.
+  Now a **live** account with no profile is rejected (`NO_RISK_PROFILE`); a conservative
+  default profile is **auto-provisioned on broker connect** (leverage 1×, strict, STOCK/ETF);
+  the daily-loss watcher covers every connected live account via a default threshold. Paper
+  keeps M04 verbatim-qty behavior. (`apps/risk/{integration,killswitch,tasks,provisioning}.py`,
+  `apps/brokers/views.py`.)
+- **P0-2 · Dropped fills on transient ingest error** — `drain_stream` ack'd the Redis-stream
+  entry unconditionally after a bare `except`, so a transient DB error silently dropped the
+  fill (at-least-once → at-most-once). Now ack only on success; poison → per-user dead-letter
+  stream + `fills_deadlettered_total`; transient → left pending for replay (dedup-safe) with a
+  bounded retry. (`apps/orders/fills.py`, `apps/brokers/metrics.py`.)
+- **P0-3 · Impersonation webhook-secret leak** — a read-only impersonation `GET` could mint a
+  `WebhookConfig` (a write) and reveal the target's webhook `sig` (an order-placement bearer
+  credential), burning the owner's reveal-once. Read-only impersonation now creates nothing and
+  never reveals a secret. (`apps/strategies/{services,views}.py`.)
+- **P0-4 · One-click Flatten-all** — the "Flatten all positions" market liquidation fired on a
+  single click. Now routed through the shared focus-trapping modal with consequence copy + a
+  typed `FLATTEN` confirmation, and gated on staff capability. (`features/settings/brokers/`.)
+
 ### Added — M11 (Hardening, Security, Load Test & Docs)
 - **SERVICE_ROLE image entrypoint dispatch (§7.0, BUG-011)** — `docker/entrypoint.sh` (0755)
   dispatches on a **required** `SERVICE_ROLE` over seven roles (`web`, `web-dev`, `worker`,
