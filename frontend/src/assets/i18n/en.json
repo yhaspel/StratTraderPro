@@ -341,6 +341,12 @@
       "mfa_placeholder": "6-digit code",
       "confirm_remove": "Confirm remove"
     },
+    "flatten": {
+      "title": "Flatten all positions?",
+      "warning": "This closes ALL open positions on this account at market. This cannot be undone.",
+      "type_to_confirm": "Type FLATTEN to confirm",
+      "confirm": "Flatten positions"
+    },
     "connect": {
       "title": "Connect Alpaca Paper",
       "help": "Paper trading only. Live keys are rejected.",

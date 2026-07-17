@@ -6,7 +6,7 @@
  *      and an admin-only flatten button (backend 403s non-staff — that's fine).
  *   2. Connect Alpaca Paper — write-only API key + secret form.
  */
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -19,6 +19,11 @@ import {
   BrokerTestConnectionResult,
 } from '../../../core/models/brokers.models';
 import { BrokersFacade } from '../../../abstraction/facades/brokers.facade';
+import { AuthStore } from '../../../abstraction/stores/auth.store';
+import { ModalComponent } from '../../shared/ui/modal.component';
+
+/** Typed-confirmation word gating the irreversible flatten action (P0-4). */
+const FLATTEN_CONFIRM_WORD = 'FLATTEN';
 
 /** Error codes that have a dedicated translated message. */
 const KNOWN_ERRORS = new Set([
@@ -37,7 +42,7 @@ const KNOWN_ERRORS = new Set([
 @Component({
   selector: 'app-brokers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RouterLink, ModalComponent],
   template: `
     <div class="mx-auto max-w-3xl p-6 space-y-8">
       <h1 class="text-2xl font-bold">{{ 'brokers.title' | translate }}</h1>
@@ -102,10 +107,12 @@ const KNOWN_ERRORS = new Set([
                           class="text-red-600 hover:underline">
                     {{ 'brokers.connected.remove' | translate }}
                   </button>
-                  <button type="button" (click)="onFlatten(acct.id)"
-                          class="text-amber-700 hover:underline">
-                    {{ 'brokers.connected.flatten' | translate }}
-                  </button>
+                  @if (isStaff()) {
+                    <button type="button" (click)="onFlatten(acct.id)"
+                            class="text-amber-700 hover:underline">
+                      {{ 'brokers.connected.flatten' | translate }}
+                    </button>
+                  }
                 </div>
 
                 <!-- Mode control (PAPER active; LIVE disabled until enabled) -->
@@ -169,6 +176,32 @@ const KNOWN_ERRORS = new Set([
           </ul>
         }
       </section>
+
+      <!-- ========== Flatten confirmation (P0-4) — irreversible, typed confirm ========== -->
+      <app-modal
+        [open]="flatteningId() !== null"
+        [heading]="'brokers.flatten.title' | translate"
+        (closed)="cancelFlatten()">
+        <p class="text-sm text-slate-700 mb-4">{{ 'brokers.flatten.warning' | translate }}</p>
+        <label class="block text-sm font-medium mb-1" for="flatten-confirm">
+          {{ 'brokers.flatten.type_to_confirm' | translate }}
+        </label>
+        <input id="flatten-confirm" type="text" autocomplete="off"
+               [value]="flattenConfirm()"
+               (input)="flattenConfirm.set($any($event.target).value)"
+               class="w-full border rounded px-3 py-2 font-mono text-sm mb-4" />
+        <div class="flex justify-end gap-2">
+          <button type="button" (click)="cancelFlatten()"
+                  class="px-3 py-2 rounded text-sm border hover:bg-gray-50">
+            {{ 'common.cancel' | translate }}
+          </button>
+          <button type="button" (click)="confirmFlatten()"
+                  [disabled]="!flattenConfirmed()"
+                  class="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
+            {{ 'brokers.flatten.confirm' | translate }}
+          </button>
+        </div>
+      </app-modal>
 
       <!-- ========== Connect Alpaca Paper ========== -->
       <section class="border rounded-lg p-6">
@@ -249,6 +282,11 @@ const KNOWN_ERRORS = new Set([
 export class BrokersComponent implements OnInit {
   facade = inject(BrokersFacade);
   private fb = inject(FormBuilder);
+  private store = inject(AuthStore);
+
+  /** Flatten is admin-gated server-side (403 otherwise); don't render it to
+   * users who can't use it (P0-4). */
+  isStaff = computed(() => this.store.user()?.is_staff === true);
 
   connectResult = signal<BrokerConnectResult | null>(null);
   connectError = signal<ApiError | null>(null);
@@ -256,6 +294,11 @@ export class BrokersComponent implements OnInit {
   testResults = signal<Record<string, BrokerTestConnectionResult>>({});
   rowErrors = signal<Record<string, ApiError>>({});
   removingId = signal<string | null>(null);
+
+  // Flatten confirmation (P0-4): the account pending flatten + typed-confirm text.
+  flatteningId = signal<string | null>(null);
+  flattenConfirm = signal('');
+  flattenConfirmed = computed(() => this.flattenConfirm() === FLATTEN_CONFIRM_WORD);
 
   connectForm = this.fb.nonNullable.group({
     api_key_id: ['', Validators.required],
@@ -335,8 +378,24 @@ export class BrokersComponent implements OnInit {
     }
   }
 
-  async onFlatten(id: string): Promise<void> {
+  /** Open the typed-confirm modal — flatten is irreversible, so it must NOT
+   * fire on a single click (P0-4). */
+  onFlatten(id: string): void {
     this._clearRowError(id);
+    this.flattenConfirm.set('');
+    this.flatteningId.set(id);
+  }
+
+  cancelFlatten(): void {
+    this.flatteningId.set(null);
+    this.flattenConfirm.set('');
+  }
+
+  async confirmFlatten(): Promise<void> {
+    const id = this.flatteningId();
+    if (!id || !this.flattenConfirmed()) { return; }
+    this.flatteningId.set(null);
+    this.flattenConfirm.set('');
     const res = await this.facade.flatten(id);
     if (!res.ok) {
       this._setRowError(id, res.error);
