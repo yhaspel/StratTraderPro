@@ -25,10 +25,23 @@ def export_storage():
     return storages["exports"]
 
 
-def signed_export_url(file_key: str) -> str:
-    """A time-limited download URL. S3Storage signs with a 24h expiry (configured
-    in settings); FileSystemStorage returns a plain media URL (dev only)."""
-    return export_storage().url(file_key)
+def signed_export_url(job) -> str:
+    """A download URL for a READY export job.
+
+    S3/R2 backends produce a real time-limited signed URL. The filesystem backend
+    (the default self-hosted deploy) has no served ``/media/`` path — ``.url()``
+    would be an unsigned, permanent, 404-ing link — so we point at the
+    authenticated download view instead (P1-3), absolutized via FRONTEND_BASE_URL.
+    """
+    from django.conf import settings
+    from django.core.files.storage import FileSystemStorage
+    from django.urls import reverse
+
+    storage = export_storage()
+    if isinstance(storage, FileSystemStorage):
+        path = reverse("users-me-export-download", kwargs={"job_id": str(job.id)})
+        return f"{settings.FRONTEND_BASE_URL.rstrip('/')}{path}"
+    return storage.url(job.file_key)
 
 
 @shared_task(bind=True, ignore_result=True, max_retries=2, default_retry_delay=30)
@@ -95,7 +108,7 @@ def run_data_export(self, job_id: str):
                 to=user.email,
                 subject="Your StratTraderPro data export is ready",
                 template_base="data_export_ready",
-                context={"display_name": user.display_name, "url": signed_export_url(file_key)},
+                context={"display_name": user.display_name, "url": signed_export_url(job)},
             )
         except Exception:  # noqa: BLE001 — email failure must not fail the job
             logger.exception("gdpr.export.email_failed job_id=%s", job.id)

@@ -141,6 +141,55 @@ class GDPRExportTests(_ExportBase):
         self.assertEqual(DataExportJob.objects.filter(user=user).count(), 1)
 
 
+class GDPRExportDownloadTests(_ExportBase):
+    """P1-3 — the filesystem export is served through an authenticated,
+    owner-checked, expiry-checked download view (not an unserved /media/ path)."""
+
+    def _ready_job(self, user, *, expires_in_hours=24, content=b"PK\x03\x04zip-bytes"):
+        from datetime import timedelta
+
+        from django.core.files.base import ContentFile
+
+        from apps.users.tasks import export_storage
+
+        job = DataExportJob.objects.create(user=user, status=DataExportJob.Status.READY)
+        file_key = f"exports/{user.id}/{job.id}.zip"
+        export_storage().save(file_key, ContentFile(content))
+        job.file_key = file_key
+        job.ready_at = timezone.now()
+        job.expires_at = timezone.now() + timedelta(hours=expires_in_hours)
+        job.save(update_fields=["file_key", "ready_at", "expires_at"])
+        return job
+
+    def _url(self, job):
+        return f"/api/v1/users/me/export/{job.id}/download/"
+
+    def test_export_download_requires_owner(self):
+        owner = create_user()
+        job = self._ready_job(owner)
+        resp = self.client.get(self._url(job), **auth_headers(owner))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(b"".join(resp.streaming_content), b"PK\x03\x04zip-bytes")
+        self.assertIn("attachment", resp["Content-Disposition"])
+        # A different user never even learns the job exists.
+        other = create_user(email="other@example.com")
+        self.assertEqual(self.client.get(self._url(job), **auth_headers(other)).status_code, 404)
+
+    def test_export_download_404_after_expiry(self):
+        owner = create_user()
+        job = self._ready_job(owner, expires_in_hours=-1)  # already expired
+        self.assertEqual(self.client.get(self._url(job), **auth_headers(owner)).status_code, 410)
+
+    def test_export_url_points_at_served_route_for_filesystem_backend(self):
+        from apps.users.tasks import signed_export_url
+
+        owner = create_user()
+        job = self._ready_job(owner)
+        url = signed_export_url(job)
+        self.assertIn(f"/api/v1/users/me/export/{job.id}/download/", url)
+        self.assertNotIn("/media/", url)
+
+
 try:
     from moto import mock_aws
     _HAS_MOTO = True

@@ -26,6 +26,7 @@ from .views import (
 from .views_gdpr import (
     AccountDeleteCancelView,
     AccountDeleteView,
+    DataExportDownloadView,
     DataExportRequestView,
     DataExportStatusView,
     TermsAcceptView,
@@ -91,6 +92,11 @@ urlpatterns = [
     # ---- M11 §7.7 — GDPR personal-data export + 30-day soft delete ----
     path("users/me/export/", DataExportRequestView.as_view(), name="users-me-export"),
     path("users/me/export/<uuid:job_id>/", DataExportStatusView.as_view(), name="users-me-export-status"),
+    path(
+        "users/me/export/<uuid:job_id>/download/",
+        DataExportDownloadView.as_view(),
+        name="users-me-export-download",
+    ),
     path("users/me/delete/", AccountDeleteView.as_view(), name="users-me-delete"),
     path("users/me/delete/cancel/", AccountDeleteCancelView.as_view(), name="users-me-delete-cancel"),
 
