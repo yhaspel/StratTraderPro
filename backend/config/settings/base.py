@@ -691,6 +691,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.users.tasks.anonymize_expired_accounts",
         "schedule": crontab(hour=2, minute=0),
     },
+    # P2-6 — nightly (02:30 UTC) eviction of expired GDPR export ZIPs + job rows.
+    "users-evict-expired-exports": {
+        "task": "apps.users.tasks.evict_expired_exports",
+        "schedule": crontab(hour=2, minute=30),
+    },
     # M10 — refresh celery_queue_depth{queue} gauge every 30s (default queue).
     "admin-queue-depths": {
         "task": "apps.admin_portal.tasks.update_queue_depths",

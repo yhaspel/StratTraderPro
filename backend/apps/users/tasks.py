@@ -126,6 +126,22 @@ def run_data_export(self, job_id: str):
 
 
 @shared_task(bind=True, ignore_result=True)
+def evict_expired_exports(self):
+    """P2-6 — nightly: delete export ZIPs + DataExportJob rows past ``expires_at``
+    so personal-data artifacts don't linger past their retention window."""
+    from .gdpr import _delete_export_jobs
+    from .models import DataExportJob
+
+    expired = DataExportJob.objects.filter(
+        expires_at__isnull=False, expires_at__lt=timezone.now()
+    )
+    n = _delete_export_jobs(expired)
+    if n:
+        logger.info("gdpr.export.evicted count=%s", n)
+    return n
+
+
+@shared_task(bind=True, ignore_result=True)
 def anonymize_expired_accounts(self):
     """Nightly: anonymize-in-place any account whose 30-day soft-delete has expired.
 

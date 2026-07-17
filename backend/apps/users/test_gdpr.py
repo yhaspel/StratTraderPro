@@ -189,6 +189,31 @@ class GDPRExportDownloadTests(_ExportBase):
         self.assertIn(f"/api/v1/users/me/export/{job.id}/download/", url)
         self.assertNotIn("/media/", url)
 
+    def test_expired_exports_evicted(self):
+        # P2-6: the nightly task deletes files + rows past expires_at.
+        from apps.users.models import DataExportJob
+        from apps.users.tasks import evict_expired_exports, export_storage
+
+        owner = create_user()
+        expired = self._ready_job(owner, expires_in_hours=-1)
+        fresh = self._ready_job(owner, expires_in_hours=24)
+        self.assertEqual(evict_expired_exports(), 1)
+        self.assertFalse(DataExportJob.objects.filter(id=expired.id).exists())
+        self.assertFalse(export_storage().exists(expired.file_key))
+        self.assertTrue(DataExportJob.objects.filter(id=fresh.id).exists())  # unexpired kept
+
+    def test_anonymize_purges_exports(self):
+        # P2-6: a user's exports (files + rows) don't survive right-to-erasure.
+        from apps.users.gdpr import anonymize_user
+        from apps.users.models import DataExportJob
+        from apps.users.tasks import export_storage
+
+        owner = create_user()
+        job = self._ready_job(owner)
+        anonymize_user(owner)
+        self.assertFalse(DataExportJob.objects.filter(user=owner).exists())
+        self.assertFalse(export_storage().exists(job.file_key))
+
 
 try:
     from moto import mock_aws
