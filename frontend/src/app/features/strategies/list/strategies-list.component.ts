@@ -10,15 +10,16 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade';
 import { Strategy } from '../../../core/models/strategies.models';
 import { WebhookConfigModalComponent } from '../webhook-config/webhook-config-modal.component';
+import { ModalComponent } from '../../shared/ui/modal.component';
 
 @Component({
   selector: 'app-strategies-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, TranslateModule, WebhookConfigModalComponent],
+  imports: [CommonModule, RouterLink, TranslateModule, WebhookConfigModalComponent, ModalComponent],
   template: `
     <div class="mx-auto max-w-6xl p-6">
       <div class="flex items-center justify-between mb-6">
@@ -75,6 +76,8 @@ import { WebhookConfigModalComponent } from '../webhook-config/webhook-config-mo
                 </td>
                 <td class="px-3 py-3">
                   <button type="button" (click)="onToggle(s)"
+                          role="switch"
+                          [attr.aria-checked]="s.is_enabled"
                           [attr.aria-label]="(s.is_enabled ? 'strategies.list.disable' : 'strategies.list.enable') | translate"
                           [class.bg-green-500]="s.is_enabled"
                           [class.bg-gray-300]="!s.is_enabled"
@@ -110,25 +113,64 @@ import { WebhookConfigModalComponent } from '../webhook-config/webhook-config-mo
         [strategy]="ms"
         (closed)="closeModal()" />
     }
+
+    <!-- P1-10 — enabling arms live execution; confirm the consequence first. -->
+    <app-modal
+      [open]="enablingStrategy() !== null"
+      [heading]="'strategies.list.enable_confirm.title' | translate"
+      (closed)="cancelEnable()">
+      <p class="text-sm text-slate-700 mb-4">{{ 'strategies.list.enable_confirm.body' | translate }}</p>
+      <div class="flex justify-end gap-2">
+        <button type="button" (click)="cancelEnable()"
+                class="px-3 py-2 rounded text-sm border hover:bg-gray-50">
+          {{ 'common.cancel' | translate }}
+        </button>
+        <button type="button" (click)="confirmEnable()"
+                class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700">
+          {{ 'strategies.list.enable_confirm.confirm' | translate }}
+        </button>
+      </div>
+    </app-modal>
   `,
 })
 export class StrategiesListComponent implements OnInit {
   facade = inject(StrategiesFacade);
   private router = inject(Router);
+  private translate = inject(TranslateService);
 
   /** Strategy currently being configured in the modal, or null. */
   modalStrategy = signal<Strategy | null>(null);
+  /** Strategy pending an enable confirmation, or null (P1-10). */
+  enablingStrategy = signal<Strategy | null>(null);
 
   ngOnInit(): void {
     this.facade.load();
   }
 
-  async onToggle(s: Strategy): Promise<void> {
-    await this.facade.toggleEnabled(s.id, !s.is_enabled);
+  onToggle(s: Strategy): void {
+    // Disabling is safe and immediate; enabling arms live order execution, so it
+    // requires an explicit confirmation (P1-10).
+    if (s.is_enabled) {
+      void this.facade.toggleEnabled(s.id, false);
+    } else {
+      this.enablingStrategy.set(s);
+    }
+  }
+
+  cancelEnable(): void {
+    this.enablingStrategy.set(null);
+  }
+
+  async confirmEnable(): Promise<void> {
+    const s = this.enablingStrategy();
+    if (!s) { return; }
+    this.enablingStrategy.set(null);
+    await this.facade.toggleEnabled(s.id, true);
   }
 
   async onDelete(s: Strategy): Promise<void> {
-    if (!confirm(`Delete ${s.name}? This is reversible by toggling 'is_enabled' in admin.`)) {
+    const msg = this.translate.instant('strategies.list.delete_confirm', { name: s.name });
+    if (!confirm(msg)) {
       return;
     }
     await this.facade.softDelete(s.id);

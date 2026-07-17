@@ -234,8 +234,14 @@
       "untested_banner": "Community-tested: No",
       "configure_webhook": "Configure webhook",
       "delete": "Delete",
+      "delete_confirm": "Delete \"{{name}}\"? It will be disabled and hidden from your list; you can re-upload it later.",
       "enable": "Enable",
       "disable": "Disable",
+      "enable_confirm": {
+        "title": "Enable this strategy?",
+        "body": "Enabling this strategy will execute live orders from its webhook alerts.",
+        "confirm": "Enable strategy"
+      },
       "col": {
         "name": "Strategy",
         "type": "Type",
