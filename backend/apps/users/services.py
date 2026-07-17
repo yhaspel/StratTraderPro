@@ -216,18 +216,26 @@ def revoke_refresh(raw_refresh: str, *, request=None) -> bool:
 # ---------------------------------------------------------------------------
 # Lockout
 # ---------------------------------------------------------------------------
-def is_locked(email: str) -> bool:
+def is_locked(email: str, ip: Optional[str] = None) -> bool:
+    """Whether ``email`` is locked out of login.
+
+    P2-4: when ``ip`` is given the count is scoped to that IP, so a remote
+    attacker flooding failures from their own IP cannot lock the victim out of a
+    *different* IP (a targeted-DoS primitive). The per-email 5/m rate limit is the
+    primary throttle; this lock is a secondary, IP-scoped control (ADR-108).
+    ``ip=None`` preserves the legacy per-email count for callers without an IP."""
     threshold = settings.AUTH_LOCKOUT_THRESHOLD
     window = timedelta(minutes=settings.AUTH_LOCKOUT_WINDOW_MINUTES)
     cutoff = timezone.now() - window
-    return (
-        FailedLoginAttempt.objects.filter(email=email, occurred_at__gte=cutoff).count()
-        >= threshold
-    )
+    qs = FailedLoginAttempt.objects.filter(email=email, occurred_at__gte=cutoff)
+    if ip:
+        qs = qs.filter(ip=ip)
+    return qs.count() >= threshold
 
 
-def record_failed_login(email: str, request=None) -> None:
-    FailedLoginAttempt.objects.create(email=email, ip=_client_ip(request) if request else None)
+def record_failed_login(email: str, request=None, ip: Optional[str] = None) -> None:
+    resolved = ip if ip is not None else (_client_ip(request) if request else None)
+    FailedLoginAttempt.objects.create(email=email, ip=resolved)
 
 
 def clear_failed_logins(email: str) -> None:

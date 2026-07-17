@@ -190,9 +190,11 @@ class LoginTests(TestCase):
 
     def test_login_10th_failure_locks_account(self):
         _create_user()
+        # Failures from the test client's own IP (127.0.0.1) so the per-IP lock
+        # applies to the subsequent login POST from the same IP (P2-4).
         for _ in range(10):
-            record_failed_login("test@example.com")
-        self.assertTrue(is_locked("test@example.com"))
+            record_failed_login("test@example.com", ip="127.0.0.1")
+        self.assertTrue(is_locked("test@example.com", "127.0.0.1"))
         resp = self.client.post(
             f"{API}auth/login/",
             {"email": "test@example.com", "password": GOOD_PW},
@@ -200,6 +202,22 @@ class LoginTests(TestCase):
         )
         self.assertEqual(resp.status_code, 423)
         self.assertEqual(resp.json()["error"]["code"], "ACCOUNT_LOCKED")
+
+    def test_remote_attacker_cannot_lock_victim_from_one_ip_alone(self):
+        # P2-4: an attacker flooding failures from their IP locks only that IP;
+        # the victim logging in from a different IP is unaffected.
+        _create_user()
+        for _ in range(10):
+            record_failed_login("test@example.com", ip="6.6.6.6")
+        self.assertTrue(is_locked("test@example.com", "6.6.6.6"))   # attacker's IP locked
+        self.assertFalse(is_locked("test@example.com", "1.2.3.4"))  # victim's IP is not
+        resp = self.client.post(
+            f"{API}auth/login/",
+            {"email": "test@example.com", "password": GOOD_PW},
+            content_type="application/json",
+            REMOTE_ADDR="1.2.3.4",
+        )
+        self.assertEqual(resp.status_code, 200)  # victim logs in fine
 
     def test_login_after_lockout_expires_succeeds(self):
         _create_user()
@@ -464,6 +482,18 @@ class RateLimitKeyTests(TestCase):
         # Email B is a *different* bucket — its first request is NOT limited.
         # (Under the old bug both share "anon", so B would be the 7th and 429.)
         self.assertNotEqual(self._login("bob@example.com").status_code, 429)
+
+    def test_reset_rate_limited_per_ip_across_emails(self):
+        # P2-3: cycling a fresh email each time slips past the per-email limit,
+        # but the per-IP limit (10/m) still stops an email-bomb from one IP.
+        last = None
+        for i in range(12):
+            last = self.client.post(
+                f"{API}auth/password/reset/",
+                {"email": f"u{i}@example.com"},
+                content_type="application/json",
+            )
+        self.assertEqual(last.status_code, 429)
 
     def test_email_keyer_returns_distinct_keys(self):
         from apps.users.views import _email_keyer

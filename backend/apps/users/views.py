@@ -160,7 +160,11 @@ class RegisterView(APIView):
         return ok({"id": str(user.id), "email": user.email}, status=status.HTTP_201_CREATED)
 
 
-RegisterView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(RegisterView.as_view())
+# P2-3: stack a per-IP limit under the per-email one (mirroring LoginView) so one
+# IP can't email-bomb by cycling addresses.
+RegisterView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(
+    ratelimit(key="ip", rate="10/m", method="POST", block=False)(RegisterView.as_view())
+)
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +279,7 @@ class ResendVerificationView(APIView):
 
 
 ResendVerificationView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(
-    ResendVerificationView.as_view()
+    ratelimit(key="ip", rate="10/m", method="POST", block=False)(ResendVerificationView.as_view())
 )
 
 
@@ -326,8 +330,12 @@ class LoginView(APIView):
 
         email = ser.validated_data["email"]
         password = ser.validated_data["password"]
+        # P2-4: the lockout is scoped to the requesting IP so a remote attacker
+        # can't lock a victim out of their own (different) IP. The per-email 5/m
+        # rate limit is the primary throttle (ADR-108).
+        ip = services._client_ip(request)
 
-        if services.is_locked(email):
+        if services.is_locked(email, ip):
             services.record_event(
                 EventType.LOGIN_FAIL, email=email, request=request,
                 metadata={"reason": "locked"},
@@ -347,7 +355,7 @@ class LoginView(APIView):
                 metadata={"reason": "invalid_credentials"},
             )
             # If this attempt just crossed the threshold, notify the user.
-            if services.is_locked(email):
+            if services.is_locked(email, ip):
                 target = User.objects.filter(email=email).first()
                 if target:
                     services.send_account_locked_email(target)
@@ -518,7 +526,7 @@ class PasswordResetView(APIView):
 
 
 PasswordResetView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(
-    PasswordResetView.as_view()
+    ratelimit(key="ip", rate="10/m", method="POST", block=False)(PasswordResetView.as_view())
 )
 
 
