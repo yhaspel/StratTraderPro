@@ -106,14 +106,22 @@ class RotationResult:
 
 
 @transaction.atomic
-def get_or_create_webhook_config(*, user, strategy: Strategy) -> tuple[WebhookConfig, bool, Optional[str]]:
+def get_or_create_webhook_config(
+    *, user, strategy: Strategy, allow_create: bool = True
+) -> tuple[Optional[WebhookConfig], bool, Optional[str]]:
     """First-time access creates a fresh config (with secret) AND returns the
     plaintext secret so the view can do reveal-once. Subsequent calls return
-    ``(config, False, None)``."""
+    ``(config, False, None)``.
+
+    ``allow_create=False`` makes this a pure read: if no config exists it returns
+    ``(None, False, None)`` and mints nothing — used so a read-only impersonation
+    GET never writes a row nor burns the owner's reveal-once (P0-3)."""
     try:
         cfg = WebhookConfig.objects.get(user=user, strategy=strategy)
         return cfg, False, None
     except WebhookConfig.DoesNotExist:
+        if not allow_create:
+            return None, False, None
         raw = generate_secret()
         cfg = WebhookConfig.objects.create(
             user=user,
