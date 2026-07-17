@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pyotp
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.brokers.models import TradingHalt
@@ -167,6 +167,31 @@ class KillSwitchEngineTests(TestCase):
         killswitch.trigger_halt(user_id=None, level=TradingHalt.Level.L3, reason="platform")
         other_user = create_user(email="u2@example.com")
         self.assertEqual(killswitch.is_blocked(other_user.id, None), "PLATFORM_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_platform_halt_enforced_even_when_engine_disabled(self):
+        # P1-7: the ops flag disables auto-tripping, NEVER the emergency stop.
+        killswitch.trigger_halt(user_id=None, level=TradingHalt.Level.L3, reason="platform")
+        self.assertEqual(killswitch.is_blocked(self.user.id, None), "PLATFORM_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_user_halt_enforced_when_engine_disabled(self):
+        killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L1, reason="halt")
+        self.assertEqual(killswitch.is_blocked(self.user.id, self.strategy.id), "USER_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_existing_l2_daily_loss_halt_enforced_when_engine_disabled(self):
+        killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L2,
+                                reason="DAILY_LOSS_BREACH", auto=True)
+        self.assertEqual(killswitch.is_blocked(self.user.id, None), "USER_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_flag_only_gates_auto_trip_not_enforcement(self):
+        # With the engine off the watcher must not TRIP a new L2 halt...
+        from apps.risk.tasks import daily_loss_watcher
+
+        self.assertEqual(daily_loss_watcher(), {"skipped": "disabled"})
+        # ...but an operator-created halt is still enforced (proven above).
 
     def test_l2_release_locked_until_next_day(self):
         h = killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L2,
