@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Review remediation, Phase 2 (P2 · Medium)
+- **Backend abuse-resistance** — P2-1 webhook IP allowlist reads the trusted (right-most)
+  XFF entry per `WEBHOOK_TRUSTED_PROXY_COUNT`; P2-2 split bad-sig vs valid-alert rate
+  budgets so a flood can't starve a victim's alerts; P2-3 per-IP limits on
+  register/resend/reset; P2-4 IP-scoped login lockout (ADR-108); P2-5 durable
+  idempotency anchor (`unique(user, idempotency_key)`, migration 0002) + stranded-alert
+  requeue; P2-6 nightly export eviction + purge-on-anonymize; P2-7 kept the audit chain's
+  advisory lock (the suggested row-lock forks the chain — validated + documented);
+  P2-8 row-locked refresh rotation + one-step grace jti (migration 0006).
+- **Frontend lifecycle** — P2-9 WS refcount no longer leaks on reconnect (openSocket split);
+  P2-10 dashboard JWT rides the `Sec-WebSocket-Protocol` subprotocol, not the URL;
+  P2-11 socket tears down on logout / stops reconnecting when logged out; P2-12 help HTML
+  bound via Angular's sanitizer (no `bypassSecurityTrustHtml`); P2-13 OnPush on data-heavy
+  screens; P2-14 `provideAppInitializer` + timeout-bounded bootstrap refresh.
+- **Design / a11y / UX** — P2-DESIGN-1 dashboard halt uses the shared focus-trapping modal
+  with an explicit flatten choice; DESIGN-2 register form wires `aria-describedby`;
+  DESIGN-3 route-change focus + aria-live announcement; DESIGN-4 AA-contrast danger/success/
+  accent tokens; DESIGN-6 auth submit buttons stay enabled (focus first invalid on submit);
+  DESIGN-7 risk-event JSON behind a keyboard-accessible expander; DESIGN-8 strategies-upload
+  validation moved to i18n with humanized sizes.
+  DESIGN-5 (migrate 485 hardcoded Tailwind palette colors → design tokens across 34 feature
+  files) is tracked as incremental follow-up per the plan's "screen-by-screen" guidance.
+
 ### Fixed — Review remediation, Phase 1 (P1 · High)
 - **P1-1 · MFA login brute-force** — the login second factor was per-IP-limited only.
   Added a per-user failure cap (locks the challenge, `MFA_LOCKED`) plus per-token (jti)
