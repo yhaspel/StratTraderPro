@@ -158,11 +158,13 @@ class WebhookView(View):
             if _rate_limited(user_id, "bad"):
                 WEBHOOK_RECEIVED_TOTAL.labels(result=R_RATE_LIMITED).inc()
                 return _err("RATE_LIMITED", "Too many requests.", 429)
+            # Audit-only row — no idempotency_key, so a bad-sig attempt (e.g.
+            # during a secret rotation) never blocks a later valid retry of the
+            # same key via the P2-5 unique anchor.
             AlertMessage.objects.create(
                 user=wc.user,
                 strategy=wc.strategy,
                 body_json=body_wo_sig,
-                idempotency_key=str(body_wo_sig.get("idempotency_key", ""))[:128],
                 status=AlertMessage.Status.REJECTED,
                 reject_reason="SIG_BAD",
             )
@@ -181,11 +183,12 @@ class WebhookView(View):
             if wc.json_schema:
                 jsonschema.validate(body_wo_sig, wc.json_schema)
         except jsonschema.ValidationError as exc:
+            # Audit-only row — no idempotency_key (a fixed-payload retry of the
+            # same key must be processable, not treated as a duplicate).
             AlertMessage.objects.create(
                 user=wc.user,
                 strategy=wc.strategy,
                 body_json=body_wo_sig,
-                idempotency_key=str(body_wo_sig.get("idempotency_key", ""))[:128],
                 status=AlertMessage.Status.INVALID,
                 reject_reason="SCHEMA_INVALID",
             )
@@ -194,40 +197,56 @@ class WebhookView(View):
 
         idem = str(body_wo_sig.get("idempotency_key", ""))[:128]
 
-        # 9. idempotency (SETNX, 24h)
+        # 9. idempotency fast-path (SETNX): a cache hit short-circuits an obvious
+        # duplicate without a DB write, but is NOT the source of truth — the
+        # committed row's unique constraint is (P2-5), so a crash between here and
+        # commit can never make a never-processed alert look processed.
+        ttl = getattr(settings, "WEBHOOK_IDEMPOTENCY_TTL_SECONDS", 86400)
+        idem_key = None
         if idem:
-            ttl = getattr(settings, "WEBHOOK_IDEMPOTENCY_TTL_SECONDS", 86400)
             digest = hashlib.sha256(idem.encode("utf-8")).hexdigest()
-            key = f"idem:{user_id}:{digest}"
-            if not cache.add(key, "1", timeout=ttl):
+            idem_key = f"idem:{user_id}:{digest}"
+            if cache.get(idem_key) and AlertMessage.objects.filter(
+                user_id=wc.user_id, idempotency_key=idem
+            ).exists():
                 WEBHOOK_RECEIVED_TOTAL.labels(result=R_DUPLICATE).inc()
                 return _json({"data": {"duplicate": True}}, 200)
 
-        # 10. halt gate (kill-switch engine — platform / user / strategy)
+        # 10-11. Create the durable idempotency anchor, then decide halt vs accept.
+        # A concurrent/retried duplicate loses the unique-constraint race → 200
+        # duplicate. The row is committed (ATOMIC_REQUESTS is off) BEFORE dispatch,
+        # so a crash before .delay() leaves a RECEIVED row the redispatch_stranded_
+        # alerts beat task recovers — never a "duplicate" for un-processed work.
+        from django.db import IntegrityError, transaction
+
+        try:
+            with transaction.atomic():
+                alert = AlertMessage.objects.create(
+                    user=wc.user,
+                    strategy=wc.strategy,
+                    body_json=body_wo_sig,
+                    idempotency_key=idem,
+                    status=AlertMessage.Status.RECEIVED,
+                )
+        except IntegrityError:
+            WEBHOOK_RECEIVED_TOTAL.labels(result=R_DUPLICATE).inc()
+            return _json({"data": {"duplicate": True}}, 200)
+
         reason = is_blocked(wc.user_id, wc.strategy_id)
         if reason:
-            AlertMessage.objects.create(
-                user=wc.user,
-                strategy=wc.strategy,
-                body_json=body_wo_sig,
-                idempotency_key=idem,
-                status=AlertMessage.Status.REJECTED,
-                reject_reason=reason,
-            )
+            alert.status = AlertMessage.Status.REJECTED
+            alert.reject_reason = reason
+            alert.save(update_fields=["status", "reject_reason"])
+            if idem_key:
+                cache.set(idem_key, "1", timeout=ttl)
             WEBHOOK_RECEIVED_TOTAL.labels(result=R_HALTED).inc()
             return _json({"data": {"rejected": reason}}, 200)
 
-        # 11. accept — persist + dispatch
-        alert = AlertMessage.objects.create(
-            user=wc.user,
-            strategy=wc.strategy,
-            body_json=body_wo_sig,
-            idempotency_key=idem,
-            status=AlertMessage.Status.RECEIVED,
-        )
         from .tasks import process_alert
 
         process_alert.delay(str(alert.id))
+        if idem_key:
+            cache.set(idem_key, "1", timeout=ttl)  # fast-path for next time — set AFTER the row commits
         WEBHOOK_RECEIVED_TOTAL.labels(result=R_ACCEPTED).inc()
         WEBHOOK_LATENCY.observe(time.monotonic() - started)
         return _json({"data": {"accepted": True, "alert_id": str(alert.id)}}, 200)

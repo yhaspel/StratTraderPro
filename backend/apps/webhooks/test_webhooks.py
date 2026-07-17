@@ -224,6 +224,52 @@ class WebhookIdempotencyTests(_Base):
         self.assertTrue(r2.json()["data"].get("duplicate"))
         self.assertEqual(Order.objects.count(), 1)
 
+    def test_duplicate_detected_by_db_anchor_when_cache_cold(self):
+        # P2-5: the committed row (not the cache) is the source of truth. Even
+        # with the cache flushed, a retried key is caught by the unique anchor.
+        from django.core.cache import cache
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            self.post(valid_alert(idempotency_key="dup-2"))
+            cache.clear()  # cold cache — no SETNX fast-path
+            r2 = self.post(valid_alert(idempotency_key="dup-2"))
+        self.assertTrue(r2.json()["data"].get("duplicate"))
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_crash_before_dispatch_is_reprocessed(self):
+        # P2-5: the row commits before dispatch; if dispatch is lost the alert
+        # stays RECEIVED and the redispatch beat task recovers it.
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.webhooks.tasks import redispatch_stranded_alerts
+
+        create_broker_account(self.user)
+        with mock.patch("apps.webhooks.tasks.process_alert.delay") as delay:
+            resp = self.post(valid_alert(idempotency_key="crash-1"))
+        self.assertEqual(resp.status_code, 200)
+        delay.assert_called_once()
+        alert = AlertMessage.objects.get(status=AlertMessage.Status.RECEIVED)
+        AlertMessage.objects.filter(id=alert.id).update(
+            received_at=timezone.now() - timedelta(seconds=300)
+        )
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            result = redispatch_stranded_alerts(older_than_seconds=120)
+        self.assertEqual(result["redispatched"], 1)
+        alert.refresh_from_db()
+        self.assertEqual(alert.status, AlertMessage.Status.ACCEPTED)
+
+    def test_recent_received_alert_not_requeued(self):
+        from apps.webhooks.tasks import redispatch_stranded_alerts
+
+        AlertMessage.objects.create(
+            user=self.user, strategy=self.strategy, body_json={},
+            status=AlertMessage.Status.RECEIVED,
+        )
+        self.assertEqual(redispatch_stranded_alerts(older_than_seconds=120)["redispatched"], 0)
+
 
 class WebhookHaltTests(_Base):
     def test_user_halt_rejects(self):

@@ -696,6 +696,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.admin_portal.tasks.update_queue_depths",
         "schedule": env.float("QUEUE_DEPTH_INTERVAL_SECONDS", default=30.0),
     },
+    # P2-5 — re-dispatch webhook alerts stranded RECEIVED (a crash between the
+    # committed idempotency anchor and process_alert.delay). Default queue.
+    "webhooks-redispatch-stranded": {
+        "task": "apps.webhooks.tasks.redispatch_stranded_alerts",
+        "schedule": env.float("WEBHOOK_REDISPATCH_INTERVAL_SECONDS", default=60.0),
+    },
 }
 
 # ---------------------------------------------------------------------------

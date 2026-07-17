@@ -47,6 +47,29 @@ def _needs_reconcile(order, alert, reason: str):
     return {"order_id": str(order.id), "needs_reconcile": reason}
 
 
+@shared_task(bind=True, ignore_result=True)
+def redispatch_stranded_alerts(self, older_than_seconds: int = 120):
+    """P2-5 — re-dispatch alerts stranded in RECEIVED (a crash between the
+    committed idempotency-anchor row and ``process_alert.delay``). ``process_alert``
+    is idempotent (status guard + order client_order_id dedup), so re-dispatch is
+    safe."""
+    from datetime import timedelta
+
+    from .models import AlertMessage
+
+    cutoff = timezone.now() - timedelta(seconds=older_than_seconds)
+    stranded = list(
+        AlertMessage.objects.filter(
+            status=AlertMessage.Status.RECEIVED, received_at__lt=cutoff
+        ).values_list("id", flat=True)
+    )
+    for alert_id in stranded:
+        process_alert.delay(str(alert_id))
+    if stranded:
+        logger.info("webhook.redispatch_stranded", extra={"count": len(stranded)})
+    return {"redispatched": len(stranded)}
+
+
 @shared_task(bind=True, max_retries=0)
 def process_alert(self, alert_id):
     """Hydrate an alert, size (verbatim qty in M04), place via the user's
