@@ -46,6 +46,15 @@ def _enabled() -> bool:
     return getattr(settings, "KILL_SWITCHES_ENABLED", True)
 
 
+def _default_threshold_profile():
+    """Conservative daily-loss thresholds for a connected account that has no
+    explicit RiskProfile (P0-1). An unsaved instance — only its threshold fields
+    are read by ``check_daily_loss``."""
+    from .models import RiskProfile
+
+    return RiskProfile(daily_loss_usd=Decimal("1000"), daily_loss_pct=Decimal("5"))
+
+
 def trading_day(dt=None):
     dt = dt or timezone.now()
     return dt.astimezone(_NY_TZ).date()
@@ -248,7 +257,9 @@ def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
 
     profile = RiskProfile.objects.filter(user=user).first()
     if profile is None:
-        return False
+        # P0-1: an account with no explicit profile still gets daily-loss
+        # protection using a conservative default threshold — never "skip".
+        profile = _default_threshold_profile()
     # Already tripped today — don't re-emit the breach event/metric on every poll.
     if TradingHalt.objects.filter(
         user=user, level=TradingHalt.Level.L2, auto=True, released_at__isnull=True

@@ -620,6 +620,7 @@
       "REGIME_SIDE_MISMATCH": "Order side conflicts with the current regime",
       "SIZING_ZERO": "Computed size rounded to zero",
       "SIZING_ERROR": "Sizing failed — order rejected for safety",
+      "NO_RISK_PROFILE": "Set up your risk profile before live trading — order rejected for safety",
       "DAILY_LOSS_BREACH": "Daily loss limit reached",
       "KILL_SWITCH_ACTIVE": "A kill switch is active",
       "LIMIT_POSITION_PCT": "Position-size limit exceeded"

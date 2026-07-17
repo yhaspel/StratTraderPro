@@ -197,6 +197,20 @@ class DailyLossTests(TestCase):
         )
         self.assertTrue(RiskEvent.objects.filter(type="DAILY_LOSS_BREACH").exists())
 
+    def test_check_daily_loss_uses_default_threshold_without_profile(self):
+        # P0-1: a connected account with no explicit RiskProfile still gets
+        # daily-loss protection via the conservative default threshold ($1000).
+        user = create_user(email="np@example.com")
+        create_broker_account(user)  # connected; NO RiskProfile
+        self.assertFalse(RiskProfile.objects.filter(user=user).exists())
+        with self._adapter(equity=Decimal("98500"), last_equity=Decimal("100000")):
+            self.assertFalse(killswitch.check_daily_loss(user))  # −1500 < −1000, poll 1
+            tripped = killswitch.check_daily_loss(user)  # poll 2 → trip
+        self.assertTrue(tripped)
+        self.assertTrue(
+            TradingHalt.objects.filter(user=user, level=TradingHalt.Level.L2).exists()
+        )
+
     def test_held_overnight_loss_flat_on_day_does_not_trip(self):
         # A swing position sitting at a loss but flat on the DAY (equity ==
         # last_equity) must NOT trip — the whole point of FIX-B1.
@@ -296,6 +310,31 @@ class DailyLossWatcherTests(TestCase):
             result = daily_loss_watcher()
         self.assertEqual(result.get("skipped"), "market_closed")
 
+    def test_daily_loss_watcher_covers_accounts_without_explicit_profile(self):
+        # P0-1: the watcher sweeps every connected LIVE account, even one whose
+        # user has no RiskProfile — the L2 breaker must arm on live money.
+        from unittest import mock
+
+        from apps.brokers.models import BrokerAccount
+        from apps.risk.tasks import daily_loss_watcher
+
+        user = create_user(email="livenp@example.com")
+        BrokerAccount.objects.create(
+            user=user, broker=BrokerAccount.Broker.ALPACA, mode=BrokerAccount.Mode.LIVE,
+            api_key_id_enc=b"x", api_secret_enc=b"x", account_number="LIVE9",
+            status=BrokerAccount.Status.CONNECTED,
+        )
+        self.assertFalse(RiskProfile.objects.filter(user=user).exists())
+        with mock.patch("apps.risk.killswitch.market_is_open", return_value=True), mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=fake_factory(equity=Decimal("98000"), last_equity=Decimal("100000")),
+        ):
+            daily_loss_watcher()  # poll 1 (releases its single-flight lock on exit)
+            daily_loss_watcher()  # poll 2 → trip
+        self.assertTrue(
+            TradingHalt.objects.filter(user=user, level=TradingHalt.Level.L2).exists()
+        )
+
 
 class ProcessAlertSizingTests(TestCase):
     def setUp(self):
@@ -358,6 +397,44 @@ class ProcessAlertSizingTests(TestCase):
         order = Order.objects.get()
         self.assertEqual(order.status, Order.Status.REJECTED)
         self.assertEqual(order.reason, "SIZING_ASSET_CLASS_BLOCKED")
+
+    def test_no_risk_profile_rejects_in_live_mode(self):
+        # P0-1: a LIVE account with no RiskProfile fails closed (NO_RISK_PROFILE);
+        # nothing reaches the adapter — the raw alert qty must not go out unsized.
+        from unittest import mock
+
+        from apps.brokers.fake import FakeBrokerAdapter
+        from apps.brokers.models import BrokerAccount
+
+        BrokerAccount.objects.filter(user=self.user).delete()
+        BrokerAccount.objects.create(
+            user=self.user, broker=BrokerAccount.Broker.ALPACA, mode=BrokerAccount.Mode.LIVE,
+            api_key_id_enc=b"x", api_secret_enc=b"x", account_number="LIVE001",
+            is_default=True, status=BrokerAccount.Status.CONNECTED,
+        )
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()), \
+                mock.patch.object(FakeBrokerAdapter, "place_order") as place:
+            self._post(valid_alert(symbol="AAPL", qty=1000, idempotency_key="nrp-1"))
+        place.assert_not_called()
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "NO_RISK_PROFILE")
+        self.assertTrue(
+            SizingDecision.objects.filter(order=order, reject_reason="NO_RISK_PROFILE").exists()
+        )
+
+    def test_paper_no_profile_places_verbatim_qty(self):
+        # Regression: paper + no profile keeps M04 verbatim-qty behavior (sizing off).
+        from unittest import mock
+
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(symbol="AAPL", qty=7, idempotency_key="pnp-1"))
+        order = Order.objects.get()
+        self.assertEqual(order.qty, Decimal("7"))
+        self.assertNotEqual(order.status, Order.Status.REJECTED)
+        self.assertFalse(SizingDecision.objects.exists())
 
     def test_max_concurrent_rejects_new_symbol(self):
         # RISK-2: at max_concurrent open positions, a new symbol is rejected.

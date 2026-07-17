@@ -270,6 +270,45 @@ class BrokerConnectViewTests(TestCase):
         acct = BrokerAccount.objects.get()
         self.assertNotEqual(bytes(acct.api_secret_enc), b"sekret")  # encrypted at rest
 
+    def test_broker_connect_provisions_default_risk_profile(self):
+        # P0-1: connecting an account arms the sizing/daily-loss layer with a
+        # conservative default profile (safe-by-default, not fail-open).
+        from apps.risk.models import RiskProfile
+
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+        stub = mock.Mock()
+        stub.connect.return_value = ConnectionInfo(account_number="PA9", buying_power=Decimal("100000"))
+        with mock.patch("apps.brokers.views.build_adapter_from_keys", return_value=stub):
+            resp = self.client.post(
+                API,
+                data={"api_key_id": "PKabc", "api_secret": "sekret", "broker": "ALPACA", "mode": "PAPER"},
+                content_type="application/json",
+                **auth_headers(self.user),
+            )
+        self.assertEqual(resp.status_code, 201)
+        profile = RiskProfile.objects.get(user=self.user)
+        self.assertEqual(profile.leverage_cap, Decimal("1"))
+        self.assertTrue(profile.strict_mode)
+        self.assertEqual(profile.permitted_asset_classes, ["STOCK", "ETF"])
+
+    def test_broker_connect_does_not_overwrite_existing_profile(self):
+        # Idempotent: a user who already tuned their profile keeps it.
+        from apps.risk.models import RiskProfile
+
+        RiskProfile.objects.create(user=self.user, leverage_cap=Decimal("3"), max_concurrent=99)
+        stub = mock.Mock()
+        stub.connect.return_value = ConnectionInfo(account_number="PA9", buying_power=Decimal("100000"))
+        with mock.patch("apps.brokers.views.build_adapter_from_keys", return_value=stub):
+            self.client.post(
+                API,
+                data={"api_key_id": "PKabc", "api_secret": "sekret", "broker": "ALPACA", "mode": "PAPER"},
+                content_type="application/json",
+                **auth_headers(self.user),
+            )
+        profile = RiskProfile.objects.get(user=self.user)
+        self.assertEqual(profile.leverage_cap, Decimal("3"))
+        self.assertEqual(profile.max_concurrent, 99)
+
     def test_connect_non_ascii_key_rejected_400(self):
         # FIX-L5: a Unicode key must be a 400 validation error, not a 500
         # (encrypt_key(raw.encode("ascii")) would raise UnicodeEncodeError).

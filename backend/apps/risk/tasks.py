@@ -37,13 +37,26 @@ def daily_loss_watcher(self):
         if not market_is_open():
             return {"skipped": "market_closed", "released": released}
 
+        # P0-1: cover every user with a RiskProfile AND every user holding a
+        # connected LIVE account (even with no explicit profile — a default
+        # threshold is used), so the L2 breaker arms on live money by default.
+        from django.contrib.auth import get_user_model
+
+        from apps.brokers.models import BrokerAccount
+
+        user_ids = set(RiskProfile.objects.values_list("user_id", flat=True))
+        user_ids |= set(
+            BrokerAccount.objects.filter(
+                status=BrokerAccount.Status.CONNECTED, mode=BrokerAccount.Mode.LIVE
+            ).values_list("user_id", flat=True)
+        )
         tripped = 0
-        for profile in RiskProfile.objects.select_related("user").all():
+        for user in get_user_model().objects.filter(id__in=user_ids):
             try:
-                if check_daily_loss(profile.user):
+                if check_daily_loss(user):
                     tripped += 1
             except Exception:  # pragma: no cover — one user must not stop the sweep
-                logger.warning("daily_loss.check_error", extra={"user": profile.user_id})
+                logger.warning("daily_loss.check_error", extra={"user": user.id})
         return {"tripped": tripped, "released": released}
     finally:
         cache.delete(lock_key)

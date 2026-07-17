@@ -125,6 +125,12 @@ class BrokerListCreateView(APIView):
             status=BrokerAccount.Status.CONNECTED,
             last_connected_at=timezone.now(),
         )
+        # P0-1: arm the sizing + daily-loss layer by default. A connected account
+        # with no RiskProfile would otherwise trade unsized (paper) or be rejected
+        # (live); a conservative default makes the common case safe-by-default.
+        from apps.risk.provisioning import ensure_default_risk_profile
+
+        ensure_default_risk_profile(request.user)
         BROKER_CONNECT_TOTAL.labels(broker=data["broker"].lower(), result="ok").inc()
         emit(
             AuditEventType.BROKER_CONNECT, user=request.user, actor=request.user, request=request,

@@ -2,8 +2,9 @@
 
 Gathers the three trusted server-side inputs (regime, sentiment, account equity)
 — alerts cannot override sizing params (§11) — computes the size, and persists a
-``SizingDecision`` for every path. Returns ``None`` when the user has no
-RiskProfile (→ caller uses the raw alert qty, preserving M04 behavior).
+``SizingDecision`` for every path. Returns ``None`` only when sizing is off or the
+user has no RiskProfile on a *paper* account (→ caller uses the raw alert qty, M04
+behavior). A live account with no profile fails closed (``NO_RISK_PROFILE``, P0-1).
 """
 from __future__ import annotations
 
@@ -87,11 +88,8 @@ def _atr14(symbol: str) -> Decimal | None:
 
 
 def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol, price_hint=None):
-    """Returns a SizingResult, or None if sizing is off / no profile."""
+    """Returns a SizingResult, or None if sizing is off / no profile (paper)."""
     if not is_enabled("SIZING_V1_ENABLED"):
-        return None
-    profile = RiskProfile.objects.filter(user=alert.user).first()
-    if profile is None:
         return None
 
     req_qty = _dec(requested_qty)
@@ -116,6 +114,19 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
             details={"reason": reason, "symbol": symbol},
         )
         return SizingResult.reject(reason, inputs)
+
+    profile = RiskProfile.objects.filter(user=alert.user).first()
+    if profile is None:
+        # P0-1: fail closed on a live-money account. With no RiskProfile there is
+        # no sizing, no position/leverage clamp, no asset-class filter, and the L2
+        # daily-loss breaker never arms — so a LIVE order must not go out unsized.
+        # Paper keeps the M04 verbatim-qty behavior; auto-provision on broker
+        # connect makes the common case safe-by-default rather than reject.
+        from apps.brokers.models import BrokerAccount
+
+        if getattr(account, "mode", None) == BrokerAccount.Mode.LIVE:
+            return _persist_reject("NO_RISK_PROFILE")
+        return None
 
     # RISK-2: reject asset classes the profile does not permit (order.asset_class
     # is the trusted server-side classification). Enforced before the broker read
