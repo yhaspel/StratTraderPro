@@ -273,7 +273,12 @@ const KNOWN_ERRORS = new Set([
                   {{ ('risk.event.' + e.type) | translate }}
                 </span>
                 <span class="text-xs text-gray-500 shrink-0">{{ e.created_at | date:'short' }}</span>
-                <code class="text-xs text-gray-500 truncate">{{ e.details | json }}</code>
+                <!-- P2-DESIGN-7: raw JSON behind a keyboard-accessible expander,
+                     not an always-on truncated dump. -->
+                <details class="text-xs text-gray-500 min-w-0">
+                  <summary class="cursor-pointer">{{ 'risk.events.details' | translate }}</summary>
+                  <pre class="mt-1 overflow-x-auto whitespace-pre-wrap">{{ e.details | json }}</pre>
+                </details>
               </li>
             }
           </ul>

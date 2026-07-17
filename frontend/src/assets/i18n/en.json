@@ -264,6 +264,12 @@
       "back": "Back",
       "submit": "Upload strategy",
       "submitting": "Uploading…",
+      "warn": {
+        "pine_ext": "File must end in .pine",
+        "stem": "Name must be 3–64 characters (letters, numbers, _ or -)",
+        "filename": "Filename must be {{name}}",
+        "too_large": "File exceeds {{size}}"
+      },
       "pine": {
         "label": "Pine script (.pine)",
         "hint": "Must start with //@version= within the first 64 bytes. Max 64 KB."
@@ -571,7 +577,8 @@
     "save": "Save",
     "defaults": "Reset to defaults",
     "halt_my_trading": "Halt my trading",
-    "halt_confirm": "This immediately stops new orders and flattens your open positions. Enter your authenticator code to confirm.",
+    "halt_confirm": "This immediately stops new orders. Enter your authenticator code to confirm.",
+    "halt_flatten_choice": "Also flatten (close) all open positions at market. This cannot be undone.",
     "halt_banner": "Trading is halted — a kill switch is active. New orders are blocked.",
     "mfa_prompt": "Authenticator code",
     "profile": {
@@ -649,7 +656,8 @@
     },
     "events": {
       "title": "Risk events",
-      "empty": "No risk events yet."
+      "empty": "No risk events yet.",
+      "details": "Details"
     },
     "sizing": {
       "title": "Sizing decisions",

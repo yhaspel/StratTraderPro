@@ -22,6 +22,7 @@ import { SentimentFacade } from '../../abstraction/facades/sentiment.facade';
 import { RegimeBadgeComponent } from './regime-badge.component';
 import { SentimentPanelComponent } from './sentiment-panel.component';
 import { OnboardingChecklistComponent } from '../shared/onboarding/onboarding-checklist.component';
+import { ModalComponent } from '../shared/ui/modal.component';
 
 /** Risk error codes with a dedicated translated message. */
 const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', 'UNKNOWN']);
@@ -30,7 +31,7 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
   selector: 'app-dashboard',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent, OnboardingChecklistComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent, OnboardingChecklistComponent, ModalComponent],
   template: `
     <!-- ========== Halt banner (any active kill switch) ========== -->
     @if (risk.haltActive()) {
@@ -193,43 +194,47 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
       }
     </div>
 
-    <!-- ========== Halt-my-trading confirm + MFA prompt ========== -->
-    @if (haltOpen()) {
-      <div class="fixed inset-0 bg-black/40 z-40" (click)="cancelHalt()"></div>
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
-          <h2 class="text-lg font-bold text-red-700">{{ 'risk.halt_my_trading' | translate }}</h2>
-          <p class="text-sm text-gray-600">{{ 'risk.halt_confirm' | translate }}</p>
-          <form [formGroup]="mfaForm" (ngSubmit)="confirmHalt()" class="space-y-3">
-            <div>
-              <label class="block text-sm font-medium mb-1">{{ 'risk.mfa_prompt' | translate }}</label>
-              <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
-                     autocomplete="one-time-code"
-                     class="w-full border rounded px-3 py-2 font-mono text-sm" />
-            </div>
-            @if (haltError(); as err) {
-              <p class="text-sm text-red-700">
-                @if (knownRiskError(err.code)) {
-                  {{ ('risk.error.' + err.code) | translate }}
-                } @else {
-                  {{ err.message }}
-                }
-              </p>
-            }
-            <div class="flex gap-3 justify-end">
-              <button type="button" (click)="cancelHalt()"
-                      class="px-4 py-2 rounded border text-sm hover:bg-gray-50">
-                {{ 'common.cancel' | translate }}
-              </button>
-              <button type="submit" [disabled]="mfaForm.invalid"
-                      class="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
-                {{ 'risk.halt_my_trading' | translate }}
-              </button>
-            </div>
-          </form>
+    <!-- Halt-my-trading — shared focus-trapping modal with an EXPLICIT flatten
+         choice + consequence copy (P2-DESIGN-1: was a hand-rolled div with no
+         role=dialog that silently hardcoded flatten:true). -->
+    <app-modal
+      [open]="haltOpen()"
+      [heading]="'risk.halt_my_trading' | translate"
+      (closed)="cancelHalt()">
+      <form [formGroup]="mfaForm" (ngSubmit)="confirmHalt()" class="space-y-3">
+        <p class="text-sm text-gray-600">{{ 'risk.halt_confirm' | translate }}</p>
+        <label class="flex items-start gap-2 text-sm text-gray-700">
+          <input type="checkbox" [checked]="flattenChoice()"
+                 (change)="flattenChoice.set($any($event.target).checked)" class="mt-1" />
+          <span>{{ 'risk.halt_flatten_choice' | translate }}</span>
+        </label>
+        <div>
+          <label class="block text-sm font-medium mb-1" for="halt-mfa">{{ 'risk.mfa_prompt' | translate }}</label>
+          <input id="halt-mfa" type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
+                 autocomplete="one-time-code"
+                 class="w-full border rounded px-3 py-2 font-mono text-sm" />
         </div>
-      </div>
-    }
+        @if (haltError(); as err) {
+          <p class="text-sm text-red-700" role="alert">
+            @if (knownRiskError(err.code)) {
+              {{ ('risk.error.' + err.code) | translate }}
+            } @else {
+              {{ err.message }}
+            }
+          </p>
+        }
+        <div class="flex gap-3 justify-end">
+          <button type="button" (click)="cancelHalt()"
+                  class="px-4 py-2 rounded border text-sm hover:bg-gray-50">
+            {{ 'common.cancel' | translate }}
+          </button>
+          <button type="submit" [disabled]="mfaForm.invalid"
+                  class="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
+            {{ 'risk.halt_my_trading' | translate }}
+          </button>
+        </div>
+      </form>
+    </app-modal>
   `,
 })
 export class DashboardComponent implements OnInit, OnDestroy {
@@ -299,9 +304,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(n);
   }
 
+  /** P2-DESIGN-1 — explicit flatten choice (default on: halting usually means
+   * "close my book"), no longer hardcoded + hidden. */
+  flattenChoice = signal(true);
+
   openHalt(): void {
     this.haltError.set(null);
     this.mfaForm.reset();
+    this.flattenChoice.set(true);
     this.haltOpen.set(true);
   }
 
@@ -314,7 +324,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.mfaForm.invalid) { return; }
     this.haltError.set(null);
     const { mfa_code } = this.mfaForm.getRawValue();
-    const res = await this.risk.triggerHalt('USER', { flatten: true, mfa_code });
+    const res = await this.risk.triggerHalt('USER', { flatten: this.flattenChoice(), mfa_code });
     if (res.ok) {
       this.haltOpen.set(false);
       this.mfaForm.reset();

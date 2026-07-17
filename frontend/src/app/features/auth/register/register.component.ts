@@ -39,9 +39,10 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
           <label for="email" class="block text-sm font-medium mb-1">{{ 'auth.register.email' | translate }}</label>
           <input id="email" type="email" formControlName="email" autocomplete="email"
                  [attr.aria-invalid]="isInvalid('email')"
+                 [attr.aria-describedby]="isInvalid('email') ? 'email-error' : null"
                  class="w-full border rounded px-3 py-2" />
           @if (isInvalid('email')) {
-            <p class="text-xs text-red-600 mt-1" role="alert">
+            <p id="email-error" class="text-xs text-red-600 mt-1" role="alert">
               @if (form.controls.email.errors?.['required']) {
                 {{ 'auth.register.errors.email_required' | translate }}
               } @else {
@@ -55,9 +56,10 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
           <label for="displayName" class="block text-sm font-medium mb-1">{{ 'auth.register.display_name' | translate }}</label>
           <input id="displayName" type="text" formControlName="displayName" autocomplete="name"
                  [attr.aria-invalid]="isInvalid('displayName')"
+                 [attr.aria-describedby]="isInvalid('displayName') ? 'displayName-error' : null"
                  class="w-full border rounded px-3 py-2" />
           @if (isInvalid('displayName')) {
-            <p class="text-xs text-red-600 mt-1" role="alert">
+            <p id="displayName-error" class="text-xs text-red-600 mt-1" role="alert">
               {{ 'auth.register.errors.display_name_required' | translate }}
             </p>
           }
@@ -67,9 +69,10 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
           <label for="password" class="block text-sm font-medium mb-1">{{ 'auth.register.password' | translate }}</label>
           <input id="password" type="password" formControlName="password" autocomplete="new-password"
                  [attr.aria-invalid]="isInvalid('password')"
+                 [attr.aria-describedby]="isInvalid('password') ? 'password-error' : null"
                  class="w-full border rounded px-3 py-2" />
           @if (isInvalid('password')) {
-            <p class="text-xs text-red-600 mt-1" role="alert">
+            <p id="password-error" class="text-xs text-red-600 mt-1" role="alert">
               @if (form.controls.password.errors?.['required']) {
                 {{ 'auth.register.errors.password_required' | translate }}
               } @else if (form.controls.password.errors?.['minlength']) {

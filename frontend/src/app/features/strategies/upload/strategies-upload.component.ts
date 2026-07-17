@@ -12,7 +12,7 @@ import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { TranslateModule } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade';
 
 const STEM_REGEX = /^[A-Za-z0-9_\-]{3,64}$/;
@@ -165,6 +165,15 @@ const MAX_WEBHOOK = 16 * 1024;
 export class StrategiesUploadComponent {
   private facade = inject(StrategiesFacade);
   private router = inject(Router);
+  private translate = inject(TranslateService);
+
+  /** P2-DESIGN-8 — humanize byte counts instead of leaking raw "65536 bytes". */
+  private humanBytes(n: number): string {
+    return n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} bytes`;
+  }
+  private tooLarge(max: number): string {
+    return this.translate.instant('strategies.upload.warn.too_large', { size: this.humanBytes(max) });
+  }
 
   step = signal<1 | 2 | 3>(1);
   pineFile = signal<File | null>(null);
@@ -189,9 +198,9 @@ export class StrategiesUploadComponent {
   pineWarning = computed<string | null>(() => {
     const f = this.pineFile();
     if (!f) { return null; }
-    if (!f.name.endsWith('.pine')) { return 'Must end in .pine'; }
-    if (!STEM_REGEX.test(this.stem())) { return 'Stem must be 3–64 chars [A-Za-z0-9_-]'; }
-    if (f.size > MAX_PINE) { return `File exceeds ${MAX_PINE} bytes`; }
+    if (!f.name.endsWith('.pine')) { return this.translate.instant('strategies.upload.warn.pine_ext'); }
+    if (!STEM_REGEX.test(this.stem())) { return this.translate.instant('strategies.upload.warn.stem'); }
+    if (f.size > MAX_PINE) { return this.tooLarge(MAX_PINE); }
     return null;
   });
   pineSizeWarning = computed(() => (this.pineFile()?.size ?? 0) > MAX_PINE * 0.8);
@@ -200,8 +209,10 @@ export class StrategiesUploadComponent {
     const f = this.descFile();
     if (!f) { return null; }
     const expected = `${this.stem()}_Description.txt`;
-    if (this.stem() && f.name !== expected) { return `Filename must be ${expected}`; }
-    if (f.size > MAX_DESC) { return `File exceeds ${MAX_DESC} bytes`; }
+    if (this.stem() && f.name !== expected) {
+      return this.translate.instant('strategies.upload.warn.filename', { name: expected });
+    }
+    if (f.size > MAX_DESC) { return this.tooLarge(MAX_DESC); }
     return null;
   });
 
@@ -209,8 +220,10 @@ export class StrategiesUploadComponent {
     const f = this.webhookFile();
     if (!f) { return null; }
     const expected = `${this.stem()}_Webhook.json`;
-    if (this.stem() && f.name !== expected) { return `Filename must be ${expected}`; }
-    if (f.size > MAX_WEBHOOK) { return `File exceeds ${MAX_WEBHOOK} bytes`; }
+    if (this.stem() && f.name !== expected) {
+      return this.translate.instant('strategies.upload.warn.filename', { name: expected });
+    }
+    if (f.size > MAX_WEBHOOK) { return this.tooLarge(MAX_WEBHOOK); }
     return null;
   });
 
