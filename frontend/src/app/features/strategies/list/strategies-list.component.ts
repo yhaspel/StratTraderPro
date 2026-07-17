@@ -7,7 +7,7 @@
  * the same chunk as Monaco editor (see modal component for the dynamic
  * import).
  */
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -19,6 +19,7 @@ import { ModalComponent } from '../../shared/ui/modal.component';
 @Component({
   selector: 'app-strategies-list',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, RouterLink, TranslateModule, WebhookConfigModalComponent, ModalComponent],
   template: `
     <div class="mx-auto max-w-6xl p-6">

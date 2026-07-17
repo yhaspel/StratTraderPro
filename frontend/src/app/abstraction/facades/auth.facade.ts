@@ -8,6 +8,9 @@ import { ApiError, AuthTokenPair, LoginResult } from '../../core/models/auth.mod
 import { environment } from '../../../environments/environment';
 import { DashboardWsService } from '../../core/services/ws.service';
 
+/** P2-14 — bootstrap silent-refresh timeout; the app boots unauthenticated past this. */
+const INIT_REFRESH_TIMEOUT_MS = 8_000;
+
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private api = inject(AuthApi);
@@ -240,6 +243,9 @@ export class AuthFacade {
   }
 
   async logout(): Promise<void> {
+    // P2-11: tear the dashboard socket down (this is the path the refresh
+    // interceptor calls on auth failure) so it doesn't reconnect on a dead session.
+    this.ws.forceDisconnect();
     // P1-4: the refresh token rides the HttpOnly cookie; logout() sends no body
     // and the server revokes the family + clears the cookie.
     try { await firstValueFrom(this.api.logout()); } catch { /* best effort */ }
@@ -298,7 +304,12 @@ export class AuthFacade {
   async initSession(): Promise<void> {
     // P1-4: we can't read the HttpOnly cookie from JS, so always try a refresh;
     // it resolves to authed if a valid session cookie exists, else clears.
-    await this.refreshSession();
+    // P2-14: cap it so a slow/hung backend can't white-screen first paint — the
+    // app boots unauthenticated and recovers when the refresh eventually settles.
+    await Promise.race([
+      this.refreshSession(),
+      new Promise<void>((resolve) => setTimeout(resolve, INIT_REFRESH_TIMEOUT_MS)),
+    ]);
   }
 
   // --- Private ---

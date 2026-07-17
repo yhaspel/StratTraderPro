@@ -4,7 +4,7 @@
  * detail drawer (order + fills lifecycle), CSV export of the filtered set, and
  * a recent reconciliation-events panel.
  */
-import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
@@ -27,6 +27,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
 @Component({
   selector: 'app-orders',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe],
   template: `
     <div class="mx-auto max-w-6xl p-6 space-y-8">

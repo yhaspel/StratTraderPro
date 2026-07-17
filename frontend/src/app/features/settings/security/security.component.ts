@@ -5,7 +5,7 @@
  *   3. Sessions list with revoke
  *   4. Password change
  */
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -18,6 +18,7 @@ import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
 @Component({
   selector: 'app-security',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe],
   template: `
     <div class="mx-auto max-w-3xl p-6 space-y-8">

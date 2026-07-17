@@ -5,7 +5,7 @@
  * realtime updates over the DashboardWsService via DashboardFacade. Everything
  * unsubscribes on destroy.
  */
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -29,6 +29,7 @@ const KNOWN_RISK_ERRORS = new Set(['HALT_LOCKED', 'MFA_REQUIRED', 'FORBIDDEN', '
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, RegimeBadgeComponent, SentimentPanelComponent, OnboardingChecklistComponent],
   template: `
     <!-- ========== Halt banner (any active kill switch) ========== -->

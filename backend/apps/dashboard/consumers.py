@@ -44,7 +44,11 @@ class DashboardConsumer(AsyncJsonWebsocketConsumer):
         self.user = user
         self.group = group_name(user.id)
         await self.channel_layer.group_add(self.group, self.channel_name)
-        await self.accept()
+        # Echo the negotiated subprotocol when the token came via it (P2-10), else
+        # a browser that offered a subprotocol would drop the connection.
+        subprotocols = self.scope.get("subprotocols") or []
+        selected = "stp-jwt" if subprotocols[:1] == ["stp-jwt"] else None
+        await self.accept(subprotocol=selected)
         await self.send_json({"type": "connection.ack", "data": {"user_id": str(user.id)}})
 
     async def disconnect(self, code):
@@ -91,6 +95,12 @@ class DashboardConsumer(AsyncJsonWebsocketConsumer):
         return user, bool(user.mfa_enabled), False
 
     def _token_from_scope(self) -> str | None:
+        # P2-10: prefer the Sec-WebSocket-Protocol subprotocol (['stp-jwt', <token>])
+        # so the JWT never lands in a URL / proxy+daphne access log. Query string
+        # kept as a fallback for dev + backward compatibility.
+        subprotocols = self.scope.get("subprotocols") or []
+        if len(subprotocols) >= 2 and subprotocols[0] == "stp-jwt":
+            return subprotocols[1]
         query_string = self.scope.get("query_string", b"").decode("utf-8", "ignore")
         for part in query_string.split("&"):
             if part.startswith("token="):

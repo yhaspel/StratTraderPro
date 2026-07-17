@@ -6,7 +6,7 @@
  *      and an admin-only flatten button (backend 403s non-staff — that's fine).
  *   2. Connect Alpaca Paper — write-only API key + secret form.
  */
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -42,6 +42,7 @@ const KNOWN_ERRORS = new Set([
 @Component({
   selector: 'app-brokers',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RouterLink, ModalComponent],
   template: `
     <div class="mx-auto max-w-3xl p-6 space-y-8">
