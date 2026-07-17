@@ -6,6 +6,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Review remediation, Phase 1 (P1 · High)
+- **P1-1 · MFA login brute-force** — the login second factor was per-IP-limited only.
+  Added a per-user failure cap (locks the challenge, `MFA_LOCKED`) plus per-token (jti)
+  burn so a failed `mfa_token` can't be reused. (`apps/users/{views_m02,mfa}.py`.)
+- **P1-2 · Option/future sizing multiplier** — sizing ran with multiplier=1, so every
+  option/future risk ceiling was ~100× too loose. `apply_sizing` now sets the contract
+  multiplier (100 options; per-root futures map); `max_qty_by_pos` divides by
+  price×multiplier. (`apps/risk/{sizing,integration}.py`, `apps/webhooks/tasks.py`.)
+- **P1-3 · GDPR export download** — the emailed `/media/exports/…` URL 404'd (nothing
+  serves `/media/`). Now served through an authenticated, owner-checked, expiry-checked
+  `FileResponse` view. (`apps/users/{views_gdpr,tasks,urls}.py`.)
+- **P1-4 · Refresh token in localStorage** — moved to an `HttpOnly; Secure; SameSite=Strict`
+  cookie stripped from the JSON body; the SPA never sees it. SameSite=Strict is the CSRF
+  control (ADR-107). (`apps/users/cookies.py` + auth views; frontend auth store/facade/api/
+  interceptor/guards.)
+- **P1-5 · Ambiguous submit orphaned a live order** — a timeout/transient submit failure
+  now marks the order `NEEDS_RECONCILE` (new non-terminal status, migration 0005), not
+  `REJECTED`; reconcile resolves it by `client_order_id`. (`apps/orders/{models,services,
+  reconcile}.py`, `apps/webhooks/tasks.py`, `apps/brokers/{streams,alpaca/adapter}.py`.)
+- **P1-6 · Order filled_qty** — terminal state now trusts the broker's cumulative
+  `filled_qty` (local sum fallback), so a dropped intermediate fill still reaches FILLED.
+  (`apps/orders/services.py`.)
+- **P1-7 · Halts voided by engine flag** — `is_blocked` always enforces active
+  platform/user/daily-loss halts; `KILL_SWITCHES_ENABLED` gates only auto-tripping.
+  (`apps/risk/killswitch.py`.)
+- **P1-8 · hard_stop_pct never enforced** — at/above the hard-stop drawdown the order is
+  rejected (`HARD_STOP`) and the daily L2 halt trips. (`apps/risk/{sizing,integration}.py`.)
+- **P1-9 · Audit scrubber exact-match** — `scrub()` now redacts by substring (shared list
+  with the GDPR redactor); `StrategyDetailView.patch` audits only allowlisted fields.
+  (`apps/audit/scrub.py`, `apps/users/gdpr.py`, `apps/strategies/views.py`.)
+- **P1-10 · One-tap strategy enable** — enabling now routes through the shared modal with
+  consequence copy; disable stays one-click; toggle exposes `role="switch"`/`aria-checked`.
+  (`features/strategies/list/`.)
+
 ### Fixed — Review remediation, Phase 0 (P0 · money & trust safety)
 - **P0-1 · Risk/sizing fail-open with no RiskProfile** — a user without a `RiskProfile`
   (the default state) had the entire sizing + auto-circuit-breaker layer disabled: raw
