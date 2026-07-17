@@ -240,10 +240,9 @@ export class AuthFacade {
   }
 
   async logout(): Promise<void> {
-    const refresh = this.store.refreshToken();
-    if (refresh) {
-      try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
-    }
+    // P1-4: the refresh token rides the HttpOnly cookie; logout() sends no body
+    // and the server revokes the family + clears the cookie.
+    try { await firstValueFrom(this.api.logout()); } catch { /* best effort */ }
     this.store.clearAuth();
     await this.router.navigate(['/login']);
   }
@@ -253,19 +252,16 @@ export class AuthFacade {
    * (best-effort), clears auth state, and lands on the public landing ("/"). */
   async signOut(): Promise<void> {
     this.ws.forceDisconnect();
-    const refresh = this.store.refreshToken();
-    if (refresh) {
-      try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
-    }
+    try { await firstValueFrom(this.api.logout()); } catch { /* best effort */ }
     this.store.clearAuth();
     await this.router.navigate(['/']);
   }
 
   async refreshSession(): Promise<boolean> {
-    const refresh = this.store.refreshToken();
-    if (!refresh) return false;
+    // P1-4: the refresh token is an HttpOnly cookie the SPA can't read, so we
+    // always attempt a rotation; the server 401s (and we clear) if there's none.
     try {
-      const res = await firstValueFrom(this.api.refresh(refresh));
+      const res = await firstValueFrom(this.api.refresh());
       if (res.error) { this.store.clearAuth(); return false; }
       this.applyTokenPair(res.data!);
       return true;
@@ -300,15 +296,15 @@ export class AuthFacade {
 
   /** Attempt silent refresh on app bootstrap. */
   async initSession(): Promise<void> {
-    if (this.store.refreshToken()) {
-      await this.refreshSession();
-    }
+    // P1-4: we can't read the HttpOnly cookie from JS, so always try a refresh;
+    // it resolves to authed if a valid session cookie exists, else clears.
+    await this.refreshSession();
   }
 
   // --- Private ---
 
   private applyTokenPair(pair: AuthTokenPair): void {
-    this.store.setAuthed(pair.user, pair.access, pair.refresh);
+    this.store.setAuthed(pair.user, pair.access);
   }
 
   private handleError(e: unknown): void {

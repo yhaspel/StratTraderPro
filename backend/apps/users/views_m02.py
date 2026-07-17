@@ -29,6 +29,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken
 from apps.audit.events import AuthEventType as EventType
 
 from . import services
+from .cookies import token_pair_response
 from .metrics_m02 import (
     MFA_BACKUP_USED_TOTAL,
     MFA_CHALLENGE_FAILURES_TOTAL,
@@ -282,7 +283,7 @@ class MFAVerifyView(APIView):
             user=user, request=request,
             metadata={"kind": "backup" if is_backup else "totp"},
         )
-        return ok(services.issue_token_pair(user, request=request))
+        return token_pair_response(services.issue_token_pair(user, request=request))
 
 
 # django-ratelimit wraps the view BEFORE DRF, so the key fn receives a raw

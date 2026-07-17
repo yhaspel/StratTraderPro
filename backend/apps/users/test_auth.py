@@ -117,7 +117,9 @@ class VerifyEmailTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        # P1-4: refresh is delivered as an HttpOnly cookie, never in the body.
+        self.assertNotIn("refresh", data)
+        self.assertIn("stp_refresh", resp.cookies)
         user.refresh_from_db()
         self.assertTrue(user.is_verified)
 
@@ -160,9 +162,12 @@ class LoginTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        self.assertNotIn("refresh", data)  # P1-4 — cookie, not body
         self.assertIn("user", data)
         self.assertFalse(data["mfa_required"])
+        cookie = resp.cookies["stp_refresh"]
+        self.assertTrue(cookie["httponly"])
+        self.assertEqual(cookie["samesite"], "Strict")
 
     def test_login_unverified_returns_email_not_verified(self):
         _create_user(verified=False)
@@ -221,8 +226,29 @@ class RefreshTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         new_data = resp.json()["data"]
-        self.assertNotEqual(new_data["refresh"], pair["refresh"])
+        # P1-4: the rotated refresh comes back as a cookie, not in the body.
+        self.assertNotIn("refresh", new_data)
+        self.assertNotEqual(resp.cookies["stp_refresh"].value, pair["refresh"])
         self.assertIn("access", new_data)
+
+    def test_refresh_via_cookie_only_rotates(self):
+        # P1-4: a browser never sends a body — the HttpOnly cookie carries it.
+        _create_user()
+        login = self.client.post(
+            f"{API}auth/login/",
+            {"email": "test@example.com", "password": GOOD_PW},
+            content_type="application/json",
+        )
+        first = login.cookies["stp_refresh"].value
+        # No body: the persisted cookie is used by the test client automatically.
+        resp = self.client.post(f"{API}auth/refresh/", content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotEqual(resp.cookies["stp_refresh"].value, first)
+
+    def test_refresh_missing_token_401(self):
+        resp = self.client.post(f"{API}auth/refresh/", content_type="application/json")
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "TOKEN_INVALID")
 
     def test_refresh_reuse_revokes_family(self):
         user = _create_user()
@@ -263,6 +289,19 @@ class LogoutTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         family = RefreshTokenFamily.objects.first()
         self.assertTrue(family.is_revoked)
+
+    def test_logout_clears_refresh_cookie(self):
+        _create_user()
+        self.client.post(
+            f"{API}auth/login/",
+            {"email": "test@example.com", "password": GOOD_PW},
+            content_type="application/json",
+        )
+        resp = self.client.post(f"{API}auth/logout/", content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        # delete_cookie expires the cookie (max-age 0 / empty value).
+        self.assertEqual(resp.cookies["stp_refresh"].value, "")
+        self.assertTrue(RefreshTokenFamily.objects.first().is_revoked)
 
 
 # =========================================================================

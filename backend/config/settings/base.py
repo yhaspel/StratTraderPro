@@ -323,6 +323,16 @@ import hashlib as _hashlib
 _default_kek = _b64.urlsafe_b64encode(_hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()).decode("ascii")
 FERNET_KEK = env("FERNET_KEK", default=_default_kek)
 
+# P1-4 — the refresh token is delivered to browsers as an HttpOnly cookie (never
+# in the JSON body / localStorage, which any XSS can exfiltrate). SameSite=Strict
+# is the CSRF control: the cookie is never sent on cross-site requests, so a
+# malicious origin cannot trigger a rotation with the victim's cookie. Scoped to
+# the auth path so it reaches /auth/refresh/ + /auth/logout/ only. Secure is off
+# in dev/test (plain http) and forced on in prod.py.
+REFRESH_COOKIE_NAME = env("REFRESH_COOKIE_NAME", default="stp_refresh")
+REFRESH_COOKIE_PATH = env("REFRESH_COOKIE_PATH", default="/api/v1/auth/")
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
+
 # MFA token (issued at login for enrolled users, exchanged at /auth/mfa/verify/)
 MFA_TOKEN_TTL_MINUTES = env.int("MFA_TOKEN_TTL_MINUTES", default=5)
 # TOTP step tolerance: ±1 step (= ±30s) per plan AC-02-11.

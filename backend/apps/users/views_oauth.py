@@ -43,6 +43,7 @@ from apps.admin_portal.flags import is_enabled
 from apps.audit.events import AuthEventType as EventType
 
 from . import services
+from .cookies import token_pair_response
 from .metrics_oauth import (
     OAUTH_EXCHANGE_TOTAL,
     OAUTH_LOGIN_TOTAL,
@@ -278,4 +279,4 @@ class OAuthExchangeView(APIView):
         OAUTH_EXCHANGE_TOTAL.labels(result=OAuthExchangeResult.OK).inc()
         pair = services.issue_token_pair(user, request=request)
         pair["mfa_required"] = False
-        return ok(pair)
+        return token_pair_response(pair)

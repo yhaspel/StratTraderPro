@@ -36,14 +36,14 @@ describe('AuthStore', () => {
     expect(store.error()).toBeNull();
   });
 
-  it('setAuthed() sets user, tokens, and status; persists refresh to localStorage', () => {
-    store.setAuthed(mockUser, 'access-tok', 'refresh-tok');
+  it('setAuthed() sets user + access token and status (no refresh in JS)', () => {
+    store.setAuthed(mockUser, 'access-tok');
     expect(store.status()).toBe('authed');
     expect(store.user()).toEqual(mockUser);
     expect(store.accessToken()).toBe('access-tok');
-    expect(store.refreshToken()).toBe('refresh-tok');
     expect(store.isAuthenticated()).toBeTrue();
-    expect(localStorage.getItem(REFRESH_KEY)).toBe('refresh-tok');
+    // P1-4: the refresh token is an HttpOnly cookie — never in localStorage.
+    expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
   });
 
   it('setError() transitions to error state', () => {
@@ -54,34 +54,30 @@ describe('AuthStore', () => {
     expect(store.isAuthenticated()).toBeFalse();
   });
 
-  it('clearAuth() wipes all state and removes localStorage key', () => {
-    store.setAuthed(mockUser, 'a', 'r');
+  it('clearAuth() wipes all state', () => {
+    store.setAuthed(mockUser, 'a');
     store.clearAuth();
     expect(store.status()).toBe('idle');
     expect(store.user()).toBeNull();
     expect(store.accessToken()).toBeNull();
-    expect(store.refreshToken()).toBeNull();
     expect(store.isAuthenticated()).toBeFalse();
+  });
+
+  it('updateTokens() replaces the access token', () => {
+    store.setAuthed(mockUser, 'old-access');
+    store.updateTokens('new-access');
+    expect(store.accessToken()).toBe('new-access');
+  });
+
+  it('purges any legacy refresh token from localStorage on construction (P1-4)', () => {
+    localStorage.setItem(REFRESH_KEY, 'stale-refresh');
+    // Re-create store to simulate page reload.
+    new AuthStore();
     expect(localStorage.getItem(REFRESH_KEY)).toBeNull();
   });
 
-  it('updateTokens() replaces tokens and persists new refresh', () => {
-    store.setAuthed(mockUser, 'old-access', 'old-refresh');
-    store.updateTokens('new-access', 'new-refresh');
-    expect(store.accessToken()).toBe('new-access');
-    expect(store.refreshToken()).toBe('new-refresh');
-    expect(localStorage.getItem(REFRESH_KEY)).toBe('new-refresh');
-  });
-
-  it('loads persisted refresh token from localStorage on construction', () => {
-    localStorage.setItem(REFRESH_KEY, 'persisted-refresh');
-    // Re-create store to simulate page reload
-    const freshStore = new AuthStore();
-    expect(freshStore.refreshToken()).toBe('persisted-refresh');
-  });
-
   it('isAuthenticated is false when status is loading even if user is set', () => {
-    store.setAuthed(mockUser, 'a', 'r');
+    store.setAuthed(mockUser, 'a');
     store.setLoading();
     expect(store.isAuthenticated()).toBeFalse();
   });

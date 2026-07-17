@@ -225,7 +225,8 @@ class LoginMFAFlowTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        self.assertNotIn("refresh", data)  # P1-4 — cookie, not body
+        self.assertIn("stp_refresh", resp.cookies)
         self.assertTrue(AuditLog.objects.filter(event_type="auth.mfa_challenge_ok").exists())
 
     def test_mfa_verify_with_backup_code(self):

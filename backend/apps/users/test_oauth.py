@@ -186,7 +186,8 @@ class OAuthExchangeViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        self.assertNotIn("refresh", data)  # P1-4 — cookie, not body
+        self.assertIn("stp_refresh", resp.cookies)
         self.assertEqual(data["user"]["email"], user.email)
         self.assertFalse(data["mfa_required"])
 

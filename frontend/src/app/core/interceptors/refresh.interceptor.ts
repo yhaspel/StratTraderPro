@@ -47,10 +47,9 @@ export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((err: HttpErrorResponse) => {
       if (err.status !== 401) return throwError(() => err);
 
-      if (!store.refreshToken()) {
-        facade.logout();
-        return throwError(() => err);
-      }
+      // P1-4: the refresh token is an HttpOnly cookie the SPA can't inspect, so
+      // we can't pre-check its presence — attempt a refresh and let the server
+      // decide (a 401 from /auth/refresh/ triggers logout below).
 
       if (isRefreshing) {
         // Queue this request until refresh completes
