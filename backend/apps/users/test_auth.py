@@ -272,23 +272,37 @@ class RefreshTests(TestCase):
         user = _create_user()
         pair = issue_token_pair(user)
         old_refresh = pair["refresh"]
-        # Legitimate rotation.
+        # Rotate TWICE so `old_refresh` is two steps behind (past the P2-8
+        # one-step grace) — then reusing it is genuine reuse.
+        r1 = self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
+        )
+        new1 = r1.cookies["stp_refresh"].value
         self.client.post(
-            f"{API}auth/refresh/",
-            {"refresh": old_refresh},
-            content_type="application/json",
+            f"{API}auth/refresh/", {"refresh": new1}, content_type="application/json",
         )
-        # Reuse the OLD refresh.
-        resp2 = self.client.post(
-            f"{API}auth/refresh/",
-            {"refresh": old_refresh},
-            content_type="application/json",
+        resp = self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
         )
-        self.assertEqual(resp2.status_code, 401)
-        self.assertIn("reuse", resp2.json()["error"]["message"].lower())
-        # Family is revoked.
-        family = RefreshTokenFamily.objects.first()
-        self.assertTrue(family.is_revoked)
+        self.assertEqual(resp.status_code, 401)
+        self.assertIn("reuse", resp.json()["error"]["message"].lower())
+        self.assertTrue(RefreshTokenFamily.objects.first().is_revoked)
+
+    def test_one_step_grace_does_not_revoke_family(self):
+        # P2-8: presenting the JUST-rotated token again (a double-submit racing
+        # the rotation) is tolerated once — a new pair is issued and the family
+        # is NOT revoked.
+        user = _create_user()
+        pair = issue_token_pair(user)
+        old_refresh = pair["refresh"]
+        self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
+        )
+        grace = self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
+        )
+        self.assertEqual(grace.status_code, 200)  # grace, not reuse
+        self.assertFalse(RefreshTokenFamily.objects.first().is_revoked)
 
 
 # =========================================================================
