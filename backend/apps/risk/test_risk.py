@@ -143,6 +143,24 @@ class SizingTests(TestCase):
         r = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000")), self.profile)
         self.assertEqual(r.qty, Decimal("200"))  # equity × 20% / price
 
+    def test_hard_stop_rejects_at_threshold(self):
+        # P1-8: at/above hard_stop_pct (default 10%) the order is rejected outright.
+        r = compute_size(self._inp(intraday_dd_pct=11.0), self.profile)
+        self.assertFalse(r.ok)
+        self.assertEqual(r.reason, "HARD_STOP")
+
+    def test_hard_stop_boundary_is_inclusive(self):
+        # Exactly at the threshold rejects (>=).
+        r = compute_size(self._inp(intraday_dd_pct=10.0), self.profile)  # hard_stop 10%
+        self.assertFalse(r.ok)
+        self.assertEqual(r.reason, "HARD_STOP")
+
+    def test_soft_stop_still_only_halves_below_hard(self):
+        # Between soft (5%) and hard (10%): halve, don't reject.
+        r = compute_size(self._inp(intraday_dd_pct=6.0), self.profile)
+        self.assertTrue(r.ok)
+        self.assertTrue(r.meta.get("soft_stop_applied"))
+
 
 class KillSwitchEngineTests(TestCase):
     def setUp(self):
@@ -427,7 +445,8 @@ class ProcessAlertSizingTests(TestCase):
 
     def test_soft_stop_fires_on_real_intraday_drawdown(self):
         # RISK-1: intraday DD from equity vs last_equity trips the soft-stop (halves).
-        _profile(self.user)
+        # hard_stop raised to 20% so the 10% DD stays in soft-stop territory (P1-8).
+        _profile(self.user, hard_stop_pct=Decimal("20"))
         from unittest import mock
 
         with mock.patch(
@@ -494,6 +513,25 @@ class ProcessAlertSizingTests(TestCase):
         self.assertEqual(dec.inputs.get("contract_multiplier"), 100.0)
         # price 100 × mult 100, leverage cap 1.0, equity 100k ⇒ ≤ 10 contracts.
         self.assertEqual(Order.objects.get().qty, Decimal("10"))
+
+    def test_hard_stop_rejects_and_halts_at_threshold(self):
+        # P1-8: a hard-stop breach rejects the order AND trips an L2 daily halt.
+        _profile(self.user)  # hard_stop 10%
+        from unittest import mock
+
+        with mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=fake_factory(equity=Decimal("88000"), last_equity=Decimal("100000")),
+        ):  # 12% intraday drawdown ≥ 10%
+            self._post(valid_alert(symbol="AAPL", qty=10, idempotency_key="hs-1"))
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "HARD_STOP")
+        self.assertTrue(
+            TradingHalt.objects.filter(
+                user=self.user, level=TradingHalt.Level.L2, auto=True, released_at__isnull=True
+            ).exists()
+        )
 
     def test_paper_no_profile_places_verbatim_qty(self):
         # Regression: paper + no profile keeps M04 verbatim-qty behavior (sizing off).

@@ -92,6 +92,16 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
     if label == "CRISIS" or scale <= 0:
         return SizingResult.reject("REGIME_CRISIS")
 
+    # P1-8: hard stop is a full stop, not a size reduction. At/above the configured
+    # intraday drawdown the order is REJECTED outright (the caller also trips the
+    # daily L2 halt so trading stops for the day). Checked before the soft stop.
+    hard_stop = float(getattr(profile, "hard_stop_pct", 0) or 0)
+    if hard_stop > 0 and inp.intraday_dd_pct >= hard_stop:
+        return SizingResult.reject(
+            "HARD_STOP",
+            {"intraday_dd_pct": inp.intraday_dd_pct, "hard_stop_pct": hard_stop},
+        )
+
     risk_pct = float(profile.risk_per_trade_pct) * scale
     price = max(float(inp.price), 0.01)
     equity = float(inp.equity)

@@ -629,6 +629,7 @@
       "SIZING_ZERO": "Computed size rounded to zero",
       "SIZING_ERROR": "Sizing failed — order rejected for safety",
       "NO_RISK_PROFILE": "Set up your risk profile before live trading — order rejected for safety",
+      "HARD_STOP": "Hard-stop drawdown reached — trading halted for the day",
       "DAILY_LOSS_BREACH": "Daily loss limit reached",
       "KILL_SWITCH_ACTIVE": "A kill switch is active",
       "LIMIT_POSITION_PCT": "Position-size limit exceeded"
