@@ -265,7 +265,10 @@ class StrategyDetailView(APIView):
         emit(
             AuditEventType.STRATEGY_UPDATED, user=request.user, actor=request.user, request=request,
             entity_type="strategy", entity_id=str(strategy.id),
-            data_after={k: request.data.get(k) for k in request.data},
+            # P1-9: audit only the known, validated fields — never echo arbitrary
+            # client body keys (a body like {"current_password": "…"} would
+            # otherwise persist unredacted into the immutable log).
+            data_after=dict(ser.validated_data),
         )
         return ok(StrategySerializer(strategy, context={"request": request}).data)
 

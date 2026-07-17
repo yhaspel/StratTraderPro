@@ -409,6 +409,26 @@ class StrategySystemImmutabilityTests(TestCase):
         self.assertEqual(resp.status_code, 403)
 
 
+class StrategyPatchAuditTests(TestCase):
+    def test_strategy_patch_audit_only_allowlisted_fields(self):
+        # P1-9: the PATCH audit must record only known validated fields, never
+        # echo arbitrary client body keys (which could carry a secret).
+        from apps.audit.models import AuditLog
+
+        user = _create_user()
+        s = Strategy.objects.create(slug="mine", name="Old", owner=user)
+        resp = self.client.patch(
+            f"{API}/{s.id}/",
+            data=json.dumps({"name": "New", "is_enabled": False, "current_password": "hunter2"}),
+            content_type="application/json",
+            **_auth(user),
+        )
+        self.assertEqual(resp.status_code, 200)
+        row = AuditLog.objects.filter(event_type="strategy.updated").latest("occurred_at")
+        self.assertEqual(set(row.data_after.keys()), {"name", "is_enabled"})
+        self.assertNotIn("current_password", str(row.data_after))
+
+
 class StrategyDeleteTests(TestCase):
 
     def test_user_can_soft_delete_own(self):

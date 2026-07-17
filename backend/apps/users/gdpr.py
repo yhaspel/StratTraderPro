@@ -23,19 +23,9 @@ from typing import Any
 from django.utils import timezone
 
 # Field-name substrings that must never appear in an export, regardless of which
-# model they live on. Matched case-insensitively against the field name.
-SENSITIVE_FIELD_PARTS = (
-    "secret",
-    "password",
-    "_enc",
-    "encrypted",
-    "token_hash",
-    "code_hash",
-    "current_jti",
-    "salt",
-    "api_key",
-    "api_secret",
-)
+# model they live on. Shared with the audit scrubber (P1-9) so there is one
+# source of truth for what "looks sensitive".
+from apps.audit.scrub import SENSITIVE_FIELD_PARTS
 
 REDACTED = "[REDACTED]"
 
