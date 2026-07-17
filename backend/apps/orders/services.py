@@ -186,6 +186,14 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
         else:
             fill_row = None  # already ingested — dedup, emit nothing
 
+    # P1-6: trust the broker's authoritative cumulative filled qty when the event
+    # carries one, so a dropped intermediate fill still reaches FILLED on the
+    # final event (the local running sum alone would stick at PARTIAL forever).
+    # The local sum is the fallback when no cumulative is present, and max() keeps
+    # a late/duplicate event from ever reducing the count.
+    if fill.filled_qty and fill.filled_qty > 0:
+        order.filled_qty = max(order.filled_qty or Decimal("0"), fill.filled_qty)
+
     # Resolve order status.
     if fill.event_type == "fill":
         # 'fill' is the terminal execution for the order.

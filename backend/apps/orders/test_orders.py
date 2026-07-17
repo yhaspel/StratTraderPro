@@ -235,6 +235,52 @@ class PositionFillApiTests(TestCase):
         self.assertEqual(Decimal(aapl["unrealized_pnl"]), Decimal("25"))
 
 
+class BrokerCumulativeFilledQtyTests(TestCase):
+    """P1-6: terminal order state uses the broker's authoritative cumulative
+    filled_qty, so a dropped intermediate fill still reaches FILLED on the final
+    event instead of sticking at PARTIAL forever."""
+
+    def setUp(self):
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.account = create_broker_account(self.user)
+
+    def _event(self, exec_id, qty, cumulative, *, event="fill"):
+        return FillEvent(
+            broker_exec_id=exec_id, client_order_id="c1", broker_order_id="b-c1",
+            symbol="AAPL", side=Side.BUY, event_type=event,
+            qty=Decimal(qty), price=Decimal("100"), filled_qty=Decimal(cumulative),
+        )
+
+    def test_filled_qty_uses_broker_cumulative(self):
+        _order(self.user, self.account, self.strategy, qty="10")
+        # A single event whose broker cumulative (10) exceeds the per-fill qty (6).
+        ingest_fill_event(self._event("x1", "6", "10"), user_id=self.user.id)
+        order = Order.objects.get()
+        self.assertEqual(order.filled_qty, Decimal("10"))
+        self.assertEqual(order.status, Order.Status.FILLED)
+
+    def test_dropped_intermediate_fill_still_reaches_filled_on_final_event(self):
+        _order(self.user, self.account, self.strategy, qty="10")
+        # The partial_fill (qty 4) was dropped; only the final event arrives, but
+        # it carries the broker cumulative of 10 → FILLED, not PARTIAL.
+        ingest_fill_event(self._event("x2", "6", "10"), user_id=self.user.id)
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.FILLED)
+        self.assertEqual(order.filled_qty, Decimal("10"))
+
+    def test_partial_then_full_sequence_correct(self):
+        _order(self.user, self.account, self.strategy, qty="10")
+        ingest_fill_event(self._event("x1", "4", "4", event="partial_fill"), user_id=self.user.id)
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.PARTIAL)
+        self.assertEqual(order.filled_qty, Decimal("4"))
+        ingest_fill_event(self._event("x2", "6", "10", event="fill"), user_id=self.user.id)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.FILLED)
+        self.assertEqual(order.filled_qty, Decimal("10"))
+
+
 class ResolveNeedsReconcileTests(TestCase):
     """P1-5: an order stranded NEEDS_RECONCILE (ambiguous submit) is resolved by
     probing the broker by client_order_id — found ⇒ broker status; unseen ⇒ reject."""
