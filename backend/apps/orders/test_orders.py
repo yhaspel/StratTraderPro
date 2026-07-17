@@ -233,3 +233,113 @@ class PositionFillApiTests(TestCase):
         aapl = next(p for p in resp.json()["data"] if p["symbol"] == "AAPL")
         # (155 - 150) * 5 = 25
         self.assertEqual(Decimal(aapl["unrealized_pnl"]), Decimal("25"))
+
+
+class DrainStreamAckSafetyTests(TestCase):
+    """P0-2: a transient ingest error must NOT ack (drop) the fill; poison goes
+    to a dead-letter stream. Exercises the real Redis stream path — skipped when
+    Redis is unreachable (CI provisions a redis service, so it runs there)."""
+
+    def setUp(self):
+        import json as _json
+
+        from apps.orders import fills as fills_mod
+
+        self._json = _json
+        self.fills = fills_mod
+        try:
+            self.rds = fills_mod._redis()
+            self.rds.ping()
+        except Exception:  # pragma: no cover — no redis locally
+            self.skipTest("Redis not reachable")
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.account = create_broker_account(self.user)
+        self.stream = fills_mod._stream_key(self.user.id)
+        self.dead = fills_mod._dead_stream_key(self.user.id)
+        self._cleanup()
+
+    def tearDown(self):
+        if hasattr(self, "rds"):
+            self._cleanup()
+
+    def _cleanup(self):
+        for k in self.rds.scan_iter(match=f"{self.fills._STREAM_PREFIX}{self.user.id}*"):
+            self.rds.delete(k)
+
+    def _publish(self, fill):
+        from apps.orders.fills import fill_to_wire
+
+        self.rds.xadd(self.stream, {"data": self._json.dumps(fill_to_wire(fill))})
+
+    def _pending(self):
+        return self.rds.xpending(self.stream, self.fills._CONSUMER_GROUP)["pending"]
+
+    @staticmethod
+    def _dead_count(reason):
+        from prometheus_client import REGISTRY
+
+        return REGISTRY.get_sample_value("fills_deadlettered_total", {"reason": reason}) or 0.0
+
+    def test_transient_ingest_error_leaves_message_pending(self):
+        from unittest import mock
+
+        from django.db import OperationalError
+
+        _order(self.user, self.account, self.strategy)
+        self._publish(_fill("c1", "x1", "5", "150"))
+        # First drain: ingest hits a transient error → message stays PENDING, not ack'd.
+        with mock.patch(
+            "apps.orders.services.ingest_fill_event", side_effect=OperationalError("deadlock")
+        ):
+            settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 0)
+        self.assertEqual(Fill.objects.count(), 0)
+        self.assertEqual(self._pending(), 1)
+        # Second drain: real ingest succeeds via the "0" replay → exactly one Fill.
+        settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 1)
+        self.assertEqual(Fill.objects.count(), 1)
+        self.assertEqual(self._pending(), 0)
+
+    def test_poison_message_is_deadlettered_not_lost(self):
+        _order(self.user, self.account, self.strategy)
+        before = self._dead_count("poison")
+        self.rds.xadd(self.stream, {"data": "{not valid json"})  # malformed
+        settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 1)  # ack'd (skipped), not left to wedge
+        self.assertEqual(Fill.objects.count(), 0)
+        self.assertEqual(self.rds.xlen(self.dead), 1)  # routed to dead-letter, not lost
+        self.assertEqual(self._pending(), 0)
+        self.assertEqual(self._dead_count("poison") - before, 1.0)
+
+    def test_dedup_survives_replay(self):
+        _order(self.user, self.account, self.strategy)
+        fill = _fill("c1", "x1", "5", "150")
+        self._publish(fill)
+        self._publish(fill)  # same broker_exec_id delivered twice
+        settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 2)  # both settle (ack'd)
+        self.assertEqual(Fill.objects.count(), 1)  # dedup → exactly one Fill
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.FILLED)
+
+    def test_exhausted_transient_retries_deadletter(self):
+        from unittest import mock
+
+        from django.db import OperationalError
+
+        _order(self.user, self.account, self.strategy)
+        before = self._dead_count("max_retries")
+        self._publish(_fill("c1", "x1", "5", "150"))
+        # Persistently-failing ingest: after _MAX_DELIVERIES drains it dead-letters
+        # rather than wedging the consumer forever.
+        with mock.patch(
+            "apps.orders.services.ingest_fill_event", side_effect=OperationalError("down")
+        ):
+            for _ in range(self.fills._MAX_DELIVERIES):
+                self.fills.drain_stream(self.user.id)
+        self.assertEqual(Fill.objects.count(), 0)
+        self.assertEqual(self.rds.xlen(self.dead), 1)
+        self.assertEqual(self._pending(), 0)
+        self.assertEqual(self._dead_count("max_retries") - before, 1.0)

@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 
 _CONSUMER_GROUP = "fill_ingestors"
 _STREAM_PREFIX = "fills:user:"
+_DEAD_SUFFIX = ":dead"
+_ATTEMPTS_SUFFIX = ":attempts:"
+# After this many failed ingest attempts a message is dead-lettered rather than
+# retried forever, so a persistently-failing entry can't wedge the consumer (P0-2).
+_MAX_DELIVERIES = 5
+_ATTEMPTS_TTL = 86_400  # 24h — a stuck message's attempt counter self-expires.
 
 
 def _redis():
@@ -30,6 +36,14 @@ def _redis():
 
 def _stream_key(user_id) -> str:
     return f"{_STREAM_PREFIX}{user_id}"
+
+
+def _dead_stream_key(user_id) -> str:
+    return f"{_STREAM_PREFIX}{user_id}{_DEAD_SUFFIX}"
+
+
+def _attempts_key(user_id, msg_id) -> str:
+    return f"{_STREAM_PREFIX}{user_id}{_ATTEMPTS_SUFFIX}{msg_id}"
 
 
 def fill_to_wire(fill: FillEvent) -> dict:
@@ -91,9 +105,92 @@ def _ensure_group(client, stream_key: str) -> None:
             raise
 
 
+def _dead_letter(client, user_id, msg_id, data, *, reason: str) -> None:
+    """Route an un-ingestable message to the per-user dead-letter stream and
+    alert. Raises if the dead-letter transport itself fails, so the caller can
+    leave the message pending rather than ack-and-lose it (P0-2)."""
+    from apps.brokers.metrics import FILLS_DEADLETTERED_TOTAL
+
+    client.xadd(
+        _dead_stream_key(user_id),
+        {"data": data.get("data", ""), "reason": reason, "src_id": str(msg_id)},
+        maxlen=10_000,
+        approximate=True,
+    )
+    FILLS_DEADLETTERED_TOTAL.labels(reason=reason).inc()
+    logger.error(
+        "fill.ingest.deadletter",
+        extra={"user_id": str(user_id), "msg_id": str(msg_id), "reason": reason},
+    )
+
+
+def _process_message(client, user_id, stream_key, msg_id, data, ingest_fill_event) -> bool:
+    """Apply one stream entry. Returns True if the entry was *settled* (ack'd —
+    ingested, deduped, or dead-lettered), False if it was left PENDING for retry.
+
+    The old code ack'd unconditionally after a bare ``except``, so a transient DB
+    error (deadlock, connection blip) silently dropped the fill forever — turning
+    at-least-once delivery into at-most-once. Now:
+      * parse failure (bad JSON / schema / Decimal) is POISON → dead-letter + ack;
+      * ingest failure is treated as TRANSIENT → leave PENDING for replay (dedup
+        by ``broker_exec_id`` makes reprocessing safe), bounded to _MAX_DELIVERIES
+        attempts before dead-lettering so a persistently-failing entry can't wedge.
+    """
+    # 1) Parse — a parse failure can never be transient; it's a poison payload.
+    try:
+        fill = wire_to_fill(json.loads(data["data"]))
+    except Exception:
+        logger.exception(
+            "fill.ingest.poison", extra={"user_id": str(user_id), "msg_id": str(msg_id)}
+        )
+        try:
+            _dead_letter(client, user_id, msg_id, data, reason="poison")
+        except Exception:  # pragma: no cover — dead-letter transport down; retry later
+            logger.exception("fill.deadletter.failed", extra={"msg_id": str(msg_id)})
+            return False
+        client.xack(stream_key, _CONSUMER_GROUP, msg_id)
+        return True
+
+    # 2) Apply — a failure here is (almost always) transient. Leave the entry
+    #    PENDING so the "0" replay branch re-reads it; bound the retries.
+    try:
+        ingest_fill_event(fill, user_id=user_id)
+    except Exception:
+        attempts_key = _attempts_key(user_id, msg_id)
+        try:
+            attempts = client.incr(attempts_key)
+            client.expire(attempts_key, _ATTEMPTS_TTL)
+        except Exception:  # pragma: no cover — counter store down; treat as first try
+            attempts = 1
+        if attempts >= _MAX_DELIVERIES:
+            logger.error(
+                "fill.ingest.exhausted",
+                extra={"user_id": str(user_id), "msg_id": str(msg_id), "attempts": attempts},
+            )
+            try:
+                _dead_letter(client, user_id, msg_id, data, reason="max_retries")
+            except Exception:  # pragma: no cover — dead-letter down; keep pending
+                logger.exception("fill.deadletter.failed", extra={"msg_id": str(msg_id)})
+                return False
+            client.xack(stream_key, _CONSUMER_GROUP, msg_id)
+            client.delete(attempts_key)
+            return True
+        logger.warning(
+            "fill.ingest.transient",
+            extra={"user_id": str(user_id), "msg_id": str(msg_id), "attempts": attempts},
+        )
+        return False  # leave PENDING — do NOT ack
+
+    # 3) Success — ack and clear the attempt counter.
+    client.xack(stream_key, _CONSUMER_GROUP, msg_id)
+    client.delete(_attempts_key(user_id, msg_id))
+    return True
+
+
 def drain_stream(user_id, *, count: int = 100, consumer: str = "ingestor-1") -> int:
-    """Read + ack pending messages for one user stream, applying each fill.
-    Returns the number of messages processed."""
+    """Read pending + new messages for one user stream, applying each fill.
+    Returns the number of messages *settled* (ack'd). Transiently-failed messages
+    stay pending and are retried on the next drain."""
     from .services import ingest_fill_event
 
     client = _redis()
@@ -109,12 +206,8 @@ def drain_stream(user_id, *, count: int = 100, consumer: str = "ingestor-1") -> 
             continue
         for _stream, entries in resp:
             for msg_id, data in entries:
-                try:
-                    ingest_fill_event(wire_to_fill(json.loads(data["data"])), user_id=user_id)
-                except Exception:  # pragma: no cover — poison message; ack to skip
-                    logger.exception("fill.ingest.failed", extra={"msg_id": msg_id})
-                client.xack(stream_key, _CONSUMER_GROUP, msg_id)
-                processed += 1
+                if _process_message(client, user_id, stream_key, msg_id, data, ingest_fill_event):
+                    processed += 1
     return processed
 
 

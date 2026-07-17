@@ -54,6 +54,14 @@ BROKER_WS_RECONNECTS_TOTAL = Counter(
     "Broker websocket reconnects.",
     labelnames=("broker",),
 )
+# P0-2 — a fill that could not be ingested and was routed to the dead-letter
+# stream (poison payload or exhausted transient retries). Should page: every
+# increment is a fill permanently diverted from the ledger.
+FILLS_DEADLETTERED_TOTAL = Counter(
+    "fills_deadlettered_total",
+    "Fill messages routed to the dead-letter stream.",
+    labelnames=("reason",),
+)
 
 __all__ = [
     "BROKER_CONNECT_TOTAL",
@@ -65,4 +73,5 @@ __all__ = [
     "OAUTH_REFRESH_TOTAL",
     "ORDER_STATE_TRANSITIONS_TOTAL",
     "BROKER_WS_RECONNECTS_TOTAL",
+    "FILLS_DEADLETTERED_TOTAL",
 ]
