@@ -4,7 +4,8 @@
  * all survive, but any injected <script>/onerror is stripped, so a malicious
  * help file (public repo, PRs) can't run in an authed session. The slug is also
  * allow-list validated so a crafted slug can't escape assets/help/. */
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
@@ -41,6 +42,7 @@ import { TranslateModule } from '@ngx-translate/core';
 export class HelpArticleComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private http = inject(HttpClient);
+  private destroyRef = inject(DestroyRef);
 
   readonly loading = signal(true);
   readonly notFound = signal(false);
@@ -50,7 +52,10 @@ export class HelpArticleComponent implements OnInit {
   private static readonly SLUG_RE = /^[a-z0-9-]+$/;
 
   ngOnInit(): void {
-    this.route.paramMap.subscribe((p) => this.load(p.get('slug') ?? ''));
+    // P3-10: unsubscribe from the long-lived paramMap stream on destroy.
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((p) => this.load(p.get('slug') ?? ''));
   }
 
   private load(slug: string): void {

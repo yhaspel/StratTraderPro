@@ -146,8 +146,7 @@ export class AuthFacade {
         return true;
       }
       this.applyTokenPair(data as AuthTokenPair);
-      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
-      await this.router.navigateByUrl(next as string);
+      await this.router.navigateByUrl(this.safeNext());
       return true;
     } catch (e) {
       this.handleError(e);
@@ -173,8 +172,7 @@ export class AuthFacade {
         return false;
       }
       this.applyTokenPair(res.data!);
-      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
-      await this.router.navigateByUrl(next as string);
+      await this.router.navigateByUrl(this.safeNext());
       return true;
     } catch (e) {
       this.handleError(e);
@@ -233,8 +231,7 @@ export class AuthFacade {
         return true;
       }
       this.applyTokenPair(data as AuthTokenPair);
-      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
-      await this.router.navigateByUrl(next as string);
+      await this.router.navigateByUrl(this.safeNext());
       return true;
     } catch (e) {
       this.handleError(e);
@@ -313,6 +310,13 @@ export class AuthFacade {
   }
 
   // --- Private ---
+
+  /** P3-7 — a post-login `next` is honoured only if it is a same-origin absolute
+   * path: exactly one leading '/', never '//' (protocol-relative) or 'scheme:'. */
+  private safeNext(): string {
+    const raw = this.router.parseUrl(this.router.url).queryParams['next'];
+    return typeof raw === 'string' && /^\/(?!\/)/.test(raw) ? raw : '/dashboard';
+  }
 
   private applyTokenPair(pair: AuthTokenPair): void {
     this.store.setAuthed(pair.user, pair.access);

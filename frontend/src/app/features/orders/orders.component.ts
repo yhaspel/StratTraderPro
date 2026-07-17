@@ -95,15 +95,15 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
           <table class="w-full border border-gray-200 text-sm">
             <thead class="bg-gray-50 text-left">
               <tr>
-                <th class="px-3 py-2">{{ 'orders.col.time' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.col.broker' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.col.strategy' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.col.symbol' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.col.side' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'orders.col.qty' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.col.type' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.col.status' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'orders.col.filled' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.time' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.broker' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.strategy' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.symbol' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.side' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right">{{ 'orders.col.qty' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.type' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.col.status' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right">{{ 'orders.col.filled' | translate }}</th>
               </tr>
             </thead>
             <tbody>
@@ -160,12 +160,12 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
           <table class="w-full border border-gray-200 text-sm">
             <thead class="bg-gray-50 text-left">
               <tr>
-                <th class="px-3 py-2">{{ 'orders.recon.col.time' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.recon.col.symbol' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.recon.col.kind' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'orders.recon.col.our_qty' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'orders.recon.col.broker_qty' | translate }}</th>
-                <th class="px-3 py-2">{{ 'orders.recon.col.detail' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.recon.col.time' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.recon.col.symbol' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.recon.col.kind' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right">{{ 'orders.recon.col.our_qty' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right">{{ 'orders.recon.col.broker_qty' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'orders.recon.col.detail' | translate }}</th>
               </tr>
             </thead>
             <tbody>

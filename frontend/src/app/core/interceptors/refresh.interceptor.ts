@@ -3,9 +3,9 @@
  * Queues concurrent requests while refresh is in-flight.
  * On failure, logs the user out.
  */
-import { HttpInterceptorFn, HttpErrorResponse, HttpRequest, HttpHandlerFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse, HttpRequest, HttpHandlerFn, HttpEvent } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Observable, throwError, from, switchMap, catchError, Subject, filter, take, timeout } from 'rxjs';
+import { Observable, throwError, from, switchMap, catchError, Subject, take, timeout } from 'rxjs';
 import { AuthFacade } from '../../abstraction/facades/auth.facade';
 import { AuthStore } from '../../abstraction/stores/auth.store';
 import { environment } from '../../../environments/environment';
@@ -52,9 +52,10 @@ export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
       // decide (a 401 from /auth/refresh/ triggers logout below).
 
       if (isRefreshing) {
-        // Queue this request until refresh completes
+        // Queue this request until the in-flight refresh completes (P3-11: the
+        // old `filter(ok => ok !== null …)` was a no-op with a misleading cast —
+        // the subject only ever emits a boolean).
         return refreshDone$.pipe(
-          filter(ok => ok !== null as unknown as boolean),
           take(1),
           switchMap(ok => {
             if (!ok) return throwError(() => err);
@@ -90,7 +91,9 @@ export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
   );
 };
 
-function retryWithNewToken(req: HttpRequest<unknown>, next: HttpHandlerFn, store: AuthStore): Observable<any> {
+function retryWithNewToken(
+  req: HttpRequest<unknown>, next: HttpHandlerFn, store: AuthStore,
+): Observable<HttpEvent<unknown>> {
   const token = store.accessToken();
   const cloned = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   return next(cloned);

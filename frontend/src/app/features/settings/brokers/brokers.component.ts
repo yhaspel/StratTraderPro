@@ -412,14 +412,26 @@ export class BrokersComponent implements OnInit {
     }
   }
 
+  /** Allowed OAuth authorize hosts — a server-supplied URL is a top-level nav
+   * sink, so validate scheme + host before assigning (P3-8). */
+  private static readonly OAUTH_HOSTS = new Set(['signin.tradestation.com', 'api.tradestation.com']);
+
   async onConnectTradeStation(): Promise<void> {
     this.tsError.set(null);
     const res = await this.facade.tradestationOauthStart();
-    if (res.ok) {
-      window.location.href = res.value.authorize_url;
-    } else {
-      this.tsError.set(res.error);
+    if (!res.ok) { this.tsError.set(res.error); return; }
+    let url: URL;
+    try {
+      url = new URL(res.value.authorize_url);
+    } catch {
+      this.tsError.set({ code: 'BROKER_UNAVAILABLE', message: 'Invalid authorization URL.' });
+      return;
     }
+    if (url.protocol !== 'https:' || !BrokersComponent.OAUTH_HOSTS.has(url.hostname)) {
+      this.tsError.set({ code: 'BROKER_UNAVAILABLE', message: 'Unexpected authorization host.' });
+      return;
+    }
+    window.location.href = url.href;
   }
 
   /** True when the code has a dedicated translated message under brokers.error.*. */

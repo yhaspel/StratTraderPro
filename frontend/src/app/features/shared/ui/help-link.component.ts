@@ -9,10 +9,14 @@ import { RouterLink } from '@angular/router';
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <!-- P3-13: the tap target is ≥24×24 (WCAG 2.5.8) while the visual "?" stays
+         small — the padded anchor is the hit area, the inner span is the glyph. -->
     <a
       [routerLink]="['/help', slug]"
-      class="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-      [attr.aria-label]="label">?</a>
+      class="group ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      [attr.aria-label]="label">
+      <span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold text-slate-500 group-hover:bg-slate-100">?</span>
+    </a>
   `,
 })
 export class HelpLinkComponent {

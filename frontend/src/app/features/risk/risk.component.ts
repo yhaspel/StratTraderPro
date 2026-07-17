@@ -294,11 +294,11 @@ const KNOWN_ERRORS = new Set([
           <table class="w-full border border-gray-200 text-sm">
             <thead class="bg-gray-50 text-left">
               <tr>
-                <th class="px-3 py-2">{{ 'risk.sizing.col.time' | translate }}</th>
-                <th class="px-3 py-2">{{ 'risk.sizing.col.symbol' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'risk.sizing.col.requested' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'risk.sizing.col.computed' | translate }}</th>
-                <th class="px-3 py-2">{{ 'risk.sizing.col.result' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'risk.sizing.col.time' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'risk.sizing.col.symbol' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right">{{ 'risk.sizing.col.requested' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right">{{ 'risk.sizing.col.computed' | translate }}</th>
+                <th scope="col" class="px-3 py-2">{{ 'risk.sizing.col.result' | translate }}</th>
               </tr>
             </thead>
             <tbody>
