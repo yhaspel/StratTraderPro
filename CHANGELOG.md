@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Review remediation, Phase 3 (P3 · Low / defense-in-depth)
+- Backend: P3-5 admin-gate `/api/schema/` + `/api/docs/` in prod; P3-6 enforce the strict
+  `default-src 'none'` CSP in prod; P3-4 bound user-editable JSON Schema complexity at save
+  (depth / no `patternProperties` / capped `pattern`) to prevent a self-inflicted regex-DoS on
+  the ingest hot path; P3-1 document the sizing float→Decimal boundary; P3-2 bad-sig write
+  amplification is bounded by the P2-2 rate limit + keyless P2-5 rows.
+- Frontend: P3-7 same-origin-only post-login redirect; P3-8 validated OAuth authorize URL
+  (https + host allowlist); P3-9 unified guard predicate (via P1-4); P3-10 leak-safe help
+  subscription; P3-11 removed the dead refresh-interceptor filter; P3-12 typed the retry path;
+  P3-13 24×24 help tap target; P3-14 `scope="col"` on the orders/risk tables.
+- Scoped follow-up: P3-3 (daily-loss equity caching — scaling note), chart.js config typing,
+  and filter/paginate `aria-live` result counts.
+
 ### Fixed — Review remediation, Phase 2 (P2 · Medium)
 - **Backend abuse-resistance** — P2-1 webhook IP allowlist reads the trusted (right-most)
   XFF entry per `WEBHOOK_TRUSTED_PROXY_COUNT`; P2-2 split bad-sig vs valid-alert rate
