@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/industry-1b09ac0e-0eae-4abd-8f4c-b9aba234f315/styles.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { -webkit-font-smoothing:antialiased; }
+  @keyframes stp-spin { to { transform: rotate(360deg); } }
+</style>
+</helmet>
+<div style="max-width:1180px; margin:0 auto; padding:56px 40px 120px; display:flex; flex-direction:column; gap:52px;">
+
+  <!-- ============ Header ============ -->
+  <header style="display:flex; flex-direction:column; gap:20px;">
+    <div style="display:flex; align-items:center; gap:16px;">
+      <span class="blueprint" style="width:52px; height:52px; display:inline-flex; align-items:flex-end; justify-content:center; gap:4px; padding:10px 10px 9px; background:transparent;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="width:6px; height:14px; background:var(--color-accent);"></span>
+        <span style="width:6px; height:24px; background:var(--color-accent);"></span>
+        <span style="width:6px; height:9px; background:var(--color-accent-400);"></span>
+      </span>
+      <div>
+        <h2 style="margin:0;">StratTrader<span style="color:var(--color-accent);">Pro</span></h2>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; color:var(--color-neutral-600);">APPLICATION DESIGN SYSTEM · ON "INDUSTRY" · v1.0</div>
+      </div>
+    </div>
+    <p style="max-width:740px; margin:0; font-size:15px; line-height:1.6;" class="text-muted">
+      StratTraderPro adopts the <strong style="color:var(--color-text);">Industry</strong> system — a technical blueprint ground: steel accent, Barlow Condensed over Barlow, square corners, hairline frames with registration marks. This sheet documents how the application consumes it, plus the <strong style="color:var(--color-text);">trading-semantics extension</strong> Industry doesn't carry: profit/loss, order status, regimes and risk states. Steel means "the machine is working"; green and red are reserved exclusively for money and risk.
+    </p>
+  </header>
+
+  <!-- ============ 01 Foundations ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">01 — Foundations (from Industry)</h6>
+    <div class="card blueprint" style="padding:24px; gap:20px;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px;">
+        <sc-for list="{{ foundations }}" as="c" hint-placeholder-count="6">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="height:56px; border:1px solid var(--color-divider); background:{{ c.hex }};"></div>
+            <div style="font-size:12px; font-weight:700;">{{ c.name }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--color-neutral-600);">{{ c.hex }}</div>
+            <div style="font-size:11px; line-height:1.4;" class="text-muted">{{ c.use }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:12px; line-height:1.6; border-top:1px solid var(--color-divider); padding-top:14px;" class="text-muted">
+        Full 100–900 OKLCH ramps ship in <span style="font-family:'IBM Plex Mono',monospace;">styles.css</span> (<span style="font-family:'IBM Plex Mono',monospace;">--color-accent-*</span>, <span style="font-family:'IBM Plex Mono',monospace;">--color-neutral-*</span>). Spacing <span style="font-family:'IBM Plex Mono',monospace;">--space-1…8</span> (3.4–27.2px, 0.85× density) · radius 0 on framed objects · shadows <span style="font-family:'IBM Plex Mono',monospace;">--shadow-sm/md/lg</span> · focus = 2px accent <span style="font-family:'IBM Plex Mono',monospace;">:focus-visible</span> ring.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 Trading semantics extension ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">02 — Trading-semantics extension <span style="text-transform:none; letter-spacing:0; color:var(--color-neutral-500);">· app-level tokens, OKLCH-matched to the ramps</span></h6>
+    <div class="card blueprint" style="padding:24px; gap:20px;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px;">
+        <sc-for list="{{ semantics }}" as="c" hint-placeholder-count="5">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="height:44px; border:1px solid var(--color-divider); background:{{ c.hex }};"></div>
+            <div style="height:24px; border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:center; background:{{ c.tint }};"><span style="font-size:10px; font-weight:700; color:{{ c.deep }};">tint / deep</span></div>
+            <div style="font-size:12px; font-weight:700;">{{ c.name }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--color-neutral-600);">{{ c.hex }}</div>
+            <div style="font-size:11px; line-height:1.4;" class="text-muted">{{ c.use }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex; align-items:center; gap:16px; border-top:1px solid var(--color-divider); padding-top:16px; flex-wrap:wrap;">
+        <span style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-neutral-600); font-weight:700;">Regime palette</span>
+        <sc-for list="{{ regimes }}" as="r" hint-placeholder-count="5">
+          <span style="display:inline-flex; align-items:center; gap:7px; font-size:12px;"><span style="width:14px; height:14px; background:{{ r.hex }};"></span>{{ r.name }} <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--color-neutral-500);">{{ r.hex }}</span></span>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 Typography ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">03 — Typography</h6>
+    <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:16px;">
+      <div class="card blueprint" style="padding:24px; gap:14px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div><h3 style="margin:0;">Barlow Condensed 600 — headings</h3><span style="font-size:12px;" class="text-muted">h1 42 · h2 32 · h3 25 · h4 20 · h6 uppercase overline</span></div>
+        <div><span style="font-size:15px;">Barlow 400/500/700 — body, labels, table text.</span></div>
+        <div><span style="font-family:'IBM Plex Mono',monospace; font-size:16px;">IBM Plex Mono — numerics &amp; code <span style="font-variant-numeric:tabular-nums;">+1,284.06</span></span><div style="font-size:12px; margin-top:2px;" class="text-muted">App extension (<span style="font-family:'IBM Plex Mono',monospace;">--font-mono</span>): money, quantities, ids, hashes, JSON. Always <span style="font-family:'IBM Plex Mono',monospace;">tabular-nums</span>, right-aligned in tables, sign always displayed.</div></div>
+      </div>
+      <div class="card blueprint" style="padding:24px; gap:8px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span class="card-kicker">Numeric rules</span>
+        <div style="display:flex; flex-direction:column; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:14px; font-variant-numeric:tabular-nums;">
+          <div style="display:flex; justify-content:space-between;"><span class="text-muted" style="font-family:var(--font-body);">Unrealized P&amp;L</span><span style="color:#2E6B45;">+$1,284.06</span></div>
+          <div style="display:flex; justify-content:space-between;"><span class="text-muted" style="font-family:var(--font-body);">Daily loss</span><span style="color:#A63D36;">−$312.40</span></div>
+          <div style="display:flex; justify-content:space-between;"><span class="text-muted" style="font-family:var(--font-body);">Polarity (neutral band)</span><span style="color:var(--color-neutral-600);">+0.03</span></div>
+          <div style="display:flex; justify-content:space-between;"><span class="text-muted" style="font-family:var(--font-body);">PBO</span><span style="color:#A63D36;">0.62 ⚠</span></div>
+        </div>
+        <span style="font-size:11px;" class="text-muted">Neutral band |x| ≤ 0.05 renders muted, never green/red.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 Buttons ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">04 — Buttons <span style="text-transform:none; letter-spacing:0; color:var(--color-neutral-500);">· only variants with real actions behind them</span></h6>
+    <div class="card blueprint" style="padding:24px; gap:18px;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+        <span class="blueprint" style="display:inline-block;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><button class="btn btn-primary" style="margin:0;">Run backtest</button></span>
+        <button class="btn btn-secondary">Export CSV</button>
+        <button class="btn btn-ghost">Cancel</button>
+        <button class="btn" style="background:#A63D36; border-color:#A63D36; color:var(--color-bg);" style-hover="background:#8C3A34;">Halt my trading</button>
+        <button class="btn" style="background:#2E6B45; border-color:#2E6B45; color:var(--color-bg);" style-hover="background:#2A5C3D;">Release halt</button>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+        <button class="btn btn-primary" disabled>Disabled</button>
+        <button class="btn btn-primary" style="cursor:progress;"><span style="width:13px; height:13px; border-radius:50%; border:2px solid color-mix(in srgb, var(--color-bg) 45%, transparent); border-top-color:var(--color-bg); display:inline-block; animation:stp-spin .7s linear infinite;"></span>Submitting…</button>
+        <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Cancel run</button>
+        <button class="btn btn-ghost" style="font-size:13px;">Configure webhook</button>
+        <button class="btn btn-ghost" style="color:#A63D36;" style-hover="background:color-mix(in srgb, #A63D36 10%, transparent);">Delete</button>
+      </div>
+      <div style="font-size:12px; line-height:1.6;" class="text-muted">
+        Primary is the one solid object (accent fill, blueprint marks on hero/submit uses). Secondary = hairline. Ghost = text action. <strong style="color:var(--color-text);">Danger</strong> (halt, delete, MFA-confirm) and <strong style="color:var(--color-text);">Success</strong> (release only) are the semantic extension — same geometry, semantic fill. Loading keeps width + aria-busy. Disabled = 45% opacity, never hidden.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 Forms ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">05 — Form controls</h6>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="card blueprint" style="padding:24px; gap:16px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="field"><label>Email</label><input class="input" type="email" placeholder="you@example.com"></div>
+        <div class="field"><label>Symbols (mono input)</label><input class="input" type="text" value="SPY, QQQ, IWM" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"><span style="font-size:11px;" class="text-muted">Comma or space separated, max 10.</span></div>
+        <div class="field"><label>API secret — error state</label><input class="input" type="password" value="secretsecret" style="border-color:#A63D36;"><span role="alert" style="font-size:12px; color:#A63D36;">Authentication failed — check the key pair.</span></div>
+        <div style="display:flex; gap:12px;">
+          <div class="field" style="flex:1;"><label>Metric</label><select class="input"><option>Sharpe</option><option>Sortino</option><option>Total return</option><option>MAR</option></select></div>
+          <div class="field" style="flex:1;"><label>From</label><input class="input" type="date" value="2023-07-19" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+        </div>
+        <div class="field"><label>Param grid (JSON editor)</label><textarea class="input" rows="3" spellcheck="false" style="font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6;">{ "fast": [10, 20], "slow": [50, 100] }</textarea></div>
+      </div>
+      <div class="card blueprint" style="padding:24px; gap:18px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:12px; color:var(--color-neutral-700);">Chip-select (asset classes)</span>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <label class="seg-opt" style="border:1px solid var(--color-accent); background:var(--color-accent-100); color:var(--color-accent-800);">✓ Stock</label>
+            <label class="seg-opt" style="border:1px solid var(--color-accent); background:var(--color-accent-100); color:var(--color-accent-800);">✓ ETF</label>
+            <label class="seg-opt" style="border:1px solid var(--color-divider);">Option</label>
+            <label class="seg-opt" style="border:1px solid var(--color-divider);">Future</label>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:12px; color:var(--color-neutral-700);">Toggle (strategy enabled)</span>
+          <div style="display:flex; gap:20px; align-items:center;">
+            <span style="width:40px; height:20px; border:1px solid #2E6B45; background:#2E6B45; position:relative; display:inline-block;"><span style="position:absolute; top:2px; left:21px; width:15px; height:14px; background:var(--color-bg);"></span></span>
+            <span style="width:40px; height:20px; border:1px solid var(--color-divider); background:var(--color-surface); position:relative; display:inline-block;"><span style="position:absolute; top:2px; left:2px; width:15px; height:14px; background:var(--color-neutral-400);"></span></span>
+            <span style="font-size:11px;" class="text-muted">square knob — on = green (arming has consequences)</span>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:12px; color:var(--color-neutral-700);">Segmented control (sizing / broker mode)</span>
+          <div class="seg"><span class="seg-opt" style="background:var(--color-accent); color:var(--color-bg);">Production sizing</span><span class="seg-opt">Fixed qty = 1</span></div>
+          <div class="seg"><span class="seg-opt" style="background:var(--color-accent); color:var(--color-bg);">PAPER</span><span class="seg-opt" title="Live trading ships disabled" style="opacity:.45; cursor:not-allowed;">LIVE</span></div>
+          <span style="font-size:11px;" class="text-muted">Unavailable options stay visible, disabled, with an honest reason — never hidden, never fake-enabled.</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:12px; color:var(--color-neutral-700);">TOTP input (MFA challenge &amp; confirms)</span>
+          <div style="display:flex; gap:8px;">
+            <span style="width:42px; height:50px; border:1px solid var(--color-divider); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600;">4</span>
+            <span style="width:42px; height:50px; border:1px solid var(--color-divider); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600;">7</span>
+            <span style="width:42px; height:50px; border:2px solid var(--color-accent); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600;">2</span>
+            <span style="width:42px; height:50px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+            <span style="width:42px; height:50px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+            <span style="width:42px; height:50px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 06 Status system ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">06 — Status system <span style="text-transform:none; letter-spacing:0; color:var(--color-neutral-500);">· one .tag component, mapped states, never color-only</span></h6>
+    <div class="card blueprint" style="padding:24px; gap:16px;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <sc-for list="{{ chipGroups }}" as="g" hint-placeholder-count="4">
+        <div style="display:flex; align-items:baseline; gap:16px;">
+          <span style="width:140px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--color-neutral-600);">{{ g.label }}</span>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <sc-for list="{{ g.chips }}" as="c" hint-placeholder-count="5">
+              <span class="tag" style="gap:6px; font-weight:700; letter-spacing:.04em; background:{{ c.bg }}; color:{{ c.fg }};"><sc-if value="{{ c.dot }}" hint-placeholder-val="{{ false }}"><span style="width:6px; height:6px; background:{{ c.fg }};"></span></sc-if>{{ c.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+      <div style="border-top:1px solid var(--color-divider); padding-top:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+        <span style="width:140px; flex:none; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--color-neutral-600);">badges</span>
+        <span class="tag tag-accent" style="font-weight:700;">SYSTEM</span>
+        <span class="tag tag-neutral" style="font-weight:700;">USER</span>
+        <span class="tag tag-neutral" style="font-weight:700;">PAPER</span>
+        <span class="tag tag-outline" style="font-weight:700;">DEFAULT</span>
+        <span class="tag" style="font-weight:700; background:#F3E9D4; color:#6E5220;">⚠ RULE-BASED ONLY</span>
+        <span class="tag tag-accent" style="font-weight:700; letter-spacing:.08em;">STAGING</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 07 Tables ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">07 — Data tables <span style="text-transform:none; letter-spacing:0; color:var(--color-neutral-500);">· dense · mono numerics right-aligned</span></h6>
+    <div class="card blueprint" style="padding:0; gap:0;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <table class="table" style="font-size:13px;">
+        <thead><tr><th>Symbol</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Avg cost</th><th style="text-align:right;">Mark</th><th style="text-align:right;">Unrealized P&amp;L</th><th>Status</th></tr></thead>
+        <tbody>
+          <sc-for list="{{ positions }}" as="p" hint-placeholder-count="4">
+            <tr style="cursor:pointer;">
+              <td style="font-weight:700;">{{ p.symbol }}</td>
+              <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;">{{ p.qty }}</td>
+              <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;" class="text-muted">{{ p.avg }}</td>
+              <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;" class="text-muted">{{ p.mark }}</td>
+              <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; font-weight:500; color:{{ p.pnlColor }};">{{ p.pnl }}</td>
+              <td><span class="tag" style="font-weight:700; background:{{ p.chipBg }}; color:{{ p.chipFg }};">{{ p.chip }}</span></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px;">
+        <span style="font-size:12px; font-family:'IBM Plex Mono',monospace;" class="text-muted">Page 1 / 12 · 288 rows</span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" disabled style="font-size:12px; padding:4px 10px;">← Prev</button>
+          <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Next →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 Panels, banners, empty states ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">08 — Panels · banners · empty states</h6>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div role="alert" style="background:#A63D36; color:var(--color-bg); padding:11px 16px; font-size:14px; font-weight:700; font-family:var(--font-heading); letter-spacing:.02em; display:flex; align-items:center; gap:10px;"><span style="width:8px; height:8px; background:var(--color-bg);"></span>TRADING IS HALTED — AN ACTIVE KILL SWITCH IS BLOCKING ALL ORDER FLOW</div>
+        <div role="status" style="border:1px solid #C9A23E; background:#F3E9D4; color:#6E5220; padding:11px 16px; font-size:13px;">Enable two-factor authentication to unlock live data. <a href="#" style="color:#6E5220;">Set up MFA →</a></div>
+        <div role="alert" style="border:1px solid #A63D36; background:#F6E3E1; color:#8C3A34; padding:11px 16px; font-size:13px;"><span style="font-family:'IBM Plex Mono',monospace;">VALIDATION_ERROR</span> — hard_stop_pct must be greater than soft_stop_pct.</div>
+        <div style="border:1px solid #2E6B45; background:#DFEEE4; color:#2E5C40; padding:11px 16px; font-size:13px;">✓ Connected — account <span style="font-family:'IBM Plex Mono',monospace;">PA3X…9F</span> · buying power <span style="font-family:'IBM Plex Mono',monospace;">$100,000.00</span></div>
+        <div style="border:1px dashed var(--color-neutral-400); padding:30px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:6px;">
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:17px;">No orders yet</span>
+          <span style="font-size:13px; max-width:340px;" class="text-muted">Orders appear here when a webhook alert passes risk checks and reaches your broker.</span>
+        </div>
+      </div>
+      <div class="card blueprint" style="padding:24px; gap:12px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span class="card-kicker">Getting started</span>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; border:1px solid var(--color-divider);">
+          <span style="display:flex; align-items:center; gap:10px;"><span style="width:20px; height:20px; background:#2E6B45; color:var(--color-bg); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">✓</span><span style="font-size:13px; text-decoration:line-through;" class="text-muted">Enable two-factor authentication</span></span>
+          <span style="font-size:11px; font-weight:700; color:#2E6B45;">DONE</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; border:1px solid var(--color-divider);">
+          <span style="display:flex; align-items:center; gap:10px;"><span style="width:20px; height:20px; border:1px solid var(--color-divider); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--color-neutral-600);">2</span><span style="font-size:13px;">Connect a broker (paper)</span></span>
+          <a href="#" style="font-size:13px; font-weight:500;">Connect →</a>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; border:1px solid var(--color-divider);">
+          <span style="display:flex; align-items:center; gap:10px;"><span style="width:20px; height:20px; border:1px solid var(--color-divider); display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--color-neutral-600);">3</span><span style="font-size:13px;">Add a strategy &amp; webhook</span></span>
+          <a href="#" style="font-size:13px; font-weight:500;">Add →</a>
+        </div>
+        <div style="border-top:1px solid var(--color-divider); padding-top:12px; display:flex; flex-direction:column; gap:10px;">
+          <span class="card-kicker">KPI card (admin)</span>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="border:1px solid var(--color-divider); padding:10px 14px;"><div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase;" class="text-muted">Database</div><div style="font-family:var(--font-heading); font-weight:600; font-size:20px; color:#2E6B45;">OK</div></div>
+            <div style="border:1px solid var(--color-divider); padding:10px 14px;"><div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase;" class="text-muted">Queue depth</div><div style="font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:18px;">1,204</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 09 Overlays ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">09 — Overlays <span style="text-transform:none; letter-spacing:0; color:var(--color-neutral-500);">· dialog · drawer · toasts · inline MFA confirm</span></h6>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div style="background:var(--color-neutral-300); border:1px solid var(--color-divider); padding:32px; display:flex; align-items:center; justify-content:center;">
+        <div class="dialog blueprint" role="dialog" style="width:400px; background:var(--color-bg);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+            <span class="dialog-title" style="color:#A63D36;">Halt my trading</span>
+            <span class="text-muted" style="cursor:pointer; font-size:14px;">✕</span>
+          </div>
+          <p class="dialog-body" style="margin:0;">Cancels open orders and blocks new ones. Positions are flattened at market. Confirm with your authenticator code.</p>
+          <div class="field" style="margin:0;"><label>MFA code</label><input class="input" type="text" placeholder="••••••" style="width:140px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3em;"></div>
+          <div class="dialog-actions">
+            <button class="btn btn-ghost" style="color:var(--color-text);">Cancel</button>
+            <button class="btn" style="background:#A63D36; border-color:#A63D36; color:var(--color-bg);">Halt trading</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div class="elev-md" style="display:flex; align-items:flex-start; gap:12px; background:var(--color-bg); border:1px solid var(--color-divider); border-left:3px solid #2E6B45; padding:11px 14px;"><span style="font-size:13px; flex:1;">Risk profile saved.</span><span class="text-muted" style="cursor:pointer; font-size:12px;">✕</span></div>
+        <div role="alert" class="elev-md" style="display:flex; align-items:flex-start; gap:12px; background:var(--color-bg); border:1px solid var(--color-divider); border-left:3px solid #A63D36; padding:11px 14px;"><span style="font-size:13px; flex:1;">Halt is locked — an automatic kill switch is active.</span><span class="text-muted" style="cursor:pointer; font-size:12px;">✕</span></div>
+        <div class="elev-md" style="display:flex; align-items:flex-start; gap:12px; background:var(--color-bg); border:1px solid var(--color-divider); border-left:3px solid var(--color-accent); padding:11px 14px;"><span style="font-size:13px; flex:1;">Backtest queued — position 2 in queue.</span><span class="text-muted" style="cursor:pointer; font-size:12px;">✕</span></div>
+        <div class="card blueprint" style="padding:16px; gap:10px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <span class="card-kicker">Inline MFA confirm — destructive row actions</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input class="input" type="text" placeholder="MFA code" style="width:110px; min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+            <button class="btn" style="font-size:12px; padding:4px 12px; background:#A63D36; border-color:#A63D36; color:var(--color-bg);">Confirm remove</button>
+            <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Cancel</button>
+          </div>
+          <span style="font-size:12px;" class="text-muted">Used by: broker remove · personal halt · admin platform halt/release. Same order, same spacing, everywhere.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 10 Data-viz ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">10 — Data visualization</h6>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+      <div class="card blueprint" style="padding:20px; gap:10px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span class="card-kicker" style="color:var(--color-text);">Sentiment sparkline</span>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; color:#2E6B45;">+0.31</span>
+          <svg width="140" height="36" viewBox="0 0 140 36"><line x1="0" y1="18" x2="140" y2="18" stroke="#d4d4d7" stroke-width="1"></line><polyline points="0,24 14,22 28,26 42,20 56,23 70,16 84,18 98,12 112,14 126,9 140,10" fill="none" stroke="#2E6B45" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+        </div>
+        <span style="font-size:12px; line-height:1.5;" class="text-muted">Line colored by current sign; zero-line in neutral-300. Neutral (|p| ≤ .05) renders muted.</span>
+      </div>
+      <div class="card blueprint" style="padding:20px; gap:10px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span class="card-kicker" style="color:var(--color-text);">Regime band — 90 days</span>
+        <div style="display:flex; height:22px; gap:1px; border:1px solid var(--color-divider);">
+          <div style="flex:22; background:#4C8A62;"></div><div style="flex:9; background:#C9A23E;"></div><div style="flex:14; background:#4C8A62;"></div><div style="flex:11; background:#B06A3C;"></div><div style="flex:5; background:#B3564F;"></div><div style="flex:10; background:#B06A3C;"></div><div style="flex:8; background:#C9A23E;"></div><div style="flex:21; background:#4C8A62;"></div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:11px;" class="text-muted">
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#4C8A62;"></span>Bull</span>
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#C9A23E;"></span>Chop</span>
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#B06A3C;"></span>Bear</span>
+          <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#B3564F;"></span>Crisis</span>
+        </div>
+      </div>
+      <div class="card blueprint" style="padding:20px; gap:10px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span class="card-kicker" style="color:var(--color-text);">Progress — backtest stage</span>
+        <div style="display:flex; justify-content:space-between; font-size:12px;" class="text-muted"><span>Optimizing window 14/24</span><span style="font-family:'IBM Plex Mono',monospace;">58% · ETA 3m 40s</span></div>
+        <div style="height:8px; border:1px solid var(--color-divider); background:var(--color-surface);"><div style="width:58%; height:100%; background:var(--color-accent);"></div></div>
+        <span style="font-size:12px; line-height:1.5;" class="text-muted">Progress is always steel — it is machinery, not market performance.</span>
+      </div>
+    </div>
+    <div class="card blueprint" style="padding:20px; gap:0; display:grid; grid-template-columns:1fr 1fr 1fr; column-gap:24px;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <span class="card-kicker" style="color:var(--color-text);">Equity / drawdown lines</span>
+        <svg width="100%" height="80" viewBox="0 0 260 80" preserveAspectRatio="none"><polyline points="0,66 20,62 40,64 60,55 80,50 100,53 120,43 140,45 160,36 180,30 200,33 220,22 240,18 260,12" fill="none" stroke="#416180" stroke-width="1.6"></polyline><polyline points="0,70 20,72 40,71 60,74 80,73 100,76 120,74 140,77 160,75 180,78 200,76 220,78 240,77 260,78" fill="none" stroke="#B3564F" stroke-width="1.2"></polyline></svg>
+        <span style="font-size:12px;" class="text-muted">Equity = accent-700. Drawdown = down-red, 25% fill. Never green — equity is machinery output, not a buy signal.</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <span class="card-kicker" style="color:var(--color-text);">Per-window bars (OOS Sharpe)</span>
+        <div style="display:flex; align-items:flex-end; gap:4px; height:80px;">
+          <div style="flex:1; height:55%; background:#4C8A62;"></div><div style="flex:1; height:35%; background:#4C8A62;"></div><div style="flex:1; height:18%; background:#B3564F;"></div><div style="flex:1; height:62%; background:#4C8A62;"></div><div style="flex:1; height:44%; background:#4C8A62;"></div><div style="flex:1; height:12%; background:#B3564F;"></div><div style="flex:1; height:70%; background:#4C8A62;"></div><div style="flex:1; height:30%; background:#4C8A62;"></div>
+        </div>
+        <span style="font-size:12px;" class="text-muted">Sign-colored: ≥ 0 up-green, &lt; 0 down-red.</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <span class="card-kicker" style="color:var(--color-text);">Monthly heatmap ramp</span>
+        <div style="display:flex; height:28px; border:1px solid var(--color-divider);">
+          <div style="flex:1; background:#B3564F;"></div><div style="flex:1; background:#CC9088;"></div><div style="flex:1; background:#E3C5C0;"></div><div style="flex:1; background:#e9e9ea;"></div><div style="flex:1; background:#BCD8C4;"></div><div style="flex:1; background:#7FAF90;"></div><div style="flex:1; background:#4C8A62;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px;" class="text-muted"><span>−max</span><span>0</span><span>+max</span></div>
+        <span style="font-size:12px;" class="text-muted">Diverging through the surface color at zero, symmetric around |max|.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 11 Navigation ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">11 — Navigation</h6>
+    <div class="card blueprint" style="padding:0; gap:0; overflow:visible;">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div class="nav" style="border-bottom:1px solid var(--color-divider);">
+        <span class="nav-brand" style="display:inline-flex; align-items:center; gap:9px; margin-right:0;">
+          <span style="width:22px; height:22px; border:1px solid var(--color-text); display:inline-flex; align-items:flex-end; justify-content:center; gap:2px; padding:4px 4px 3px;"><span style="width:3px; height:6px; background:var(--color-accent);"></span><span style="width:3px; height:10px; background:var(--color-accent);"></span><span style="width:3px; height:4px; background:var(--color-accent-400);"></span></span>
+          StratTrader<span style="color:var(--color-accent);">Pro</span>
+        </span>
+        <nav style="display:flex; gap:18px; margin-right:auto; margin-left:16px;">
+          <a href="#" aria-current="page" style="border-bottom:2px solid var(--color-accent); padding-bottom:2px;">Dashboard</a>
+          <a href="#">Strategies</a><a href="#">Backtest</a><a href="#">Risk</a><a href="#">Orders</a>
+        </nav>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px;" class="text-muted"><span style="width:7px; height:7px; background:#2E6B45;"></span>Live</span>
+        <a href="#" style="font-size:13px;">trader@self.host ▾</a>
+      </div>
+      <div style="display:flex; gap:22px; padding:14px 20px 0;">
+        <span style="padding-bottom:10px; font-size:13px; font-weight:700; border-bottom:2px solid var(--color-accent);">Equity</span>
+        <span style="padding-bottom:10px; font-size:13px; cursor:pointer;" class="text-muted">Drawdown</span>
+        <span style="padding-bottom:10px; font-size:13px; cursor:pointer;" class="text-muted">Monthly</span>
+        <span style="padding-bottom:10px; font-size:13px; cursor:pointer;" class="text-muted">Per-window</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; padding:18px 20px;">
+        <span style="width:24px; height:24px; background:var(--color-accent); color:var(--color-bg); display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">1</span>
+        <span style="width:40px; height:1px; background:var(--color-accent);"></span>
+        <span style="width:24px; height:24px; background:var(--color-accent); color:var(--color-bg); display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">2</span>
+        <span style="width:40px; height:1px; background:var(--color-divider);"></span>
+        <span style="width:24px; height:24px; border:1px solid var(--color-divider); color:var(--color-neutral-600); display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">3</span>
+        <span style="margin-left:12px; font-size:12px;" class="text-muted">Wizard stepper (strategy upload) · underline tabs (charts) · nav with accent underline on active</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 12 Principles ============ -->
+  <section style="display:flex; flex-direction:column; gap:14px;">
+    <h6 style="color:var(--color-neutral-600);">12 — Principles &amp; accessibility</h6>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="card blueprint" style="padding:24px; font-size:13px; line-height:1.8;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span><strong>Semantics are sacred.</strong> <span class="text-muted">Green/red mean money and risk only. Steel means "the machine is working" (actions, focus, progress, equity). Amber means degraded or attention. Every status carries a text label — color is reinforcement, never the message.</span></span>
+        <span><strong>Honest states.</strong> <span class="text-muted">Unavailable features render disabled with a reason (TradeStation, LIVE mode). MFA-gated data says so instead of "no data". Destructive actions always confirm with MFA, in one consistent pattern.</span></span>
+      </div>
+      <div class="card blueprint" style="padding:24px; font-size:13px; line-height:1.8;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span><strong>WCAG AA.</strong> <span class="text-muted">Semantic text pairs use deep steps (up #2E6B45, down #A63D36 ≥ 4.5:1 on the ground); accent for body-size text uses accent-700 per Industry's own rule. Focus = 2px accent ring. Keep existing patterns: role=alert, aria-busy, focus-trapped dialogs, skip link, 44px mobile targets.</span></span>
+        <span><strong>Blueprint grammar.</strong> <span class="text-muted">Panels are line drawings with registration marks; the solid accent primary button is the one filled object. No decorative color beyond steel + the semantic extension. Motion: 120ms hovers, 200ms overlays, nothing decorative near money.</span></span>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const T = {
+      up: { bg: '#DFEEE4', fg: '#2E5C40' }, down: { bg: '#F6E3E1', fg: '#8C3A34' },
+      warn: { bg: '#F3E9D4', fg: '#6E5220' }, info: { bg: '#eef6ff', fg: '#2c455d' },
+      neutral: { bg: '#e7e7ea', fg: '#424244' }, bear: { bg: '#F2E4D8', fg: '#7A4826' },
+    };
+    const chip = (label, t, dot) => ({ label, bg: t.bg, fg: t.fg, dot: !!dot });
+    return {
+      foundations: [
+        { name: 'bg', hex: '#f2f2f3', use: 'Page ground' },
+        { name: 'surface', hex: '#e9e9ea', use: 'Inputs, table headers' },
+        { name: 'text', hex: '#1d1f20', use: 'Ink; muted = 55% mix' },
+        { name: 'accent', hex: '#5980a6', use: 'Actions, focus, progress' },
+        { name: 'accent-700', hex: '#416180', use: 'Accent text at body size' },
+        { name: 'divider', hex: '#1d1f20/16%', use: 'Hairlines, frames' },
+      ],
+      semantics: [
+        { name: 'up', hex: '#2E6B45', tint: '#DFEEE4', deep: '#2E5C40', use: 'Profit, fills, connected, OK, release' },
+        { name: 'down', hex: '#A63D36', tint: '#F6E3E1', deep: '#8C3A34', use: 'Loss, rejected, halt, danger' },
+        { name: 'warn', hex: '#C9A23E', tint: '#F3E9D4', deep: '#6E5220', use: 'Degraded, partial, cancelling, drift' },
+        { name: 'bear', hex: '#B06A3C', tint: '#F2E4D8', deep: '#7A4826', use: 'Regime BEAR only' },
+        { name: 'info', hex: '#5980a6', tint: '#eef6ff', deep: '#2c455d', use: 'Running, submitted, system (= accent)' },
+      ],
+      regimes: [
+        { name: 'Bull', hex: '#4C8A62' }, { name: 'Chop', hex: '#C9A23E' }, { name: 'Bear', hex: '#B06A3C' },
+        { name: 'Crisis', hex: '#B3564F' }, { name: 'Neutral', hex: '#98989b' },
+      ],
+      chipGroups: [
+        { label: 'order status', chips: [chip('PENDING', T.neutral), chip('SUBMITTED', T.info), chip('PARTIAL', T.warn), chip('FILLED', T.up), chip('CANCELLED', T.neutral), chip('REJECTED', T.down)] },
+        { label: 'backtest status', chips: [chip('QUEUED', T.neutral), chip('RUNNING', T.info), chip('CANCELLING', T.warn), chip('COMPLETED', T.up), chip('FAILED', T.down)] },
+        { label: 'broker stream', chips: [chip('CONNECTED', T.up, true), chip('DEGRADED', T.warn, true), chip('DOWN', T.down, true)] },
+        { label: 'regime', chips: [chip('BULL', T.up), chip('CHOP', T.warn), chip('BEAR', T.bear), chip('CRISIS', T.down), chip('NEUTRAL', T.neutral)] },
+      ],
+      positions: [
+        { symbol: 'SPY', qty: '120', avg: '$512.40', mark: '$523.11', pnl: '+$1,285.20', pnlColor: '#2E6B45', chip: 'FILLED', chipBg: T.up.bg, chipFg: T.up.fg },
+        { symbol: 'QQQ', qty: '85', avg: '$448.02', mark: '$444.87', pnl: '−$267.75', pnlColor: '#A63D36', chip: 'FILLED', chipBg: T.up.bg, chipFg: T.up.fg },
+        { symbol: 'IWM', qty: '200', avg: '$219.15', mark: '$219.15', pnl: '+$0.00', pnlColor: '#7a7a7d', chip: 'PARTIAL', chipBg: T.warn.bg, chipFg: T.warn.fg },
+        { symbol: 'NVDA', qty: '40', avg: '$121.80', mark: '$128.44', pnl: '+$265.60', pnlColor: '#2E6B45', chip: 'SUBMITTED', chipBg: T.info.bg, chipFg: T.info.fg },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

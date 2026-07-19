@@ -111,5 +111,10 @@ _tmp_*
 # ===== M11 load-test fixtures — per-user tokens + TOTP secrets, NEVER commit =====
 backend/loadtest/fixtures.json
 
+# Tester account creds + TOTP secret (local + prod) — NEVER commit
+TESTER_ACCOUNT.local.md
+# Project-local agent notes (points to the tester file) — keep private
+CLAUDE.local.md
+
 # osv-scanner ephemeral output (CI dependency audit)
 frontend/osv.json
