@@ -1,40 +1,81 @@
 /*
- * StratTraderPro Design Tokens
- * Custom properties consumed by Tailwind via tailwind.config.js.
- * Uses logical properties for RTL compatibility.
+ * StratTraderPro Design Tokens - "Industry" design system.
+ * Base: Industry token sheet (design_handoff/_ds/industry-x/styles.css) ported
+ * verbatim, plus the trading-semantics extension from angular-migration-notes
+ * section 1. Custom properties consumed by Tailwind via tailwind.config.js.
+ * Never hard-code a hex, font name, or px value that a token carries.
  */
 
 :root {
-  /* Primary — deep blue for trust/finance */
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-900: #1e3a5f;
+  /* ===== Industry base ===== */
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-accent-2: #728fab;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
 
-  /* Accent — teal for positive signals */
-  --color-accent-500: #14b8a6;
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
 
-  /* Danger — red for risk/kill-switch */
-  --color-danger-500: #ef4444;
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
 
-  /* Success — green for fills/profit */
-  --color-success-500: #22c55e;
+  --color-accent-2-100: #eef6ff;
+  --color-accent-2-200: #d6ebff;
+  --color-accent-2-300: #bdd8f2;
+  --color-accent-2-400: #9ebbd8;
+  --color-accent-2-500: #7e9cb8;
+  --color-accent-2-600: #627d98;
+  --color-accent-2-700: #486077;
+  --color-accent-2-800: #314457;
+  --color-accent-2-900: #1f2d3a;
 
-  /* Spacing scale */
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2rem;
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Barlow", system-ui, sans-serif;
 
-  /* Border radius */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-6: 20.4px;
+  --space-8: 27.2px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  /* Elevation — soft ink-tinted shadows on the light ground. */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+
+  /* ===== Trading-semantics extension — OKLCH-matched to Industry's ramps.
+     Steel accent = machinery (actions, focus, progress, equity).
+     Green/red = money and risk ONLY; never decorative. ===== */
+  --up: #2E6B45;      --up-tint: #DFEEE4;   --up-deep: #2E5C40;   /* profit, fills, connected, OK, release */
+  --down: #A63D36;    --down-tint: #F6E3E1; --down-deep: #8C3A34; /* loss, rejected, halt, danger */
+  --warn: #C9A23E;    --warn-tint: #F3E9D4; --warn-deep: #6E5220; /* degraded, partial, cancelling, drift */
+  --bear: #B06A3C;    --bear-tint: #F2E4D8; --bear-deep: #7A4826; /* regime BEAR only */
+  /* info/running/system = the accent itself (accent-100 tint / accent-800 text) */
+  --regime-bull: #4C8A62; --regime-chop: #C9A23E; --regime-bear: #B06A3C;
+  --regime-crisis: #B3564F; --regime-neutral: #98989b;
+  --font-mono: "IBM Plex Mono", monospace; /* all numerics, ids, hashes, JSON */
 }
