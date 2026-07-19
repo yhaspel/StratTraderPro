@@ -74,8 +74,12 @@ Angular 21 toolchain upgrade.
 *Category 2 — dev/build-tooling transitive deps, NOT present in the shipped SPA bundle:*
 `shell-quote` (GHSA-w7jw-789q-3m8p, critical), `tar` (×6), `ws`, `tmp`, `vite`, `piscina`,
 `serialize-javascript`, `sigstore`, `fast-uri` (×2), `http-proxy-middleware`,
-`@babel/plugin-transform-modules-systemjs`. All are transitive deps of `@angular/cli` /
-`@angular-devkit/build-angular` / `karma` / `webpack-dev-server` — build- and test-time only.
+`websocket-driver` (GHSA-xv26-6w52-cph6, critical — HTTP-parser DoS; only `sockjs@0.3.24` ⇒
+`webpack-dev-server`/`karma` pull it, and there is no patched 0.7.x release, so `ng build`'s
+compiled bundle contains none of it and only a dev machine running the test/serve tooling
+could be targeted), `@babel/plugin-transform-modules-systemjs`. All are transitive deps of
+`@angular/cli` / `@angular-devkit/build-angular` / `karma` / `webpack-dev-server` — build- and
+test-time only.
 The compiled bundle (`ng build`) contains none of them, so they are not a runtime attack
 surface for end users. `pnpm overrides` were considered but rejected for a hardening PR
 (forcing a dozen deep toolchain deps risks destabilising the build for zero shipped-code
