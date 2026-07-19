@@ -11,32 +11,39 @@
 import {
   ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild,
 } from '@angular/core';
+import { BlueprintDirective } from './blueprint.directive';
 
 let modalSeq = 0;
 
 @Component({
   selector: 'app-modal',
   standalone: true,
+  imports: [BlueprintDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open) {
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4"
         (click)="onBackdrop($event)">
         <div
           #dialog
+          stpBlueprint
           role="dialog"
           aria-modal="true"
           [attr.aria-labelledby]="titleId"
           tabindex="-1"
           (keydown)="onKeydown($event)"
-          class="w-full max-w-lg rounded-lg bg-white p-lg shadow-md focus:outline-none">
-          <div class="mb-md flex items-start justify-between gap-md">
-            <h2 [id]="titleId" class="text-lg font-semibold text-primary-900">{{ heading }}</h2>
+          class="w-full max-w-lg rounded-none bg-bg p-s4 shadow-lg focus:outline-none">
+          <div class="mb-s3 flex items-start justify-between gap-s3">
+            <h2
+              [id]="titleId"
+              class="font-heading font-semibold text-xl"
+              [class.text-down]="destructive"
+              [class.text-ink]="!destructive">{{ heading }}</h2>
             @if (dismissable) {
               <button
                 type="button"
-                class="rounded p-1 text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                class="rounded-none p-1 text-neutral-500 hover:text-neutral-700"
                 [attr.aria-label]="closeLabel"
                 (click)="close()">✕</button>
             }
@@ -51,6 +58,8 @@ export class ModalComponent implements OnDestroy {
   @Input() heading = '';
   @Input() closeLabel = 'Close';
   @Input() titleId = `modal-title-${++modalSeq}`;
+  /** Destructive dialogs get a `--down` title (pair with a danger primary). */
+  @Input() destructive = false;
   /** When false the modal is blocking: Escape/backdrop are ignored and the ✕
    * affordance is hidden (M11 §7.8). Defaults true (existing behaviour). */
   @Input() dismissable = true;

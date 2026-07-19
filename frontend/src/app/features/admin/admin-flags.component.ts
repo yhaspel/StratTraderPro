@@ -4,108 +4,136 @@
  * require typing the flag's exact name to confirm. `immutable` flags (mutable =
  * false) are rendered read-only — their toggle is disabled and no MFA prompt can
  * be opened for them.
+ *
+ * Industry styling: sub-nav with accent underline, blueprint card list, chips
+ * for flag badges/state (no hand-rolled toggle existed — the Enable/Disable
+ * button is kept, restyled as a secondary app-button), shared inline-confirm
+ * grammar (input → confirm → secondary cancel).
  */
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { NgClass } from '@angular/common';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
 import { ApiError } from '../../core/models/auth.models';
 import { FeatureFlag } from '../../core/models/admin.models';
 import { ImpersonationBannerComponent } from './impersonation-banner.component';
 import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
+import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { PageHeaderComponent } from '../shared/ui/page-header.component';
+import { StatusChipComponent } from '../shared/ui/status-chip.component';
 
 @Component({
   selector: 'app-admin-flags',
   standalone: true,
-  imports: [RouterLink, TranslateModule, ImpersonationBannerComponent, TotpInputComponent],
+  imports: [
+    NgClass, RouterLink, RouterLinkActive, TranslateModule, ImpersonationBannerComponent,
+    TotpInputComponent, ButtonComponent, CardComponent, PageHeaderComponent, StatusChipComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-impersonation-banner />
 
-    <div class="mx-auto max-w-4xl p-6 space-y-6">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold">{{ 'admin.flags.title' | translate }}</h1>
-        <a routerLink="/admin" class="text-sm text-blue-600 hover:underline">{{ 'admin.nav.back' | translate }}</a>
-      </div>
+    <div class="mx-auto max-w-4xl space-y-6 p-6">
+      <app-page-header [heading]="'admin.flags.title' | translate">
+        <nav actions class="flex flex-wrap items-center gap-4 text-sm">
+          <a routerLink="/admin" [routerLinkActiveOptions]="{ exact: true }"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.overview' | translate }}</a>
+          <a routerLink="/admin/users"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.users' | translate }}</a>
+          <a routerLink="/admin/audit"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.audit' | translate }}</a>
+          <a routerLink="/admin/flags"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.flags' | translate }}</a>
+          <a routerLink="/admin/health"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.health' | translate }}</a>
+        </nav>
+      </app-page-header>
 
       @if (admin.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" role="alert">{{ err.message }}</div>
+        <div class="rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">{{ err.message }}</div>
       }
 
       @if (admin.loading()) {
-        <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       } @else if (admin.flags().length === 0) {
-        <p class="text-sm text-gray-500">{{ 'admin.flags.empty' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'admin.flags.empty' | translate }}</p>
       } @else {
-        <ul class="divide-y border rounded">
-          @for (f of admin.flags(); track f.name) {
-            <li class="px-4 py-3">
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono font-semibold text-sm">{{ f.name }}</span>
-                    @if (f.dangerous) {
-                      <span class="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5">{{ 'admin.flags.dangerous' | translate }}</span>
-                    }
-                    @if (!f.mutable) {
-                      <span class="text-xs bg-gray-200 text-gray-600 rounded px-1.5 py-0.5">{{ 'admin.flags.immutable' | translate }}</span>
-                    }
-                  </div>
-                  <p class="text-xs text-gray-500 mt-1">{{ f.description }}</p>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ 'admin.flags.source' | translate }}: {{ f.source }}</p>
-                </div>
-                <div class="text-right">
-                  <span class="text-sm font-semibold" [class.text-green-700]="f.enabled" [class.text-gray-500]="!f.enabled">
-                    {{ (f.enabled ? 'admin.flags.on' : 'admin.flags.off') | translate }}
-                  </span>
-                  <div class="mt-2">
-                    <button type="button" (click)="open(f)" [disabled]="!f.mutable"
-                            class="text-sm px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-50">
-                      {{ (f.enabled ? 'admin.flags.disable' : 'admin.flags.enable') | translate }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Inline MFA + (dangerous) name-confirm prompt -->
-              @if (openFlag() === f.name) {
-                <div class="mt-3 border-t pt-3 space-y-3">
-                  @if (f.dangerous) {
-                    <div>
-                      <label [attr.for]="'flag-confirm-' + f.name" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                        {{ 'admin.flags.confirm_name' | translate }}
-                      </label>
-                      <input [id]="'flag-confirm-' + f.name" type="text" [value]="nameConfirm()"
-                             (input)="nameConfirm.set($any($event.target).value)" autocomplete="off" spellcheck="false"
-                             class="w-full font-mono text-sm border-2 rounded px-3 py-2"
-                             [class.border-green-400]="nameConfirm() === f.name" />
-                    </div>
-                  }
-                  <span class="block text-xs font-semibold text-gray-700 uppercase">{{ 'admin.flags.mfa' | translate }}</span>
-                  <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
-                  @if (toggleError(); as err) {
-                    <p class="text-sm text-red-700">
-                      @if (knownError(err.code)) {
-                        {{ ('admin.flags.error.' + err.code) | translate }}
-                      } @else {
-                        {{ err.message }}
+        <app-card>
+          <ul class="divide-y divide-divider">
+            @for (f of admin.flags(); track f.name) {
+              <li class="px-3 py-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-sm font-semibold">{{ f.name }}</span>
+                      @if (f.dangerous) {
+                        <app-status-chip tone="down">{{ 'admin.flags.dangerous' | translate }}</app-status-chip>
                       }
-                    </p>
-                  }
-                  <div class="flex gap-3 justify-end">
-                    <button type="button" (click)="cancel()" class="px-3 py-1 rounded border text-sm hover:bg-gray-50">
-                      {{ 'common.cancel' | translate }}
-                    </button>
-                    <button type="button" (click)="submit(f)" [disabled]="!canSubmit(f)"
-                            class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:opacity-40">
-                      {{ (submitting() ? 'admin.flags.submitting' : 'common.confirm') | translate }}
-                    </button>
+                      @if (!f.mutable) {
+                        <app-status-chip tone="neutral">{{ 'admin.flags.immutable' | translate }}</app-status-chip>
+                      }
+                    </div>
+                    <p class="mt-1 text-xs text-neutral-700">{{ f.description }}</p>
+                    <p class="mt-0.5 text-xs text-neutral-700">{{ 'admin.flags.source' | translate }}: {{ f.source }}</p>
+                  </div>
+                  <div class="text-right">
+                    <app-status-chip [tone]="f.enabled ? 'info' : 'neutral'">
+                      {{ (f.enabled ? 'admin.flags.on' : 'admin.flags.off') | translate }}
+                    </app-status-chip>
+                    <div class="mt-2">
+                      <app-button variant="secondary" (clicked)="open(f)" [disabled]="!f.mutable">
+                        {{ (f.enabled ? 'admin.flags.disable' : 'admin.flags.enable') | translate }}
+                      </app-button>
+                    </div>
                   </div>
                 </div>
-              }
-            </li>
-          }
-        </ul>
+
+                <!-- Inline MFA + (dangerous) name-confirm prompt -->
+                @if (openFlag() === f.name) {
+                  <div class="mt-3 space-y-3 border-t border-divider pt-3">
+                    @if (f.dangerous) {
+                      <div>
+                        <label [attr.for]="'flag-confirm-' + f.name" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
+                          {{ 'admin.flags.confirm_name' | translate }}
+                        </label>
+                        <input [id]="'flag-confirm-' + f.name" type="text" [value]="nameConfirm()"
+                               (input)="nameConfirm.set($any($event.target).value)" autocomplete="off" spellcheck="false"
+                               class="w-full rounded-none border-2 bg-surface px-3 py-2 font-mono text-sm text-ink"
+                               [ngClass]="nameConfirm() === f.name ? 'border-up' : 'border-divider'" />
+                      </div>
+                    }
+                    <span class="block text-[11px] font-semibold uppercase tracking-wide text-accent-700">{{ 'admin.flags.mfa' | translate }}</span>
+                    <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />
+                    @if (toggleError(); as err) {
+                      <p class="text-sm text-down">
+                        @if (knownError(err.code)) {
+                          {{ ('admin.flags.error.' + err.code) | translate }}
+                        } @else {
+                          {{ err.message }}
+                        }
+                      </p>
+                    }
+                    <div class="flex justify-end gap-3">
+                      <app-button variant="primary" (clicked)="submit(f)" [disabled]="!canSubmit(f)" [loading]="submitting()">
+                        {{ (submitting() ? 'admin.flags.submitting' : 'common.confirm') | translate }}
+                      </app-button>
+                      <app-button variant="secondary" (clicked)="cancel()">
+                        {{ 'common.cancel' | translate }}
+                      </app-button>
+                    </div>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </app-card>
       }
     </div>
   `,

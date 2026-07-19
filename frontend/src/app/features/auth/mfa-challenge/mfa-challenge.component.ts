@@ -10,67 +10,81 @@ import { Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
 import { TotpInputComponent } from '../totp-input/totp-input.component';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { CardComponent } from '../../shared/ui/card.component';
+import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
 
 @Component({
   selector: 'app-mfa-challenge',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslateModule, TotpInputComponent],
+  imports: [
+    CommonModule, FormsModule, RouterLink, TranslateModule,
+    TotpInputComponent, ButtonComponent, CardComponent, BlueprintDirective,
+  ],
   template: `
-    <div class="mx-auto max-w-md p-6">
-      <h1 class="text-2xl font-bold mb-2">{{ 'mfa.challenge.title' | translate }}</h1>
-      <p class="text-gray-600 mb-6">{{ 'mfa.challenge.subtitle' | translate }}</p>
-
-      @if (facade.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-          {{ 'mfa.error.' + err.code | translate : { default: err.message } }}
+    <div class="flex justify-center px-6 py-12">
+      <div class="flex w-full max-w-[400px] flex-col gap-6">
+        <div class="flex flex-col items-center gap-3 text-center">
+          <span stpBlueprint aria-hidden="true"
+                class="inline-flex h-12 w-12 items-end justify-center gap-1 bg-transparent p-[10px] pb-2">
+            <span class="h-3 w-[5px] bg-accent"></span>
+            <span class="h-[21px] w-[5px] bg-accent"></span>
+            <span class="h-2 w-[5px] bg-accent-400"></span>
+          </span>
+          <h1 class="m-0 font-heading text-2xl font-semibold text-ink">{{ 'mfa.challenge.title' | translate }}</h1>
+          <p class="m-0 text-sm text-neutral-700">{{ 'mfa.challenge.subtitle' | translate }}</p>
         </div>
-      }
 
-      @if (!useBackup()) {
-        <app-totp-input
-          #totp
-          ariaLabel="Authentication code"
-          (codeChange)="code.set($event)"
-          (codeComplete)="onSubmit()"
-        />
-      } @else {
-        <label class="block text-sm font-medium mb-1" for="backup">
-          {{ 'mfa.challenge.backup_label' | translate }}
-        </label>
-        <input
-          id="backup"
-          type="text"
-          [ngModel]="code()"
-          (ngModelChange)="code.set($event)"
-          autocomplete="one-time-code"
-          placeholder="XXXX-XXXX"
-          class="w-full border-2 rounded px-3 py-3 font-mono tracking-wider uppercase"
-        />
-      }
+        @if (facade.error(); as err) {
+          <div class="rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">
+            {{ 'mfa.error.' + err.code | translate : { default: err.message } }}
+          </div>
+        }
 
-      <button
-        type="button"
-        class="mt-6 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-        [disabled]="!canSubmit()"
-        (click)="onSubmit()"
-      >
-        {{ 'mfa.challenge.submit' | translate }}
-      </button>
+        <app-card>
+          @if (!useBackup()) {
+            <app-totp-input
+              #totp
+              ariaLabel="Authentication code"
+              (codeChange)="code.set($event)"
+              (codeComplete)="onSubmit()"
+            />
+          } @else {
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="backup">
+              {{ 'mfa.challenge.backup_label' | translate }}
+            </label>
+            <input
+              id="backup"
+              type="text"
+              [ngModel]="code()"
+              (ngModelChange)="code.set($event)"
+              autocomplete="one-time-code"
+              placeholder="XXXX-XXXX"
+              class="min-h-[44px] w-full rounded-none border border-divider bg-surface px-3 font-mono text-base uppercase tracking-[0.15em] text-ink focus:border-accent focus:outline-none"
+            />
+          }
 
-      <button
-        type="button"
-        class="mt-3 w-full text-sm text-blue-600 hover:underline"
-        (click)="toggleMode()"
-      >
-        {{ (useBackup()
-            ? 'mfa.challenge.use_totp_instead'
-            : 'mfa.challenge.use_backup_instead') | translate }}
-      </button>
+          <app-button variant="primary" [frame]="true"
+                      class="mt-[18px] block [&>button]:w-full"
+                      [disabled]="!canSubmit()"
+                      (clicked)="onSubmit()">
+            {{ 'mfa.challenge.submit' | translate }}
+          </app-button>
 
-      <div class="mt-6 text-center text-sm">
-        <a routerLink="/login" class="text-gray-600 hover:underline" (click)="onCancel($event)">
-          {{ 'mfa.challenge.cancel' | translate }}
-        </a>
+          <app-button variant="ghost"
+                      class="mt-3 flex justify-center [&>button]:text-[13px]"
+                      (clicked)="toggleMode()">
+            {{ (useBackup()
+                ? 'mfa.challenge.use_totp_instead'
+                : 'mfa.challenge.use_backup_instead') | translate }}
+          </app-button>
+        </app-card>
+
+        <div class="text-center text-[13px]">
+          <a routerLink="/login" class="text-neutral-700 hover:underline" (click)="onCancel($event)">
+            {{ 'mfa.challenge.cancel' | translate }}
+          </a>
+        </div>
       </div>
     </div>
   `,

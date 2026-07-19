@@ -1,42 +1,88 @@
 /** @type {import('tailwindcss').Config} */
+// "Industry" design system — every color/font/space/radius/shadow maps to the
+// CSS custom properties declared in src/styles/tokens.css. Never add a raw hex
+// here; retune the tokens instead.
 module.exports = {
   content: ["./src/**/*.{html,ts}"],
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: "var(--color-primary-50)",
-          100: "var(--color-primary-100)",
-          500: "var(--color-primary-500)",
-          600: "var(--color-primary-600)",
-          700: "var(--color-primary-700)",
-          900: "var(--color-primary-900)",
-        },
+        // Ground / surfaces / chrome
+        bg: "var(--color-bg)",
+        surface: "var(--color-surface)",
+        ink: "var(--color-text)",
+        divider: "var(--color-divider)",
+        // Steel accent — machinery: actions, focus, progress, equity
         accent: {
+          DEFAULT: "var(--color-accent)",
+          100: "var(--color-accent-100)",
+          200: "var(--color-accent-200)",
+          300: "var(--color-accent-300)",
+          400: "var(--color-accent-400)",
           500: "var(--color-accent-500)",
+          600: "var(--color-accent-600)",
+          700: "var(--color-accent-700)",
+          800: "var(--color-accent-800)",
+          900: "var(--color-accent-900)",
         },
-        danger: {
-          500: "var(--color-danger-500)",
+        neutral: {
+          100: "var(--color-neutral-100)",
+          200: "var(--color-neutral-200)",
+          300: "var(--color-neutral-300)",
+          400: "var(--color-neutral-400)",
+          500: "var(--color-neutral-500)",
+          600: "var(--color-neutral-600)",
+          700: "var(--color-neutral-700)",
+          800: "var(--color-neutral-800)",
+          900: "var(--color-neutral-900)",
         },
-        success: {
-          500: "var(--color-success-500)",
+        // Trading semantics — money and risk ONLY, never decorative
+        up: {
+          DEFAULT: "var(--up)",
+          tint: "var(--up-tint)",
+          deep: "var(--up-deep)",
+        },
+        down: {
+          DEFAULT: "var(--down)",
+          tint: "var(--down-tint)",
+          deep: "var(--down-deep)",
+        },
+        warn: {
+          DEFAULT: "var(--warn)",
+          tint: "var(--warn-tint)",
+          deep: "var(--warn-deep)",
+        },
+        bear: {
+          DEFAULT: "var(--bear)",
+          tint: "var(--bear-tint)",
+          deep: "var(--bear-deep)",
+        },
+        regime: {
+          bull: "var(--regime-bull)",
+          chop: "var(--regime-chop)",
+          bear: "var(--regime-bear)",
+          crisis: "var(--regime-crisis)",
+          neutral: "var(--regime-neutral)",
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        heading: ["Barlow Condensed", "system-ui", "sans-serif"],
+        body: ["Barlow", "system-ui", "sans-serif"],
+        sans: ["Barlow", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "monospace"],
       },
-      // M10.5 §7.4 — expose the spacing/radius/shadow tokens defined in
-      // src/styles/tokens.css as Tailwind utilities (previously unreachable:
-      // tokens.css declared them but nothing mapped them).
       spacing: {
-        xs: "var(--space-xs)",
-        sm: "var(--space-sm)",
-        md: "var(--space-md)",
-        lg: "var(--space-lg)",
-        xl: "var(--space-xl)",
+        s1: "var(--space-1)",
+        s2: "var(--space-2)",
+        s3: "var(--space-3)",
+        s4: "var(--space-4)",
+        s6: "var(--space-6)",
+        s8: "var(--space-8)",
       },
       borderRadius: {
+        // Framed (blueprint) objects are square; sm/md/lg kept for the few
+        // non-framed uses the tokens carry.
+        none: "0",
         sm: "var(--radius-sm)",
         md: "var(--radius-md)",
         lg: "var(--radius-lg)",
@@ -44,6 +90,7 @@ module.exports = {
       boxShadow: {
         sm: "var(--shadow-sm)",
         md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
       },
     },
   },

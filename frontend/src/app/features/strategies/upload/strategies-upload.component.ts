@@ -7,6 +7,10 @@
  *
  * Stays as a single component to keep the bundle small. Errors map to the
  * backend's STRATEGY_FILE_* error codes, which are localized client-side.
+ *
+ * Visual layer: "Industry" design system — shared page header, blueprint
+ * card, square step indicator (active accent / done accent-700 / bars
+ * bg-accent on a bg-surface track), shared buttons, warn/down tint notices.
  */
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -14,6 +18,9 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { CardComponent } from '../../shared/ui/card.component';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 
 const STEM_REGEX = /^[A-Za-z0-9_\-]{3,64}$/;
 const MAX_PINE = 64 * 1024;
@@ -23,32 +30,38 @@ const MAX_WEBHOOK = 16 * 1024;
 @Component({
   selector: 'app-strategies-upload',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [
+    CommonModule, FormsModule, TranslateModule,
+    ButtonComponent, CardComponent, PageHeaderComponent,
+  ],
   template: `
     <div class="mx-auto max-w-2xl p-6">
-      <h1 class="text-2xl font-bold mb-2">{{ 'strategies.upload.title' | translate }}</h1>
-      <p class="text-sm text-gray-600 mb-6">{{ 'strategies.upload.subtitle' | translate }}</p>
+      <app-page-header
+        [heading]="'strategies.upload.title' | translate"
+        [subtitle]="'strategies.upload.subtitle' | translate" />
 
+      @if (errorBanner(); as e) {
+        <div class="mb-4 rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">
+          {{ e }}
+        </div>
+      }
+
+      <app-card>
       <!-- Step indicator -->
-      <ol class="flex items-center mb-6 text-xs">
+      <ol class="mb-6 flex items-center text-xs">
         @for (s of [1, 2, 3]; track s) {
           <li class="flex items-center">
-            <span [class.bg-blue-600]="step() >= s" [class.text-white]="step() >= s"
-                  [class.bg-gray-200]="step() < s" class="w-6 h-6 rounded-full flex items-center justify-center font-semibold">
+            <span [class.bg-accent-700]="step() === s" [class.bg-accent-900]="step() > s" [class.text-bg]="step() >= s"
+                  [class.bg-surface]="step() < s" [class.text-neutral-700]="step() < s"
+                  class="flex h-6 w-6 items-center justify-center rounded-none font-heading font-semibold">
               {{ s }}
             </span>
             @if (s < 3) {
-              <span class="w-12 h-0.5 mx-1" [class.bg-blue-600]="step() > s" [class.bg-gray-200]="step() <= s"></span>
+              <span class="mx-1 h-0.5 w-12" [class.bg-accent]="step() > s" [class.bg-surface]="step() <= s"></span>
             }
           </li>
         }
       </ol>
-
-      @if (errorBanner(); as e) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-          {{ e }}
-        </div>
-      }
 
       <!-- Step 1 — file selection -->
       @if (step() === 1) {
@@ -57,9 +70,9 @@ const MAX_WEBHOOK = 16 * 1024;
             <label for="pine" class="block text-sm font-medium mb-1">{{ 'strategies.upload.pine.label' | translate }}</label>
             <input id="pine" type="file" accept=".pine" (change)="onPineSelected($event)"
                    class="block w-full text-sm" />
-            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.pine.hint' | translate }}</p>
+            <p class="mt-1 text-xs text-neutral-700">{{ 'strategies.upload.pine.hint' | translate }}</p>
             @if (pineFile()) {
-              <p class="text-xs mt-1" [class.text-red-700]="pineWarning()" [class.text-amber-700]="pineSizeWarning() && !pineWarning()">
+              <p class="mt-1 text-xs" [class.text-down]="pineWarning()" [class.text-warn-deep]="pineSizeWarning() && !pineWarning()">
                 {{ pineFile()!.name }} ({{ formatBytes(pineFile()!.size) }})
                 @if (pineWarning()) { — {{ pineWarning() }} }
               </p>
@@ -70,9 +83,9 @@ const MAX_WEBHOOK = 16 * 1024;
             <label for="description" class="block text-sm font-medium mb-1">{{ 'strategies.upload.desc.label' | translate }}</label>
             <input id="description" type="file" accept=".txt" (change)="onDescSelected($event)"
                    class="block w-full text-sm" />
-            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.desc.hint' | translate : { stem: stem() || '&lt;stem&gt;' } }}</p>
+            <p class="mt-1 text-xs text-neutral-700">{{ 'strategies.upload.desc.hint' | translate : { stem: stem() || '&lt;stem&gt;' } }}</p>
             @if (descFile()) {
-              <p class="text-xs mt-1" [class.text-red-700]="descWarning()">
+              <p class="mt-1 text-xs" [class.text-down]="descWarning()">
                 {{ descFile()!.name }} ({{ formatBytes(descFile()!.size) }})
                 @if (descWarning()) { — {{ descWarning() }} }
               </p>
@@ -83,9 +96,9 @@ const MAX_WEBHOOK = 16 * 1024;
             <label for="webhook" class="block text-sm font-medium mb-1">{{ 'strategies.upload.webhook.label' | translate }}</label>
             <input id="webhook" type="file" accept=".json" (change)="onWebhookSelected($event)"
                    class="block w-full text-sm" />
-            <p class="text-xs text-gray-500 mt-1">{{ 'strategies.upload.webhook.hint' | translate : { stem: stem() || '&lt;stem&gt;' } }}</p>
+            <p class="mt-1 text-xs text-neutral-700">{{ 'strategies.upload.webhook.hint' | translate : { stem: stem() || '&lt;stem&gt;' } }}</p>
             @if (webhookFile()) {
-              <p class="text-xs mt-1" [class.text-red-700]="webhookWarning()">
+              <p class="mt-1 text-xs" [class.text-down]="webhookWarning()">
                 {{ webhookFile()!.name }} ({{ formatBytes(webhookFile()!.size) }})
                 @if (webhookWarning()) { — {{ webhookWarning() }} }
               </p>
@@ -93,10 +106,9 @@ const MAX_WEBHOOK = 16 * 1024;
           </div>
 
           <div class="flex justify-end">
-            <button type="button" (click)="step.set(2)" [disabled]="!canAdvanceFromStep1()"
-                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm px-4 py-2 rounded">
+            <app-button variant="primary" [disabled]="!canAdvanceFromStep1()" (clicked)="step.set(2)">
               {{ 'strategies.upload.next' | translate }}
-            </button>
+            </app-button>
           </div>
         </div>
       }
@@ -114,21 +126,19 @@ const MAX_WEBHOOK = 16 * 1024;
           </div>
           <div>
             <p class="text-sm font-medium mb-1">{{ 'strategies.upload.review.description_preview' | translate }}</p>
-            <pre class="bg-gray-50 border rounded p-2 text-xs whitespace-pre-wrap max-h-48 overflow-auto">{{ descPreview() }}</pre>
+            <pre class="max-h-48 overflow-auto whitespace-pre-wrap rounded-none border border-divider bg-surface p-2 font-mono text-xs text-ink">{{ descPreview() }}</pre>
           </div>
           <div>
             <p class="text-sm font-medium mb-1">{{ 'strategies.upload.review.webhook_keys' | translate }}</p>
             <p class="font-mono text-xs">{{ webhookKeys() }}</p>
           </div>
           <div class="flex justify-between">
-            <button type="button" (click)="step.set(1)"
-                    class="text-sm text-gray-700 hover:underline">
+            <app-button variant="ghost" (clicked)="step.set(1)">
               ← {{ 'strategies.upload.back' | translate }}
-            </button>
-            <button type="button" (click)="step.set(3)"
-                    class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded">
+            </app-button>
+            <app-button variant="primary" (clicked)="step.set(3)">
               {{ 'strategies.upload.next' | translate }}
-            </button>
+            </app-button>
           </div>
         </div>
       }
@@ -136,8 +146,8 @@ const MAX_WEBHOOK = 16 * 1024;
       <!-- Step 3 — acknowledge & submit -->
       @if (step() === 3) {
         <div class="space-y-4">
-          <div class="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded text-sm">
-            <p class="font-semibold mb-1">⚠ {{ 'strategies.upload.warning.title' | translate }}</p>
+          <div class="rounded-none border border-warn bg-warn-tint px-4 py-3 text-sm text-warn-deep">
+            <p class="mb-1 font-semibold">⚠ {{ 'strategies.upload.warning.title' | translate }}</p>
             <p>{{ 'strategies.upload.warning.body' | translate }}</p>
           </div>
 
@@ -147,18 +157,16 @@ const MAX_WEBHOOK = 16 * 1024;
           </label>
 
           <div class="flex justify-between">
-            <button type="button" (click)="step.set(2)"
-                    class="text-sm text-gray-700 hover:underline">
+            <app-button variant="ghost" (clicked)="step.set(2)">
               ← {{ 'strategies.upload.back' | translate }}
-            </button>
-            <button type="button" (click)="onSubmit()"
-                    [disabled]="!acceptRisk || submitting()"
-                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm px-4 py-2 rounded">
+            </app-button>
+            <app-button variant="primary" [disabled]="!acceptRisk" [loading]="submitting()" (clicked)="onSubmit()">
               {{ (submitting() ? 'strategies.upload.submitting' : 'strategies.upload.submit') | translate }}
-            </button>
+            </app-button>
           </div>
         </div>
       }
+      </app-card>
     </div>
   `,
 })
@@ -185,7 +193,7 @@ export class StrategiesUploadComponent {
     return f.name.slice(0, -'.pine'.length);
   });
 
-  // Validation messages (rendered red).
+  // Validation messages (rendered in the --down semantic color).
   pineWarning = computed<string | null>(() => {
     const f = this.pineFile();
     if (!f) { return null; }

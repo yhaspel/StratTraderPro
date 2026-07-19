@@ -5,6 +5,9 @@ import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
 import { GoogleButtonComponent } from '../google-button/google-button.component';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { CardComponent } from '../../shared/ui/card.component';
+import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
 
 /** Client mirror of the backend LettersAndDigitsValidator (AC-01-9) so the
  * hint ("letters and digits") and the button's enabled state agree. Uses
@@ -21,78 +24,95 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, GoogleButtonComponent],
+  imports: [
+    CommonModule, ReactiveFormsModule, RouterLink, TranslateModule,
+    GoogleButtonComponent, ButtonComponent, CardComponent, BlueprintDirective,
+  ],
   template: `
-    <div class="mx-auto max-w-md p-6">
-      <h1 class="text-2xl font-bold mb-6">{{ 'auth.register.title' | translate }}</h1>
-
-      @if (facade.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-          {{ err.message }}
+    <div class="flex justify-center px-6 py-12">
+      <div class="flex w-full max-w-[400px] flex-col gap-6">
+        <div class="flex flex-col items-center gap-3">
+          <span stpBlueprint aria-hidden="true"
+                class="inline-flex h-12 w-12 items-end justify-center gap-1 bg-transparent p-[10px] pb-2">
+            <span class="h-3 w-[5px] bg-accent"></span>
+            <span class="h-[21px] w-[5px] bg-accent"></span>
+            <span class="h-2 w-[5px] bg-accent-400"></span>
+          </span>
+          <h1 class="m-0 font-heading text-2xl font-semibold text-ink">{{ 'auth.register.title' | translate }}</h1>
         </div>
-      }
 
-      <app-google-button />
+        @if (facade.error(); as err) {
+          <div class="rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">
+            {{ err.message }}
+          </div>
+        }
 
-      <form [formGroup]="form" (ngSubmit)="onSubmit()">
-        <div class="mb-4">
-          <label for="email" class="block text-sm font-medium mb-1">{{ 'auth.register.email' | translate }}</label>
-          <input id="email" type="email" formControlName="email" autocomplete="email"
-                 [attr.aria-invalid]="isInvalid('email')"
-                 class="w-full border rounded px-3 py-2" />
-          @if (isInvalid('email')) {
-            <p class="text-xs text-red-600 mt-1" role="alert">
-              @if (form.controls.email.errors?.['required']) {
-                {{ 'auth.register.errors.email_required' | translate }}
-              } @else {
-                {{ 'auth.register.errors.email_invalid' | translate }}
+        <app-card>
+          <app-google-button />
+
+          <form [formGroup]="form" (ngSubmit)="onSubmit()">
+            <div class="mb-4">
+              <label for="email" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.register.email' | translate }}</label>
+              <input id="email" type="email" formControlName="email" autocomplete="email"
+                     [attr.aria-invalid]="isInvalid('email')"
+                     class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+              @if (isInvalid('email')) {
+                <p class="mt-1 text-xs text-down-deep" role="alert">
+                  @if (form.controls.email.errors?.['required']) {
+                    {{ 'auth.register.errors.email_required' | translate }}
+                  } @else {
+                    {{ 'auth.register.errors.email_invalid' | translate }}
+                  }
+                </p>
               }
-            </p>
-          }
-        </div>
+            </div>
 
-        <div class="mb-4">
-          <label for="displayName" class="block text-sm font-medium mb-1">{{ 'auth.register.display_name' | translate }}</label>
-          <input id="displayName" type="text" formControlName="displayName" autocomplete="name"
-                 [attr.aria-invalid]="isInvalid('displayName')"
-                 class="w-full border rounded px-3 py-2" />
-          @if (isInvalid('displayName')) {
-            <p class="text-xs text-red-600 mt-1" role="alert">
-              {{ 'auth.register.errors.display_name_required' | translate }}
-            </p>
-          }
-        </div>
-
-        <div class="mb-4">
-          <label for="password" class="block text-sm font-medium mb-1">{{ 'auth.register.password' | translate }}</label>
-          <input id="password" type="password" formControlName="password" autocomplete="new-password"
-                 [attr.aria-invalid]="isInvalid('password')"
-                 class="w-full border rounded px-3 py-2" />
-          @if (isInvalid('password')) {
-            <p class="text-xs text-red-600 mt-1" role="alert">
-              @if (form.controls.password.errors?.['required']) {
-                {{ 'auth.register.errors.password_required' | translate }}
-              } @else if (form.controls.password.errors?.['minlength']) {
-                {{ 'auth.register.errors.password_min' | translate }}
-              } @else {
-                {{ 'auth.register.errors.password_letters_digits' | translate }}
+            <div class="mb-4">
+              <label for="displayName" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.register.display_name' | translate }}</label>
+              <input id="displayName" type="text" formControlName="displayName" autocomplete="name"
+                     [attr.aria-invalid]="isInvalid('displayName')"
+                     class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+              @if (isInvalid('displayName')) {
+                <p class="mt-1 text-xs text-down-deep" role="alert">
+                  {{ 'auth.register.errors.display_name_required' | translate }}
+                </p>
               }
-            </p>
-          } @else {
-            <p class="text-xs text-gray-500 mt-1">{{ 'auth.register.password_hint' | translate }}</p>
-          }
-        </div>
+            </div>
 
-        <button type="submit" [disabled]="form.invalid || facade.status() === 'loading'"
-                class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50">
-          {{ 'auth.register.submit' | translate }}
-        </button>
-      </form>
+            <div class="mb-4">
+              <label for="password" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.register.password' | translate }}</label>
+              <input id="password" type="password" formControlName="password" autocomplete="new-password"
+                     [attr.aria-invalid]="isInvalid('password')"
+                     class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
+              @if (isInvalid('password')) {
+                <p class="mt-1 text-xs text-down-deep" role="alert">
+                  @if (form.controls.password.errors?.['required']) {
+                    {{ 'auth.register.errors.password_required' | translate }}
+                  } @else if (form.controls.password.errors?.['minlength']) {
+                    {{ 'auth.register.errors.password_min' | translate }}
+                  } @else {
+                    {{ 'auth.register.errors.password_letters_digits' | translate }}
+                  }
+                </p>
+              } @else {
+                <p class="mt-1 text-[11px] text-neutral-700">{{ 'auth.register.password_hint' | translate }}</p>
+              }
+            </div>
 
-      <p class="mt-4 text-sm text-center">
-        {{ 'auth.register.have_account' | translate }}
-        <a routerLink="/login" class="text-blue-600 hover:underline">{{ 'auth.register.login_link' | translate }}</a>
-      </p>
+            <app-button type="submit" variant="primary" [frame]="true"
+                        class="block [&>button]:w-full"
+                        [disabled]="form.invalid || facade.status() === 'loading'"
+                        [loading]="facade.status() === 'loading'">
+              {{ 'auth.register.submit' | translate }}
+            </app-button>
+          </form>
+        </app-card>
+
+        <p class="m-0 text-center text-[13px] text-neutral-700">
+          {{ 'auth.register.have_account' | translate }}
+          <a routerLink="/login" class="text-accent-700 hover:underline">{{ 'auth.register.login_link' | translate }}</a>
+        </p>
+      </div>
     </div>
   `,
 })

@@ -16,6 +16,9 @@
  * (the officially-recommended pattern for Monaco in arbitrary apps) is
  * tracked for a future milestone — the textarea works correctly today,
  * including line numbers via CSS counters and live JSON validation.
+ *
+ * Visual layer: "Industry" design system — mono editors on `--color-surface`,
+ * danger-tinted Rotate with a warn-deep caution line, shared buttons.
  */
 import { Component, Input, Output, EventEmitter, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -24,31 +27,32 @@ import { StrategiesFacade } from '../../../abstraction/facades/strategies.facade
 import { Strategy, WebhookConfig } from '../../../core/models/strategies.models';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 import { ModalComponent } from '../../shared/ui/modal.component';
+import { ButtonComponent } from '../../shared/ui/button.component';
 
 @Component({
   selector: 'app-webhook-config-modal',
   standalone: true,
-  imports: [CommonModule, TranslateModule, ModalComponent],
+  imports: [CommonModule, TranslateModule, ModalComponent, ButtonComponent],
   template: `
     <app-modal [open]="true" [heading]="modalHeading()" (closed)="closed.emit()">
-        <p class="text-sm text-gray-500 -mt-2 mb-4">{{ strategy.name }}</p>
+        <p class="-mt-2 mb-4 text-sm text-neutral-700">{{ strategy.name }}</p>
 
         @if (loading()) {
-          <p class="text-sm text-gray-500">{{ 'webhook.modal.loading' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'webhook.modal.loading' | translate }}</p>
         }
         @if (!loading() && config(); as cfg) {
 
           <!-- URL row -->
           <div class="mb-4">
-            <label for="webhook-url-input" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-url-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.url.label' | translate }}
             </label>
             <div class="flex gap-2">
               <input id="webhook-url-input" readonly type="text" [value]="cfg.url"
-                     class="flex-1 font-mono text-xs border rounded px-2 py-1 bg-gray-50" />
+                     class="min-h-[36px] flex-1 rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none" />
               <button type="button" (click)="copyToClipboard(cfg.url, 'url')"
                       [attr.aria-label]="'webhook.modal.copy_url' | translate"
-                      class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
+                      class="rounded-none border border-divider bg-transparent px-3 py-1.5 font-heading text-xs font-semibold text-ink transition-colors hover:bg-neutral-200 active:bg-neutral-300">
                 {{ copied() === 'url' ? '✓' : ('webhook.modal.copy' | translate) }}
               </button>
             </div>
@@ -56,80 +60,82 @@ import { ModalComponent } from '../../shared/ui/modal.component';
 
           <!-- Secret row -->
           <div class="mb-4">
-            <label for="webhook-secret-input" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-secret-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.secret.label' | translate }} (v{{ cfg.version }})
             </label>
             @if (cfg.secret) {
               <div class="flex gap-2">
                 <input id="webhook-secret-input" readonly type="text" [value]="cfg.secret"
-                       class="flex-1 font-mono text-xs border-2 border-amber-300 rounded px-2 py-1 bg-amber-50" />
+                       class="min-h-[36px] flex-1 rounded-none border border-warn bg-warn-tint px-2.5 py-1.5 font-mono text-xs text-ink focus:outline-none" />
                 <button type="button" (click)="copyToClipboard(cfg.secret!, 'secret')"
-                        class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
+                        class="rounded-none border border-divider bg-transparent px-3 py-1.5 font-heading text-xs font-semibold text-ink transition-colors hover:bg-neutral-200 active:bg-neutral-300">
                   {{ copied() === 'secret' ? '✓' : ('webhook.modal.copy' | translate) }}
                 </button>
               </div>
-              <p class="text-xs text-amber-700 mt-1">
+              <p class="mt-1 text-xs text-warn-deep">
                 ⚠ {{ 'webhook.modal.secret.reveal_once' | translate }}
               </p>
             } @else {
-              <div id="webhook-secret-input" class="text-xs text-gray-500 italic">
+              <div id="webhook-secret-input" class="text-xs italic text-neutral-700">
                 {{ 'webhook.modal.secret.hidden' | translate }}
               </div>
             }
             <button type="button" (click)="onRotate()"
                     [disabled]="rotating()"
-                    class="mt-2 text-xs bg-red-100 hover:bg-red-200 disabled:opacity-50 text-red-800 px-3 py-1 rounded">
+                    class="mt-2 rounded-none border border-down bg-down-tint px-3 py-1 font-heading text-xs font-semibold text-down transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45">
               {{ (rotating() ? 'webhook.modal.rotating' : 'webhook.modal.rotate') | translate }}
             </button>
+            <p class="mt-1 text-[11px] text-warn-deep">
+              ⚠ {{ 'webhook.modal.secret.rotate_warning' | translate }}
+            </p>
           </div>
 
           <!-- JSON Schema editor -->
           <div class="mb-4">
-            <label for="webhook-schema-editor" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-schema-editor" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.schema.label' | translate }}
             </label>
             <textarea id="webhook-schema-editor" rows="8" [value]="schemaText()" (input)="onSchemaInput($event)"
-                      class="w-full font-mono text-xs border rounded p-2"
+                      class="w-full rounded-none border border-divider bg-surface p-2 font-mono text-xs leading-relaxed text-ink focus:border-accent focus:outline-none"
                       spellcheck="false" autocomplete="off"></textarea>
             @if (schemaError(); as e) {
-              <p class="text-xs text-red-700 mt-1">{{ e }}</p>
+              <p class="mt-1 text-xs text-down">{{ e }}</p>
             }
           </div>
 
           <!-- Payload template editor -->
           <div class="mb-4">
-            <label for="webhook-template-editor" class="block text-xs font-semibold text-gray-700 uppercase mb-1">
+            <label for="webhook-template-editor" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.template.label' | translate }}
             </label>
             <textarea id="webhook-template-editor" rows="8" [value]="templateText()" (input)="onTemplateInput($event)"
-                      class="w-full font-mono text-xs border rounded p-2"
+                      class="w-full rounded-none border border-divider bg-surface p-2 font-mono text-xs leading-relaxed text-ink focus:border-accent focus:outline-none"
                       spellcheck="false" autocomplete="off"></textarea>
             @if (templateError(); as e) {
-              <p class="text-xs text-red-700 mt-1">{{ e }}</p>
+              <p class="mt-1 text-xs text-down">{{ e }}</p>
             }
           </div>
 
           <!-- Action row -->
-          <div class="flex flex-wrap gap-2 mb-4">
-            <button type="button" (click)="onSave()" [disabled]="saving() || !!schemaError() || !!templateError()"
-                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm px-3 py-1 rounded">
+          <div class="mb-4 flex flex-wrap gap-2.5">
+            <app-button variant="primary" [loading]="saving()"
+                        [disabled]="!!schemaError() || !!templateError()"
+                        (clicked)="onSave()">
               {{ (saving() ? 'webhook.modal.saving' : 'webhook.modal.save') | translate }}
-            </button>
-            <button type="button" (click)="onTest()" [disabled]="!!templateError()"
-                    class="bg-gray-200 hover:bg-gray-300 disabled:opacity-40 text-gray-800 text-sm px-3 py-1 rounded">
+            </app-button>
+            <app-button variant="secondary" [disabled]="!!templateError()" (clicked)="onTest()">
               {{ 'webhook.modal.test' | translate }}
-            </button>
-            <button type="button" (click)="copyTradingViewTemplate()"
-                    class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm px-3 py-1 rounded">
+            </app-button>
+            <app-button variant="secondary" (clicked)="copyTradingViewTemplate()">
               {{ 'webhook.modal.copy_tv' | translate }}
-            </button>
+            </app-button>
           </div>
 
           @if (saveOk()) {
-            <p class="text-xs text-green-700">✓ {{ 'webhook.modal.saved' | translate }}</p>
+            <p class="text-xs text-up">✓ {{ 'webhook.modal.saved' | translate }}</p>
           }
           @if (testResult(); as r) {
-            <p class="text-xs" [class.text-green-700]="r.ok" [class.text-red-700]="!r.ok">
+            <p class="text-xs" [class.text-up]="r.ok" [class.text-down]="!r.ok">
               {{ r.message }}
             </p>
           }

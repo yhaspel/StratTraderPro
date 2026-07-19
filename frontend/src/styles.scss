@@ -2,22 +2,115 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global resets / base styles */
+/* ============================================================
+   Global base — "Industry" design system.
+   All values come from the tokens in src/styles/tokens.css.
+   ============================================================ */
+
 html {
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+}
+
+/* Themed keyboard focus — never the browser default ring. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* Logical properties for RTL support */
 .container {
   max-inline-size: 80rem;
   margin-inline: auto;
-  padding-inline: var(--space-md);
+  padding-inline: var(--space-4);
+}
+
+/* ============================================================
+   Blueprint frame — cards/panels/dialogs are wireframe objects:
+   square-cornered, hairline-bordered, with "+" registration marks.
+   Applied via the shared corner-marks pattern (stpBlueprint
+   directive / ui-card / ui-modal); the four <i class="corner …">
+   children draw the marks.
+   ============================================================ */
+.blueprint {
+  position: relative;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+}
+.blueprint > .corner {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  pointer-events: none;
+}
+.blueprint > .corner::before,
+.blueprint > .corner::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+.blueprint > .corner::before {
+  left: 5px;
+  top: 0;
+  width: 1px;
+  height: 100%;
+}
+.blueprint > .corner::after {
+  top: 5px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+}
+.blueprint > .corner.tl {
+  top: -6px;
+  left: -6px;
+}
+.blueprint > .corner.tr {
+  top: -6px;
+  right: -6px;
+}
+.blueprint > .corner.bl {
+  bottom: -6px;
+  left: -6px;
+}
+.blueprint > .corner.br {
+  bottom: -6px;
+  right: -6px;
+}
+
+/* Numerics — all numbers, ids, hashes and JSON render in the mono
+   face with lining tabular figures. */
+.num,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }

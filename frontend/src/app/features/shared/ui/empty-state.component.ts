@@ -8,12 +8,12 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-xl text-center">
-      <h3 class="text-base font-semibold text-slate-700">{{ heading }}</h3>
+    <div class="rounded-none border border-dashed border-neutral-400 bg-transparent p-s8 text-center">
+      <h3 class="font-heading font-semibold text-base text-neutral-700">{{ heading }}</h3>
       @if (description) {
-        <p class="mx-auto mt-1 max-w-md text-sm text-slate-500">{{ description }}</p>
+        <p class="mx-auto mt-1 max-w-md text-sm text-neutral-700">{{ description }}</p>
       }
-      <div class="mt-md flex justify-center gap-sm">
+      <div class="mt-s3 flex justify-center gap-s2">
         <ng-content />
       </div>
     </div>

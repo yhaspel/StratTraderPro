@@ -3,117 +3,143 @@
  * Event types render via the `audit.event.*` map; unknown types fall back to the
  * raw event-type string (checked against the loaded map through TranslateService
  * so a missing key doesn't print the key path).
+ *
+ * Industry styling: sub-nav with accent underline, dense blueprint table with
+ * mono actor/IP/hash columns; hash-chain values wrap with break-all.
  */
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
 import { AuditFilters } from '../../core/models/admin.models';
 import { ImpersonationBannerComponent } from './impersonation-banner.component';
+import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { PageHeaderComponent } from '../shared/ui/page-header.component';
 
 @Component({
   selector: 'app-admin-audit',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, TranslateModule, DatePipe, ImpersonationBannerComponent],
+  imports: [
+    ReactiveFormsModule, RouterLink, RouterLinkActive, TranslateModule, DatePipe,
+    ImpersonationBannerComponent, ButtonComponent, CardComponent, PageHeaderComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-impersonation-banner />
 
-    <div class="mx-auto max-w-6xl p-6 space-y-6">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold">{{ 'admin.audit.title' | translate }}</h1>
-        <a routerLink="/admin" class="text-sm text-blue-600 hover:underline">{{ 'admin.nav.back' | translate }}</a>
-      </div>
+    <div class="mx-auto max-w-6xl space-y-6 p-6">
+      <app-page-header [heading]="'admin.audit.title' | translate">
+        <nav actions class="flex flex-wrap items-center gap-4 text-sm">
+          <a routerLink="/admin" [routerLinkActiveOptions]="{ exact: true }"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.overview' | translate }}</a>
+          <a routerLink="/admin/users"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.users' | translate }}</a>
+          <a routerLink="/admin/audit"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.audit' | translate }}</a>
+          <a routerLink="/admin/flags"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.flags' | translate }}</a>
+          <a routerLink="/admin/health"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.health' | translate }}</a>
+        </nav>
+      </app-page-header>
 
       <!-- ===== Filters ===== -->
-      <form [formGroup]="filterForm" (ngSubmit)="apply()" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <form [formGroup]="filterForm" (ngSubmit)="apply()" class="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div>
-          <label for="audit-user" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.user' | translate }}</label>
-          <input id="audit-user" type="text" formControlName="user" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-user" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.user' | translate }}</label>
+          <input id="audit-user" type="text" formControlName="user" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-actor" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.actor' | translate }}</label>
-          <input id="audit-actor" type="text" formControlName="actor" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-actor" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.actor' | translate }}</label>
+          <input id="audit-actor" type="text" formControlName="actor" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-event" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.event_type' | translate }}</label>
-          <input id="audit-event" type="text" formControlName="event_type" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-event" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.event_type' | translate }}</label>
+          <input id="audit-event" type="text" formControlName="event_type" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-entity-type" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.entity_type' | translate }}</label>
-          <input id="audit-entity-type" type="text" formControlName="entity_type" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-entity-type" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.entity_type' | translate }}</label>
+          <input id="audit-entity-type" type="text" formControlName="entity_type" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-entity-id" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.entity_id' | translate }}</label>
-          <input id="audit-entity-id" type="text" formControlName="entity_id" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-entity-id" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.entity_id' | translate }}</label>
+          <input id="audit-entity-id" type="text" formControlName="entity_id" class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-after" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.after' | translate }}</label>
-          <input id="audit-after" type="date" formControlName="occurred_after" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-after" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.after' | translate }}</label>
+          <input id="audit-after" type="date" formControlName="occurred_after" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-before" class="block text-xs font-semibold text-gray-700 uppercase mb-1">{{ 'admin.audit.filter.before' | translate }}</label>
-          <input id="audit-before" type="date" formControlName="occurred_before" class="w-full border rounded px-3 py-2 text-sm" />
+          <label for="audit-before" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.before' | translate }}</label>
+          <input id="audit-before" type="date" formControlName="occurred_before" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div class="flex items-end gap-2">
-          <button type="submit" class="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700">
+          <app-button type="submit" variant="primary">
             {{ 'admin.audit.filter.apply' | translate }}
-          </button>
-          <button type="button" (click)="exportCsv()" class="border text-sm px-4 py-2 rounded hover:bg-gray-50">
+          </app-button>
+          <app-button variant="secondary" (clicked)="exportCsv()">
             {{ 'admin.audit.export' | translate }}
-          </button>
+          </app-button>
         </div>
       </form>
 
       @if (admin.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" role="alert">{{ err.message }}</div>
+        <div class="rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">{{ err.message }}</div>
       }
 
       <!-- ===== Table ===== -->
       @if (admin.loading()) {
-        <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       } @else if (admin.audit().length === 0) {
-        <p class="text-sm text-gray-500">{{ 'admin.audit.empty' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'admin.audit.empty' | translate }}</p>
       } @else {
-        <table class="w-full border border-gray-200 text-sm">
-          <thead class="bg-gray-50 text-left">
-            <tr>
-              <th class="px-3 py-2">{{ 'admin.audit.col.time' | translate }}</th>
-              <th class="px-3 py-2">{{ 'admin.audit.col.event' | translate }}</th>
-              <th class="px-3 py-2">{{ 'admin.audit.col.actor' | translate }}</th>
-              <th class="px-3 py-2">{{ 'admin.audit.col.entity' | translate }}</th>
-              <th class="px-3 py-2">{{ 'admin.audit.col.ip' | translate }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (a of admin.audit(); track a.id) {
-              <tr class="border-t border-gray-100">
-                <td class="px-3 py-2 text-gray-500 whitespace-nowrap">{{ a.occurred_at | date:'short' }}</td>
-                <td class="px-3 py-2 font-medium">{{ eventLabel(a.event_type) }}</td>
-                <td class="px-3 py-2 font-mono text-xs">{{ a.actor || '—' }}</td>
-                <td class="px-3 py-2 text-xs">{{ a.entity_type || '—' }}{{ a.entity_id ? (' · ' + a.entity_id) : '' }}</td>
-                <td class="px-3 py-2 font-mono text-xs">{{ a.ip || '—' }}</td>
+        <app-card>
+          <table class="w-full border-collapse text-[13px]">
+            <thead class="text-left">
+              <tr class="border-b border-divider">
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.time' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.event' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.actor' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.entity' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.ip' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.hash' | translate }}</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (a of admin.audit(); track a.id) {
+                <tr class="border-t border-divider">
+                  <td class="whitespace-nowrap px-3 py-2 text-neutral-700">{{ a.occurred_at | date:'short' }}</td>
+                  <td class="px-3 py-2 font-medium">{{ eventLabel(a.event_type) }}</td>
+                  <td class="px-3 py-2 font-mono text-xs">{{ a.actor || '—' }}</td>
+                  <td class="px-3 py-2 text-xs">{{ a.entity_type || '—' }}@if (a.entity_id) {<span class="font-mono"> · {{ a.entity_id }}</span>}</td>
+                  <td class="px-3 py-2 font-mono text-xs tabular-nums">{{ a.ip || '—' }}</td>
+                  <td class="max-w-[180px] break-all px-3 py-2 font-mono text-xs text-neutral-700">{{ a.self_hash }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </app-card>
 
         <!-- ===== Pagination ===== -->
         <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-600">
+          <span class="text-neutral-700">
             {{ 'admin.pagination.page' | translate:{ page: admin.auditPage(), pages: admin.auditTotalPages(), total: admin.auditTotal() } }}
           </span>
           <div class="flex gap-2">
-            <button type="button" (click)="go(admin.auditPage() - 1)" [disabled]="admin.auditPage() <= 1"
-                    class="px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-50">
+            <app-button variant="secondary" (clicked)="go(admin.auditPage() - 1)" [disabled]="admin.auditPage() <= 1">
               {{ 'admin.pagination.prev' | translate }}
-            </button>
-            <button type="button" (click)="go(admin.auditPage() + 1)" [disabled]="admin.auditPage() >= admin.auditTotalPages()"
-                    class="px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-50">
+            </app-button>
+            <app-button variant="secondary" (clicked)="go(admin.auditPage() + 1)" [disabled]="admin.auditPage() >= admin.auditTotalPages()">
               {{ 'admin.pagination.next' | translate }}
-            </button>
+            </app-button>
           </div>
         </div>
       }

@@ -1,6 +1,6 @@
 /**
  * /settings/profile — display name, timezone (searchable IANA dropdown),
- * language, email-notification toggle.
+ * language, email-notification toggle. "Industry" design system.
  */
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -8,85 +8,99 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
 import { ProfileFacade } from '../../../abstraction/facades/profile.facade';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { CardComponent } from '../../shared/ui/card.component';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    TranslateModule,
+    ButtonComponent,
+    CardComponent,
+    PageHeaderComponent,
+  ],
   template: `
     <div class="mx-auto max-w-2xl p-6">
-      <h1 class="text-2xl font-bold mb-6">{{ 'profile.title' | translate }}</h1>
+      <app-page-header [heading]="'profile.title' | translate" />
 
       @if (profile.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+        <div class="mb-s3 rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">
           {{ err.message }}
         </div>
       }
       @if (saved()) {
-        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4" role="status">
+        <div class="mb-s3 rounded-none border border-divider bg-accent-100 px-4 py-3 text-sm text-accent-800" role="status">
           ✓ {{ 'profile.saved' | translate }}
         </div>
       }
 
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-4 max-w-lg">
-        <div>
-          <label class="block text-sm font-medium mb-1" for="display_name">
-            {{ 'profile.display_name' | translate }}
-          </label>
-          <input
-            id="display_name"
-            type="text"
-            formControlName="display_name"
-            class="w-full border rounded px-3 py-2"
-          />
-        </div>
+      <app-card>
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="max-w-lg space-y-s4">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="display_name">
+              {{ 'profile.display_name' | translate }}
+            </label>
+            <input
+              id="display_name"
+              type="text"
+              formControlName="display_name"
+              class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+            />
+          </div>
 
-        <div>
-          <label class="block text-sm font-medium mb-1" for="timezone">
-            {{ 'profile.timezone' | translate }}
+          <div>
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="timezone">
+              {{ 'profile.timezone' | translate }}
+            </label>
+            <input
+              id="tz_search"
+              type="search"
+              [placeholder]="'profile.timezone_search' | translate"
+              (input)="filterTimezones($any($event.target).value)"
+              class="mb-2 w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+            />
+            <select
+              id="timezone"
+              formControlName="timezone"
+              class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none"
+              size="6"
+            >
+              @for (tz of filteredTimezones(); track tz) {
+                <option [value]="tz">{{ tz }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="language">
+              {{ 'profile.language' | translate }}
+            </label>
+            <select id="language" formControlName="language"
+                    class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none">
+              <option value="en">English</option>
+            </select>
+            <p class="mt-1 text-[11px] text-neutral-700">{{ 'profile.language_hint' | translate }}</p>
+          </div>
+
+          <label class="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" formControlName="notification_email"
+                   class="h-[15px] w-[15px] rounded-none accent-accent" />
+            <span>{{ 'profile.notification_email' | translate }}</span>
           </label>
-          <input
-            id="tz_search"
-            type="search"
-            [placeholder]="'profile.timezone_search' | translate"
-            (input)="filterTimezones($any($event.target).value)"
-            class="w-full border rounded px-3 py-2 mb-2"
-          />
-          <select
-            id="timezone"
-            formControlName="timezone"
-            class="w-full border rounded px-3 py-2"
-            size="6"
+
+          <app-button
+            type="submit"
+            variant="primary"
+            [disabled]="form.invalid || profile.loading()"
           >
-            @for (tz of filteredTimezones(); track tz) {
-              <option [value]="tz">{{ tz }}</option>
-            }
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium mb-1" for="language">
-            {{ 'profile.language' | translate }}
-          </label>
-          <select id="language" formControlName="language" class="w-full border rounded px-3 py-2">
-            <option value="en">English</option>
-          </select>
-          <p class="text-xs text-gray-500 mt-1">{{ 'profile.language_hint' | translate }}</p>
-        </div>
-
-        <label class="flex items-center gap-2">
-          <input type="checkbox" formControlName="notification_email" />
-          <span>{{ 'profile.notification_email' | translate }}</span>
-        </label>
-
-        <button
-          type="submit"
-          class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          [disabled]="form.invalid || profile.loading()"
-        >
-          {{ 'common.save' | translate }}
-        </button>
-      </form>
+            {{ 'common.save' | translate }}
+          </app-button>
+        </form>
+      </app-card>
     </div>
   `,
 })

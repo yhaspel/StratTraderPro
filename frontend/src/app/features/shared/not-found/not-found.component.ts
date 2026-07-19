@@ -14,14 +14,14 @@ import { AuthStore } from '../../../abstraction/stores/auth.store';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="mx-auto max-w-lg px-4 py-24 text-center">
-      <p class="text-6xl font-bold text-primary-900">404</p>
-      <h1 class="mt-4 text-2xl font-semibold text-slate-800">
+      <p class="font-mono text-6xl font-semibold text-accent-700">404</p>
+      <h1 class="mt-4 font-heading text-[32px] font-semibold leading-tight text-ink">
         {{ 'errors.not_found.title' | translate }}
       </h1>
-      <p class="mt-2 text-slate-600">{{ 'errors.not_found.body' | translate }}</p>
+      <p class="mt-2 text-neutral-700">{{ 'errors.not_found.body' | translate }}</p>
       <a
         [routerLink]="homeLink()"
-        class="mt-6 inline-flex rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
+        class="mt-6 inline-flex items-center justify-center rounded-none bg-accent-700 px-4 py-2 font-heading text-sm font-semibold text-bg transition-colors hover:bg-accent-800">
         {{ 'errors.not_found.home' | translate }}
       </a>
     </main>

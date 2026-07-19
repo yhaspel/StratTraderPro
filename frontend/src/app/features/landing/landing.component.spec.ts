@@ -21,7 +21,13 @@ describe('LandingComponent', () => {
     translate.setTranslation('en', {
       app: { title: 'StratTraderPro' },
       landing: {
-        hero: { subtitle: 'Sub' },
+        hero: {
+          tag: 'SELF-HOSTED · YOU OWN THE KEYS',
+          title_pre: 'Webhook-driven algo trading, on',
+          title_em: 'your',
+          title_post: 'infrastructure.',
+          subtitle: 'Sub',
+        },
         cta: { sign_in: 'Sign in', create_account: 'Create account' },
         how: { title: 'How it works' },
         steps: {},
@@ -35,19 +41,24 @@ describe('LandingComponent', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('renders the product title', () => {
+  it('renders the brand wordmark and the hero headline', () => {
     const el = setup().nativeElement as HTMLElement;
-    expect(el.querySelector('h1')?.textContent).toContain('StratTraderPro');
+    expect(el.querySelector('header')?.textContent).toContain('StratTraderPro');
+    expect(el.querySelector('h1')?.textContent).toContain('your');
+    expect(el.querySelector('h1')?.textContent).toContain('infrastructure.');
   });
 
-  it('navigates to /login and /register from the CTAs', () => {
+  it('navigates to /login and /register from the header and hero CTAs', () => {
     const el = setup().nativeElement as HTMLElement;
     const buttons = el.querySelectorAll('app-button button');
-    expect(buttons.length).toBe(2);
-    (buttons[0] as HTMLButtonElement).click();
-    (buttons[1] as HTMLButtonElement).click();
-    expect(router.navigate).toHaveBeenCalledWith(['/login']);
-    expect(router.navigate).toHaveBeenCalledWith(['/register']);
+    expect(buttons.length).toBe(3);
+    (buttons[0] as HTMLButtonElement).click(); // header "Sign in"
+    (buttons[1] as HTMLButtonElement).click(); // hero "Sign in" (blueprint-framed primary)
+    (buttons[2] as HTMLButtonElement).click(); // hero "Create account"
+    expect(router.navigate).toHaveBeenCalledTimes(3);
+    expect(router.navigate.calls.argsFor(0)).toEqual([['/login']]);
+    expect(router.navigate.calls.argsFor(1)).toEqual([['/login']]);
+    expect(router.navigate.calls.argsFor(2)).toEqual([['/register']]);
   });
 
   it('hides the environment badge in production', () => {

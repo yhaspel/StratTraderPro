@@ -1,6 +1,6 @@
 /** /risk — risk envelope editor, kill switches, and audit feeds (M08).
  *
- * Four sections:
+ * Four sections ("Industry" design system):
  *   (a) Profile editor — a ReactiveForm over the full RiskProfile; backend
  *       VALIDATION_ERROR details are mapped to inline field messages.
  *   (b) Active kill switches — a personal (L1/USER) halt card gated behind an
@@ -15,6 +15,11 @@ import { TranslateModule } from '@ngx-translate/core';
 import { ApiError } from '../../core/models/auth.models';
 import { KillSwitch, RiskProfile } from '../../core/models/risk.models';
 import { RiskFacade } from '../../abstraction/facades/risk.facade';
+import { BlueprintDirective } from '../shared/ui/blueprint.directive';
+import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { PageHeaderComponent } from '../shared/ui/page-header.component';
+import { ChipTone, StatusChipComponent } from '../shared/ui/status-chip.component';
 
 /** Numeric profile fields (rendered as number inputs, in display order). */
 const NUMERIC_FIELDS = [
@@ -55,197 +60,229 @@ const KNOWN_ERRORS = new Set([
   'UNKNOWN',
 ]);
 
+/** Risk-event type → chip tone (notes §3: warn/down are the working tones). */
+const EVENT_TONES: Record<string, ChipTone> = {
+  DAILY_LOSS_BREACH: 'down',
+  KILL_SWITCH_ON: 'down',
+  KILL_SWITCH_OFF: 'up',
+  SOFT_STOP: 'warn',
+  SIZING_REJECT: 'down',
+  FLATTEN: 'warn',
+};
+
 @Component({
   selector: 'app-risk',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    TranslateModule,
+    DatePipe,
+    BlueprintDirective,
+    ButtonComponent,
+    CardComponent,
+    PageHeaderComponent,
+    StatusChipComponent,
+  ],
   template: `
-    <div class="mx-auto max-w-5xl p-6 space-y-8">
-      <h1 class="text-2xl font-bold">{{ 'risk.title' | translate }}</h1>
+    <div class="mx-auto max-w-5xl p-6">
+      <app-page-header [heading]="'risk.title' | translate" />
 
-      <!-- ========== (a) Profile editor ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-4">{{ 'risk.profile.title' | translate }}</h2>
+      <div class="grid items-start gap-s6 lg:grid-cols-2">
+        <!-- ========== (a) Profile editor ========== -->
+        <app-card>
+          <h2 class="m-0 mb-s3 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+            {{ 'risk.profile.title' | translate }}
+          </h2>
 
-        @if (facade.loading() && !facade.profile()) {
-          <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
-        } @else {
-          <form [formGroup]="profileForm" (ngSubmit)="onSave()" class="space-y-5">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              @for (f of numericFields; track f.key) {
-                <div>
-                  <label class="block text-sm font-medium mb-1" [attr.for]="f.key">
-                    {{ ('risk.profile.' + f.key) | translate }}
-                  </label>
-                  <input type="number" [id]="f.key" [formControlName]="f.key" [step]="f.step"
-                         class="w-full border rounded px-3 py-2 font-mono text-sm" />
-                  <p class="mt-1 text-xs text-gray-500">{{ ('risk.profile.' + f.key + '_help') | translate }}</p>
-                  @if (fieldErrors()[f.key]; as errs) {
-                    <p class="mt-1 text-xs text-red-700">{{ errs.join(' ') }}</p>
+          @if (facade.loading() && !facade.profile()) {
+            <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
+          } @else {
+            <form [formGroup]="profileForm" (ngSubmit)="onSave()" class="space-y-s4">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                @for (f of numericFields; track f.key) {
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-neutral-700" [attr.for]="f.key">
+                      {{ ('risk.profile.' + f.key) | translate }}
+                    </label>
+                    <input type="number" [id]="f.key" [formControlName]="f.key" [step]="f.step"
+                           class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
+                    <p class="mt-1 text-[11px] text-neutral-700">{{ ('risk.profile.' + f.key + '_help') | translate }}</p>
+                    @if (fieldErrors()[f.key]; as errs) {
+                      <p class="mt-1 text-xs text-down-deep">{{ errs.join(' ') }}</p>
+                    }
+                  </div>
+                }
+              </div>
+
+              <!-- strict_mode -->
+              <div>
+                <label class="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                  <input type="checkbox" formControlName="strict_mode"
+                         class="h-[15px] w-[15px] rounded-none accent-accent" />
+                  {{ 'risk.profile.strict_mode' | translate }}
+                </label>
+                <p class="mt-1 text-[11px] text-neutral-700">{{ 'risk.profile.strict_mode_help' | translate }}</p>
+              </div>
+
+              <!-- permitted_asset_classes multi-select -->
+              <div>
+                <span class="mb-1 block text-xs font-medium text-neutral-700">{{ 'risk.profile.permitted_asset_classes' | translate }}</span>
+                <div class="flex flex-wrap gap-2">
+                  @for (cls of assetClasses; track cls) {
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-none border px-3 py-1.5 text-sm"
+                           [class.border-accent]="hasClass(cls)"
+                           [class.bg-accent-100]="hasClass(cls)"
+                           [class.text-accent-800]="hasClass(cls)"
+                           [class.border-divider]="!hasClass(cls)"
+                           [class.text-ink]="!hasClass(cls)">
+                      <input type="checkbox" [checked]="hasClass(cls)" (change)="toggleClass(cls)"
+                             class="h-[13px] w-[13px] rounded-none accent-accent" />
+                      {{ ('risk.profile.asset_class.' + cls) | translate }}
+                    </label>
+                  }
+                </div>
+                @if (fieldErrors()['permitted_asset_classes']; as errs) {
+                  <p class="mt-1 text-xs text-down-deep">{{ errs.join(' ') }}</p>
+                }
+              </div>
+
+              <!-- Non-field / cross-field validation errors (e.g. soft/hard stop) -->
+              @if (generalErrors().length > 0) {
+                <div class="rounded-none border border-down bg-down-tint px-3 py-2 text-sm text-down-deep" role="alert">
+                  @for (msg of generalErrors(); track msg) {
+                    <p>{{ msg }}</p>
                   }
                 </div>
               }
-            </div>
 
-            <!-- strict_mode -->
-            <div>
-              <label class="inline-flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" formControlName="strict_mode" class="rounded" />
-                {{ 'risk.profile.strict_mode' | translate }}
-              </label>
-              <p class="mt-1 text-xs text-gray-500">{{ 'risk.profile.strict_mode_help' | translate }}</p>
-            </div>
+              @if (savedToast()) {
+                <p class="text-sm text-accent-700">✓ {{ 'risk.profile.saved' | translate }}</p>
+              }
 
-            <!-- permitted_asset_classes multi-select -->
-            <div>
-              <span class="block text-sm font-medium mb-1">{{ 'risk.profile.permitted_asset_classes' | translate }}</span>
-              <div class="flex flex-wrap gap-3">
-                @for (cls of assetClasses; track cls) {
-                  <label class="inline-flex items-center gap-2 text-sm border rounded px-3 py-1.5 cursor-pointer"
-                         [class.bg-blue-50]="hasClass(cls)" [class.border-blue-300]="hasClass(cls)">
-                    <input type="checkbox" [checked]="hasClass(cls)" (change)="toggleClass(cls)" class="rounded" />
-                    {{ ('risk.profile.asset_class.' + cls) | translate }}
-                  </label>
-                }
+              <div class="flex gap-2.5">
+                <app-button type="submit" variant="primary" [disabled]="profileForm.invalid">
+                  {{ 'risk.save' | translate }}
+                </app-button>
+                <app-button variant="secondary" (clicked)="onDefaults()">
+                  {{ 'risk.defaults' | translate }}
+                </app-button>
               </div>
-              @if (fieldErrors()['permitted_asset_classes']; as errs) {
-                <p class="mt-1 text-xs text-red-700">{{ errs.join(' ') }}</p>
-              }
-            </div>
-
-            <!-- Non-field / cross-field validation errors (e.g. soft/hard stop) -->
-            @if (generalErrors().length > 0) {
-              <div class="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm" role="alert">
-                @for (msg of generalErrors(); track msg) {
-                  <p>{{ msg }}</p>
-                }
-              </div>
-            }
-
-            @if (savedToast()) {
-              <p class="text-sm text-green-700">✓ {{ 'risk.profile.saved' | translate }}</p>
-            }
-
-            <div class="flex gap-3">
-              <button type="submit" [disabled]="profileForm.invalid"
-                      class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
-                {{ 'risk.save' | translate }}
-              </button>
-              <button type="button" (click)="onDefaults()"
-                      class="px-4 py-2 rounded border hover:bg-gray-50">
-                {{ 'risk.defaults' | translate }}
-              </button>
-            </div>
-          </form>
-        }
-      </section>
-
-      <!-- ========== (b) Active kill switches ========== -->
-      <section class="border rounded-lg p-6 space-y-4">
-        <h2 class="text-lg font-semibold">{{ 'risk.switch.title' | translate }}</h2>
-
-        <!-- Personal (L1 / USER) halt card -->
-        <div class="border rounded-lg p-4"
-             [class.border-red-300]="!!userHalt()" [class.bg-red-50]="!!userHalt()">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="font-medium">{{ 'risk.switch.USER' | translate }}</p>
-              @if (userHalt(); as ks) {
-                <p class="text-sm text-red-700">
-                  {{ 'risk.switch.active' | translate }} ·
-                  {{ 'risk.switch.since' | translate }} {{ ks.created_at | date:'short' }}
-                  @if (ks.reason) { · {{ ('risk.reason.' + ks.reason) | translate }} }
-                </p>
-              } @else {
-                <p class="text-sm text-gray-500">{{ 'risk.switch.inactive' | translate }}</p>
-              }
-            </div>
-            @if (userHalt(); as ks) {
-              @if (ks.auto) {
-                <span class="px-3 py-2 rounded bg-amber-100 text-amber-800 text-xs shrink-0 text-right">
-                  {{ 'risk.switch.auto_locked' | translate }}
-                </span>
-              } @else {
-                <button type="button" (click)="onReleaseUser()"
-                        class="px-3 py-2 rounded border border-gray-300 text-sm hover:bg-white">
-                  {{ 'risk.switch.release' | translate }}
-                </button>
-              }
-            } @else if (!userMfaOpen()) {
-              <button type="button" (click)="openUserHalt()"
-                      class="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700">
-                {{ 'risk.switch.halt' | translate }}
-              </button>
-            }
-          </div>
-
-          <label class="mt-3 inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" [checked]="userFlatten()" (change)="toggleUserFlatten()" class="rounded" />
-            {{ 'risk.switch.flatten' | translate }}
-          </label>
-
-          <!-- MFA prompt (open when arming the USER halt) -->
-          @if (userMfaOpen()) {
-            <form [formGroup]="mfaForm" (ngSubmit)="onConfirmHalt()"
-                  class="mt-3 flex flex-wrap items-center gap-2">
-              <span class="text-sm text-gray-600">{{ 'risk.mfa_prompt' | translate }}</span>
-              <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
-                     autocomplete="one-time-code"
-                     [placeholder]="'risk.switch.mfa_placeholder' | translate"
-                     class="border rounded px-3 py-2 font-mono text-sm w-32" />
-              <button type="submit" [disabled]="mfaForm.invalid"
-                      class="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
-                {{ 'risk.switch.confirm_halt' | translate }}
-              </button>
-              <button type="button" (click)="cancelUserHalt()"
-                      class="px-3 py-2 rounded text-sm border hover:bg-gray-50">
-                {{ 'common.cancel' | translate }}
-              </button>
             </form>
           }
+        </app-card>
 
-          @if (haltError(); as err) {
-            <p class="mt-2 text-sm text-red-700">
-              @if (knownError(err.code)) {
-                {{ ('risk.error.' + err.code) | translate }}
-              } @else {
-                {{ err.message }}
+        <div class="flex flex-col gap-s6">
+          <!-- ========== (b) Active kill switches ========== -->
+          <!-- Red border treatment (Industry, notes §3: kill switch active → down)
+               via [style.borderColor]: the global .blueprint rule sets the hairline
+               after the Tailwind utilities layer, so a border-* class can't win. -->
+          <section stpBlueprint class="p-s4"
+                   [style.borderColor]="userHalt() ? 'var(--down)' : null"
+                   [class.bg-down-tint]="!!userHalt()">
+            <h2 class="m-0 mb-s3 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+              {{ 'risk.switch.title' | translate }}
+            </h2>
+
+            <!-- Personal (L1 / USER) halt row -->
+            <div class="flex items-start justify-between gap-3.5">
+              <div>
+                <p class="text-sm font-bold text-ink">
+                  {{ 'risk.switch.USER' | translate }}
+                  @if (userHalt(); as ks) {
+                    <span class="ml-1 font-mono text-[10px] font-normal text-neutral-700">{{ ks.level }} / {{ ks.scope }}</span>
+                  }
+                </p>
+                @if (userHalt(); as ks) {
+                  <p class="mt-0.5 text-sm text-down">
+                    {{ 'risk.switch.active' | translate }} ·
+                    {{ 'risk.switch.since' | translate }} <span class="font-mono">{{ ks.created_at | date:'short' }}</span>
+                    @if (ks.reason) { · {{ ('risk.reason.' + ks.reason) | translate }} }
+                  </p>
+                } @else {
+                  <p class="mt-0.5 text-sm text-neutral-700">{{ 'risk.switch.inactive' | translate }}</p>
+                }
+              </div>
+              @if (userHalt(); as ks) {
+                @if (ks.auto) {
+                  <app-status-chip tone="warn" class="shrink-0">
+                    {{ 'risk.switch.auto_locked' | translate }}
+                  </app-status-chip>
+                } @else {
+                  <app-button variant="success" (clicked)="onReleaseUser()">
+                    {{ 'risk.switch.release' | translate }}
+                  </app-button>
+                }
+              } @else if (!userMfaOpen()) {
+                <app-button variant="danger" (clicked)="openUserHalt()">
+                  {{ 'risk.switch.halt' | translate }}
+                </app-button>
               }
-            </p>
-          }
-        </div>
+            </div>
 
-        <!-- Other active switches (STRATEGY / PLATFORM) -->
-        @if (otherHalts().length > 0) {
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="mt-s3 inline-flex items-center gap-2 text-sm text-neutral-700">
+              <input type="checkbox" [checked]="userFlatten()" (change)="toggleUserFlatten()"
+                     class="h-[15px] w-[15px] rounded-none accent-accent" />
+              {{ 'risk.switch.flatten' | translate }}
+            </label>
+
+            <!-- MFA prompt (open when arming the USER halt) — the one inline
+                 MFA confirm pattern: input → danger confirm → secondary cancel -->
+            @if (userMfaOpen()) {
+              <form [formGroup]="mfaForm" (ngSubmit)="onConfirmHalt()"
+                    class="mt-s3 flex flex-wrap items-center gap-2 border-t border-divider pt-s3">
+                <span class="text-sm text-neutral-700">{{ 'risk.mfa_prompt' | translate }}</span>
+                <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
+                       autocomplete="one-time-code"
+                       [placeholder]="'risk.switch.mfa_placeholder' | translate"
+                       class="w-32 rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
+                <app-button type="submit" variant="danger" [disabled]="mfaForm.invalid">
+                  {{ 'risk.switch.confirm_halt' | translate }}
+                </app-button>
+                <app-button variant="secondary" (clicked)="cancelUserHalt()">
+                  {{ 'common.cancel' | translate }}
+                </app-button>
+              </form>
+            }
+
+            @if (haltError(); as err) {
+              <p class="mt-2 text-sm text-down-deep">
+                @if (knownError(err.code)) {
+                  {{ ('risk.error.' + err.code) | translate }}
+                } @else {
+                  {{ err.message }}
+                }
+              </p>
+            }
+
+            <!-- Other active switches (STRATEGY / PLATFORM) -->
             @for (ks of otherHalts(); track ks.id) {
-              <div class="border rounded-lg p-4">
+              <div class="mt-s3 border-t border-divider pt-s3">
                 <div class="flex items-start justify-between gap-3">
                   <div>
-                    <p class="font-medium">
+                    <p class="text-sm font-bold text-ink">
                       {{ ('risk.switch.' + ks.scope) | translate }}
-                      <span class="ml-1 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{{ ks.level }}</span>
+                      <span class="ml-1 font-mono text-[10px] font-normal text-neutral-700">{{ ks.level }}</span>
                       @if (ks.auto) {
-                        <span class="ml-1 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                        <app-status-chip status="AUTO" class="ml-1">
                           {{ 'risk.switch.auto' | translate }}
-                        </span>
+                        </app-status-chip>
                       }
                     </p>
                     @if (ks.strategy) {
-                      <p class="text-xs font-mono text-gray-500 break-all">{{ ks.strategy }}</p>
+                      <p class="break-all font-mono text-[11px] text-neutral-700">{{ ks.strategy }}</p>
                     }
                     @if (ks.reason) {
-                      <p class="text-sm text-gray-600">{{ ('risk.reason.' + ks.reason) | translate }}</p>
+                      <p class="text-sm text-neutral-700">{{ ('risk.reason.' + ks.reason) | translate }}</p>
                     }
-                    <p class="text-xs text-gray-500">{{ ks.created_at | date:'short' }}</p>
+                    <p class="font-mono text-xs text-neutral-700">{{ ks.created_at | date:'short' }}</p>
                   </div>
-                  <button type="button" (click)="onReleaseOther(ks)"
-                          class="px-3 py-1.5 rounded border text-sm hover:bg-gray-50 shrink-0">
+                  <app-button variant="success" class="shrink-0" (clicked)="onReleaseOther(ks)">
                     {{ 'risk.switch.release' | translate }}
-                  </button>
+                  </app-button>
                 </div>
                 @if (rowErrors()[ks.id]; as err) {
-                  <p class="mt-2 text-xs text-red-700">
+                  <p class="mt-2 text-xs text-down-deep">
                     @if (knownError(err.code)) {
                       {{ ('risk.error.' + err.code) | translate }}
                     } @else {
@@ -255,71 +292,75 @@ const KNOWN_ERRORS = new Set([
                 }
               </div>
             }
-          </div>
-        }
-      </section>
+          </section>
 
-      <!-- ========== (c) Risk events feed ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-3">{{ 'risk.events.title' | translate }}</h2>
-        @if (facade.events().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'risk.events.empty' | translate }}</p>
-        } @else {
-          <ul class="divide-y border border-gray-200 rounded">
-            @for (e of facade.events(); track e.id) {
-              <li class="px-3 py-2 flex items-center gap-3 text-sm">
-                <span class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 shrink-0">
-                  {{ ('risk.event.' + e.type) | translate }}
-                </span>
-                <span class="text-xs text-gray-500 shrink-0">{{ e.created_at | date:'short' }}</span>
-                <code class="text-xs text-gray-500 truncate">{{ e.details | json }}</code>
-              </li>
+          <!-- ========== (c) Risk events feed ========== -->
+          <app-card>
+            <h2 class="m-0 mb-s2 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+              {{ 'risk.events.title' | translate }}
+            </h2>
+            @if (facade.events().length === 0) {
+              <p class="text-sm text-neutral-700">{{ 'risk.events.empty' | translate }}</p>
+            } @else {
+              <ul class="divide-y divide-divider">
+                @for (e of facade.events(); track e.id) {
+                  <li class="flex items-center gap-2.5 py-1.5 text-xs">
+                    <app-status-chip [tone]="eventTone(e.type)" class="shrink-0">
+                      {{ ('risk.event.' + e.type) | translate }}
+                    </app-status-chip>
+                    <span class="shrink-0 font-mono text-xs text-neutral-700">{{ e.created_at | date:'short' }}</span>
+                    <code class="min-w-0 truncate font-mono text-xs text-neutral-700">{{ e.details | json }}</code>
+                  </li>
+                }
+              </ul>
             }
-          </ul>
-        }
-      </section>
+          </app-card>
+        </div>
+      </div>
 
       <!-- ========== (d) Sizing decisions feed ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-3">{{ 'risk.sizing.title' | translate }}</h2>
-        @if (sizingRows().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'risk.sizing.empty' | translate }}</p>
-        } @else {
-          <table class="w-full border border-gray-200 text-sm">
-            <thead class="bg-gray-50 text-left">
-              <tr>
-                <th class="px-3 py-2">{{ 'risk.sizing.col.time' | translate }}</th>
-                <th class="px-3 py-2">{{ 'risk.sizing.col.symbol' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'risk.sizing.col.requested' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'risk.sizing.col.computed' | translate }}</th>
-                <th class="px-3 py-2">{{ 'risk.sizing.col.result' | translate }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (d of sizingRows(); track d.id) {
-                <tr class="border-t border-gray-100">
-                  <td class="px-3 py-2 whitespace-nowrap text-gray-500">{{ d.created_at | date:'short' }}</td>
-                  <td class="px-3 py-2 font-medium">{{ d.symbol }}</td>
-                  <td class="px-3 py-2 text-right font-mono">{{ fmtQty(d.requested_qty) }}</td>
-                  <td class="px-3 py-2 text-right font-mono">{{ fmtQty(d.computed_qty) }}</td>
-                  <td class="px-3 py-2">
-                    @if (d.result === 'OK') {
-                      <span class="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">
-                        {{ 'risk.sizing.ok' | translate }}
-                      </span>
-                    } @else {
-                      <span class="text-xs px-2 py-0.5 rounded bg-red-100 text-red-800">
-                        {{ 'risk.sizing.reject' | translate }}
-                        @if (d.reject_reason) { — {{ ('risk.reason.' + d.reject_reason) | translate }} }
-                      </span>
-                    }
-                  </td>
+      <div class="mt-s6">
+        <app-card>
+          <h2 class="m-0 mb-s2 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+            {{ 'risk.sizing.title' | translate }}
+          </h2>
+          @if (sizingRows().length === 0) {
+            <p class="text-sm text-neutral-700">{{ 'risk.sizing.empty' | translate }}</p>
+          } @else {
+            <table class="w-full text-[13px]">
+              <thead class="text-left">
+                <tr>
+                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.time' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.symbol' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.requested' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.computed' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.result' | translate }}</th>
                 </tr>
-              }
-            </tbody>
-          </table>
-        }
-      </section>
+              </thead>
+              <tbody>
+                @for (d of sizingRows(); track d.id) {
+                  <tr class="border-t border-divider">
+                    <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-700">{{ d.created_at | date:'short' }}</td>
+                    <td class="px-3 py-1.5 font-bold text-ink">{{ d.symbol }}</td>
+                    <td class="px-3 py-1.5 text-right font-mono">{{ fmtQty(d.requested_qty) }}</td>
+                    <td class="px-3 py-1.5 text-right font-mono">{{ fmtQty(d.computed_qty) }}</td>
+                    <td class="px-3 py-1.5">
+                      @if (d.result === 'OK') {
+                        <app-status-chip tone="up">{{ 'risk.sizing.ok' | translate }}</app-status-chip>
+                      } @else {
+                        <app-status-chip tone="down">
+                          {{ 'risk.sizing.reject' | translate }}
+                          @if (d.reject_reason) { — {{ ('risk.reason.' + d.reject_reason) | translate }} }
+                        </app-status-chip>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </app-card>
+      </div>
     </div>
   `,
 })
@@ -471,6 +512,11 @@ export class RiskComponent implements OnInit {
   /** True when the code has a dedicated translated message under risk.error.*. */
   knownError(code: string): boolean {
     return KNOWN_ERRORS.has(code);
+  }
+
+  /** Chip tone for a risk-event type (unknown types stay neutral). */
+  eventTone(type: string): ChipTone {
+    return EVENT_TONES[type] ?? 'neutral';
   }
 
   // ---- Formatting ----
