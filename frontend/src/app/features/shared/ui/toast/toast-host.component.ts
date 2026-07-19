@@ -7,23 +7,19 @@ import { ToastService } from './toast.service';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-sm px-4">
+    <div class="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-s2 px-4">
       @for (t of toast.toasts(); track t.id) {
         <div
-          class="pointer-events-auto flex w-full max-w-md items-start gap-md rounded-md px-4 py-3 text-sm shadow-md"
-          [class.bg-danger-500]="t.kind === 'error'"
-          [class.bg-success-500]="t.kind === 'success'"
-          [class.text-white]="t.kind === 'error' || t.kind === 'success'"
-          [class.bg-white]="t.kind === 'info'"
-          [class.border]="t.kind === 'info'"
-          [class.border-slate-200]="t.kind === 'info'"
-          [class.text-slate-800]="t.kind === 'info'"
+          class="pointer-events-auto flex w-full max-w-md items-start gap-s3 rounded-none border border-divider border-l-[3px] bg-white px-4 py-3 text-sm text-ink shadow-md"
+          [class.border-l-down]="t.kind === 'error'"
+          [class.border-l-up]="t.kind === 'success'"
+          [class.border-l-accent]="t.kind === 'info'"
           [attr.role]="t.kind === 'error' ? 'alert' : 'status'"
           [attr.aria-live]="t.kind === 'error' ? 'assertive' : 'polite'">
           <span class="flex-1">{{ t.message }}</span>
           <button
             type="button"
-            class="opacity-70 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            class="opacity-70 hover:opacity-100"
             aria-label="Dismiss"
             (click)="toast.dismiss(t.id)">✕</button>
         </div>

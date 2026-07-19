@@ -1,9 +1,16 @@
-/** Shared button (M10.5 §7.4). One canonical disabled/loading treatment so the
- * `disabled:opacity-40` vs `-50` drift across screens stops. Token-driven. */
+/** Shared button (M10.5 §7.4, restyled for the "Industry" system). One
+ * canonical disabled/loading treatment. Token-driven: square corners, Barlow
+ * Condensed 600 14px, disabled 45% opacity, themed hover/pressed states.
+ *
+ * Variants — primary (the one solid accent object), secondary (hairline),
+ * ghost (accent text), danger (solid `--down`), success (solid `--up`; used
+ * ONLY for Release actions). Set `frame` on hero/submit primaries to add the
+ * blueprint corner registration marks.
+ */
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 
 @Component({
   selector: 'app-button',
@@ -16,7 +23,14 @@ export type ButtonVariant = 'primary' | 'secondary' | 'danger';
       [disabled]="disabled || loading"
       [attr.aria-busy]="loading ? 'true' : null"
       [class]="classes()"
+      [class.blueprint]="frame"
       (click)="clicked.emit($event)">
+      @if (frame) {
+        <i class="corner tl" aria-hidden="true"></i>
+        <i class="corner tr" aria-hidden="true"></i>
+        <i class="corner bl" aria-hidden="true"></i>
+        <i class="corner br" aria-hidden="true"></i>
+      }
       @if (loading) {
         <span
           class="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"
@@ -32,17 +46,22 @@ export class ButtonComponent {
   @Input() type: 'button' | 'submit' = 'button';
   @Input() disabled = false;
   @Input() loading = false;
+  /** Blueprint corner registration marks — hero/submit primary uses only. */
+  @Input() frame = false;
   @Output() clicked = new EventEmitter<MouseEvent>();
 
   private readonly base =
-    'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium ' +
-    'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ' +
-    'focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    'relative inline-flex items-center justify-center gap-1.5 rounded-none border ' +
+    'font-heading font-semibold text-sm leading-tight px-3 py-1.5 ' +
+    'transition-colors disabled:opacity-45 disabled:cursor-not-allowed';
 
   private readonly byVariant: Record<ButtonVariant, string> = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700',
-    secondary: 'border border-primary-600 text-primary-700 bg-white hover:bg-primary-50',
-    danger: 'bg-danger-500 text-white hover:opacity-90',
+    primary: 'bg-accent border-accent text-bg hover:bg-accent-600 active:bg-accent-700',
+    secondary: 'bg-transparent border-divider text-ink hover:bg-neutral-200 active:bg-neutral-300',
+    ghost:
+      'bg-transparent border-transparent text-accent-700 px-1 hover:bg-accent-100 active:bg-accent-200',
+    danger: 'bg-down border-down text-bg hover:opacity-90 active:bg-down-deep',
+    success: 'bg-up border-up text-bg hover:opacity-90 active:bg-up-deep',
   };
 
   classes(): string {

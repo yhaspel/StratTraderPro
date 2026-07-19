@@ -32,9 +32,9 @@ import { CommonModule } from '@angular/common';
           (input)="onInput($event, i)"
           (keydown)="onKeyDown($event, i)"
           (paste)="onPaste($event)"
-          class="w-12 h-14 text-center text-2xl font-mono border-2 rounded-md
-                 focus:outline-none focus:border-blue-500
-                 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-[54px] w-11 rounded-none border border-divider bg-surface text-center font-mono text-[22px] text-ink caret-accent
+                 focus:outline-none focus:border-2 focus:border-accent
+                 disabled:opacity-45 disabled:cursor-not-allowed"
         />
       }
     </fieldset>

@@ -7,14 +7,14 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <header class="mb-lg flex flex-wrap items-start justify-between gap-md">
+    <header class="mb-s6 flex flex-wrap items-start justify-between gap-s3">
       <div>
-        <h1 class="text-2xl font-bold text-primary-900">{{ heading }}</h1>
+        <h1 class="font-heading font-semibold text-[32px] leading-[1.12] tracking-tight text-ink">{{ heading }}</h1>
         @if (subtitle) {
-          <p class="mt-1 text-sm text-slate-600">{{ subtitle }}</p>
+          <p class="mt-0.5 text-sm text-neutral-600">{{ subtitle }}</p>
         }
       </div>
-      <div class="flex items-center gap-sm">
+      <div class="flex items-center gap-s2">
         <ng-content select="[actions]" />
       </div>
     </header>
