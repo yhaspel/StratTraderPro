@@ -301,7 +301,8 @@
       "secret": {
         "label": "HMAC secret",
         "reveal_once": "Copy this secret now — it will not be shown again. Rotate it any time.",
-        "hidden": "Secret is hidden. Click Rotate to generate and reveal a new one."
+        "hidden": "Secret is hidden. Click Rotate to generate and reveal a new one.",
+        "rotate_warning": "Rotating breaks TradingView alerts using the current secret."
       },
       "schema": {
         "label": "JSON Schema (Draft 2020-12)"
@@ -780,6 +781,7 @@
   },
   "admin": {
     "nav": {
+      "overview": "Overview",
       "users": "Users",
       "audit": "Audit log",
       "flags": "Feature flags",
@@ -895,7 +897,8 @@
         "event": "Event",
         "actor": "Actor",
         "entity": "Entity",
-        "ip": "IP"
+        "ip": "IP",
+        "hash": "Hash"
       }
     },
     "flags": {
@@ -962,6 +965,10 @@
   },
   "landing": {
     "hero": {
+      "tag": "SELF-HOSTED · YOU OWN THE KEYS",
+      "title_pre": "Webhook-driven algo trading, on",
+      "title_em": "your",
+      "title_post": "infrastructure.",
       "subtitle": "Regime-aware paper trading — turn TradingView alerts into risk-checked Alpaca paper orders."
     },
     "cta": {

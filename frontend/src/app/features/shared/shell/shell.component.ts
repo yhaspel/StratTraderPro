@@ -1,10 +1,16 @@
-/** Application shell (M10.5 §7.1) — wraps every authenticated route.
+/** Application shell (M10.5 §7.1, "Industry" restyle) — wraps every
+ * authenticated route.
  *
- * Responsive header (role="banner") with the product wordmark, role-aware
- * primary nav, and a user menu exposing Sign out; a skip-to-content link; the
- * impersonation banner slot; the global toast host; and <router-outlet> inside
- * <main id="main-content">. Reads the user from AuthStore (F-11, no new store)
- * and getting-started state from OnboardingFacade. Sign out routes through
+ * Light 54px header on the ground (bg-bg) with a bottom hairline: framed
+ * bar-chart logomark + Barlow Condensed wordmark ("Pro" in accent), role-aware
+ * primary nav (active = accent text + 2px accent underline), Live dot and a
+ * user menu exposing Sign out; a skip-to-content link; the platform/user halt
+ * banner ABOVE the header (solid --down, condensed uppercase — moved here from
+ * the dashboard so it shows on every route); the impersonation banner slot;
+ * the global toast host; and <router-outlet> inside <main id="main-content">.
+ * Reads the user from AuthStore (F-11, no new store), getting-started state
+ * from OnboardingFacade, halt state from RiskFacade (same signal the dashboard
+ * used) and stream state from DashboardFacade. Sign out routes through
  * AuthFacade.signOut() which also tears down the shared dashboard WebSocket.
  */
 import {
@@ -15,7 +21,9 @@ import { TranslateModule } from '@ngx-translate/core';
 
 import { AuthStore } from '../../../abstraction/stores/auth.store';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
+import { DashboardFacade } from '../../../abstraction/facades/dashboard.facade';
 import { OnboardingFacade } from '../../../abstraction/facades/onboarding.facade';
+import { RiskFacade } from '../../../abstraction/facades/risk.facade';
 import { TermsFacade } from '../../../abstraction/facades/terms.facade';
 import { ImpersonationBannerComponent } from '../../admin/impersonation-banner.component';
 import { ToastHostComponent } from '../ui/toast/toast-host.component';
@@ -37,73 +45,107 @@ interface NavItem {
   template: `
     <a
       href="#main-content"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[70] focus:rounded-md focus:bg-primary-600 focus:px-3 focus:py-2 focus:text-white">
+      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[70] focus:rounded-none focus:bg-accent focus:px-3 focus:py-2 focus:text-bg">
       {{ 'nav.skip_to_content' | translate }}
     </a>
 
     <app-toast-host />
     <app-terms-gate />
+
+    <!-- Platform/user halt banner — above the header, on every route. -->
+    @if (risk.haltActive()) {
+      <div
+        role="alert"
+        class="bg-down px-6 py-[9px] text-center font-heading text-sm font-semibold uppercase tracking-[.03em] text-bg">
+        {{ 'risk.halt_banner' | translate }}
+      </div>
+    }
+
     <app-impersonation-banner />
 
-    <header role="banner" class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-md px-4 py-3">
-        <a routerLink="/dashboard" class="text-lg font-bold text-primary-900">
-          {{ 'app.title' | translate }}
-        </a>
+    <header role="banner" class="border-b border-divider bg-bg">
+      <div class="mx-auto flex h-[54px] max-w-7xl items-center justify-between gap-4 px-6">
+        <div class="flex items-center gap-6">
+          <!-- Framed bar-chart logomark + wordmark -->
+          <a
+            routerLink="/dashboard"
+            class="flex items-center gap-[9px]"
+            [attr.aria-label]="'app.title' | translate">
+            <span
+              aria-hidden="true"
+              class="inline-flex h-6 w-6 items-end justify-center gap-[2px] border border-ink px-1 pb-[3px] pt-1">
+              <span class="h-[7px] w-[3px] bg-accent"></span>
+              <span class="h-[11px] w-[3px] bg-accent"></span>
+              <span class="h-[5px] w-[3px] bg-accent-400"></span>
+            </span>
+            <span aria-hidden="true" class="whitespace-nowrap font-heading text-[18px] font-semibold text-ink">StratTrader<span class="text-accent">Pro</span></span>
+          </a>
 
-        <!-- Desktop nav -->
-        <nav [attr.aria-label]="'nav.primary' | translate" class="hidden items-center gap-1 md:flex">
-          @for (item of navItems(); track item.link) {
-            <a
-              [routerLink]="item.link"
-              routerLinkActive="bg-primary-50 text-primary-700"
-              class="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
-              {{ item.key | translate }}
-            </a>
-          }
-          @if (onboarding.incomplete()) {
-            <a
-              routerLink="/dashboard"
-              class="rounded-md bg-accent-500/10 px-3 py-2 text-sm font-medium text-accent-500 hover:bg-accent-500/20">
-              {{ 'nav.getting_started' | translate }}
-            </a>
-          }
-        </nav>
+          <!-- Desktop nav -->
+          <nav [attr.aria-label]="'nav.primary' | translate" class="hidden items-center gap-[18px] md:flex">
+            @for (item of navItems(); track item.link) {
+              <a
+                [routerLink]="item.link"
+                routerLinkActive="border-accent text-accent-700 font-medium"
+                ariaCurrentWhenActive="page"
+                class="border-b-2 border-transparent pb-[14px] pt-4 text-sm text-neutral-600 hover:text-accent-700">
+                {{ item.key | translate }}
+              </a>
+            }
+            @if (onboarding.incomplete()) {
+              <a
+                routerLink="/dashboard"
+                class="border-b-2 border-transparent pb-[14px] pt-4 text-sm font-medium text-accent-700 hover:bg-accent-100">
+                {{ 'nav.getting_started' | translate }}
+              </a>
+            }
+          </nav>
+        </div>
 
-        <div class="flex items-center gap-sm">
+        <div class="flex items-center gap-[14px]">
+          <!-- Live dot (square, up-green — stream state, never color-only) -->
+          <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-600">
+            <span
+              class="h-[7px] w-[7px] flex-none"
+              [class.bg-up]="dashboard.connected()"
+              [class.bg-neutral-400]="!dashboard.connected()"
+              aria-hidden="true"></span>
+            {{ (dashboard.connected() ? 'dashboard.live' : 'dashboard.offline') | translate }}
+          </span>
+
           <!-- User menu -->
           <div class="relative">
             <button
               type="button"
-              class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+              class="flex items-center gap-2 rounded-none px-3 py-2 text-[13px] font-medium text-ink hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               aria-haspopup="menu"
               [attr.aria-expanded]="menuOpen()"
               (click)="toggleMenu($event)">
               <span class="hidden sm:inline">{{ userLabel() }}</span>
-              <span aria-hidden="true">▾</span>
+              <span aria-hidden="true" class="text-neutral-600">▾</span>
             </button>
             @if (menuOpen()) {
               <div
                 role="menu"
-                class="absolute right-0 z-[65] mt-1 w-48 rounded-md border border-slate-200 bg-white py-1 shadow-md">
+                class="absolute right-0 z-[65] mt-1 w-48 rounded-none border border-divider bg-bg py-1 shadow-md">
                 <a
                   role="menuitem"
                   routerLink="/settings/profile"
-                  class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  class="block px-4 py-2 text-sm text-ink hover:bg-neutral-200"
                   (click)="closeMenu()">
                   {{ 'nav.settings' | translate }}
                 </a>
                 <a
                   role="menuitem"
                   routerLink="/help"
-                  class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  class="block px-4 py-2 text-sm text-ink hover:bg-neutral-200"
                   (click)="closeMenu()">
                   {{ 'nav.help' | translate }}
                 </a>
                 <button
                   type="button"
                   role="menuitem"
-                  class="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                  class="block w-full px-4 py-2 text-left text-sm text-ink hover:bg-neutral-200"
                   (click)="signOut()">
                   {{ 'nav.logout' | translate }}
                 </button>
@@ -114,7 +156,7 @@ interface NavItem {
           <!-- Mobile hamburger -->
           <button
             type="button"
-            class="rounded-md p-2 text-slate-600 hover:bg-slate-100 md:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            class="rounded-none p-2 text-neutral-600 hover:bg-neutral-200 md:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             [attr.aria-label]="'nav.open_menu' | translate"
             [attr.aria-expanded]="drawerOpen()"
             (click)="toggleDrawer($event)">
@@ -125,12 +167,13 @@ interface NavItem {
 
       <!-- Mobile drawer -->
       @if (drawerOpen()) {
-        <nav [attr.aria-label]="'nav.primary' | translate" class="border-t border-slate-200 px-4 py-2 md:hidden">
+        <nav [attr.aria-label]="'nav.primary' | translate" class="border-t border-divider px-4 py-2 md:hidden">
           @for (item of navItems(); track item.link) {
             <a
               [routerLink]="item.link"
-              routerLinkActive="bg-primary-50 text-primary-700"
-              class="block rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              routerLinkActive="text-accent-700 font-medium"
+              ariaCurrentWhenActive="page"
+              class="block rounded-none px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-200"
               (click)="closeDrawer()">
               {{ item.key | translate }}
             </a>
@@ -138,7 +181,7 @@ interface NavItem {
           @if (onboarding.incomplete()) {
             <a
               routerLink="/dashboard"
-              class="block rounded-md px-3 py-2 text-sm font-medium text-accent-500 hover:bg-slate-100"
+              class="block rounded-none px-3 py-2 text-sm font-medium text-accent-700 hover:bg-neutral-200"
               (click)="closeDrawer()">
               {{ 'nav.getting_started' | translate }}
             </a>
@@ -147,7 +190,7 @@ interface NavItem {
       }
     </header>
 
-    <main id="main-content" class="mx-auto max-w-7xl px-4 py-6">
+    <main id="main-content" class="mx-auto w-full max-w-7xl px-6 pb-20 pt-7">
       <router-outlet />
     </main>
   `,
@@ -156,6 +199,8 @@ export class ShellComponent implements OnInit {
   private store = inject(AuthStore);
   private auth = inject(AuthFacade);
   readonly onboarding = inject(OnboardingFacade);
+  readonly risk = inject(RiskFacade);
+  readonly dashboard = inject(DashboardFacade);
   private terms = inject(TermsFacade);
 
   readonly menuOpen = signal(false);
@@ -173,6 +218,9 @@ export class ShellComponent implements OnInit {
   ngOnInit(): void {
     void this.onboarding.load();
     void this.terms.load(); // M11 §7.8 — blocking terms re-acceptance gate
+    // Halt banner lives in the shell now — refresh the active kill-switch set
+    // so it is truthful on every route, not only after visiting the dashboard.
+    void this.risk.loadKillswitches();
   }
 
   navItems(): NavItem[] {

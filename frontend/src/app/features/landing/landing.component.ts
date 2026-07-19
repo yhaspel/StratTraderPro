@@ -7,49 +7,84 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { StatusChipComponent } from '../shared/ui/status-chip.component';
 import { ConfigService } from '../../core/services/config.service';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [TranslateModule, ButtonComponent],
+  imports: [TranslateModule, ButtonComponent, CardComponent, StatusChipComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="mx-auto max-w-5xl px-4 py-16">
-      <section class="text-center">
+    <header class="border-b border-divider">
+      <div class="mx-auto flex w-full max-w-[1120px] items-center justify-between px-6 py-3">
+        <span class="inline-flex items-center gap-[9px] font-heading text-lg font-semibold text-ink">
+          <span aria-hidden="true"
+                class="inline-flex h-6 w-6 items-end justify-center gap-[2px] border border-ink px-1 pb-[3px] pt-1">
+            <span class="h-[7px] w-[3px] bg-accent"></span>
+            <span class="h-[11px] w-[3px] bg-accent"></span>
+            <span class="h-[5px] w-[3px] bg-accent-400"></span>
+          </span>
+          {{ 'app.title' | translate }}
+        </span>
+        <app-button variant="secondary" (clicked)="go('/login')">
+          {{ 'landing.cta.sign_in' | translate }}
+        </app-button>
+      </div>
+    </header>
+
+    <main class="mx-auto flex w-full max-w-[1120px] flex-col gap-16 px-8 pb-24 pt-16">
+      <section class="flex flex-col items-center gap-5 text-center">
         @if (showEnvBadge()) {
-          <div class="mb-4 inline-flex items-center gap-2 rounded-md bg-primary-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-primary-700">
-            {{ envLabel() }}
-          </div>
+          <app-status-chip tone="info"><span class="uppercase">{{ envLabel() }}</span></app-status-chip>
         }
-        <h1 class="text-4xl font-bold text-primary-900">{{ 'app.title' | translate }}</h1>
-        <p class="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+        <app-status-chip tone="outline">
+          <span class="font-mono tracking-[0.1em]">{{ 'landing.hero.tag' | translate }}</span>
+        </app-status-chip>
+        <h1 class="m-0 max-w-[800px] font-heading text-[56px] font-semibold leading-[1.05] text-ink">
+          {{ 'landing.hero.title_pre' | translate }}
+          <span class="text-accent-700">{{ 'landing.hero.title_em' | translate }}</span>
+          {{ 'landing.hero.title_post' | translate }}
+        </h1>
+        <p class="m-0 max-w-[620px] text-[17px] leading-relaxed text-neutral-600">
           {{ 'landing.hero.subtitle' | translate }}
         </p>
-        <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <app-button variant="primary" (clicked)="go('/login')">
+        <div class="mt-2 flex flex-wrap items-center justify-center gap-3.5">
+          <app-button variant="primary" [frame]="true"
+                      class="[&>button]:px-[22px] [&>button]:py-[10px] [&>button]:text-[15px]"
+                      (clicked)="go('/login')">
             {{ 'landing.cta.sign_in' | translate }}
           </app-button>
-          <app-button variant="secondary" (clicked)="go('/register')">
+          <app-button variant="secondary"
+                      class="[&>button]:px-[22px] [&>button]:py-[10px] [&>button]:text-[15px]"
+                      (clicked)="go('/register')">
             {{ 'landing.cta.create_account' | translate }}
           </app-button>
         </div>
       </section>
 
-      <section class="mt-16" aria-labelledby="how-it-works">
-        <h2 id="how-it-works" class="text-center text-2xl font-semibold text-primary-900">
+      <section class="flex flex-col gap-6" aria-labelledby="how-it-works">
+        <h2 id="how-it-works"
+            class="m-0 text-center font-heading text-sm font-semibold uppercase tracking-[0.08em] text-neutral-600">
           {{ 'landing.how.title' | translate }}
         </h2>
-        <ol class="mt-8 grid gap-6 md:grid-cols-4">
+        <ol class="m-0 grid list-none gap-3.5 p-0 md:grid-cols-4">
           @for (step of steps; track step.titleKey; let i = $index) {
-            <li class="rounded-lg border border-slate-200 bg-white p-lg shadow-sm">
-              <div class="text-sm font-semibold text-accent-500">{{ i + 1 }}</div>
-              <h3 class="mt-1 text-base font-semibold text-slate-800">{{ step.titleKey | translate }}</h3>
-              <p class="mt-1 text-sm text-slate-600">{{ step.bodyKey | translate }}</p>
+            <li>
+              <app-card class="block h-full">
+                <div class="flex flex-col gap-2">
+                  <span class="font-mono text-xs font-semibold text-accent-700">0{{ i + 1 }}</span>
+                  <h3 class="m-0 font-heading text-base font-semibold text-ink">{{ step.titleKey | translate }}</h3>
+                  <p class="m-0 text-[13px] leading-relaxed text-neutral-600">{{ step.bodyKey | translate }}</p>
+                </div>
+              </app-card>
             </li>
           }
         </ol>
-        <p class="mt-8 text-center text-sm text-slate-500">{{ 'landing.disclaimer' | translate }}</p>
+        <p class="mx-auto max-w-[640px] text-center text-xs leading-relaxed text-neutral-600">
+          {{ 'landing.disclaimer' | translate }}
+        </p>
       </section>
     </main>
   `,

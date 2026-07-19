@@ -17,25 +17,25 @@ import { TranslateModule } from '@ngx-translate/core';
   template: `
     <article class="mx-auto max-w-3xl">
       @if (loading()) {
-        <p class="text-slate-500">{{ 'common.loading' | translate }}</p>
+        <p class="text-neutral-600">{{ 'common.loading' | translate }}</p>
       } @else if (notFound()) {
-        <h1 class="text-2xl font-semibold text-slate-800">{{ 'help.not_found.title' | translate }}</h1>
-        <p class="mt-2 text-slate-600">{{ 'help.not_found.body' | translate }}</p>
-        <a routerLink="/dashboard" class="mt-4 inline-flex text-primary-700 underline">
+        <h1 class="font-heading text-[32px] font-semibold leading-tight text-ink">{{ 'help.not_found.title' | translate }}</h1>
+        <p class="mt-2 text-neutral-600">{{ 'help.not_found.body' | translate }}</p>
+        <a routerLink="/dashboard" class="mt-4 inline-flex text-accent-700 underline">
           {{ 'help.not_found.home' | translate }}
         </a>
       } @else {
-        <div class="help-content leading-relaxed text-slate-700" [innerHTML]="content()"></div>
+        <div class="help-content leading-relaxed text-ink" [innerHTML]="content()"></div>
       }
     </article>
   `,
   styles: [`
-    .help-content ::ng-deep h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; }
-    .help-content ::ng-deep h2 { font-size: 1.15rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    .help-content ::ng-deep h1 { font-family: var(--font-heading); font-size: 1.75rem; font-weight: 600; margin-bottom: 0.75rem; }
+    .help-content ::ng-deep h2 { font-family: var(--font-heading); font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
     .help-content ::ng-deep p { margin-bottom: 0.75rem; }
     .help-content ::ng-deep ul { list-style: disc; padding-inline-start: 1.5rem; margin-bottom: 0.75rem; }
-    .help-content ::ng-deep a { color: var(--color-primary-700); text-decoration: underline; }
-    .help-content ::ng-deep code { font-family: monospace; background: #f1f5f9; padding: 0 0.25rem; border-radius: 0.25rem; }
+    .help-content ::ng-deep a { color: var(--color-accent-700); text-decoration: underline; }
+    .help-content ::ng-deep code { font-family: var(--font-mono), monospace; background: var(--color-surface); padding: 0 0.25rem; border-radius: 0; }
   `],
 })
 export class HelpArticleComponent implements OnInit {

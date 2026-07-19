@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { OnboardingFacade } from '../../../abstraction/facades/onboarding.facade';
 import { OnboardingStatus } from '../../../core/models/onboarding.models';
+import { BlueprintDirective } from '../ui/blueprint.directive';
 
 interface StepDef {
   key: keyof Omit<OnboardingStatus, 'complete'>;
@@ -18,31 +19,34 @@ interface StepDef {
 @Component({
   selector: 'app-onboarding-checklist',
   standalone: true,
-  imports: [RouterLink, TranslateModule],
+  imports: [RouterLink, TranslateModule, BlueprintDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="rounded-lg border border-slate-200 bg-white p-lg shadow-sm" aria-labelledby="ob-title">
-      <h2 id="ob-title" class="text-lg font-semibold text-primary-900">{{ 'onboarding.title' | translate }}</h2>
-      <p class="mt-1 text-sm text-slate-600">{{ 'onboarding.subtitle' | translate }}</p>
-      <ol class="mt-md space-y-2">
+    <section stpBlueprint class="block bg-transparent p-s4" aria-labelledby="ob-title">
+      <h2 id="ob-title" class="font-heading text-lg font-semibold text-ink">{{ 'onboarding.title' | translate }}</h2>
+      <p class="mt-1 text-sm text-neutral-600">{{ 'onboarding.subtitle' | translate }}</p>
+      <ol class="mt-s4 space-y-2">
         @for (step of steps(); track step.key; let i = $index) {
-          <li class="flex items-center justify-between gap-md rounded-md border border-slate-100 px-3 py-2">
+          <li class="flex items-center justify-between gap-s4 rounded-none border border-divider px-3 py-2">
             <span class="flex items-center gap-2">
               <span
-                class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold"
-                [class.bg-success-500]="step.done"
-                [class.text-white]="step.done"
-                [class.bg-slate-100]="!step.done"
-                [class.text-slate-500]="!step.done"
+                class="flex h-6 w-6 items-center justify-center rounded-none font-mono text-xs font-semibold"
+                [class.bg-up-tint]="step.done"
+                [class.text-up-deep]="step.done"
+                [class.bg-surface]="!step.done"
+                [class.text-neutral-600]="!step.done"
                 aria-hidden="true">{{ step.done ? '✓' : (i + 1) }}</span>
-              <span class="text-sm" [class.text-slate-400]="step.done" [class.line-through]="step.done">
+              <span class="text-sm"
+                    [class.text-ink]="!step.done"
+                    [class.text-neutral-500]="step.done"
+                    [class.line-through]="step.done">
                 {{ step.labelKey | translate }}
               </span>
             </span>
             @if (step.done) {
-              <span class="text-xs font-medium text-success-500">{{ 'onboarding.done' | translate }}</span>
+              <span class="text-xs font-semibold text-up-deep">{{ 'onboarding.done' | translate }}</span>
             } @else {
-              <a [routerLink]="step.link" class="text-sm font-medium text-primary-700 hover:underline">
+              <a [routerLink]="step.link" class="text-sm font-medium text-accent-700 hover:underline">
                 {{ step.ctaKey | translate }}
               </a>
             }
@@ -50,7 +54,7 @@ interface StepDef {
         }
       </ol>
       @if (showFillHint()) {
-        <p class="mt-md text-xs text-slate-500">{{ 'onboarding.fill_hint' | translate }}</p>
+        <p class="mt-s4 text-xs text-neutral-600">{{ 'onboarding.fill_hint' | translate }}</p>
       }
     </section>
   `,

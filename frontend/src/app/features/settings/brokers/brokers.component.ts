@@ -1,8 +1,8 @@
 /**
  * /settings/brokers — connect + manage broker accounts (M04).
  *
- * Two sections:
- *   1. Connected brokers — status badge, test-connection, remove (MFA-gated),
+ * Two sections ("Industry" design system):
+ *   1. Connected brokers — status chip, test-connection, remove (MFA-gated),
  *      and an admin-only flatten button (backend 403s non-staff — that's fine).
  *   2. Connect Alpaca Paper — write-only API key + secret form.
  */
@@ -19,6 +19,10 @@ import {
   BrokerTestConnectionResult,
 } from '../../../core/models/brokers.models';
 import { BrokersFacade } from '../../../abstraction/facades/brokers.facade';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { CardComponent } from '../../shared/ui/card.component';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { StatusChipComponent } from '../../shared/ui/status-chip.component';
 
 /** Error codes that have a dedicated translated message. */
 const KNOWN_ERRORS = new Set([
@@ -37,212 +41,211 @@ const KNOWN_ERRORS = new Set([
 @Component({
   selector: 'app-brokers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe, RouterLink],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    TranslateModule,
+    DatePipe,
+    RouterLink,
+    ButtonComponent,
+    CardComponent,
+    PageHeaderComponent,
+    StatusChipComponent,
+  ],
   template: `
-    <div class="mx-auto max-w-3xl p-6 space-y-8">
-      <h1 class="text-2xl font-bold">{{ 'brokers.title' | translate }}</h1>
+    <div class="mx-auto max-w-3xl p-6">
+      <app-page-header [heading]="'brokers.title' | translate" />
 
-      <!-- ========== Connected brokers ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-4">{{ 'brokers.connected.title' | translate }}</h2>
+      <div class="flex flex-col gap-s6">
+        <!-- ========== Connected brokers ========== -->
+        <app-card>
+          <h2 class="m-0 mb-s3 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+            {{ 'brokers.connected.title' | translate }}
+          </h2>
 
-        @if (facade.loading()) {
-          <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
-        } @else if (facade.accounts().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'brokers.connected.empty' | translate }}</p>
-        } @else {
-          <ul class="divide-y">
-            @for (acct of facade.accounts(); track acct.id) {
-              <li class="py-4">
-                <div class="flex items-start justify-between">
-                  <div>
-                    <p class="font-medium">
-                      {{ acct.nickname || acct.broker }}
-                      <span class="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">{{ acct.mode }}</span>
-                      @if (acct.is_default) {
-                        <span class="ml-1 text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
-                          {{ 'brokers.connected.default' | translate }}
-                        </span>
+          @if (facade.loading()) {
+            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          } @else if (facade.accounts().length === 0) {
+            <p class="text-sm text-neutral-600">{{ 'brokers.connected.empty' | translate }}</p>
+          } @else {
+            <ul class="divide-y divide-divider">
+              @for (acct of facade.accounts(); track acct.id) {
+                <li class="py-s4 first:pt-0 last:pb-0">
+                  <div class="flex items-start justify-between gap-3.5">
+                    <div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-base font-bold text-ink">{{ acct.nickname || acct.broker }}</span>
+                        <app-status-chip [status]="acct.mode">{{ acct.mode }}</app-status-chip>
+                        @if (acct.is_default) {
+                          <app-status-chip status="DEFAULT">
+                            {{ 'brokers.connected.default' | translate }}
+                          </app-status-chip>
+                        }
+                      </div>
+                      <p class="mt-1 font-mono text-xs text-neutral-600">{{ acct.account_number || '—' }}</p>
+                      <p class="font-mono text-xs text-neutral-600">
+                        {{ 'brokers.connected.last_connected' | translate }}:
+                        {{ acct.last_connected_at ? (acct.last_connected_at | date:'medium') : '—' }}
+                      </p>
+                    </div>
+                    <app-status-chip [status]="badge(acct)" [dot]="true" class="shrink-0">
+                      {{ ('brokers.status.' + badge(acct)) | translate }}
+                    </app-status-chip>
+                  </div>
+
+                  <!-- Row actions + mode segmented control -->
+                  <div class="mt-s3 flex flex-wrap items-center gap-2">
+                    <app-button variant="ghost" (clicked)="onTest(acct.id)">
+                      {{ 'brokers.connected.test' | translate }}
+                    </app-button>
+                    <app-button variant="ghost" (clicked)="startRemove(acct.id)">
+                      <span class="text-down">{{ 'brokers.connected.remove' | translate }}</span>
+                    </app-button>
+                    <app-button variant="ghost" (clicked)="onFlatten(acct.id)">
+                      <span class="text-warn-deep">{{ 'brokers.connected.flatten' | translate }}</span>
+                    </app-button>
+                  </div>
+
+                  <!-- Mode control (PAPER active; LIVE disabled until enabled) -->
+                  <div class="mt-s3 flex items-center gap-2 text-xs">
+                    <span class="text-neutral-600">{{ 'brokers.mode.label' | translate }}:</span>
+                    <div class="inline-flex overflow-hidden rounded-none border border-divider">
+                      <button type="button" (click)="onSetMode(acct, 'PAPER')"
+                              class="px-3 py-1 font-heading font-semibold uppercase tracking-wide"
+                              [class.bg-accent]="acct.mode === 'PAPER'"
+                              [class.text-bg]="acct.mode === 'PAPER'">
+                        {{ 'brokers.mode.paper' | translate }}
+                      </button>
+                      <button type="button"
+                              [attr.aria-disabled]="true"
+                              [title]="'brokers.mode.live_soon' | translate"
+                              class="cursor-not-allowed border-l border-divider px-3 py-1 font-heading font-semibold uppercase tracking-wide text-neutral-600 opacity-45">
+                        {{ 'brokers.mode.live' | translate }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Test-connection result -->
+                  @if (testResults()[acct.id]; as tr) {
+                    <div class="mt-2 rounded-none border border-divider bg-up-tint px-3 py-2 font-mono text-xs text-up-deep">
+                      {{ 'brokers.connected.account_number' | translate }}: {{ tr.account_number }} ·
+                      {{ 'brokers.connected.buying_power' | translate }}: {{ fmtMoney(tr.buying_power, tr.currency) }}
+                    </div>
+                  }
+
+                  <!-- MFA-gated remove prompt — the one inline MFA confirm
+                       pattern: input → danger confirm → secondary cancel -->
+                  @if (removingId() === acct.id) {
+                    <form [formGroup]="mfaForm" (ngSubmit)="confirmRemove(acct.id)"
+                          class="mt-s3 flex flex-wrap items-center gap-2 border-t border-divider pt-s3">
+                      <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
+                             autocomplete="one-time-code"
+                             [placeholder]="'brokers.connected.mfa_placeholder' | translate"
+                             class="w-32 rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
+                      <app-button type="submit" variant="danger" [disabled]="mfaForm.invalid">
+                        {{ 'brokers.connected.confirm_remove' | translate }}
+                      </app-button>
+                      <app-button variant="secondary" (clicked)="cancelRemove()">
+                        {{ 'common.cancel' | translate }}
+                      </app-button>
+                    </form>
+                  }
+
+                  <!-- Per-row error (test / remove / flatten) -->
+                  @if (rowErrors()[acct.id]; as err) {
+                    <p class="mt-2 text-xs text-down-deep">
+                      @if (knownError(err.code)) {
+                        {{ ('brokers.error.' + err.code) | translate }}
+                      } @else {
+                        {{ err.message }}
                       }
                     </p>
-                    <p class="text-sm text-gray-500 font-mono">{{ acct.account_number || '—' }}</p>
-                    <p class="text-xs text-gray-500">
-                      {{ 'brokers.connected.last_connected' | translate }}:
-                      {{ acct.last_connected_at ? (acct.last_connected_at | date:'medium') : '—' }}
-                    </p>
-                  </div>
-                  <div class="text-right">
-                    @switch (badge(acct)) {
-                      @case ('connected') {
-                        <span class="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                          {{ 'brokers.status.connected' | translate }}
-                        </span>
-                      }
-                      @case ('degraded') {
-                        <span class="inline-block px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded">
-                          {{ 'brokers.status.degraded' | translate }}
-                        </span>
-                      }
-                      @default {
-                        <span class="inline-block px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
-                          {{ 'brokers.status.down' | translate }}
-                        </span>
-                      }
-                    }
-                  </div>
-                </div>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </app-card>
 
-                <!-- Row actions -->
-                <div class="mt-3 flex flex-wrap gap-3 text-sm">
-                  <button type="button" (click)="onTest(acct.id)"
-                          class="text-blue-600 hover:underline">
-                    {{ 'brokers.connected.test' | translate }}
-                  </button>
-                  <button type="button" (click)="startRemove(acct.id)"
-                          class="text-red-600 hover:underline">
-                    {{ 'brokers.connected.remove' | translate }}
-                  </button>
-                  <button type="button" (click)="onFlatten(acct.id)"
-                          class="text-amber-700 hover:underline">
-                    {{ 'brokers.connected.flatten' | translate }}
-                  </button>
-                </div>
+        <!-- ========== Connect Alpaca Paper ========== -->
+        <app-card>
+          <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+            {{ 'brokers.connect.title' | translate }}
+          </h2>
+          <p class="mb-s3 text-sm text-neutral-600">
+            {{ 'brokers.connect.help' | translate }}
+            <a routerLink="/help/alpaca-paper-connect"
+               class="text-accent-700 hover:underline">{{ 'brokers.connect.help_link' | translate }}</a>
+          </p>
 
-                <!-- Mode control (PAPER active; LIVE disabled until enabled) -->
-                <div class="mt-3 flex items-center gap-2 text-xs">
-                  <span class="text-gray-500">{{ 'brokers.mode.label' | translate }}:</span>
-                  <div class="inline-flex rounded border overflow-hidden">
-                    <button type="button" (click)="onSetMode(acct, 'PAPER')"
-                            [class.bg-blue-600]="acct.mode === 'PAPER'"
-                            [class.text-white]="acct.mode === 'PAPER'"
-                            class="px-3 py-1">
-                      {{ 'brokers.mode.paper' | translate }}
-                    </button>
-                    <button type="button" (click)="onSetMode(acct, 'LIVE')"
-                            [attr.aria-disabled]="true"
-                            [title]="'brokers.mode.live_soon' | translate"
-                            class="px-3 py-1 border-l text-gray-500 cursor-not-allowed">
-                      {{ 'brokers.mode.live' | translate }}
-                    </button>
-                  </div>
-                </div>
+          <form [formGroup]="connectForm" (ngSubmit)="onConnect()" class="max-w-md space-y-3">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-neutral-600">{{ 'brokers.connect.api_key_id' | translate }}</label>
+              <input type="text" formControlName="api_key_id" autocomplete="off"
+                     class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-neutral-600">{{ 'brokers.connect.api_secret' | translate }}</label>
+              <input type="password" formControlName="api_secret" autocomplete="new-password"
+                     class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-neutral-600">
+                {{ 'brokers.connect.nickname' | translate }}
+                <span class="font-normal text-neutral-500">({{ 'brokers.connect.optional' | translate }})</span>
+              </label>
+              <input type="text" formControlName="nickname"
+                     class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" />
+            </div>
+            <app-button type="submit" variant="primary" [disabled]="connectForm.invalid || facade.loading()">
+              {{ 'brokers.connect.submit' | translate }}
+            </app-button>
+          </form>
 
-                <!-- Test-connection result -->
-                @if (testResults()[acct.id]; as tr) {
-                  <div class="mt-2 text-xs bg-green-50 border border-green-200 text-green-800 rounded px-3 py-2">
-                    {{ 'brokers.connected.account_number' | translate }}: {{ tr.account_number }} ·
-                    {{ 'brokers.connected.buying_power' | translate }}: {{ fmtMoney(tr.buying_power, tr.currency) }}
-                  </div>
-                }
+          @if (connectResult(); as r) {
+            <div class="mt-s3 rounded-none border border-divider bg-up-tint p-3 text-sm text-up-deep">
+              ✓ {{ 'brokers.connect.success' | translate }} —
+              {{ 'brokers.connected.account_number' | translate }}: <span class="font-mono">{{ r.account_number }}</span> ·
+              {{ 'brokers.connected.buying_power' | translate }}: <span class="font-mono">{{ fmtMoney(r.buying_power) }}</span>
+            </div>
+          }
+          @if (connectError(); as err) {
+            <p class="mt-s3 text-sm text-down-deep">
+              @if (knownError(err.code)) {
+                {{ ('brokers.error.' + err.code) | translate }}
+              } @else {
+                {{ err.message }}
+              }
+            </p>
+          }
+        </app-card>
 
-                <!-- MFA-gated remove prompt -->
-                @if (removingId() === acct.id) {
-                  <form [formGroup]="mfaForm" (ngSubmit)="confirmRemove(acct.id)"
-                        class="mt-3 flex flex-wrap items-center gap-2">
-                    <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
-                           autocomplete="one-time-code"
-                           [placeholder]="'brokers.connected.mfa_placeholder' | translate"
-                           class="border rounded px-3 py-2 font-mono text-sm w-32" />
-                    <button type="submit" [disabled]="mfaForm.invalid"
-                            class="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 disabled:opacity-50">
-                      {{ 'brokers.connected.confirm_remove' | translate }}
-                    </button>
-                    <button type="button" (click)="cancelRemove()"
-                            class="px-3 py-2 rounded text-sm border hover:bg-gray-50">
-                      {{ 'common.cancel' | translate }}
-                    </button>
-                  </form>
-                }
-
-                <!-- Per-row error (test / remove / flatten) -->
-                @if (rowErrors()[acct.id]; as err) {
-                  <p class="mt-2 text-xs text-red-700">
-                    @if (knownError(err.code)) {
-                      {{ ('brokers.error.' + err.code) | translate }}
-                    } @else {
-                      {{ err.message }}
-                    }
-                  </p>
-                }
-              </li>
-            }
-          </ul>
-        }
-      </section>
-
-      <!-- ========== Connect Alpaca Paper ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-1">{{ 'brokers.connect.title' | translate }}</h2>
-        <p class="text-sm text-gray-600 mb-4">
-          {{ 'brokers.connect.help' | translate }}
-          <a routerLink="/help/alpaca-paper-connect"
-             class="text-blue-600 hover:underline">{{ 'brokers.connect.help_link' | translate }}</a>
-        </p>
-
-        <form [formGroup]="connectForm" (ngSubmit)="onConnect()" class="space-y-3 max-w-md">
-          <div>
-            <label class="block text-sm font-medium mb-1">{{ 'brokers.connect.api_key_id' | translate }}</label>
-            <input type="text" formControlName="api_key_id" autocomplete="off"
-                   class="w-full border rounded px-3 py-2 font-mono text-sm" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">{{ 'brokers.connect.api_secret' | translate }}</label>
-            <input type="password" formControlName="api_secret" autocomplete="new-password"
-                   class="w-full border rounded px-3 py-2 font-mono text-sm" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">
-              {{ 'brokers.connect.nickname' | translate }}
-              <span class="text-gray-500 font-normal">({{ 'brokers.connect.optional' | translate }})</span>
-            </label>
-            <input type="text" formControlName="nickname" class="w-full border rounded px-3 py-2 text-sm" />
-          </div>
-          <button type="submit" [disabled]="connectForm.invalid || facade.loading()"
-                  class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
-            {{ 'brokers.connect.submit' | translate }}
+        <!-- ========== Connect TradeStation ========== -->
+        <!-- §7.9: TradeStation is not enabled in any deployed config (flag OFF,
+             M05 follow-up). Don't show a button that looks functional — disable it
+             and say so honestly rather than 404/500 on click. Kept as a native
+             button to preserve the exact disabled + aria-disabled markup. -->
+        <app-card>
+          <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+            {{ 'brokers.connect_tradestation.title' | translate }}
+          </h2>
+          <p class="mb-s3 text-sm text-neutral-600">{{ 'brokers.connect_tradestation.help' | translate }}</p>
+          <button type="button" disabled aria-disabled="true"
+                  class="inline-flex w-fit cursor-not-allowed items-center justify-center rounded-none border border-divider bg-transparent px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-ink opacity-45">
+            {{ 'brokers.connect_tradestation.button' | translate }}
           </button>
-        </form>
-
-        @if (connectResult(); as r) {
-          <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
-            ✓ {{ 'brokers.connect.success' | translate }} —
-            {{ 'brokers.connected.account_number' | translate }}: {{ r.account_number }} ·
-            {{ 'brokers.connected.buying_power' | translate }}: {{ fmtMoney(r.buying_power) }}
-          </div>
-        }
-        @if (connectError(); as err) {
-          <p class="mt-4 text-sm text-red-700">
-            @if (knownError(err.code)) {
-              {{ ('brokers.error.' + err.code) | translate }}
-            } @else {
-              {{ err.message }}
-            }
-          </p>
-        }
-      </section>
-
-      <!-- ========== Connect TradeStation ========== -->
-      <!-- §7.9: TradeStation is not enabled in any deployed config (flag OFF,
-           M05 follow-up). Don't show a button that looks functional — disable it
-           and say so honestly rather than 404/500 on click. -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-1">{{ 'brokers.connect_tradestation.title' | translate }}</h2>
-        <p class="text-sm text-gray-600 mb-4">{{ 'brokers.connect_tradestation.help' | translate }}</p>
-        <button type="button" disabled aria-disabled="true"
-                class="bg-gray-300 text-gray-600 px-4 py-2 rounded cursor-not-allowed">
-          {{ 'brokers.connect_tradestation.button' | translate }}
-        </button>
-        <p class="mt-2 text-xs text-gray-500">{{ 'brokers.connect_tradestation.unavailable' | translate }}</p>
-        @if (tsError(); as err) {
-          <p class="mt-4 text-sm text-red-700">
-            @if (knownError(err.code)) {
-              {{ ('brokers.error.' + err.code) | translate }}
-            } @else {
-              {{ err.message }}
-            }
-          </p>
-        }
-      </section>
+          <p class="mt-2 text-xs text-neutral-600">{{ 'brokers.connect_tradestation.unavailable' | translate }}</p>
+          @if (tsError(); as err) {
+            <p class="mt-s3 text-sm text-down-deep">
+              @if (knownError(err.code)) {
+                {{ ('brokers.error.' + err.code) | translate }}
+              } @else {
+                {{ err.message }}
+              }
+            </p>
+          }
+        </app-card>
+      </div>
     </div>
   `,
 })

@@ -1,5 +1,5 @@
 /**
- * /settings/security — single page housing four sub-cards:
+ * /settings/security — single page housing four sub-cards ("Industry" system):
  *   1. MFA status (enroll button OR disable form)
  *   2. Backup codes (regenerate)
  *   3. Sessions list with revoke
@@ -14,213 +14,235 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
 import { MfaFacade } from '../../../abstraction/facades/mfa.facade';
 import { ProfileFacade } from '../../../abstraction/facades/profile.facade';
 import { SessionsFacade } from '../../../abstraction/facades/sessions.facade';
+import { ButtonComponent } from '../../shared/ui/button.component';
+import { CardComponent } from '../../shared/ui/card.component';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { StatusChipComponent } from '../../shared/ui/status-chip.component';
 
 @Component({
   selector: 'app-security',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterLink,
+    TranslateModule,
+    DatePipe,
+    ButtonComponent,
+    CardComponent,
+    PageHeaderComponent,
+    StatusChipComponent,
+  ],
   template: `
-    <div class="mx-auto max-w-3xl p-6 space-y-8">
-      <h1 class="text-2xl font-bold">{{ 'security.title' | translate }}</h1>
+    <div class="mx-auto max-w-3xl p-6">
+      <app-page-header [heading]="'security.title' | translate" />
 
-      <!-- ========== MFA card ========== -->
-      <section class="border rounded-lg p-6">
-        <div class="flex justify-between items-start mb-4">
-          <div>
-            <h2 class="text-lg font-semibold">{{ 'security.mfa.title' | translate }}</h2>
-            <p class="text-sm text-gray-600">{{ 'security.mfa.subtitle' | translate }}</p>
-          </div>
-          @if (auth.user()?.mfa_enabled) {
-            <span class="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-              ✓ {{ 'security.mfa.enabled' | translate }}
-            </span>
-          } @else {
-            <span class="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-              {{ 'security.mfa.disabled' | translate }}
-            </span>
-          }
-        </div>
-
-        @if (!auth.user()?.mfa_enabled) {
-          <a routerLink="/settings/security/mfa/setup"
-             class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            {{ 'security.mfa.enroll_cta' | translate }}
-          </a>
-        } @else {
-          <form [formGroup]="disableForm" (ngSubmit)="onDisable()" class="space-y-3">
-            <p class="text-sm text-gray-700">{{ 'security.mfa.disable_help' | translate }}</p>
-            <input
-              type="password"
-              formControlName="password"
-              autocomplete="current-password"
-              aria-label="Current password"
-              [placeholder]="'security.mfa.password_placeholder' | translate"
-              class="w-full border rounded px-3 py-2"
-            />
-            <input
-              type="text"
-              inputmode="numeric"
-              formControlName="code"
-              autocomplete="one-time-code"
-              maxlength="6"
-              aria-label="Authenticator code"
-              [placeholder]="'security.mfa.totp_placeholder' | translate"
-              class="w-full border rounded px-3 py-2 font-mono"
-            />
-            <button
-              type="submit"
-              [disabled]="disableForm.invalid || mfa.loading()"
-              class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
-            >
-              {{ 'security.mfa.disable_cta' | translate }}
-            </button>
-          </form>
-        }
-        @if (mfa.error(); as err) {
-          <p role="alert" class="mt-3 text-sm text-red-600">{{ err.message }}</p>
-        }
-      </section>
-
-      <!-- ========== Backup codes (only when MFA enabled) ========== -->
-      @if (auth.user()?.mfa_enabled) {
-        <section class="border rounded-lg p-6">
-          <h2 class="text-lg font-semibold mb-2">{{ 'security.backup.title' | translate }}</h2>
-          <p class="text-sm text-gray-600 mb-4">{{ 'security.backup.subtitle' | translate }}</p>
-          <form [formGroup]="regenForm" (ngSubmit)="onRegenerate()" class="space-y-3">
-            <input
-              type="password"
-              formControlName="password"
-              autocomplete="current-password"
-              aria-label="Current password"
-              [placeholder]="'security.mfa.password_placeholder' | translate"
-              class="w-full border rounded px-3 py-2"
-            />
-            <input
-              type="text"
-              inputmode="numeric"
-              formControlName="code"
-              autocomplete="one-time-code"
-              maxlength="6"
-              aria-label="Authenticator code"
-              [placeholder]="'security.mfa.totp_placeholder' | translate"
-              class="w-full border rounded px-3 py-2 font-mono"
-            />
-            <button
-              type="submit"
-              [disabled]="regenForm.invalid || mfa.loading()"
-              class="border px-4 py-2 rounded hover:bg-gray-50 disabled:opacity-50"
-            >
-              {{ 'security.backup.regenerate_cta' | translate }}
-            </button>
-          </form>
-          @if (mfa.backupCodes(); as codes) {
-            <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded">
-              <p class="text-sm text-amber-800 mb-2">⚠ {{ 'security.backup.shown_once' | translate }}</p>
-              <ul class="grid grid-cols-2 gap-2 font-mono text-sm">
-                @for (c of codes; track c) { <li class="bg-white px-2 py-1 rounded">{{ c }}</li> }
-              </ul>
+      <div class="flex flex-col gap-s6">
+        <!-- ========== MFA card ========== -->
+        <app-card>
+          <div class="mb-s3 flex items-start justify-between gap-3">
+            <div>
+              <h2 class="m-0 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+                {{ 'security.mfa.title' | translate }}
+              </h2>
+              <p class="mt-0.5 text-sm text-neutral-600">{{ 'security.mfa.subtitle' | translate }}</p>
             </div>
+            @if (auth.user()?.mfa_enabled) {
+              <app-status-chip tone="up" class="shrink-0">
+                ✓ {{ 'security.mfa.enabled' | translate }}
+              </app-status-chip>
+            } @else {
+              <app-status-chip tone="neutral" class="shrink-0">
+                {{ 'security.mfa.disabled' | translate }}
+              </app-status-chip>
+            }
+          </div>
+
+          @if (!auth.user()?.mfa_enabled) {
+            <a routerLink="/settings/security/mfa/setup"
+               class="inline-flex items-center justify-center rounded-none border border-accent bg-accent px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-bg transition-colors hover:bg-accent-600">
+              {{ 'security.mfa.enroll_cta' | translate }}
+            </a>
+          } @else {
+            <form [formGroup]="disableForm" (ngSubmit)="onDisable()" class="space-y-3">
+              <p class="text-sm text-neutral-700">{{ 'security.mfa.disable_help' | translate }}</p>
+              <input
+                type="password"
+                formControlName="password"
+                autocomplete="current-password"
+                aria-label="Current password"
+                [placeholder]="'security.mfa.password_placeholder' | translate"
+                class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+              />
+              <input
+                type="text"
+                inputmode="numeric"
+                formControlName="code"
+                autocomplete="one-time-code"
+                maxlength="6"
+                aria-label="Authenticator code"
+                [placeholder]="'security.mfa.totp_placeholder' | translate"
+                class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+              />
+              <app-button
+                type="submit"
+                variant="danger"
+                [disabled]="disableForm.invalid || mfa.loading()"
+              >
+                {{ 'security.mfa.disable_cta' | translate }}
+              </app-button>
+            </form>
           }
           @if (mfa.error(); as err) {
-            <p role="alert" class="mt-3 text-sm text-red-600">{{ err.message }}</p>
+            <p role="alert" class="mt-3 text-sm text-down-deep">{{ err.message }}</p>
           }
-        </section>
-      }
+        </app-card>
 
-      <!-- ========== Sessions card ========== -->
-      <section class="border rounded-lg p-6">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <h2 class="text-lg font-semibold">{{ 'security.sessions.title' | translate }}</h2>
-            <p class="text-sm text-gray-600">{{ 'security.sessions.subtitle' | translate }}</p>
-          </div>
-          <button
-            type="button"
-            class="text-sm text-red-600 hover:underline"
-            (click)="onRevokeAll()"
-            [disabled]="sessions.loading()"
-          >
-            {{ 'security.sessions.revoke_all' | translate }}
-          </button>
-        </div>
-        @if (sessions.error(); as err) {
-          <p role="alert" class="mb-3 text-sm text-red-600">{{ err.message }}</p>
-        }
-        @if (sessions.loading()) {
-          <p class="text-gray-500">{{ 'common.loading' | translate }}</p>
-        } @else if (sessions.sessions().length === 0) {
-          <p class="text-gray-500">{{ 'security.sessions.empty' | translate }}</p>
-        } @else {
-          <ul class="divide-y">
-            @for (s of sessions.sessions(); track s.family_id) {
-              <li class="py-3 flex justify-between items-center">
-                <div>
-                  <p class="font-medium">
-                    {{ s.device }}
-                    @if (s.current) {
-                      <span class="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
-                        {{ 'security.sessions.current' | translate }}
-                      </span>
-                    }
-                  </p>
-                  <p class="text-sm text-gray-500">
-                    {{ 'security.sessions.last_used' | translate }}:
-                    {{ s.last_used_at ? (s.last_used_at | date:'medium') : '—' }}
-                    · IP {{ s.ip_masked || '—' }}
-                  </p>
-                </div>
-                @if (!s.current) {
-                  <button
-                    type="button"
-                    class="text-sm text-red-600 hover:underline"
-                    (click)="onRevokeOne(s.family_id)"
-                  >
-                    {{ 'security.sessions.revoke_one' | translate }}
-                  </button>
-                }
-              </li>
+        <!-- ========== Backup codes (only when MFA enabled) ========== -->
+        @if (auth.user()?.mfa_enabled) {
+          <app-card>
+            <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+              {{ 'security.backup.title' | translate }}
+            </h2>
+            <p class="mb-s3 text-sm text-neutral-600">{{ 'security.backup.subtitle' | translate }}</p>
+            <form [formGroup]="regenForm" (ngSubmit)="onRegenerate()" class="space-y-3">
+              <input
+                type="password"
+                formControlName="password"
+                autocomplete="current-password"
+                aria-label="Current password"
+                [placeholder]="'security.mfa.password_placeholder' | translate"
+                class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+              />
+              <input
+                type="text"
+                inputmode="numeric"
+                formControlName="code"
+                autocomplete="one-time-code"
+                maxlength="6"
+                aria-label="Authenticator code"
+                [placeholder]="'security.mfa.totp_placeholder' | translate"
+                class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+              />
+              <app-button
+                type="submit"
+                variant="secondary"
+                [disabled]="regenForm.invalid || mfa.loading()"
+              >
+                {{ 'security.backup.regenerate_cta' | translate }}
+              </app-button>
+            </form>
+            @if (mfa.backupCodes(); as codes) {
+              <div class="mt-s3 rounded-none border border-warn bg-warn-tint p-3">
+                <p class="mb-2 text-sm text-warn-deep">⚠ {{ 'security.backup.shown_once' | translate }}</p>
+                <ul class="grid grid-cols-2 gap-2 font-mono text-sm">
+                  @for (c of codes; track c) {
+                    <li class="rounded-none border border-divider bg-bg px-2 py-1">{{ c }}</li>
+                  }
+                </ul>
+              </div>
             }
-          </ul>
+            @if (mfa.error(); as err) {
+              <p role="alert" class="mt-3 text-sm text-down-deep">{{ err.message }}</p>
+            }
+          </app-card>
         }
-      </section>
 
-      <!-- ========== Password change card ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-2">{{ 'security.password.title' | translate }}</h2>
-        <p class="text-sm text-gray-600 mb-4">{{ 'security.password.subtitle' | translate }}</p>
-        <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()" class="space-y-3 max-w-md">
-          <input
-            type="password"
-            formControlName="current"
-            autocomplete="current-password"
-            aria-label="Current password"
-            [placeholder]="'security.password.current' | translate"
-            class="w-full border rounded px-3 py-2"
-          />
-          <input
-            type="password"
-            formControlName="next"
-            autocomplete="new-password"
-            aria-label="New password"
-            [placeholder]="'security.password.next' | translate"
-            class="w-full border rounded px-3 py-2"
-          />
-          <p class="text-xs text-gray-500">{{ 'auth.register.password_hint' | translate }}</p>
-          <button
-            type="submit"
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-            [disabled]="passwordForm.invalid || profile.loading()"
-          >
-            {{ 'security.password.cta' | translate }}
-          </button>
-        </form>
-        @if (passwordSuccess()) {
-          <p class="mt-3 text-sm text-green-700">✓ {{ 'security.password.success' | translate }}</p>
-        }
-        @if (profile.error(); as err) {
-          <p class="mt-3 text-sm text-red-700">{{ err.message }}</p>
-        }
-      </section>
+        <!-- ========== Sessions card ========== -->
+        <app-card>
+          <div class="mb-s3 flex items-center justify-between gap-3">
+            <div>
+              <h2 class="m-0 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+                {{ 'security.sessions.title' | translate }}
+              </h2>
+              <p class="mt-0.5 text-sm text-neutral-600">{{ 'security.sessions.subtitle' | translate }}</p>
+            </div>
+            <app-button
+              variant="ghost"
+              class="shrink-0"
+              [disabled]="sessions.loading()"
+              (clicked)="onRevokeAll()"
+            >
+              <span class="text-down">{{ 'security.sessions.revoke_all' | translate }}</span>
+            </app-button>
+          </div>
+          @if (sessions.error(); as err) {
+            <p role="alert" class="mb-3 text-sm text-down-deep">{{ err.message }}</p>
+          }
+          @if (sessions.loading()) {
+            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          } @else if (sessions.sessions().length === 0) {
+            <p class="text-sm text-neutral-600">{{ 'security.sessions.empty' | translate }}</p>
+          } @else {
+            <ul class="divide-y divide-divider">
+              @for (s of sessions.sessions(); track s.family_id) {
+                <li class="flex items-center justify-between gap-3 py-3">
+                  <div>
+                    <p class="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
+                      {{ s.device }}
+                      @if (s.current) {
+                        <app-status-chip tone="info">
+                          {{ 'security.sessions.current' | translate }}
+                        </app-status-chip>
+                      }
+                    </p>
+                    <p class="mt-0.5 font-mono text-xs text-neutral-600">
+                      {{ 'security.sessions.last_used' | translate }}:
+                      {{ s.last_used_at ? (s.last_used_at | date:'medium') : '—' }}
+                      · IP {{ s.ip_masked || '—' }}
+                    </p>
+                  </div>
+                  @if (!s.current) {
+                    <app-button variant="ghost" class="shrink-0" (clicked)="onRevokeOne(s.family_id)">
+                      <span class="text-down">{{ 'security.sessions.revoke_one' | translate }}</span>
+                    </app-button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </app-card>
+
+        <!-- ========== Password change card ========== -->
+        <app-card>
+          <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
+            {{ 'security.password.title' | translate }}
+          </h2>
+          <p class="mb-s3 text-sm text-neutral-600">{{ 'security.password.subtitle' | translate }}</p>
+          <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()" class="max-w-md space-y-3">
+            <input
+              type="password"
+              formControlName="current"
+              autocomplete="current-password"
+              aria-label="Current password"
+              [placeholder]="'security.password.current' | translate"
+              class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+            />
+            <input
+              type="password"
+              formControlName="next"
+              autocomplete="new-password"
+              aria-label="New password"
+              [placeholder]="'security.password.next' | translate"
+              class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
+            />
+            <p class="text-[11px] text-neutral-600">{{ 'auth.register.password_hint' | translate }}</p>
+            <app-button
+              type="submit"
+              variant="primary"
+              [disabled]="passwordForm.invalid || profile.loading()"
+            >
+              {{ 'security.password.cta' | translate }}
+            </app-button>
+          </form>
+          @if (passwordSuccess()) {
+            <p class="mt-3 text-sm text-accent-700">✓ {{ 'security.password.success' | translate }}</p>
+          }
+          @if (profile.error(); as err) {
+            <p class="mt-3 text-sm text-down-deep">{{ err.message }}</p>
+          }
+        </app-card>
+      </div>
     </div>
   `,
 })

@@ -7,6 +7,10 @@
  * Right/below: a server-paginated runs table with status chips, PBO, duration,
  * and a cancel button on active runs. Backend VALIDATION_ERROR details surface
  * inline. "Rerun with same config" prefills this form via the facade stash.
+ *
+ * Visual layer: "Industry" design system (design_handoff/angular-migration-notes.md
+ * §4 Backtest) — blueprint form card, Industry field grammar, `.seg` segmented
+ * sizing control, dense runs table with status chips.
  */
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
@@ -22,6 +26,11 @@ import {
   CreateBacktestRunBody,
 } from '../../core/models/backtest.models';
 import { BacktestFacade } from '../../abstraction/facades/backtest.facade';
+import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { PageHeaderComponent } from '../shared/ui/page-header.component';
+import { StatusChipComponent } from '../shared/ui/status-chip.component';
+import { BlueprintDirective } from '../shared/ui/blueprint.directive';
 
 const MODES: BacktestMode[] = ['rolling', 'anchored'];
 const METRICS: BacktestMetric[] = ['sharpe', 'sortino', 'total_return', 'mar'];
@@ -41,259 +50,275 @@ const KNOWN_ERRORS = new Set([
 @Component({
   selector: 'app-backtest-launcher',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, TranslateModule, DatePipe],
+  imports: [
+    CommonModule, ReactiveFormsModule, TranslateModule, DatePipe,
+    ButtonComponent, CardComponent, PageHeaderComponent, StatusChipComponent, BlueprintDirective,
+  ],
   template: `
-    <div class="mx-auto max-w-6xl p-6 space-y-8">
-      <h1 class="text-2xl font-bold">{{ 'backtest.title' | translate }}</h1>
+    <div class="mx-auto max-w-6xl p-6">
+      <app-page-header [heading]="'backtest.title' | translate" />
 
-      <!-- ========== Launcher form ========== -->
-      <section class="border rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-4">{{ 'backtest.launcher.title' | translate }}</h2>
+      <div class="grid items-start gap-s6 lg:grid-cols-[420px_minmax(0,1fr)]">
+        <!-- ========== Launcher form ========== -->
+        <app-card>
+          <h2 class="mb-s3 font-heading text-[13px] font-semibold uppercase tracking-[.08em] text-neutral-700">
+            {{ 'backtest.launcher.title' | translate }}
+          </h2>
 
-        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-5">
-          <!-- Strategy picker -->
-          <div>
-            <label for="bt-strategy" class="block text-sm font-medium mb-1">{{ 'backtest.form.strategy' | translate }}</label>
-            <select id="bt-strategy" formControlName="strategy" class="w-full border rounded px-3 py-2 text-sm">
-              <option value="" disabled>{{ 'backtest.form.strategy_placeholder' | translate }}</option>
-              @for (s of facade.strategies(); track s.id) {
-                <option [value]="s.id" [disabled]="!s.has_adapter"
-                        [title]="!s.has_adapter ? ('backtest.launcher.no_adapter_banner' | translate) : s.name">
-                  {{ s.name }}@if (!s.has_adapter) { — {{ 'backtest.launcher.no_adapter_suffix' | translate }} }
-                </option>
-              }
-            </select>
-            @if (selectedNoAdapter()) {
-              <p class="mt-1 text-xs text-amber-700" role="alert">⚠ {{ 'backtest.launcher.no_adapter_banner' | translate }}</p>
-            } @else {
-              <p class="mt-1 text-xs text-gray-500">{{ 'backtest.launcher.no_adapter_note' | translate }}</p>
-            }
-          </div>
-
-          <!-- Symbols -->
-          <div>
-            <label for="bt-symbols" class="block text-sm font-medium mb-1">{{ 'backtest.form.symbols' | translate }}</label>
-            <input id="bt-symbols" type="text" formControlName="symbols" autocomplete="off" spellcheck="false"
-                   [placeholder]="'backtest.form.symbols_placeholder' | translate"
-                   class="w-full border rounded px-3 py-2 font-mono text-sm" />
-            <p class="mt-1 text-xs" [class.text-gray-500]="!symbolsError()" [class.text-red-700]="symbolsError()">
-              {{ symbolsError() ? (symbolsError()! | translate) : ('backtest.form.symbols_help' | translate) }}
-            </p>
-          </div>
-
-          <!-- Date range -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-s4">
+            <!-- Strategy picker -->
             <div>
-              <label for="bt-start" class="block text-sm font-medium mb-1">{{ 'backtest.form.start' | translate }}</label>
-              <input id="bt-start" type="date" formControlName="start" class="w-full border rounded px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label for="bt-end" class="block text-sm font-medium mb-1">{{ 'backtest.form.end' | translate }}</label>
-              <input id="bt-end" type="date" formControlName="end" class="w-full border rounded px-3 py-2 text-sm" />
-            </div>
-          </div>
-
-          <!-- Windows (step auto-synced to test) -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label for="bt-train" class="block text-sm font-medium mb-1">{{ 'backtest.form.train_window_days' | translate }}</label>
-              <input id="bt-train" type="number" min="1" formControlName="train_window_days"
-                     class="w-full border rounded px-3 py-2 font-mono text-sm" />
-            </div>
-            <div>
-              <label for="bt-test" class="block text-sm font-medium mb-1">{{ 'backtest.form.test_window_days' | translate }}</label>
-              <input id="bt-test" type="number" min="1" formControlName="test_window_days"
-                     class="w-full border rounded px-3 py-2 font-mono text-sm" />
-            </div>
-            <div>
-              <label for="bt-step" class="block text-sm font-medium mb-1">{{ 'backtest.form.step_days' | translate }}</label>
-              <input id="bt-step" type="number" [value]="form.controls.test_window_days.value" readonly
-                     class="w-full border rounded px-3 py-2 font-mono text-sm bg-gray-50 text-gray-500" />
-              <p class="mt-1 text-xs text-gray-500">{{ 'backtest.form.step_help' | translate }}</p>
-            </div>
-          </div>
-
-          <!-- Mode / metric / initial cash -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label for="bt-mode" class="block text-sm font-medium mb-1">{{ 'backtest.form.mode' | translate }}</label>
-              <select id="bt-mode" formControlName="mode" class="w-full border rounded px-3 py-2 text-sm">
-                @for (m of modes; track m) {
-                  <option [value]="m">{{ ('backtest.mode.' + m) | translate }}</option>
+              <label for="bt-strategy" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.strategy' | translate }}</label>
+              <select id="bt-strategy" formControlName="strategy"
+                      class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-accent focus:outline-none">
+                <option value="" disabled>{{ 'backtest.form.strategy_placeholder' | translate }}</option>
+                @for (s of facade.strategies(); track s.id) {
+                  <option [value]="s.id" [disabled]="!s.has_adapter"
+                          [title]="!s.has_adapter ? ('backtest.launcher.no_adapter_banner' | translate) : s.name">
+                    {{ s.name }}@if (!s.has_adapter) { — {{ 'backtest.launcher.no_adapter_suffix' | translate }} }
+                  </option>
                 }
               </select>
-            </div>
-            <div>
-              <label for="bt-metric" class="block text-sm font-medium mb-1">{{ 'backtest.form.metric' | translate }}</label>
-              <select id="bt-metric" formControlName="metric" class="w-full border rounded px-3 py-2 text-sm">
-                @for (m of metrics; track m) {
-                  <option [value]="m">{{ ('backtest.metric.' + m) | translate }}</option>
-                }
-              </select>
-            </div>
-            <div>
-              <label for="bt-cash" class="block text-sm font-medium mb-1">{{ 'backtest.form.initial_cash' | translate }}</label>
-              <input id="bt-cash" type="number" min="1" step="1000" formControlName="initial_cash"
-                     class="w-full border rounded px-3 py-2 font-mono text-sm" />
-            </div>
-          </div>
-
-          <!-- Sizing toggle -->
-          <div>
-            <span class="block text-sm font-medium mb-1">{{ 'backtest.form.sizing' | translate }}</span>
-            <div class="flex flex-wrap gap-3">
-              @for (mode of sizingModes; track mode) {
-                <label class="inline-flex items-center gap-2 text-sm border rounded px-3 py-1.5 cursor-pointer"
-                       [class.bg-blue-50]="form.controls.sizing_mode.value === mode"
-                       [class.border-blue-300]="form.controls.sizing_mode.value === mode">
-                  <input type="radio" formControlName="sizing_mode" [value]="mode" class="rounded" />
-                  {{ ('backtest.form.sizing_' + mode) | translate }}
-                </label>
+              @if (selectedNoAdapter()) {
+                <p class="mt-1 text-[11px] text-warn-deep" role="alert">⚠ {{ 'backtest.launcher.no_adapter_banner' | translate }}</p>
+              } @else {
+                <p class="mt-1 text-[11px] text-neutral-600">{{ 'backtest.launcher.no_adapter_note' | translate }}</p>
               }
             </div>
-          </div>
 
-          <!-- Param grid editor -->
-          <div>
-            <label for="bt-grid" class="block text-sm font-medium mb-1">{{ 'backtest.form.param_grid' | translate }}</label>
-            <textarea id="bt-grid" rows="5" [value]="paramGridText()" (input)="onParamGridInput($event)"
-                      class="w-full font-mono text-xs border rounded p-2" spellcheck="false" autocomplete="off"></textarea>
-            @if (paramGridError(); as e) {
-              <p class="mt-1 text-xs text-red-700">{{ e }}</p>
-            } @else {
-              <p class="mt-1 text-xs text-gray-500">{{ 'backtest.form.param_grid_help' | translate }}</p>
-            }
-          </div>
-
-          <!-- Advanced: costs + retention -->
-          <details class="border rounded-lg p-4">
-            <summary class="text-sm font-medium cursor-pointer">{{ 'backtest.form.advanced' | translate }}</summary>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label for="bt-slip" class="block text-sm font-medium mb-1">{{ 'backtest.form.slippage_bps' | translate }}</label>
-                <input id="bt-slip" type="number" min="1" step="0.5" formControlName="slippage_bps"
-                       class="w-full border rounded px-3 py-2 font-mono text-sm" />
-              </div>
-              <div>
-                <label for="bt-porder" class="block text-sm font-medium mb-1">{{ 'backtest.form.per_order_usd' | translate }}</label>
-                <input id="bt-porder" type="number" min="0" step="0.01" formControlName="per_order_usd"
-                       class="w-full border rounded px-3 py-2 font-mono text-sm" />
-              </div>
-              <div>
-                <label for="bt-pshare" class="block text-sm font-medium mb-1">{{ 'backtest.form.per_share_usd' | translate }}</label>
-                <input id="bt-pshare" type="number" min="0" step="0.001" formControlName="per_share_usd"
-                       class="w-full border rounded px-3 py-2 font-mono text-sm" />
-              </div>
-              <div>
-                <label for="bt-vpart" class="block text-sm font-medium mb-1">{{ 'backtest.form.volume_participation_pct' | translate }}</label>
-                <input id="bt-vpart" type="number" min="0.001" max="100" step="1" formControlName="volume_participation_pct"
-                       class="w-full border rounded px-3 py-2 font-mono text-sm" />
-              </div>
-              <div>
-                <label for="bt-ret" class="block text-sm font-medium mb-1">{{ 'backtest.form.retention_days' | translate }}</label>
-                <input id="bt-ret" type="number" min="1" max="365" step="1" formControlName="retention_days"
-                       class="w-full border rounded px-3 py-2 font-mono text-sm" />
-                <p class="mt-1 text-xs text-gray-500">{{ 'backtest.form.retention_help' | translate }}</p>
-              </div>
-            </div>
-          </details>
-
-          <!-- Submit + errors -->
-          @if (submitError(); as err) {
-            <div class="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm" role="alert">
-              <p>
-                @if (knownError(err.code)) {
-                  {{ ('backtest.error.' + err.code) | translate }}
-                } @else {
-                  {{ err.message }}
-                }
+            <!-- Symbols -->
+            <div>
+              <label for="bt-symbols" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.symbols' | translate }}</label>
+              <input id="bt-symbols" type="text" formControlName="symbols" autocomplete="off" spellcheck="false"
+                     [placeholder]="'backtest.form.symbols_placeholder' | translate"
+                     class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+              <p class="mt-1 text-[11px]" [class.text-neutral-600]="!symbolsError()" [class.text-down]="symbolsError()">
+                {{ symbolsError() ? (symbolsError()! | translate) : ('backtest.form.symbols_help' | translate) }}
               </p>
-              @if (errorDetails().length > 0) {
-                <ul class="mt-1 list-disc list-inside text-xs">
-                  @for (d of errorDetails(); track d) { <li>{{ d }}</li> }
-                </ul>
+            </div>
+
+            <!-- Date range -->
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label for="bt-start" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.start' | translate }}</label>
+                <input id="bt-start" type="date" formControlName="start"
+                       class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[12px] text-ink focus:border-accent focus:outline-none" />
+              </div>
+              <div>
+                <label for="bt-end" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.end' | translate }}</label>
+                <input id="bt-end" type="date" formControlName="end"
+                       class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[12px] text-ink focus:border-accent focus:outline-none" />
+              </div>
+            </div>
+
+            <!-- Windows (step auto-synced to test) -->
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label for="bt-train" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.train_window_days' | translate }}</label>
+                <input id="bt-train" type="number" min="1" formControlName="train_window_days"
+                       class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+              </div>
+              <div>
+                <label for="bt-test" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.test_window_days' | translate }}</label>
+                <input id="bt-test" type="number" min="1" formControlName="test_window_days"
+                       class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+              </div>
+              <div>
+                <label for="bt-step" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.step_days' | translate }}</label>
+                <input id="bt-step" type="number" [value]="form.controls.test_window_days.value" readonly
+                       class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[13px] text-neutral-600 opacity-60 focus:border-accent focus:outline-none" />
+                <p class="mt-1 text-[11px] text-neutral-600">{{ 'backtest.form.step_help' | translate }}</p>
+              </div>
+            </div>
+
+            <!-- Mode / metric / initial cash -->
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label for="bt-mode" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.mode' | translate }}</label>
+                <select id="bt-mode" formControlName="mode"
+                        class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-accent focus:outline-none">
+                  @for (m of modes; track m) {
+                    <option [value]="m">{{ ('backtest.mode.' + m) | translate }}</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label for="bt-metric" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.metric' | translate }}</label>
+                <select id="bt-metric" formControlName="metric"
+                        class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-accent focus:outline-none">
+                  @for (m of metrics; track m) {
+                    <option [value]="m">{{ ('backtest.metric.' + m) | translate }}</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label for="bt-cash" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.initial_cash' | translate }}</label>
+                <input id="bt-cash" type="number" min="1" step="1000" formControlName="initial_cash"
+                       class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+              </div>
+            </div>
+
+            <!-- Sizing segmented control (Industry .seg grammar over the same radios) -->
+            <div>
+              <span class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.sizing' | translate }}</span>
+              <div class="inline-flex rounded-none border border-divider">
+                @for (mode of sizingModes; track mode; let first = $first) {
+                  <label class="inline-flex cursor-pointer items-center px-3 py-1.5 text-[13px] leading-tight border-divider transition-colors focus-within:outline focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-accent"
+                         [class.border-l]="!first"
+                         [ngClass]="form.controls.sizing_mode.value === mode ? 'bg-accent text-bg' : 'bg-transparent text-ink hover:bg-neutral-200'">
+                    <input type="radio" formControlName="sizing_mode" [value]="mode" class="sr-only" />
+                    {{ ('backtest.form.sizing_' + mode) | translate }}
+                  </label>
+                }
+              </div>
+            </div>
+
+            <!-- Param grid editor -->
+            <div>
+              <label for="bt-grid" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.param_grid' | translate }}</label>
+              <textarea id="bt-grid" rows="5" [value]="paramGridText()" (input)="onParamGridInput($event)"
+                        class="w-full rounded-none border border-divider bg-surface p-2.5 font-mono text-xs leading-relaxed text-ink focus:border-accent focus:outline-none"
+                        spellcheck="false" autocomplete="off"></textarea>
+              @if (paramGridError(); as e) {
+                <p class="mt-1 text-[11px] text-down">{{ e }}</p>
+              } @else {
+                <p class="mt-1 text-[11px] text-neutral-600">{{ 'backtest.form.param_grid_help' | translate }}</p>
               }
+            </div>
+
+            <!-- Advanced: costs + retention -->
+            <details class="rounded-none border border-divider px-3.5 py-2.5">
+              <summary class="cursor-pointer text-[13px] font-medium text-neutral-600">{{ 'backtest.form.advanced' | translate }}</summary>
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label for="bt-slip" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.slippage_bps' | translate }}</label>
+                  <input id="bt-slip" type="number" min="1" step="0.5" formControlName="slippage_bps"
+                         class="min-h-[32px] w-full rounded-none border border-divider bg-surface px-2.5 py-1 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+                </div>
+                <div>
+                  <label for="bt-porder" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.per_order_usd' | translate }}</label>
+                  <input id="bt-porder" type="number" min="0" step="0.01" formControlName="per_order_usd"
+                         class="min-h-[32px] w-full rounded-none border border-divider bg-surface px-2.5 py-1 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+                </div>
+                <div>
+                  <label for="bt-pshare" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.per_share_usd' | translate }}</label>
+                  <input id="bt-pshare" type="number" min="0" step="0.001" formControlName="per_share_usd"
+                         class="min-h-[32px] w-full rounded-none border border-divider bg-surface px-2.5 py-1 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+                </div>
+                <div>
+                  <label for="bt-vpart" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.volume_participation_pct' | translate }}</label>
+                  <input id="bt-vpart" type="number" min="0.001" max="100" step="1" formControlName="volume_participation_pct"
+                         class="min-h-[32px] w-full rounded-none border border-divider bg-surface px-2.5 py-1 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+                </div>
+                <div>
+                  <label for="bt-ret" class="mb-1 block text-[12px] text-neutral-600">{{ 'backtest.form.retention_days' | translate }}</label>
+                  <input id="bt-ret" type="number" min="1" max="365" step="1" formControlName="retention_days"
+                         class="min-h-[32px] w-full rounded-none border border-divider bg-surface px-2.5 py-1 font-mono text-[13px] text-ink focus:border-accent focus:outline-none" />
+                  <p class="mt-1 text-[11px] text-neutral-600">{{ 'backtest.form.retention_help' | translate }}</p>
+                </div>
+              </div>
+            </details>
+
+            <!-- Submit + errors -->
+            @if (submitError(); as err) {
+              <div class="rounded-none border border-down bg-down-tint px-3 py-2 text-sm text-down-deep" role="alert">
+                <p>
+                  @if (knownError(err.code)) {
+                    {{ ('backtest.error.' + err.code) | translate }}
+                  } @else {
+                    {{ err.message }}
+                  }
+                </p>
+                @if (errorDetails().length > 0) {
+                  <ul class="mt-1 list-inside list-disc text-xs">
+                    @for (d of errorDetails(); track d) { <li>{{ d }}</li> }
+                  </ul>
+                }
+              </div>
+            }
+
+            <app-button type="submit" variant="primary" [frame]="true"
+                        [loading]="submitting()"
+                        [disabled]="form.invalid || !!paramGridError() || selectedNoAdapter() || !!symbolsError()">
+              {{ (submitting() ? 'backtest.launcher.submitting' : 'backtest.launcher.submit') | translate }}
+            </app-button>
+          </form>
+        </app-card>
+
+        <!-- ========== Runs list ========== -->
+        <section stpBlueprint class="bg-transparent">
+          <h2 class="px-4 pb-2 pt-3.5 font-heading text-[13px] font-semibold uppercase tracking-[.08em] text-neutral-700">
+            {{ 'backtest.runs.title' | translate }}
+          </h2>
+          @if (facade.loading() && facade.runs().length === 0) {
+            <p class="px-4 pb-4 text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          } @else if (facade.runs().length === 0) {
+            <p class="px-4 pb-4 text-sm text-neutral-600">{{ 'backtest.runs.empty' | translate }}</p>
+          } @else {
+            <table class="w-full text-[13px]">
+              <thead>
+                <tr>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.created' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.strategy' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.symbols' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.status' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.pbo' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.duration' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.runs.col.actions' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of facade.runs(); track r.id) {
+                  <tr class="cursor-pointer border-t border-divider hover:bg-surface"
+                      tabindex="0" role="button"
+                      [attr.aria-label]="r.strategy_name + ' — ' + r.symbols.join(', ')"
+                      (keydown.enter)="onOpen(r.id)"
+                      (keydown.space)="$event.preventDefault(); onOpen(r.id)">
+                    <td class="cursor-pointer whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-600" (click)="onOpen(r.id)">{{ r.created_at | date:'short' }}</td>
+                    <td class="cursor-pointer px-3 py-2 font-bold" (click)="onOpen(r.id)">{{ r.strategy_name }}</td>
+                    <td class="cursor-pointer px-3 py-2 font-mono text-xs text-neutral-600" (click)="onOpen(r.id)">{{ r.symbols.join(', ') }}</td>
+                    <td class="cursor-pointer whitespace-nowrap px-3 py-2" (click)="onOpen(r.id)">
+                      <app-status-chip [status]="r.status">{{ ('backtest.status.' + r.status) | translate }}</app-status-chip>
+                      @if (isActive(r.status)) { <span class="ml-1.5 font-mono text-[11px] text-neutral-600">{{ r.pct }}%</span> }
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono" (click)="onOpen(r.id)"
+                        [class.text-down]="r.worst_pbo != null && r.worst_pbo > 0.5">
+                      {{ fmtPbo(r.worst_pbo) }}
+                      @if (r.worst_pbo != null && r.worst_pbo > 0.5) {
+                        <span class="ml-1 font-sans text-[11px]" [attr.aria-label]="'high overfitting risk'">⚠ high</span>
+                      }
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono text-neutral-600" (click)="onOpen(r.id)">{{ fmtDuration(r.duration_seconds) }}</td>
+                    <td class="px-3 py-2 text-right">
+                      @if (isActive(r.status)) {
+                        <app-button variant="secondary"
+                                    [disabled]="r.status === 'CANCELLING'"
+                                    (clicked)="$event.stopPropagation(); onCancel(r)">
+                          {{ 'backtest.runs.cancel' | translate }}
+                        </app-button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="flex items-center justify-between px-4 py-2.5">
+              <span class="font-mono text-xs text-neutral-600">
+                {{ 'backtest.runs.pagination' | translate:{ page: facade.page(), pages: facade.numPages(), total: facade.total() } }}
+              </span>
+              <div class="flex gap-2">
+                <app-button variant="secondary" (clicked)="onPrev()" [disabled]="facade.page() <= 1">
+                  {{ 'backtest.runs.prev' | translate }}
+                </app-button>
+                <app-button variant="secondary" (clicked)="onNext()" [disabled]="facade.page() >= facade.numPages()">
+                  {{ 'backtest.runs.next' | translate }}
+                </app-button>
+              </div>
             </div>
           }
-
-          <div class="flex items-center gap-3">
-            <button type="submit" [disabled]="submitting() || form.invalid || !!paramGridError() || selectedNoAdapter() || !!symbolsError()"
-                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
-              {{ (submitting() ? 'backtest.launcher.submitting' : 'backtest.launcher.submit') | translate }}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <!-- ========== Runs list ========== -->
-      <section>
-        <h2 class="text-lg font-semibold mb-3">{{ 'backtest.runs.title' | translate }}</h2>
-        @if (facade.loading() && facade.runs().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
-        } @else if (facade.runs().length === 0) {
-          <p class="text-sm text-gray-500">{{ 'backtest.runs.empty' | translate }}</p>
-        } @else {
-          <table class="w-full border border-gray-200 text-sm">
-            <thead class="bg-gray-50 text-left">
-              <tr>
-                <th class="px-3 py-2">{{ 'backtest.runs.col.created' | translate }}</th>
-                <th class="px-3 py-2">{{ 'backtest.runs.col.strategy' | translate }}</th>
-                <th class="px-3 py-2">{{ 'backtest.runs.col.symbols' | translate }}</th>
-                <th class="px-3 py-2">{{ 'backtest.runs.col.status' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'backtest.runs.col.pbo' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'backtest.runs.col.duration' | translate }}</th>
-                <th class="px-3 py-2 text-right">{{ 'backtest.runs.col.actions' | translate }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (r of facade.runs(); track r.id) {
-                <tr class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
-                    tabindex="0" role="button"
-                    [attr.aria-label]="r.strategy_name + ' — ' + r.symbols.join(', ')"
-                    (keydown.enter)="onOpen(r.id)"
-                    (keydown.space)="$event.preventDefault(); onOpen(r.id)">
-                  <td class="px-3 py-2 whitespace-nowrap cursor-pointer" (click)="onOpen(r.id)">{{ r.created_at | date:'short' }}</td>
-                  <td class="px-3 py-2 font-medium cursor-pointer" (click)="onOpen(r.id)">{{ r.strategy_name }}</td>
-                  <td class="px-3 py-2 font-mono text-xs cursor-pointer" (click)="onOpen(r.id)">{{ r.symbols.join(', ') }}</td>
-                  <td class="px-3 py-2 cursor-pointer" (click)="onOpen(r.id)">
-                    <span class="text-xs px-2 py-0.5 rounded" [class]="statusClass(r.status)">
-                      {{ ('backtest.status.' + r.status) | translate }}
-                    </span>
-                    @if (isActive(r.status)) { <span class="ml-1 text-xs text-gray-500 font-mono">{{ r.pct }}%</span> }
-                  </td>
-                  <td class="px-3 py-2 text-right font-mono" (click)="onOpen(r.id)">{{ fmtPbo(r.worst_pbo) }}</td>
-                  <td class="px-3 py-2 text-right font-mono" (click)="onOpen(r.id)">{{ fmtDuration(r.duration_seconds) }}</td>
-                  <td class="px-3 py-2 text-right">
-                    @if (isActive(r.status)) {
-                      <button type="button" (click)="onCancel(r); $event.stopPropagation()"
-                              [disabled]="r.status === 'CANCELLING'"
-                              class="px-2 py-1 border rounded text-xs hover:bg-gray-50 disabled:opacity-50">
-                        {{ 'backtest.runs.cancel' | translate }}
-                      </button>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-
-          <div class="mt-4 flex items-center justify-between text-sm">
-            <span class="text-gray-500">
-              {{ 'backtest.runs.pagination' | translate:{ page: facade.page(), pages: facade.numPages(), total: facade.total() } }}
-            </span>
-            <div class="flex gap-2">
-              <button type="button" (click)="onPrev()" [disabled]="facade.page() <= 1"
-                      class="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50">
-                {{ 'backtest.runs.prev' | translate }}
-              </button>
-              <button type="button" (click)="onNext()" [disabled]="facade.page() >= facade.numPages()"
-                      class="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50">
-                {{ 'backtest.runs.next' | translate }}
-              </button>
-            </div>
-          </div>
-        }
-      </section>
+        </section>
+      </div>
     </div>
   `,
 })
@@ -412,17 +437,6 @@ export class BacktestLauncherComponent implements OnInit {
 
   isActive(status: string): boolean {
     return ACTIVE_STATUSES.has(status);
-  }
-
-  statusClass(status: string): string {
-    switch (status) {
-      case 'COMPLETED': return 'bg-green-100 text-green-800';
-      case 'FAILED': return 'bg-red-100 text-red-800';
-      case 'CANCELLED': return 'bg-gray-100 text-gray-600';
-      case 'RUNNING': return 'bg-blue-100 text-blue-800';
-      case 'CANCELLING': return 'bg-amber-100 text-amber-800';
-      default: return 'bg-gray-100 text-gray-700'; // QUEUED
-    }
   }
 
   fmtPbo(value: number | null): string {

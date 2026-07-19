@@ -17,14 +17,14 @@ interface Article {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="mx-auto max-w-3xl">
-      <h1 class="text-2xl font-bold text-primary-900">{{ 'help.index.title' | translate }}</h1>
-      <p class="mt-1 text-sm text-slate-600">{{ 'help.index.subtitle' | translate }}</p>
-      <ul class="mt-md grid gap-2 sm:grid-cols-2">
+      <h1 class="font-heading text-[32px] font-semibold leading-tight text-ink">{{ 'help.index.title' | translate }}</h1>
+      <p class="mt-1 text-sm text-neutral-600">{{ 'help.index.subtitle' | translate }}</p>
+      <ul class="mt-s4 grid gap-2 sm:grid-cols-2">
         @for (a of articles; track a.slug) {
           <li>
             <a
               [routerLink]="['/help', a.slug]"
-              class="block rounded-md border border-slate-200 px-3 py-2 text-sm text-primary-700 hover:bg-slate-50">
+              class="block rounded-none border border-divider px-3 py-2 text-sm text-accent-700 transition-colors hover:bg-surface">
               {{ a.title }}
             </a>
           </li>

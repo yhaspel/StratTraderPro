@@ -4,79 +4,103 @@
  * shows the active-halt banner and drives HALT / release. Engaging the halt
  * opens the typed-confirm HALT PLATFORM modal; releasing prompts for an MFA code
  * inline (no confirm phrase needed to release).
+ *
+ * Industry styling: sub-nav with accent underline on the active route, blueprint
+ * KPI cards (status chips for DB/Redis, mono numbers for depths), danger Engage /
+ * success Release (success is reserved for Release actions), and the shared
+ * inline-confirm grammar (input → success confirm → secondary cancel).
  */
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
 import { ApiError } from '../../core/models/auth.models';
 import { HaltPlatformModalComponent } from './halt-platform-modal.component';
 import { ImpersonationBannerComponent } from './impersonation-banner.component';
 import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
+import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { PageHeaderComponent } from '../shared/ui/page-header.component';
+import { StatusChipComponent } from '../shared/ui/status-chip.component';
 
 @Component({
   selector: 'app-admin-overview',
   standalone: true,
   imports: [
-    RouterLink, TranslateModule, HaltPlatformModalComponent,
+    RouterLink, RouterLinkActive, TranslateModule, HaltPlatformModalComponent,
     ImpersonationBannerComponent, TotpInputComponent,
+    ButtonComponent, CardComponent, PageHeaderComponent, StatusChipComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-impersonation-banner />
 
     @if (admin.platformHalted()) {
-      <div class="bg-red-600 text-white px-4 py-3 text-sm font-semibold text-center" role="alert">
+      <div class="bg-down px-s4 py-s2 text-center font-heading text-sm font-semibold uppercase tracking-widest text-bg" role="alert">
         {{ 'admin.overview.halt_banner' | translate }}
       </div>
     }
 
-    <div class="mx-auto max-w-6xl p-6 space-y-8">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold">{{ 'admin.overview.title' | translate }}</h1>
-        <nav class="flex gap-3 text-sm">
-          <a routerLink="/admin/users" class="text-blue-600 hover:underline">{{ 'admin.nav.users' | translate }}</a>
-          <a routerLink="/admin/audit" class="text-blue-600 hover:underline">{{ 'admin.nav.audit' | translate }}</a>
-          <a routerLink="/admin/flags" class="text-blue-600 hover:underline">{{ 'admin.nav.flags' | translate }}</a>
-          <a routerLink="/admin/health" class="text-blue-600 hover:underline">{{ 'admin.nav.health' | translate }}</a>
+    <div class="mx-auto max-w-6xl space-y-8 p-6">
+      <app-page-header [heading]="'admin.overview.title' | translate">
+        <nav actions class="flex flex-wrap items-center gap-4 text-sm">
+          <a routerLink="/admin" [routerLinkActiveOptions]="{ exact: true }"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.overview' | translate }}</a>
+          <a routerLink="/admin/users"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.users' | translate }}</a>
+          <a routerLink="/admin/audit"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.audit' | translate }}</a>
+          <a routerLink="/admin/flags"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.flags' | translate }}</a>
+          <a routerLink="/admin/health"
+             routerLinkActive="!text-accent-700 !border-accent" ariaCurrentWhenActive="page"
+             class="border-b-2 border-transparent pb-0.5 text-ink hover:text-accent-700">{{ 'admin.nav.health' | translate }}</a>
         </nav>
-      </div>
+      </app-page-header>
 
       @if (admin.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" role="alert">
+        <div class="rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">
           {{ err.message }}
         </div>
       }
 
       <!-- ===== KPI cards ===== -->
       <section>
-        <h2 class="text-lg font-semibold mb-3">{{ 'admin.overview.kpis' | translate }}</h2>
+        <h2 class="mb-3 font-heading text-lg font-semibold text-ink">{{ 'admin.overview.kpis' | translate }}</h2>
         @if (admin.health(); as h) {
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="border rounded p-4">
-              <div class="text-xs uppercase text-gray-500">{{ 'admin.health.db' | translate }}</div>
-              <div class="text-lg font-bold" [class.text-green-700]="h.db_ok" [class.text-red-700]="!h.db_ok">
-                {{ (h.db_ok ? 'admin.health.ok' : 'admin.health.down') | translate }}
+          <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <app-card>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.db' | translate }}</div>
+              <div class="mt-1.5">
+                <app-status-chip [tone]="h.db_ok ? 'up' : 'down'" [dot]="true">
+                  {{ (h.db_ok ? 'admin.health.ok' : 'admin.health.down') | translate }}
+                </app-status-chip>
               </div>
-            </div>
-            <div class="border rounded p-4">
-              <div class="text-xs uppercase text-gray-500">{{ 'admin.health.redis' | translate }}</div>
-              <div class="text-lg font-bold" [class.text-green-700]="h.redis_ok" [class.text-red-700]="!h.redis_ok">
-                {{ (h.redis_ok ? 'admin.health.ok' : 'admin.health.down') | translate }}
+            </app-card>
+            <app-card>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.redis' | translate }}</div>
+              <div class="mt-1.5">
+                <app-status-chip [tone]="h.redis_ok ? 'up' : 'down'" [dot]="true">
+                  {{ (h.redis_ok ? 'admin.health.ok' : 'admin.health.down') | translate }}
+                </app-status-chip>
               </div>
-            </div>
-            <div class="border rounded p-4">
-              <div class="text-xs uppercase text-gray-500">{{ 'admin.health.queue_total' | translate }}</div>
-              <div class="text-lg font-bold font-mono">{{ queueTotal(h.queue_depths) }}</div>
-            </div>
-            <div class="border rounded p-4">
-              <div class="text-xs uppercase text-gray-500">{{ 'admin.health.sentiment_backlog' | translate }}</div>
-              <div class="text-lg font-bold font-mono">{{ h.sentiment_backlog }}</div>
-            </div>
+            </app-card>
+            <app-card>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.queue_total' | translate }}</div>
+              <div class="mt-1 font-mono text-[20px] font-semibold tabular-nums text-ink">{{ queueTotal(h.queue_depths) }}</div>
+            </app-card>
+            <app-card>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.sentiment_backlog' | translate }}</div>
+              <div class="mt-1 font-mono text-[20px] font-semibold tabular-nums text-ink">{{ h.sentiment_backlog }}</div>
+            </app-card>
           </div>
         } @else {
           @if (admin.error(); as err) {
-            <p class="text-sm text-red-700" role="alert">
+            <p class="text-sm text-down" role="alert">
               @if (err.code === 'MFA_REQUIRED') {
                 {{ 'admin.overview.kpis_mfa_required' | translate }}
               } @else {
@@ -84,45 +108,43 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
               }
             </p>
           } @else {
-            <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
           }
         }
       </section>
 
       <!-- ===== Kill-switch card ===== -->
-      <section class="border rounded p-4">
-        <div class="flex items-center justify-between">
+      <app-card>
+        <div class="flex items-center justify-between gap-4">
           <div>
-            <h2 class="text-lg font-semibold">{{ 'admin.overview.killswitch' | translate }}</h2>
-            <p class="text-sm" [class.text-red-700]="admin.platformHalted()" [class.text-green-700]="!admin.platformHalted()">
+            <h2 class="font-heading text-lg font-semibold text-ink">{{ 'admin.overview.killswitch' | translate }}</h2>
+            <p class="text-sm" [class.text-down]="admin.platformHalted()" [class.text-up]="!admin.platformHalted()">
               {{ (admin.platformHalted() ? 'admin.overview.halted' : 'admin.overview.running') | translate }}
             </p>
             @if (admin.platform()?.note; as note) {
-              <p class="text-xs text-gray-500 mt-1">{{ note }}</p>
+              <p class="mt-1 text-xs text-neutral-600">{{ note }}</p>
             }
           </div>
           @if (admin.platformHalted()) {
-            <button type="button" (click)="openRelease()"
-                    class="bg-green-600 text-white font-semibold px-4 py-2 rounded hover:bg-green-700">
+            <app-button variant="success" (clicked)="openRelease()">
               {{ 'admin.overview.release' | translate }}
-            </button>
+            </app-button>
           } @else {
-            <button type="button" (click)="haltOpen.set(true)"
-                    class="bg-red-600 text-white font-semibold px-4 py-2 rounded hover:bg-red-700">
+            <app-button variant="danger" (clicked)="haltOpen.set(true)">
               {{ 'admin.halt.engage' | translate }}
-            </button>
+            </app-button>
           }
         </div>
 
         <!-- Inline release (MFA only; no confirm phrase) -->
         @if (releaseOpen()) {
-          <div class="mt-4 border-t pt-4 space-y-3">
-            <span class="block text-xs font-semibold text-gray-700 uppercase">
+          <div class="mt-4 space-y-3 border-t border-divider pt-4">
+            <span class="block text-[11px] font-semibold uppercase tracking-wide text-accent-700">
               {{ 'admin.halt.mfa_label' | translate }}
             </span>
             <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="releaseMfa.set($event)" [disabled]="releasing()" />
             @if (releaseError(); as err) {
-              <p class="text-sm text-red-700">
+              <p class="text-sm text-down">
                 @if (err.code === 'MFA_REQUIRED') {
                   {{ 'admin.halt.error.MFA_REQUIRED' | translate }}
                 } @else {
@@ -130,18 +152,18 @@ import { TotpInputComponent } from '../auth/totp-input/totp-input.component';
                 }
               </p>
             }
-            <div class="flex gap-3 justify-end">
-              <button type="button" (click)="cancelRelease()" class="px-3 py-1 rounded border text-sm hover:bg-gray-50">
-                {{ 'common.cancel' | translate }}
-              </button>
-              <button type="button" (click)="release()" [disabled]="releaseMfa().length !== 6 || releasing()"
-                      class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-40">
+            <div class="flex justify-end gap-3">
+              <app-button variant="success" [disabled]="releaseMfa().length !== 6 || releasing()"
+                          [loading]="releasing()" (clicked)="release()">
                 {{ (releasing() ? 'admin.overview.releasing' : 'admin.overview.release') | translate }}
-              </button>
+              </app-button>
+              <app-button variant="secondary" (clicked)="cancelRelease()">
+                {{ 'common.cancel' | translate }}
+              </app-button>
             </div>
           </div>
         }
-      </section>
+      </app-card>
     </div>
 
     @if (haltOpen()) {

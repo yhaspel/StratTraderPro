@@ -7,17 +7,25 @@ import { TranslateModule } from '@ngx-translate/core';
 import { ShellComponent } from './shell.component';
 import { AuthStore } from '../../../abstraction/stores/auth.store';
 import { AuthFacade } from '../../../abstraction/facades/auth.facade';
+import { DashboardFacade } from '../../../abstraction/facades/dashboard.facade';
 import { OnboardingFacade } from '../../../abstraction/facades/onboarding.facade';
+import { RiskFacade } from '../../../abstraction/facades/risk.facade';
 import { TermsFacade } from '../../../abstraction/facades/terms.facade';
 
 describe('ShellComponent', () => {
   let authFacade: jasmine.SpyObj<AuthFacade>;
   let load: jasmine.Spy;
+  let loadKillswitches: jasmine.Spy;
 
-  function setup(user: { email: string; is_staff?: boolean } | null, incomplete = false) {
+  function setup(
+    user: { email: string; is_staff?: boolean } | null,
+    incomplete = false,
+    haltActive = false,
+  ) {
     authFacade = jasmine.createSpyObj('AuthFacade', ['signOut']);
     authFacade.signOut.and.resolveTo();
     load = jasmine.createSpy('load');
+    loadKillswitches = jasmine.createSpy('loadKillswitches');
     TestBed.configureTestingModule({
       imports: [ShellComponent, TranslateModule.forRoot()],
       providers: [
@@ -27,6 +35,8 @@ describe('ShellComponent', () => {
         { provide: AuthStore, useValue: { user: signal(user), isAuthenticated: signal(true) } },
         { provide: AuthFacade, useValue: authFacade },
         { provide: OnboardingFacade, useValue: { load, incomplete: signal(incomplete) } },
+        { provide: RiskFacade, useValue: { haltActive: signal(haltActive), loadKillswitches } },
+        { provide: DashboardFacade, useValue: { connected: signal(false) } },
         {
           provide: TermsFacade,
           useValue: {
@@ -72,6 +82,28 @@ describe('ShellComponent', () => {
   it('loads onboarding status on init', () => {
     setup({ email: 'a@b.c' });
     expect(load).toHaveBeenCalled();
+  });
+
+  it('refreshes kill-switch state on init (halt banner lives in the shell)', () => {
+    setup({ email: 'a@b.c' });
+    expect(loadKillswitches).toHaveBeenCalled();
+  });
+
+  it('hides the halt banner when no kill switch is active', () => {
+    const el = setup({ email: 'a@b.c' }).nativeElement as HTMLElement;
+    expect(el.querySelector('[role="alert"].bg-down')).toBeNull();
+  });
+
+  it('shows the halt banner above the header when a kill switch is active', () => {
+    const el = setup({ email: 'a@b.c' }, false, true).nativeElement as HTMLElement;
+    const banner = el.querySelector('[role="alert"].bg-down');
+    expect(banner).not.toBeNull();
+    const header = el.querySelector('header');
+    expect(header).not.toBeNull();
+    // The banner must precede the header in document order.
+    expect(
+      banner!.compareDocumentPosition(header!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('sign out delegates to AuthFacade.signOut', async () => {

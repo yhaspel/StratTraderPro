@@ -1,9 +1,11 @@
 /**
- * <app-regime-history> — a dependency-free ~90-day regime band.
+ * <app-regime-history> — a dependency-free ~90-day regime band ("Industry"
+ * restyle).
  *
- * Renders the recent regime history as a horizontal strip of colored segments,
- * one per observation, oldest→newest. Each segment carries a native tooltip
- * (date + label). No chart library — just flex divs colored by label.
+ * Renders the recent regime history as a horizontal strip of colored segments
+ * (regime palette fills), one per observation, oldest→newest. Each segment
+ * carries a native tooltip (date + label). No chart library — just flex divs
+ * colored by label, plus a square-swatch legend so meaning is not color-only.
  */
 import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -19,21 +21,23 @@ const MAX_SEGMENTS = 90;
   imports: [CommonModule, TranslateModule],
   template: `
     <div>
-      <div class="mb-1 text-xs font-medium text-gray-500">{{ 'regime.history' | translate }}</div>
+      <div class="mb-2 text-[10px] font-medium uppercase tracking-[.1em] text-accent-700">
+        {{ 'regime.history' | translate }}
+      </div>
       @if (series().length === 0) {
-        <p class="text-xs text-gray-500">{{ 'regime.no_data' | translate }}</p>
+        <p class="text-xs text-neutral-600">{{ 'regime.no_data' | translate }}</p>
       } @else {
-        <div class="flex h-6 w-full gap-px overflow-hidden rounded border border-gray-200"
+        <div class="flex h-5 w-full gap-px overflow-hidden border border-divider"
              role="img" [attr.aria-label]="ariaSummary()">
           @for (o of series(); track o.ts) {
             <div class="min-w-px flex-1" [ngClass]="barClass(o.label)" [title]="segTitle(o)"></div>
           }
         </div>
         <!-- Legend: color → regime label, so meaning is not color-only. -->
-        <ul class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500" aria-hidden="true">
+        <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-600" aria-hidden="true">
           @for (l of legendLabels(); track l) {
-            <li class="inline-flex items-center gap-1">
-              <span class="inline-block h-2.5 w-2.5 rounded-sm" [ngClass]="barClass(l)"></span>
+            <li class="inline-flex items-center gap-[5px]">
+              <span class="inline-block h-[9px] w-[9px]" [ngClass]="barClass(l)"></span>
               {{ 'regime.label.' + l | translate }}
             </li>
           }
@@ -75,11 +79,11 @@ export class RegimeHistoryComponent {
 
   barClass(label: RegimeLabel): string {
     switch (label) {
-      case 'BULL': return 'bg-green-500';
-      case 'CHOP': return 'bg-amber-400';
-      case 'BEAR': return 'bg-orange-500';
-      case 'CRISIS': return 'bg-red-600';
-      default: return 'bg-gray-400';
+      case 'BULL': return 'bg-regime-bull';
+      case 'CHOP': return 'bg-regime-chop';
+      case 'BEAR': return 'bg-regime-bear';
+      case 'CRISIS': return 'bg-regime-crisis';
+      default: return 'bg-regime-neutral';
     }
   }
 

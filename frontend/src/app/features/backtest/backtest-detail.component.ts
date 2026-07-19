@@ -7,6 +7,11 @@
  * they land in a lazily-loaded chunk (keeps the initial bundle within budget).
  * Below: per-symbol metrics, the per-window segments table, artifact download
  * buttons (blob pattern), and "rerun with same config".
+ *
+ * Visual layer: "Industry" design system (design_handoff/angular-migration-notes.md
+ * §4 Backtest) — blueprint cards, accent-underline chart tabs, token-driven chart
+ * colors (equity = accent-700, drawdown = --down, bars/heatmap = --up/--down; all
+ * read from the CSS custom properties at render time — never raw hexes).
  */
 import {
   Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal,
@@ -20,6 +25,10 @@ import {
   TimeseriesPoint,
 } from '../../core/models/backtest.models';
 import { BacktestFacade } from '../../abstraction/facades/backtest.facade';
+import { ButtonComponent } from '../shared/ui/button.component';
+import { CardComponent } from '../shared/ui/card.component';
+import { StatusChipComponent } from '../shared/ui/status-chip.component';
+import { BlueprintDirective } from '../shared/ui/blueprint.directive';
 
 type ChartTab = 'equity' | 'drawdown' | 'heatmap' | 'window';
 
@@ -42,139 +51,151 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
 @Component({
   selector: 'app-backtest-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, TranslateModule, JsonPipe],
+  imports: [
+    CommonModule, RouterLink, TranslateModule, JsonPipe,
+    ButtonComponent, CardComponent, StatusChipComponent, BlueprintDirective,
+  ],
   template: `
-    <div class="mx-auto max-w-6xl p-6 space-y-6">
-      <a routerLink="/backtest" class="text-sm text-blue-600 hover:underline">← {{ 'backtest.detail.back' | translate }}</a>
+    <div class="mx-auto max-w-6xl space-y-6 p-6">
+      <a routerLink="/backtest"
+         class="inline-block w-fit rounded-none px-1 text-[13px] text-accent-700 transition-colors hover:bg-accent-100">
+        ← {{ 'backtest.detail.back' | translate }}
+      </a>
 
       @if (facade.loading() && !facade.selected()) {
-        <p class="text-sm text-gray-500">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
       }
 
       @if (facade.error(); as err) {
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" role="alert">{{ err.message }}</div>
+        <div class="rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">{{ err.message }}</div>
       }
 
       @if (facade.selected(); as run) {
         <!-- ========== Status header ========== -->
-        <div class="border rounded-lg p-6 space-y-4">
-          <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 class="text-2xl font-bold">{{ run.strategy_name }}</h1>
-              <p class="text-sm text-gray-500 font-mono">{{ run.symbols.join(', ') }}</p>
-              <p class="text-xs text-gray-500 font-mono">{{ run.config.start }} → {{ run.config.end }} · {{ run.config.mode }} · {{ run.config.metric }}</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs px-2 py-1 rounded" [class]="statusClass(run.status)">
-                {{ ('backtest.status.' + run.status) | translate }}
-              </span>
-              <button type="button" (click)="onRerun()"
-                      class="px-3 py-1.5 border rounded text-sm hover:bg-gray-50">
-                {{ 'backtest.detail.rerun' | translate }}
-              </button>
-              @if (isActive(run.status)) {
-                <button type="button" (click)="onCancel()" [disabled]="run.status === 'CANCELLING'"
-                        class="px-3 py-1.5 border rounded text-sm hover:bg-gray-50 disabled:opacity-50">
-                  {{ 'backtest.runs.cancel' | translate }}
-                </button>
-              }
-            </div>
-          </div>
-
-          <!-- Live progress -->
-          @if (isActive(run.status)) {
-            @if (liveProgress(); as p) {
+        <app-card>
+          <div class="space-y-3.5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
-                  <span>{{ ('backtest.stage.' + p.stage) | translate }}</span>
-                  <span class="font-mono">
-                    {{ p.pct }}%@if (p.eta_seconds != null) { · {{ 'backtest.detail.eta' | translate }} {{ fmtEta(p.eta_seconds) }} }
-                  </span>
+                <h1 class="font-heading text-[28px] font-semibold leading-[1.12] tracking-tight text-ink">{{ run.strategy_name }}</h1>
+                <p class="mt-1 font-mono text-[13px] text-neutral-600">{{ run.symbols.join(', ') }}</p>
+                <p class="mt-0.5 font-mono text-xs text-neutral-600">{{ run.config.start }} → {{ run.config.end }} · {{ run.config.mode }} · {{ run.config.metric }}</p>
+              </div>
+              <div class="flex items-center gap-2.5">
+                <app-status-chip [status]="run.status">{{ ('backtest.status.' + run.status) | translate }}</app-status-chip>
+                <app-button variant="secondary" (clicked)="onRerun()">
+                  {{ 'backtest.detail.rerun' | translate }}
+                </app-button>
+                @if (isActive(run.status)) {
+                  <app-button variant="secondary" [disabled]="run.status === 'CANCELLING'" (clicked)="onCancel()">
+                    {{ 'backtest.runs.cancel' | translate }}
+                  </app-button>
+                }
+              </div>
+            </div>
+
+            <!-- Live progress -->
+            @if (isActive(run.status)) {
+              @if (liveProgress(); as p) {
+                <div>
+                  <div class="mb-1 flex items-center justify-between text-[11px] text-neutral-600">
+                    <span>{{ ('backtest.stage.' + p.stage) | translate }}</span>
+                    <span class="font-mono">
+                      {{ p.pct }}%@if (p.eta_seconds != null) { · {{ 'backtest.detail.eta' | translate }} {{ fmtEta(p.eta_seconds) }} }
+                    </span>
+                  </div>
+                  <div class="h-1.5 w-full overflow-hidden rounded-none bg-surface">
+                    <div class="h-full bg-accent transition-all" [style.width.%]="p.pct"></div>
+                  </div>
                 </div>
-                <div class="w-full bg-gray-100 rounded h-2 overflow-hidden">
-                  <div class="bg-blue-600 h-2 transition-all" [style.width.%]="p.pct"></div>
-                </div>
+              }
+            }
+
+            <!-- Failure detail -->
+            @if (run.status === 'FAILED' && run.error_message) {
+              <p class="text-sm text-down"><span class="font-mono">{{ run.error_code }}</span> — {{ run.error_message }}</p>
+            }
+
+            <!-- Downloads -->
+            @if (run.status === 'COMPLETED') {
+              <div class="flex flex-wrap items-center gap-2.5 border-t border-divider pt-3">
+                <span class="text-[10px] font-medium uppercase tracking-[.1em] text-accent-700">{{ 'backtest.detail.downloads' | translate }}</span>
+                <app-button variant="secondary" (clicked)="onDownload('json')">
+                  {{ 'backtest.detail.download_json' | translate }}
+                </app-button>
+                <app-button variant="secondary" (clicked)="onDownload('html')">
+                  {{ 'backtest.detail.download_html' | translate }}
+                </app-button>
+                <app-button variant="secondary" (clicked)="onDownload('pdf')">
+                  {{ 'backtest.detail.download_pdf' | translate }}
+                </app-button>
+                @if (run.metrics_hash) {
+                  <span class="ml-2 font-mono text-[11px] text-neutral-600">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
+                }
               </div>
             }
-          }
-
-          <!-- Failure detail -->
-          @if (run.status === 'FAILED' && run.error_message) {
-            <p class="text-sm text-red-700"><span class="font-mono">{{ run.error_code }}</span> — {{ run.error_message }}</p>
-          }
-
-          <!-- Downloads -->
-          @if (run.status === 'COMPLETED') {
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-xs text-gray-500">{{ 'backtest.detail.downloads' | translate }}:</span>
-              <button type="button" (click)="onDownload('json')" class="px-2 py-1 border rounded text-xs hover:bg-gray-50">
-                {{ 'backtest.detail.download_json' | translate }}
-              </button>
-              <button type="button" (click)="onDownload('html')" class="px-2 py-1 border rounded text-xs hover:bg-gray-50">
-                {{ 'backtest.detail.download_html' | translate }}
-              </button>
-              <button type="button" (click)="onDownload('pdf')" class="px-2 py-1 border rounded text-xs hover:bg-gray-50">
-                {{ 'backtest.detail.download_pdf' | translate }}
-              </button>
-              @if (run.metrics_hash) {
-                <span class="text-xs text-gray-500 font-mono ml-2">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
-              }
-            </div>
-          }
-        </div>
+          </div>
+        </app-card>
 
         <!-- ========== Charts ========== -->
         @if (facade.report(); as report) {
-          <section class="border rounded-lg p-6 space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="flex gap-1">
-                @for (tab of chartTabs; track tab) {
-                  <button type="button" (click)="setTab(tab)"
-                          class="px-3 py-1.5 text-sm rounded border"
-                          [class.bg-blue-600]="activeTab() === tab" [class.text-white]="activeTab() === tab">
-                    {{ ('backtest.chart.' + tab) | translate }}
-                  </button>
+          <app-card>
+            <div class="space-y-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-1 gap-5 border-b border-divider">
+                  @for (tab of chartTabs; track tab) {
+                    <button type="button" (click)="setTab(tab)"
+                            class="-mb-px border-b-2 pb-2.5 text-[13px] transition-colors"
+                            [class.border-accent]="activeTab() === tab"
+                            [class.text-ink]="activeTab() === tab"
+                            [class.font-semibold]="activeTab() === tab"
+                            [class.border-transparent]="activeTab() !== tab"
+                            [class.text-neutral-600]="activeTab() !== tab">
+                      {{ ('backtest.chart.' + tab) | translate }}
+                    </button>
+                  }
+                </div>
+                @if (report.symbols.length > 1) {
+                  <select [value]="effectiveSymbol()" (change)="onSymbol($event)"
+                          class="min-h-[32px] rounded-none border border-divider bg-surface px-2.5 py-1 text-sm text-ink focus:border-accent focus:outline-none">
+                    @for (s of report.symbols; track s.symbol) {
+                      <option [value]="s.symbol">{{ s.symbol }}</option>
+                    }
+                  </select>
                 }
               </div>
-              @if (report.symbols.length > 1) {
-                <select [value]="effectiveSymbol()" (change)="onSymbol($event)"
-                        class="border rounded px-3 py-1.5 text-sm">
-                  @for (s of report.symbols; track s.symbol) {
-                    <option [value]="s.symbol">{{ s.symbol }}</option>
-                  }
-                </select>
-              }
+              <div class="relative h-80">
+                <canvas #chartCanvas role="img" [attr.aria-label]="chartAriaLabel()"></canvas>
+              </div>
             </div>
-            <div class="relative h-80">
-              <canvas #chartCanvas role="img" [attr.aria-label]="chartAriaLabel()"></canvas>
-            </div>
-          </section>
+          </app-card>
 
           <!-- ========== Per-symbol metrics ========== -->
-          <section>
-            <h2 class="text-lg font-semibold mb-3">{{ 'backtest.detail.metrics' | translate }}</h2>
-            <table class="w-full border border-gray-200 text-sm">
-              <thead class="bg-gray-50 text-left">
+          <section stpBlueprint class="bg-transparent">
+            <h2 class="px-4 pb-2 pt-3.5 font-heading text-[13px] font-semibold uppercase tracking-[.08em] text-neutral-700">
+              {{ 'backtest.detail.metrics' | translate }}
+            </h2>
+            <table class="w-full text-[13px]">
+              <thead>
                 <tr>
-                  <th class="px-3 py-2">{{ 'backtest.detail.col.symbol' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.symbol' | translate }}</th>
                   @for (c of metricCols; track c.key) {
-                    <th class="px-3 py-2 text-right">{{ ('backtest.metric_col.' + c.key) | translate }}</th>
+                    <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ ('backtest.metric_col.' + c.key) | translate }}</th>
                   }
-                  <th class="px-3 py-2 text-right">{{ 'backtest.detail.col.pbo' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.pbo' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (s of report.symbols; track s.symbol) {
-                  <tr class="border-t border-gray-100">
-                    <td class="px-3 py-2 font-medium">{{ s.symbol }}</td>
+                  <tr class="border-t border-divider">
+                    <td class="px-3 py-2 font-bold">{{ s.symbol }}</td>
                     @for (c of metricCols; track c.key) {
-                      <td class="px-3 py-2 text-right font-mono">{{ fmtMetric(s.metrics[c.key], c.kind) }}</td>
+                      <td class="px-3 py-2 text-right font-mono" [class]="metricClass(c.key, s.metrics[c.key])">{{ fmtMetric(s.metrics[c.key], c.kind) }}</td>
                     }
                     <td class="px-3 py-2 text-right font-mono"
-                        [class.text-red-700]="s.pbo != null && s.pbo > 0.5">
+                        [class.text-down]="s.pbo != null && s.pbo > 0.5">
                       {{ fmtPbo(s.pbo) }}
                       @if (s.pbo != null && s.pbo > 0.5) {
-                        <span class="ml-1 font-sans not-italic" [attr.aria-label]="'high overfitting risk'">⚠ high</span>
+                        <span class="ml-1 font-sans text-[11px] not-italic" [attr.aria-label]="'high overfitting risk'">⚠ high</span>
                       }
                     </td>
                   </tr>
@@ -186,26 +207,28 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
 
         <!-- ========== Segments (per-window) ========== -->
         @if (run.segments.length > 0) {
-          <section>
-            <h2 class="text-lg font-semibold mb-3">{{ 'backtest.detail.segments' | translate }}</h2>
-            <table class="w-full border border-gray-200 text-sm">
-              <thead class="bg-gray-50 text-left">
+          <section stpBlueprint class="bg-transparent">
+            <h2 class="px-4 pb-2 pt-3.5 font-heading text-[13px] font-semibold uppercase tracking-[.08em] text-neutral-700">
+              {{ 'backtest.detail.segments' | translate }}
+            </h2>
+            <table class="w-full text-[13px]">
+              <thead>
                 <tr>
-                  <th class="px-3 py-2">{{ 'backtest.detail.col.symbol' | translate }}</th>
-                  <th class="px-3 py-2 text-right">{{ 'backtest.detail.col.window' | translate }}</th>
-                  <th class="px-3 py-2">{{ 'backtest.detail.col.train' | translate }}</th>
-                  <th class="px-3 py-2">{{ 'backtest.detail.col.test' | translate }}</th>
-                  <th class="px-3 py-2">{{ 'backtest.detail.col.params' | translate }}</th>
-                  <th class="px-3 py-2 text-right">{{ 'backtest.detail.col.sharpe' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.symbol' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.window' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.train' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.test' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.params' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.sharpe' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (seg of run.segments; track $index) {
-                  <tr class="border-t border-gray-100">
-                    <td class="px-3 py-2 font-medium">{{ seg.symbol }}</td>
+                  <tr class="border-t border-divider">
+                    <td class="px-3 py-2 font-bold">{{ seg.symbol }}</td>
                     <td class="px-3 py-2 text-right font-mono">{{ seg.window_index }}</td>
-                    <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">{{ seg.train_start }} → {{ seg.train_end }}</td>
-                    <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">{{ seg.test_start }} → {{ seg.test_end }}</td>
+                    <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-600">{{ seg.train_start }} → {{ seg.train_end }}</td>
+                    <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-600">{{ seg.test_start }} → {{ seg.test_end }}</td>
                     <td class="px-3 py-2 font-mono text-xs">{{ seg.best_params | json }}</td>
                     <td class="px-3 py-2 text-right font-mono">{{ fmtMetric(seg.oos_metrics['sharpe'], 'num') }}</td>
                   </tr>
@@ -313,17 +336,6 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
     return ACTIVE_STATUSES.has(status);
   }
 
-  statusClass(status: string): string {
-    switch (status) {
-      case 'COMPLETED': return 'bg-green-100 text-green-800';
-      case 'FAILED': return 'bg-red-100 text-red-800';
-      case 'CANCELLED': return 'bg-gray-100 text-gray-600';
-      case 'RUNNING': return 'bg-blue-100 text-blue-800';
-      case 'CANCELLING': return 'bg-amber-100 text-amber-800';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  }
-
   fmtEta(seconds: number): string {
     if (seconds < 60) { return `${Math.round(seconds)}s`; }
     const m = Math.floor(seconds / 60);
@@ -340,6 +352,15 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
     if (kind === 'pct') { return `${(value * 100).toFixed(2)}%`; }
     if (kind === 'int') { return String(Math.round(value)); }
     return value.toFixed(3);
+  }
+
+  /** Money/risk sign colour for the metrics table (green/red = money ONLY):
+   *  total return by sign, max drawdown red when negative — as in the mockup. */
+  metricClass(key: string, value: number | null | undefined): string {
+    if (value == null || !isFinite(value) || value === 0) { return ''; }
+    if (key === 'total_return') { return value > 0 ? 'text-up' : 'text-down'; }
+    if (key === 'max_drawdown') { return value < 0 ? 'text-down' : ''; }
+    return '';
   }
 
   // ---- Poll fallback ----
@@ -384,15 +405,23 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
   }
 
   private _buildConfig(tab: ChartTab, sym: BacktestReportSymbol): any {
+    // Industry tokens resolved at render time — chart colors never hard-code hexes.
+    // Equity is ACCENT (steel, machinery); green/red are money and risk only.
+    const accent = this._cssVar('--color-accent-700');
+    const up = this._cssVar('--up');
+    const down = this._cssVar('--down');
+    const surface = this._cssVar('--color-surface');
+    const bg = this._cssVar('--color-bg');
+    const grid = this._cssVar('--color-neutral-300');
     switch (tab) {
-      case 'equity': return this._lineConfig(sym.equity, '#0d47a1', false);
-      case 'drawdown': return this._lineConfig(sym.drawdown, '#c62828', true);
-      case 'heatmap': return this._heatmapConfig(sym.equity);
-      case 'window': return this._windowConfig(sym.windows);
+      case 'equity': return this._lineConfig(sym.equity, accent, false, grid);
+      case 'drawdown': return this._lineConfig(sym.drawdown, down, true, grid);
+      case 'heatmap': return this._heatmapConfig(sym.equity, { up, down, surface, bg });
+      case 'window': return this._windowConfig(sym.windows, { up, down });
     }
   }
 
-  private _lineConfig(series: TimeseriesPoint[], color: string, fill: boolean): any {
+  private _lineConfig(series: TimeseriesPoint[], color: string, fill: boolean, grid: string): any {
     return {
       type: 'line',
       data: {
@@ -400,7 +429,7 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
         datasets: [{
           data: series.map(p => p[1]),
           borderColor: color,
-          backgroundColor: fill ? 'rgba(198,40,40,0.25)' : color,
+          backgroundColor: fill ? this._withAlpha(color, 0.18) : color,
           borderWidth: 1.2,
           pointRadius: 0,
           fill,
@@ -410,12 +439,15 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { x: { ticks: { maxTicksLimit: 8 } } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8 }, grid: { color: grid } },
+          y: { grid: { color: grid } },
+        },
       },
     };
   }
 
-  private _windowConfig(windows: BacktestSegment[]): any {
+  private _windowConfig(windows: BacktestSegment[], colors: { up: string; down: string }): any {
     const data = windows.map(w => Number(w.oos_metrics?.['sharpe'] ?? 0));
     return {
       type: 'bar',
@@ -423,7 +455,8 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
         labels: windows.map(w => `#${w.window_index}`),
         datasets: [{
           data,
-          backgroundColor: data.map(v => (v >= 0 ? '#2e7d32' : '#c62828')),
+          // Per-window bars are sign-colored — money/risk semantics.
+          backgroundColor: data.map(v => (v >= 0 ? colors.up : colors.down)),
         }],
       },
       options: {
@@ -434,7 +467,10 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
     };
   }
 
-  private _heatmapConfig(equity: TimeseriesPoint[]): any {
+  private _heatmapConfig(
+    equity: TimeseriesPoint[],
+    colors: { up: string; down: string; surface: string; bg: string },
+  ): any {
     const cells = this._monthlyReturns(equity);
     const years = [...new Set(cells.map(c => c.y))].sort();
     const maxAbs = cells.reduce((m, c) => Math.max(m, Math.abs(c.v)), 0.0001);
@@ -443,9 +479,9 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
       data: {
         datasets: [{
           data: cells,
-          backgroundColor: (ctx: any) => this._heatColor(ctx.raw.v, maxAbs),
+          backgroundColor: (ctx: any) => this._heatColor(ctx.raw.v, maxAbs, colors),
           borderWidth: 1,
-          borderColor: '#fff',
+          borderColor: colors.bg,
           width: ({ chart }: any) => (chart.chartArea?.width ?? 0) / 12 - 2,
           height: ({ chart }: any) => (chart.chartArea?.height ?? 0) / Math.max(1, years.length) - 2,
         }],
@@ -490,13 +526,47 @@ export class BacktestDetailComponent implements OnInit, OnDestroy {
     return cells;
   }
 
-  private _heatColor(v: number, maxAbs: number): string {
+  /** Diverging heatmap ramp: --down through --color-surface at zero to --up. */
+  private _heatColor(
+    v: number,
+    maxAbs: number,
+    colors: { up: string; down: string; surface: string },
+  ): string {
     const t = Math.max(-1, Math.min(1, v / maxAbs));
-    if (t >= 0) {
-      const g = Math.round(255 - t * 100);
-      return `rgb(${Math.round(255 - t * 209)}, ${Math.round(g + 20)}, ${Math.round(255 - t * 205)})`;
-    }
-    const a = -t;
-    return `rgb(${Math.round(255)}, ${Math.round(255 - a * 200)}, ${Math.round(255 - a * 200)})`;
+    const end = t >= 0 ? colors.up : colors.down;
+    return this._mix(colors.surface, end, Math.abs(t));
+  }
+
+  // ---- Token color plumbing (canvas needs concrete values, not var() refs) ----
+
+  /** Resolve a CSS custom property from :root at render time. */
+  private _cssVar(name: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  private _rgbOf(color: string): [number, number, number] | null {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
+    if (!m) { return null; }
+    let hex = m[1];
+    if (hex.length === 3) { hex = hex.split('').map(c => c + c).join(''); }
+    const n = parseInt(hex, 16);
+    // eslint-disable-next-line no-bitwise
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  /** Token color + alpha (drawdown area fill). Falls through untouched when the
+   *  token isn't a plain hex (e.g. in test environments without the stylesheet). */
+  private _withAlpha(color: string, alpha: number): string {
+    const rgb = this._rgbOf(color);
+    return rgb ? `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})` : color;
+  }
+
+  /** Linear RGB interpolation between two token colors (t in [0, 1]). */
+  private _mix(from: string, to: string, t: number): string {
+    const a = this._rgbOf(from);
+    const b = this._rgbOf(to);
+    if (!a || !b) { return t > 0.5 ? to : from; }
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
   }
 }

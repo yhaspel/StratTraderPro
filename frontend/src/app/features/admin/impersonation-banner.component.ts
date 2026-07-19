@@ -3,30 +3,34 @@
  * The active session lives in AdminStore; this banner reads it via the facade
  * and renders a Stop button that calls `stopImpersonation()`. Rendered at the
  * top of every admin page so the operator can't lose track of the session.
+ *
+ * Industry styling: full-width WARN banner (warn tint ground + warn-deep text,
+ * condensed uppercase per the halt-banner grammar) — deliberately distinct from
+ * the solid down-red platform-halt banner.
  */
 import { Component, computed, inject, signal } from '@angular/core';
 import { TranslateModule } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
 import { ToastService } from '../shared/ui/toast/toast.service';
+import { ButtonComponent } from '../shared/ui/button.component';
 
 @Component({
   selector: 'app-impersonation-banner',
   standalone: true,
-  imports: [TranslateModule],
+  imports: [TranslateModule, ButtonComponent],
   template: `
     @if (admin.impersonation(); as session) {
-      <div class="bg-amber-500 text-black px-4 py-2 text-sm font-semibold flex items-center justify-center gap-4"
+      <div class="flex w-full items-center justify-center gap-s3 bg-warn-tint px-s4 py-s2 font-heading text-sm font-semibold uppercase tracking-wide text-warn-deep"
            role="status">
         <span>
           ⚠ {{ 'admin.impersonation.banner' | translate }}
           @if (impersonatedLabel(); as who) {
-            <span class="font-mono">— {{ who }}</span>
+            <span class="font-mono normal-case tracking-normal">— {{ who }}</span>
           }
         </span>
-        <button type="button" (click)="stop()" [disabled]="stopping()"
-                class="bg-black/80 text-white px-3 py-1 rounded text-xs hover:bg-black disabled:opacity-50">
+        <app-button variant="secondary" [disabled]="stopping()" (clicked)="stop()">
           {{ (stopping() ? 'admin.impersonation.stopping' : 'admin.impersonation.stop') | translate }}
-        </button>
+        </app-button>
       </div>
     }
   `,

@@ -1,7 +1,8 @@
 /**
- * "Continue with Google" button + its "OR" divider. Brand-compliant per
- * Google's Identity Branding Guidelines (white background, Google G logo,
- * 40px min height).
+ * "Continue with Google" button + its "OR" divider. Styled as the Industry
+ * secondary button (hairline border, square corners, light ground) while
+ * staying brand-compliant per Google's Identity Branding Guidelines
+ * (Google G logo, 40px min height).
  *
  * Used on /login and /register. Renders NOTHING when Google OAuth is not
  * configured + enabled in this deploy (checked once via
@@ -25,7 +26,7 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
         type="button"
         (click)="onClick()"
         [disabled]="facade.status() === 'loading'"
-        class="w-full flex items-center justify-center gap-3 border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        class="flex min-h-[40px] w-full items-center justify-center gap-3 rounded-none border border-divider bg-transparent px-4 py-2 text-ink transition-colors hover:bg-neutral-200 active:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-45"
       >
         <!-- Google G logo (Google brand SVG; permitted use per their branding guidelines) -->
         <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -34,13 +35,13 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
           <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
           <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
         </svg>
-        <span class="text-sm font-medium">{{ 'oauth.continue_with_google' | translate }}</span>
+        <span class="font-heading text-sm font-semibold">{{ 'oauth.continue_with_google' | translate }}</span>
       </button>
 
-      <div class="my-4 flex items-center text-xs text-gray-500">
-        <span class="flex-1 border-t border-gray-300"></span>
+      <div class="my-4 flex items-center text-[11px] text-neutral-600">
+        <span class="flex-1 border-t border-divider"></span>
         <span class="px-3">{{ 'oauth.or' | translate }}</span>
-        <span class="flex-1 border-t border-gray-300"></span>
+        <span class="flex-1 border-t border-divider"></span>
       </div>
     }
   `,
