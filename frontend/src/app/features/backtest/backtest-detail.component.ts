@@ -63,7 +63,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
       </a>
 
       @if (facade.loading() && !facade.selected()) {
-        <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       }
 
       @if (facade.error(); as err) {
@@ -77,8 +77,8 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h1 class="font-heading text-[28px] font-semibold leading-[1.12] tracking-tight text-ink">{{ run.strategy_name }}</h1>
-                <p class="mt-1 font-mono text-[13px] text-neutral-600">{{ run.symbols.join(', ') }}</p>
-                <p class="mt-0.5 font-mono text-xs text-neutral-600">{{ run.config.start }} → {{ run.config.end }} · {{ run.config.mode }} · {{ run.config.metric }}</p>
+                <p class="mt-1 font-mono text-[13px] text-neutral-700">{{ run.symbols.join(', ') }}</p>
+                <p class="mt-0.5 font-mono text-xs text-neutral-700">{{ run.config.start }} → {{ run.config.end }} · {{ run.config.mode }} · {{ run.config.metric }}</p>
               </div>
               <div class="flex items-center gap-2.5">
                 <app-status-chip [status]="run.status">{{ ('backtest.status.' + run.status) | translate }}</app-status-chip>
@@ -97,7 +97,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
             @if (isActive(run.status)) {
               @if (liveProgress(); as p) {
                 <div>
-                  <div class="mb-1 flex items-center justify-between text-[11px] text-neutral-600">
+                  <div class="mb-1 flex items-center justify-between text-[11px] text-neutral-700">
                     <span>{{ ('backtest.stage.' + p.stage) | translate }}</span>
                     <span class="font-mono">
                       {{ p.pct }}%@if (p.eta_seconds != null) { · {{ 'backtest.detail.eta' | translate }} {{ fmtEta(p.eta_seconds) }} }
@@ -129,7 +129,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
                   {{ 'backtest.detail.download_pdf' | translate }}
                 </app-button>
                 @if (run.metrics_hash) {
-                  <span class="ml-2 font-mono text-[11px] text-neutral-600">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
+                  <span class="ml-2 font-mono text-[11px] text-neutral-700">{{ 'backtest.detail.hash' | translate }}: {{ run.metrics_hash.slice(0, 12) }}…</span>
                 }
               </div>
             }
@@ -149,7 +149,7 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
                             [class.text-ink]="activeTab() === tab"
                             [class.font-semibold]="activeTab() === tab"
                             [class.border-transparent]="activeTab() !== tab"
-                            [class.text-neutral-600]="activeTab() !== tab">
+                            [class.text-neutral-700]="activeTab() !== tab">
                       {{ ('backtest.chart.' + tab) | translate }}
                     </button>
                   }
@@ -177,11 +177,11 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
             <table class="w-full text-[13px]">
               <thead>
                 <tr>
-                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.symbol' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.symbol' | translate }}</th>
                   @for (c of metricCols; track c.key) {
-                    <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ ('backtest.metric_col.' + c.key) | translate }}</th>
+                    <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ ('backtest.metric_col.' + c.key) | translate }}</th>
                   }
-                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.pbo' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.pbo' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,12 +214,12 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
             <table class="w-full text-[13px]">
               <thead>
                 <tr>
-                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.symbol' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.window' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.train' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.test' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.params' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-600">{{ 'backtest.detail.col.sharpe' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.symbol' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.window' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.train' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.test' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.params' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[.08em] text-neutral-700">{{ 'backtest.detail.col.sharpe' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,8 +227,8 @@ const METRIC_COLS: { key: string; kind: 'pct' | 'num' | 'int' }[] = [
                   <tr class="border-t border-divider">
                     <td class="px-3 py-2 font-bold">{{ seg.symbol }}</td>
                     <td class="px-3 py-2 text-right font-mono">{{ seg.window_index }}</td>
-                    <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-600">{{ seg.train_start }} → {{ seg.train_end }}</td>
-                    <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-600">{{ seg.test_start }} → {{ seg.test_end }}</td>
+                    <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-700">{{ seg.train_start }} → {{ seg.train_end }}</td>
+                    <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-neutral-700">{{ seg.test_start }} → {{ seg.test_end }}</td>
                     <td class="px-3 py-2 font-mono text-xs">{{ seg.best_params | json }}</td>
                     <td class="px-3 py-2 text-right font-mono">{{ fmtMetric(seg.oos_metrics['sharpe'], 'num') }}</td>
                   </tr>

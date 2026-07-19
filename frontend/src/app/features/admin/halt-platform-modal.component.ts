@@ -26,10 +26,10 @@ const CONFIRM_PHRASE = 'HALT PLATFORM';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-modal [open]="true" [heading]="modalHeading()" [destructive]="true" (closed)="closed.emit()">
-        <p class="mb-4 text-sm text-neutral-600">{{ 'admin.halt.warning' | translate }}</p>
+        <p class="mb-4 text-sm text-neutral-700">{{ 'admin.halt.warning' | translate }}</p>
 
         <div class="mb-4">
-          <label for="halt-reason-input" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+          <label for="halt-reason-input" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
             {{ 'admin.halt.reason_label' | translate }}
           </label>
           <input id="halt-reason-input" type="text" [value]="reason()"
@@ -37,7 +37,7 @@ const CONFIRM_PHRASE = 'HALT PLATFORM';
                  class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
 
-        <label for="halt-confirm-input" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+        <label for="halt-confirm-input" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
           {{ 'admin.halt.confirm_label' | translate }}
         </label>
         <input id="halt-confirm-input" type="text" [value]="confirmText()"
@@ -46,7 +46,7 @@ const CONFIRM_PHRASE = 'HALT PLATFORM';
                [ngClass]="phraseOk() ? 'border-up' : (confirmText().length > 0 ? 'border-down' : 'border-divider')"
                [attr.aria-invalid]="confirmText().length > 0 && !phraseOk()" />
 
-        <span class="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+        <span class="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
           {{ 'admin.halt.mfa_label' | translate }}
         </span>
         <app-totp-input [ariaLabel]="'MFA code'" (codeChange)="mfaCode.set($event)" [disabled]="submitting()" />

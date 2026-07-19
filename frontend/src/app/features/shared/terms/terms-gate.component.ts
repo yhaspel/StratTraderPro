@@ -19,7 +19,7 @@ import { ModalComponent } from '../ui/modal.component';
     @if (facade.needsAcceptance()) {
       <app-modal [open]="true" [dismissable]="false" [heading]="'terms.title' | translate">
         <div class="space-y-4">
-          <p class="text-sm text-slate-600">{{ 'terms.intro' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'terms.intro' | translate }}</p>
 
           @if (facade.terms(); as t) {
             <ul class="space-y-2 text-sm">
@@ -28,7 +28,7 @@ import { ModalComponent } from '../ui/modal.component';
                   [href]="t.tos_url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="font-medium text-primary-700 underline hover:text-primary-900">
+                  class="font-medium text-accent-700 underline hover:text-accent-900">
                   {{ 'terms.tos_link' | translate }} (v{{ t.tos_version }})
                 </a>
               </li>
@@ -37,7 +37,7 @@ import { ModalComponent } from '../ui/modal.component';
                   [href]="t.privacy_url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="font-medium text-primary-700 underline hover:text-primary-900">
+                  class="font-medium text-accent-700 underline hover:text-accent-900">
                   {{ 'terms.privacy_link' | translate }} (v{{ t.privacy_version }})
                 </a>
               </li>
@@ -45,7 +45,7 @@ import { ModalComponent } from '../ui/modal.component';
           }
 
           @if (facade.error()) {
-            <p class="text-sm text-red-700" role="alert">{{ 'terms.error' | translate }}</p>
+            <p class="text-sm text-down-deep" role="alert">{{ 'terms.error' | translate }}</p>
           }
 
           <div class="flex justify-end">
@@ -53,7 +53,7 @@ import { ModalComponent } from '../ui/modal.component';
               type="button"
               (click)="accept()"
               [disabled]="facade.accepting()"
-              class="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50">
+              class="rounded-none border border-accent bg-accent px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-bg hover:bg-accent-600 active:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-45">
               {{ (facade.accepting() ? 'terms.accepting' : 'terms.accept') | translate }}
             </button>
           </div>

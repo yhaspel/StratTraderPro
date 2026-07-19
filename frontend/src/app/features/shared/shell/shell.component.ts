@@ -45,7 +45,7 @@ interface NavItem {
   template: `
     <a
       href="#main-content"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[70] focus:rounded-none focus:bg-accent focus:px-3 focus:py-2 focus:text-bg">
+      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[70] focus:rounded-none focus:bg-accent-700 focus:px-3 focus:py-2 focus:text-bg">
       {{ 'nav.skip_to_content' | translate }}
     </a>
 
@@ -78,7 +78,7 @@ interface NavItem {
               <span class="h-[11px] w-[3px] bg-accent"></span>
               <span class="h-[5px] w-[3px] bg-accent-400"></span>
             </span>
-            <span aria-hidden="true" class="whitespace-nowrap font-heading text-[18px] font-semibold text-ink">StratTrader<span class="text-accent">Pro</span></span>
+            <span aria-hidden="true" class="whitespace-nowrap font-heading text-[18px] font-semibold text-ink">StratTrader<span class="text-accent-700">Pro</span></span>
           </a>
 
           <!-- Desktop nav -->
@@ -88,7 +88,7 @@ interface NavItem {
                 [routerLink]="item.link"
                 routerLinkActive="border-accent text-accent-700 font-medium"
                 ariaCurrentWhenActive="page"
-                class="border-b-2 border-transparent pb-[14px] pt-4 text-sm text-neutral-600 hover:text-accent-700">
+                class="border-b-2 border-transparent pb-[14px] pt-4 text-sm text-neutral-700 hover:text-accent-700">
                 {{ item.key | translate }}
               </a>
             }
@@ -104,7 +104,7 @@ interface NavItem {
 
         <div class="flex items-center gap-[14px]">
           <!-- Live dot (square, up-green — stream state, never color-only) -->
-          <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-600">
+          <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-700">
             <span
               class="h-[7px] w-[7px] flex-none"
               [class.bg-up]="dashboard.connected()"
@@ -122,7 +122,7 @@ interface NavItem {
               [attr.aria-expanded]="menuOpen()"
               (click)="toggleMenu($event)">
               <span class="hidden sm:inline">{{ userLabel() }}</span>
-              <span aria-hidden="true" class="text-neutral-600">▾</span>
+              <span aria-hidden="true" class="text-neutral-700">▾</span>
             </button>
             @if (menuOpen()) {
               <div
@@ -156,7 +156,7 @@ interface NavItem {
           <!-- Mobile hamburger -->
           <button
             type="button"
-            class="rounded-none p-2 text-neutral-600 hover:bg-neutral-200 md:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            class="rounded-none p-2 text-neutral-700 hover:bg-neutral-200 md:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             [attr.aria-label]="'nav.open_menu' | translate"
             [attr.aria-expanded]="drawerOpen()"
             (click)="toggleDrawer($event)">
@@ -173,7 +173,7 @@ interface NavItem {
               [routerLink]="item.link"
               routerLinkActive="text-accent-700 font-medium"
               ariaCurrentWhenActive="page"
-              class="block rounded-none px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-200"
+              class="block rounded-none px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-200"
               (click)="closeDrawer()">
               {{ item.key | translate }}
             </a>

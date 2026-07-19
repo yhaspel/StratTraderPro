@@ -15,7 +15,7 @@ import { CardComponent } from '../../shared/ui/card.component';
       <div class="flex w-full max-w-[400px] flex-col gap-6 text-center">
         <div class="flex flex-col items-center gap-3">
           <h1 class="m-0 font-heading text-2xl font-semibold text-ink">{{ 'auth.resend.title' | translate }}</h1>
-          <p class="m-0 text-sm text-neutral-600">{{ 'auth.resend.description' | translate }}</p>
+          <p class="m-0 text-sm text-neutral-700">{{ 'auth.resend.description' | translate }}</p>
         </div>
 
         <app-card>

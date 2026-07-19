@@ -17,10 +17,10 @@ import { TranslateModule } from '@ngx-translate/core';
   template: `
     <article class="mx-auto max-w-3xl">
       @if (loading()) {
-        <p class="text-neutral-600">{{ 'common.loading' | translate }}</p>
+        <p class="text-neutral-700">{{ 'common.loading' | translate }}</p>
       } @else if (notFound()) {
         <h1 class="font-heading text-[32px] font-semibold leading-tight text-ink">{{ 'help.not_found.title' | translate }}</h1>
-        <p class="mt-2 text-neutral-600">{{ 'help.not_found.body' | translate }}</p>
+        <p class="mt-2 text-neutral-700">{{ 'help.not_found.body' | translate }}</p>
         <a routerLink="/dashboard" class="mt-4 inline-flex text-accent-700 underline">
           {{ 'help.not_found.home' | translate }}
         </a>

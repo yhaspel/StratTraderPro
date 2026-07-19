@@ -35,16 +35,16 @@ import { ButtonComponent } from '../../shared/ui/button.component';
   imports: [CommonModule, TranslateModule, ModalComponent, ButtonComponent],
   template: `
     <app-modal [open]="true" [heading]="modalHeading()" (closed)="closed.emit()">
-        <p class="-mt-2 mb-4 text-sm text-neutral-600">{{ strategy.name }}</p>
+        <p class="-mt-2 mb-4 text-sm text-neutral-700">{{ strategy.name }}</p>
 
         @if (loading()) {
-          <p class="text-sm text-neutral-600">{{ 'webhook.modal.loading' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'webhook.modal.loading' | translate }}</p>
         }
         @if (!loading() && config(); as cfg) {
 
           <!-- URL row -->
           <div class="mb-4">
-            <label for="webhook-url-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
+            <label for="webhook-url-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.url.label' | translate }}
             </label>
             <div class="flex gap-2">
@@ -60,7 +60,7 @@ import { ButtonComponent } from '../../shared/ui/button.component';
 
           <!-- Secret row -->
           <div class="mb-4">
-            <label for="webhook-secret-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
+            <label for="webhook-secret-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.secret.label' | translate }} (v{{ cfg.version }})
             </label>
             @if (cfg.secret) {
@@ -76,7 +76,7 @@ import { ButtonComponent } from '../../shared/ui/button.component';
                 ⚠ {{ 'webhook.modal.secret.reveal_once' | translate }}
               </p>
             } @else {
-              <div id="webhook-secret-input" class="text-xs italic text-neutral-600">
+              <div id="webhook-secret-input" class="text-xs italic text-neutral-700">
                 {{ 'webhook.modal.secret.hidden' | translate }}
               </div>
             }
@@ -92,7 +92,7 @@ import { ButtonComponent } from '../../shared/ui/button.component';
 
           <!-- JSON Schema editor -->
           <div class="mb-4">
-            <label for="webhook-schema-editor" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
+            <label for="webhook-schema-editor" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.schema.label' | translate }}
             </label>
             <textarea id="webhook-schema-editor" rows="8" [value]="schemaText()" (input)="onSchemaInput($event)"
@@ -105,7 +105,7 @@ import { ButtonComponent } from '../../shared/ui/button.component';
 
           <!-- Payload template editor -->
           <div class="mb-4">
-            <label for="webhook-template-editor" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
+            <label for="webhook-template-editor" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-700">
               {{ 'webhook.modal.template.label' | translate }}
             </label>
             <textarea id="webhook-template-editor" rows="8" [value]="templateText()" (input)="onTemplateInput($event)"

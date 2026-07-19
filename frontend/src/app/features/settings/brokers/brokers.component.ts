@@ -64,9 +64,9 @@ const KNOWN_ERRORS = new Set([
           </h2>
 
           @if (facade.loading()) {
-            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
           } @else if (facade.accounts().length === 0) {
-            <p class="text-sm text-neutral-600">{{ 'brokers.connected.empty' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'brokers.connected.empty' | translate }}</p>
           } @else {
             <ul class="divide-y divide-divider">
               @for (acct of facade.accounts(); track acct.id) {
@@ -82,8 +82,8 @@ const KNOWN_ERRORS = new Set([
                           </app-status-chip>
                         }
                       </div>
-                      <p class="mt-1 font-mono text-xs text-neutral-600">{{ acct.account_number || '—' }}</p>
-                      <p class="font-mono text-xs text-neutral-600">
+                      <p class="mt-1 font-mono text-xs text-neutral-700">{{ acct.account_number || '—' }}</p>
+                      <p class="font-mono text-xs text-neutral-700">
                         {{ 'brokers.connected.last_connected' | translate }}:
                         {{ acct.last_connected_at ? (acct.last_connected_at | date:'medium') : '—' }}
                       </p>
@@ -108,18 +108,18 @@ const KNOWN_ERRORS = new Set([
 
                   <!-- Mode control (PAPER active; LIVE disabled until enabled) -->
                   <div class="mt-s3 flex items-center gap-2 text-xs">
-                    <span class="text-neutral-600">{{ 'brokers.mode.label' | translate }}:</span>
+                    <span class="text-neutral-700">{{ 'brokers.mode.label' | translate }}:</span>
                     <div class="inline-flex overflow-hidden rounded-none border border-divider">
                       <button type="button" (click)="onSetMode(acct, 'PAPER')"
                               class="px-3 py-1 font-heading font-semibold uppercase tracking-wide"
-                              [class.bg-accent]="acct.mode === 'PAPER'"
+                              [class.bg-accent-700]="acct.mode === 'PAPER'"
                               [class.text-bg]="acct.mode === 'PAPER'">
                         {{ 'brokers.mode.paper' | translate }}
                       </button>
                       <button type="button"
                               [attr.aria-disabled]="true"
                               [title]="'brokers.mode.live_soon' | translate"
-                              class="cursor-not-allowed border-l border-divider px-3 py-1 font-heading font-semibold uppercase tracking-wide text-neutral-600 opacity-45">
+                              class="cursor-not-allowed border-l border-divider px-3 py-1 font-heading font-semibold uppercase tracking-wide text-neutral-700 opacity-45">
                         {{ 'brokers.mode.live' | translate }}
                       </button>
                     </div>
@@ -172,7 +172,7 @@ const KNOWN_ERRORS = new Set([
           <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
             {{ 'brokers.connect.title' | translate }}
           </h2>
-          <p class="mb-s3 text-sm text-neutral-600">
+          <p class="mb-s3 text-sm text-neutral-700">
             {{ 'brokers.connect.help' | translate }}
             <a routerLink="/help/alpaca-paper-connect"
                class="text-accent-700 hover:underline">{{ 'brokers.connect.help_link' | translate }}</a>
@@ -180,17 +180,17 @@ const KNOWN_ERRORS = new Set([
 
           <form [formGroup]="connectForm" (ngSubmit)="onConnect()" class="max-w-md space-y-3">
             <div>
-              <label class="mb-1 block text-xs font-medium text-neutral-600">{{ 'brokers.connect.api_key_id' | translate }}</label>
+              <label class="mb-1 block text-xs font-medium text-neutral-700">{{ 'brokers.connect.api_key_id' | translate }}</label>
               <input type="text" formControlName="api_key_id" autocomplete="off"
                      class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-medium text-neutral-600">{{ 'brokers.connect.api_secret' | translate }}</label>
+              <label class="mb-1 block text-xs font-medium text-neutral-700">{{ 'brokers.connect.api_secret' | translate }}</label>
               <input type="password" formControlName="api_secret" autocomplete="new-password"
                      class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-medium text-neutral-600">
+              <label class="mb-1 block text-xs font-medium text-neutral-700">
                 {{ 'brokers.connect.nickname' | translate }}
                 <span class="font-normal text-neutral-500">({{ 'brokers.connect.optional' | translate }})</span>
               </label>
@@ -229,12 +229,12 @@ const KNOWN_ERRORS = new Set([
           <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
             {{ 'brokers.connect_tradestation.title' | translate }}
           </h2>
-          <p class="mb-s3 text-sm text-neutral-600">{{ 'brokers.connect_tradestation.help' | translate }}</p>
+          <p class="mb-s3 text-sm text-neutral-700">{{ 'brokers.connect_tradestation.help' | translate }}</p>
           <button type="button" disabled aria-disabled="true"
                   class="inline-flex w-fit cursor-not-allowed items-center justify-center rounded-none border border-divider bg-transparent px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-ink opacity-45">
             {{ 'brokers.connect_tradestation.button' | translate }}
           </button>
-          <p class="mt-2 text-xs text-neutral-600">{{ 'brokers.connect_tradestation.unavailable' | translate }}</p>
+          <p class="mt-2 text-xs text-neutral-700">{{ 'brokers.connect_tradestation.unavailable' | translate }}</p>
           @if (tsError(); as err) {
             <p class="mt-s3 text-sm text-down-deep">
               @if (knownError(err.code)) {

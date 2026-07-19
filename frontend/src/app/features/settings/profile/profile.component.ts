@@ -41,7 +41,7 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
       <app-card>
         <form [formGroup]="form" (ngSubmit)="onSubmit()" class="max-w-lg space-y-s4">
           <div>
-            <label class="mb-1 block text-xs font-medium text-neutral-600" for="display_name">
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="display_name">
               {{ 'profile.display_name' | translate }}
             </label>
             <input
@@ -53,7 +53,7 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
           </div>
 
           <div>
-            <label class="mb-1 block text-xs font-medium text-neutral-600" for="timezone">
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="timezone">
               {{ 'profile.timezone' | translate }}
             </label>
             <input
@@ -76,14 +76,14 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
           </div>
 
           <div>
-            <label class="mb-1 block text-xs font-medium text-neutral-600" for="language">
+            <label class="mb-1 block text-xs font-medium text-neutral-700" for="language">
               {{ 'profile.language' | translate }}
             </label>
             <select id="language" formControlName="language"
                     class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none">
               <option value="en">English</option>
             </select>
-            <p class="mt-1 text-[11px] text-neutral-600">{{ 'profile.language_hint' | translate }}</p>
+            <p class="mt-1 text-[11px] text-neutral-700">{{ 'profile.language_hint' | translate }}</p>
           </div>
 
           <label class="flex items-center gap-2 text-sm text-ink">

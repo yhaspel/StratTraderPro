@@ -38,7 +38,7 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
         <span class="font-heading text-sm font-semibold">{{ 'oauth.continue_with_google' | translate }}</span>
       </button>
 
-      <div class="my-4 flex items-center text-[11px] text-neutral-600">
+      <div class="my-4 flex items-center text-[11px] text-neutral-700">
         <span class="flex-1 border-t border-divider"></span>
         <span class="px-3">{{ 'oauth.or' | translate }}</span>
         <span class="flex-1 border-t border-divider"></span>

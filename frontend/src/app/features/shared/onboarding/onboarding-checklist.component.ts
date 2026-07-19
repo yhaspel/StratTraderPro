@@ -24,7 +24,7 @@ interface StepDef {
   template: `
     <section stpBlueprint class="block bg-transparent p-s4" aria-labelledby="ob-title">
       <h2 id="ob-title" class="font-heading text-lg font-semibold text-ink">{{ 'onboarding.title' | translate }}</h2>
-      <p class="mt-1 text-sm text-neutral-600">{{ 'onboarding.subtitle' | translate }}</p>
+      <p class="mt-1 text-sm text-neutral-700">{{ 'onboarding.subtitle' | translate }}</p>
       <ol class="mt-s4 space-y-2">
         @for (step of steps(); track step.key; let i = $index) {
           <li class="flex items-center justify-between gap-s4 rounded-none border border-divider px-3 py-2">
@@ -34,7 +34,7 @@ interface StepDef {
                 [class.bg-up-tint]="step.done"
                 [class.text-up-deep]="step.done"
                 [class.bg-surface]="!step.done"
-                [class.text-neutral-600]="!step.done"
+                [class.text-neutral-700]="!step.done"
                 aria-hidden="true">{{ step.done ? '✓' : (i + 1) }}</span>
               <span class="text-sm"
                     [class.text-ink]="!step.done"
@@ -54,7 +54,7 @@ interface StepDef {
         }
       </ol>
       @if (showFillHint()) {
-        <p class="mt-s4 text-xs text-neutral-600">{{ 'onboarding.fill_hint' | translate }}</p>
+        <p class="mt-s4 text-xs text-neutral-700">{{ 'onboarding.fill_hint' | translate }}</p>
       }
     </section>
   `,

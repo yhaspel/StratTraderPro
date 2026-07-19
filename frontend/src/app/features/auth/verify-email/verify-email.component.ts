@@ -12,7 +12,7 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
     <div class="mx-auto max-w-[400px] px-6 py-12 text-center">
       <h1 class="mb-4 font-heading text-2xl font-semibold text-ink">Verify email</h1>
       @if (facade.status() === 'loading') {
-        <p class="text-sm text-neutral-600">{{ 'auth.verify_email.verifying' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'auth.verify_email.verifying' | translate }}</p>
       }
       @if (facade.error(); as err) {
         <div class="mb-4 rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">

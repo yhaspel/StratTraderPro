@@ -56,7 +56,7 @@ export class ButtonComponent {
     'transition-colors disabled:opacity-45 disabled:cursor-not-allowed';
 
   private readonly byVariant: Record<ButtonVariant, string> = {
-    primary: 'bg-accent border-accent text-bg hover:bg-accent-600 active:bg-accent-700',
+    primary: 'bg-accent-700 border-accent-700 text-bg hover:bg-accent-800 active:bg-accent-900',
     secondary: 'bg-transparent border-divider text-ink hover:bg-neutral-200 active:bg-neutral-300',
     ghost:
       'bg-transparent border-transparent text-accent-700 px-1 hover:bg-accent-100 active:bg-accent-200',

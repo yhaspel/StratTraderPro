@@ -40,7 +40,7 @@ import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
               <label for="password" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.reset_confirm.password' | translate }}</label>
               <input id="password" type="password" formControlName="password" autocomplete="new-password"
                      class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
-              <p class="mt-1 text-[11px] text-neutral-600">{{ 'auth.register.password_hint' | translate }}</p>
+              <p class="mt-1 text-[11px] text-neutral-700">{{ 'auth.register.password_hint' | translate }}</p>
             </div>
 
             <div class="mb-4">

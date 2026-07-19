@@ -47,7 +47,7 @@ import { ConfigService } from '../../core/services/config.service';
           <span class="text-accent-700">{{ 'landing.hero.title_em' | translate }}</span>
           {{ 'landing.hero.title_post' | translate }}
         </h1>
-        <p class="m-0 max-w-[620px] text-[17px] leading-relaxed text-neutral-600">
+        <p class="m-0 max-w-[620px] text-[17px] leading-relaxed text-neutral-700">
           {{ 'landing.hero.subtitle' | translate }}
         </p>
         <div class="mt-2 flex flex-wrap items-center justify-center gap-3.5">
@@ -66,7 +66,7 @@ import { ConfigService } from '../../core/services/config.service';
 
       <section class="flex flex-col gap-6" aria-labelledby="how-it-works">
         <h2 id="how-it-works"
-            class="m-0 text-center font-heading text-sm font-semibold uppercase tracking-[0.08em] text-neutral-600">
+            class="m-0 text-center font-heading text-sm font-semibold uppercase tracking-[0.08em] text-neutral-700">
           {{ 'landing.how.title' | translate }}
         </h2>
         <ol class="m-0 grid list-none gap-3.5 p-0 md:grid-cols-4">
@@ -76,13 +76,13 @@ import { ConfigService } from '../../core/services/config.service';
                 <div class="flex flex-col gap-2">
                   <span class="font-mono text-xs font-semibold text-accent-700">0{{ i + 1 }}</span>
                   <h3 class="m-0 font-heading text-base font-semibold text-ink">{{ step.titleKey | translate }}</h3>
-                  <p class="m-0 text-[13px] leading-relaxed text-neutral-600">{{ step.bodyKey | translate }}</p>
+                  <p class="m-0 text-[13px] leading-relaxed text-neutral-700">{{ step.bodyKey | translate }}</p>
                 </div>
               </app-card>
             </li>
           }
         </ol>
-        <p class="mx-auto max-w-[640px] text-center text-xs leading-relaxed text-neutral-600">
+        <p class="mx-auto max-w-[640px] text-center text-xs leading-relaxed text-neutral-700">
           {{ 'landing.disclaimer' | translate }}
         </p>
       </section>

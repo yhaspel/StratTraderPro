@@ -61,9 +61,9 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
       }
 
       @if (admin.loading()) {
-        <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       } @else if (admin.flags().length === 0) {
-        <p class="text-sm text-neutral-600">{{ 'admin.flags.empty' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'admin.flags.empty' | translate }}</p>
       } @else {
         <app-card>
           <ul class="divide-y divide-divider">
@@ -80,8 +80,8 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
                         <app-status-chip tone="neutral">{{ 'admin.flags.immutable' | translate }}</app-status-chip>
                       }
                     </div>
-                    <p class="mt-1 text-xs text-neutral-600">{{ f.description }}</p>
-                    <p class="mt-0.5 text-xs text-neutral-600">{{ 'admin.flags.source' | translate }}: {{ f.source }}</p>
+                    <p class="mt-1 text-xs text-neutral-700">{{ f.description }}</p>
+                    <p class="mt-0.5 text-xs text-neutral-700">{{ 'admin.flags.source' | translate }}: {{ f.source }}</p>
                   </div>
                   <div class="text-right">
                     <app-status-chip [tone]="f.enabled ? 'info' : 'neutral'">
@@ -100,7 +100,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
                   <div class="mt-3 space-y-3 border-t border-divider pt-3">
                     @if (f.dangerous) {
                       <div>
-                        <label [attr.for]="'flag-confirm-' + f.name" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+                        <label [attr.for]="'flag-confirm-' + f.name" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
                           {{ 'admin.flags.confirm_name' | translate }}
                         </label>
                         <input [id]="'flag-confirm-' + f.name" type="text" [value]="nameConfirm()"

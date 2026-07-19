@@ -54,31 +54,31 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
       <!-- ===== Filters ===== -->
       <form [formGroup]="filterForm" (ngSubmit)="apply()" class="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div>
-          <label for="audit-user" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.user' | translate }}</label>
+          <label for="audit-user" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.user' | translate }}</label>
           <input id="audit-user" type="text" formControlName="user" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-actor" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.actor' | translate }}</label>
+          <label for="audit-actor" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.actor' | translate }}</label>
           <input id="audit-actor" type="text" formControlName="actor" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-event" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.event_type' | translate }}</label>
+          <label for="audit-event" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.event_type' | translate }}</label>
           <input id="audit-event" type="text" formControlName="event_type" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-entity-type" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.entity_type' | translate }}</label>
+          <label for="audit-entity-type" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.entity_type' | translate }}</label>
           <input id="audit-entity-type" type="text" formControlName="entity_type" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-entity-id" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.entity_id' | translate }}</label>
+          <label for="audit-entity-id" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.entity_id' | translate }}</label>
           <input id="audit-entity-id" type="text" formControlName="entity_id" class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-after" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.after' | translate }}</label>
+          <label for="audit-after" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.after' | translate }}</label>
           <input id="audit-after" type="date" formControlName="occurred_after" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="audit-before" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.filter.before' | translate }}</label>
+          <label for="audit-before" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.filter.before' | translate }}</label>
           <input id="audit-before" type="date" formControlName="occurred_before" class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div class="flex items-end gap-2">
@@ -97,31 +97,31 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
 
       <!-- ===== Table ===== -->
       @if (admin.loading()) {
-        <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       } @else if (admin.audit().length === 0) {
-        <p class="text-sm text-neutral-600">{{ 'admin.audit.empty' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'admin.audit.empty' | translate }}</p>
       } @else {
         <app-card>
           <table class="w-full border-collapse text-[13px]">
             <thead class="text-left">
               <tr class="border-b border-divider">
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.col.time' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.col.event' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.col.actor' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.col.entity' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.col.ip' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.audit.col.hash' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.time' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.event' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.actor' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.entity' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.ip' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.audit.col.hash' | translate }}</th>
               </tr>
             </thead>
             <tbody>
               @for (a of admin.audit(); track a.id) {
                 <tr class="border-t border-divider">
-                  <td class="whitespace-nowrap px-3 py-2 text-neutral-600">{{ a.occurred_at | date:'short' }}</td>
+                  <td class="whitespace-nowrap px-3 py-2 text-neutral-700">{{ a.occurred_at | date:'short' }}</td>
                   <td class="px-3 py-2 font-medium">{{ eventLabel(a.event_type) }}</td>
                   <td class="px-3 py-2 font-mono text-xs">{{ a.actor || '—' }}</td>
                   <td class="px-3 py-2 text-xs">{{ a.entity_type || '—' }}@if (a.entity_id) {<span class="font-mono"> · {{ a.entity_id }}</span>}</td>
                   <td class="px-3 py-2 font-mono text-xs tabular-nums">{{ a.ip || '—' }}</td>
-                  <td class="max-w-[180px] break-all px-3 py-2 font-mono text-xs text-neutral-600">{{ a.self_hash }}</td>
+                  <td class="max-w-[180px] break-all px-3 py-2 font-mono text-xs text-neutral-700">{{ a.self_hash }}</td>
                 </tr>
               }
             </tbody>
@@ -130,7 +130,7 @@ import { PageHeaderComponent } from '../shared/ui/page-header.component';
 
         <!-- ===== Pagination ===== -->
         <div class="flex items-center justify-between text-sm">
-          <span class="text-neutral-600">
+          <span class="text-neutral-700">
             {{ 'admin.pagination.page' | translate:{ page: admin.auditPage(), pages: admin.auditTotalPages(), total: admin.auditTotal() } }}
           </span>
           <div class="flex gap-2">

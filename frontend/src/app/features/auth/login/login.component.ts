@@ -78,7 +78,7 @@ import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
 
         <div class="flex flex-col items-center gap-2 text-center text-[13px]">
           <p class="m-0"><a routerLink="/password-reset" class="text-accent-700 hover:underline">{{ 'auth.login.forgot' | translate }}</a></p>
-          <p class="m-0 text-neutral-600">{{ 'auth.login.no_account' | translate }} <a routerLink="/register" class="text-accent-700 hover:underline">{{ 'auth.login.register_link' | translate }}</a></p>
+          <p class="m-0 text-neutral-700">{{ 'auth.login.no_account' | translate }} <a routerLink="/register" class="text-accent-700 hover:underline">{{ 'auth.login.register_link' | translate }}</a></p>
         </div>
       </div>
     </div>

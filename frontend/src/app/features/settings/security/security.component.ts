@@ -45,7 +45,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
               <h2 class="m-0 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
                 {{ 'security.mfa.title' | translate }}
               </h2>
-              <p class="mt-0.5 text-sm text-neutral-600">{{ 'security.mfa.subtitle' | translate }}</p>
+              <p class="mt-0.5 text-sm text-neutral-700">{{ 'security.mfa.subtitle' | translate }}</p>
             </div>
             @if (auth.user()?.mfa_enabled) {
               <app-status-chip tone="up" class="shrink-0">
@@ -60,7 +60,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
 
           @if (!auth.user()?.mfa_enabled) {
             <a routerLink="/settings/security/mfa/setup"
-               class="inline-flex items-center justify-center rounded-none border border-accent bg-accent px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-bg transition-colors hover:bg-accent-600">
+               class="inline-flex items-center justify-center rounded-none border border-accent-700 bg-accent-700 px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-bg transition-colors hover:bg-accent-800">
               {{ 'security.mfa.enroll_cta' | translate }}
             </a>
           } @else {
@@ -104,7 +104,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
             <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
               {{ 'security.backup.title' | translate }}
             </h2>
-            <p class="mb-s3 text-sm text-neutral-600">{{ 'security.backup.subtitle' | translate }}</p>
+            <p class="mb-s3 text-sm text-neutral-700">{{ 'security.backup.subtitle' | translate }}</p>
             <form [formGroup]="regenForm" (ngSubmit)="onRegenerate()" class="space-y-3">
               <input
                 type="password"
@@ -155,7 +155,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
               <h2 class="m-0 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
                 {{ 'security.sessions.title' | translate }}
               </h2>
-              <p class="mt-0.5 text-sm text-neutral-600">{{ 'security.sessions.subtitle' | translate }}</p>
+              <p class="mt-0.5 text-sm text-neutral-700">{{ 'security.sessions.subtitle' | translate }}</p>
             </div>
             <app-button
               variant="ghost"
@@ -170,9 +170,9 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
             <p role="alert" class="mb-3 text-sm text-down-deep">{{ err.message }}</p>
           }
           @if (sessions.loading()) {
-            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
           } @else if (sessions.sessions().length === 0) {
-            <p class="text-sm text-neutral-600">{{ 'security.sessions.empty' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'security.sessions.empty' | translate }}</p>
           } @else {
             <ul class="divide-y divide-divider">
               @for (s of sessions.sessions(); track s.family_id) {
@@ -186,7 +186,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
                         </app-status-chip>
                       }
                     </p>
-                    <p class="mt-0.5 font-mono text-xs text-neutral-600">
+                    <p class="mt-0.5 font-mono text-xs text-neutral-700">
                       {{ 'security.sessions.last_used' | translate }}:
                       {{ s.last_used_at ? (s.last_used_at | date:'medium') : '—' }}
                       · IP {{ s.ip_masked || '—' }}
@@ -208,7 +208,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
           <h2 class="m-0 mb-1 font-heading font-semibold text-[13px] uppercase tracking-[0.1em] text-neutral-700">
             {{ 'security.password.title' | translate }}
           </h2>
-          <p class="mb-s3 text-sm text-neutral-600">{{ 'security.password.subtitle' | translate }}</p>
+          <p class="mb-s3 text-sm text-neutral-700">{{ 'security.password.subtitle' | translate }}</p>
           <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()" class="max-w-md space-y-3">
             <input
               type="password"
@@ -226,7 +226,7 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
               [placeholder]="'security.password.next' | translate"
               class="w-full rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink placeholder:text-neutral-500 focus:border-accent focus:outline-none"
             />
-            <p class="text-[11px] text-neutral-600">{{ 'auth.register.password_hint' | translate }}</p>
+            <p class="text-[11px] text-neutral-700">{{ 'auth.register.password_hint' | translate }}</p>
             <app-button
               type="submit"
               variant="primary"

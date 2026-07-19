@@ -95,7 +95,7 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
                   }
                 </p>
               } @else {
-                <p class="mt-1 text-[11px] text-neutral-600">{{ 'auth.register.password_hint' | translate }}</p>
+                <p class="mt-1 text-[11px] text-neutral-700">{{ 'auth.register.password_hint' | translate }}</p>
               }
             </div>
 
@@ -108,7 +108,7 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
           </form>
         </app-card>
 
-        <p class="m-0 text-center text-[13px] text-neutral-600">
+        <p class="m-0 text-center text-[13px] text-neutral-700">
           {{ 'auth.register.have_account' | translate }}
           <a routerLink="/login" class="text-accent-700 hover:underline">{{ 'auth.register.login_link' | translate }}</a>
         </p>

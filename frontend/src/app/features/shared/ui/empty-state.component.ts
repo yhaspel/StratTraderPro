@@ -11,7 +11,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
     <div class="rounded-none border border-dashed border-neutral-400 bg-transparent p-s8 text-center">
       <h3 class="font-heading font-semibold text-base text-neutral-700">{{ heading }}</h3>
       @if (description) {
-        <p class="mx-auto mt-1 max-w-md text-sm text-neutral-600">{{ description }}</p>
+        <p class="mx-auto mt-1 max-w-md text-sm text-neutral-700">{{ description }}</p>
       }
       <div class="mt-s3 flex justify-center gap-s2">
         <ng-content />

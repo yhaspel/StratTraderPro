@@ -71,7 +71,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
             </div>
 
             <!-- Rule-based bucket, for context. -->
-            <span class="text-[13px] text-neutral-600">
+            <span class="text-[13px] text-neutral-700">
               @switch (o.rule_bucket) {
                 @case ('RISK_ON') { {{ 'regime.rule.RISK_ON' | translate }} }
                 @case ('RISK_OFF') { {{ 'regime.rule.RISK_OFF' | translate }} }
@@ -88,9 +88,9 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
             }
           </div>
         } @else if (facade.loading()) {
-          <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
         } @else {
-          <p class="text-sm text-neutral-600">{{ 'regime.no_data' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'regime.no_data' | translate }}</p>
         }
 
         <!-- ~90-day regime band. -->

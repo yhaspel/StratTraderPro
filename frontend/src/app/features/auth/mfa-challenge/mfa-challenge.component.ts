@@ -32,7 +32,7 @@ import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
             <span class="h-2 w-[5px] bg-accent-400"></span>
           </span>
           <h1 class="m-0 font-heading text-2xl font-semibold text-ink">{{ 'mfa.challenge.title' | translate }}</h1>
-          <p class="m-0 text-sm text-neutral-600">{{ 'mfa.challenge.subtitle' | translate }}</p>
+          <p class="m-0 text-sm text-neutral-700">{{ 'mfa.challenge.subtitle' | translate }}</p>
         </div>
 
         @if (facade.error(); as err) {

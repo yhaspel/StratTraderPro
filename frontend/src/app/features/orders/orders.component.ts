@@ -59,7 +59,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
         <form [formGroup]="filterForm" (ngSubmit)="onApply()"
               class="flex flex-wrap items-end gap-3">
           <div>
-            <label class="mb-1 block text-xs text-neutral-600">{{ 'orders.filters.broker' | translate }}</label>
+            <label class="mb-1 block text-xs text-neutral-700">{{ 'orders.filters.broker' | translate }}</label>
             <select formControlName="broker"
                     class="min-h-[36px] rounded-none border border-divider bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-accent focus:outline-none">
               <option value="">{{ 'orders.filters.all' | translate }}</option>
@@ -69,7 +69,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
             </select>
           </div>
           <div>
-            <label class="mb-1 block text-xs text-neutral-600">{{ 'orders.filters.status' | translate }}</label>
+            <label class="mb-1 block text-xs text-neutral-700">{{ 'orders.filters.status' | translate }}</label>
             <select formControlName="status"
                     class="min-h-[36px] rounded-none border border-divider bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-accent focus:outline-none">
               <option value="">{{ 'orders.filters.all' | translate }}</option>
@@ -79,17 +79,17 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
             </select>
           </div>
           <div>
-            <label class="mb-1 block text-xs text-neutral-600">{{ 'orders.filters.strategy' | translate }}</label>
+            <label class="mb-1 block text-xs text-neutral-700">{{ 'orders.filters.strategy' | translate }}</label>
             <input type="text" formControlName="strategy" autocomplete="off"
                    class="min-h-[36px] w-48 rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none" />
           </div>
           <div>
-            <label class="mb-1 block text-xs text-neutral-600">{{ 'orders.filters.from' | translate }}</label>
+            <label class="mb-1 block text-xs text-neutral-700">{{ 'orders.filters.from' | translate }}</label>
             <input type="date" formControlName="from"
                    class="min-h-[36px] rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none" />
           </div>
           <div>
-            <label class="mb-1 block text-xs text-neutral-600">{{ 'orders.filters.to' | translate }}</label>
+            <label class="mb-1 block text-xs text-neutral-700">{{ 'orders.filters.to' | translate }}</label>
             <input type="date" formControlName="to"
                    class="min-h-[36px] rounded-none border border-divider bg-surface px-2.5 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none" />
           </div>
@@ -102,23 +102,23 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
       <!-- ========== Orders table ========== -->
       <section>
         @if (facade.loading()) {
-          <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
         } @else if (facade.orders().length === 0) {
-          <p class="text-sm text-neutral-600">{{ 'orders.empty' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'orders.empty' | translate }}</p>
         } @else {
           <div stpBlueprint class="bg-transparent">
             <table class="w-full text-[13px]">
               <thead class="text-left">
                 <tr class="border-b border-divider">
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.time' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.broker' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.strategy' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.symbol' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.side' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.qty' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.type' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.status' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.col.filled' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.time' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.broker' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.strategy' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.symbol' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.side' | translate }}</th>
+                  <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.qty' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.type' | translate }}</th>
+                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.status' | translate }}</th>
+                  <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.filled' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,14 +129,14 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
                       (click)="onOpen(o.id)"
                       (keydown.enter)="onOpen(o.id)"
                       (keydown.space)="$event.preventDefault(); onOpen(o.id)">
-                    <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-600">{{ o.created_at | date:'short' }}</td>
-                    <td class="px-3 py-1.5 text-neutral-600">{{ o.broker || '—' }}</td>
-                    <td class="px-3 py-1.5 font-mono text-xs text-neutral-600">{{ o.strategy || '—' }}</td>
+                    <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-700">{{ o.created_at | date:'short' }}</td>
+                    <td class="px-3 py-1.5 text-neutral-700">{{ o.broker || '—' }}</td>
+                    <td class="px-3 py-1.5 font-mono text-xs text-neutral-700">{{ o.strategy || '—' }}</td>
                     <td class="px-3 py-1.5 font-bold">{{ o.symbol }}</td>
                     <td class="px-3 py-1.5 font-mono text-xs"
                         [ngClass]="{ 'text-up': o.side === 'BUY', 'text-down': o.side === 'SELL' }">{{ o.side }}</td>
                     <td class="px-3 py-1.5 text-right font-mono tabular-nums">{{ fmtQty(o.qty) }}</td>
-                    <td class="px-3 py-1.5 text-neutral-600">{{ o.order_type }}</td>
+                    <td class="px-3 py-1.5 text-neutral-700">{{ o.order_type }}</td>
                     <td class="px-3 py-1.5">
                       <app-status-chip [status]="o.status">
                         {{ ('orders.status.' + o.status) | translate }}
@@ -150,7 +150,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
 
             <!-- Pagination -->
             <div class="flex items-center justify-between border-t border-divider px-4 py-2.5">
-              <span class="font-mono text-xs text-neutral-600">
+              <span class="font-mono text-xs text-neutral-700">
                 {{ 'orders.pagination.page' | translate:{ page: facade.page(), pages: facade.numPages(), total: facade.total() } }}
               </span>
               <div class="flex gap-2">
@@ -172,23 +172,23 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
           {{ 'orders.recon.title' | translate }}
         </h2>
         @if (facade.reconEvents().length === 0) {
-          <p class="text-sm text-neutral-600">{{ 'orders.recon.empty' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'orders.recon.empty' | translate }}</p>
         } @else {
           <table class="w-full text-[13px]">
             <thead class="text-left">
               <tr class="border-b border-divider">
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.recon.col.time' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.recon.col.symbol' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.recon.col.kind' | translate }}</th>
-                <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.recon.col.our_qty' | translate }}</th>
-                <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.recon.col.broker_qty' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'orders.recon.col.detail' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.time' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.symbol' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.kind' | translate }}</th>
+                <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.our_qty' | translate }}</th>
+                <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.broker_qty' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.detail' | translate }}</th>
               </tr>
             </thead>
             <tbody>
               @for (e of facade.reconEvents(); track e.id) {
                 <tr class="h-9 border-t border-neutral-200">
-                  <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-600">{{ e.created_at | date:'short' }}</td>
+                  <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-700">{{ e.created_at | date:'short' }}</td>
                   <td class="px-3 py-1.5 font-bold">{{ e.symbol }}</td>
                   <td class="px-3 py-1.5">
                     <app-status-chip tone="warn">
@@ -197,7 +197,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
                   </td>
                   <td class="px-3 py-1.5 text-right font-mono tabular-nums">{{ fmtQty(e.our_qty) }}</td>
                   <td class="px-3 py-1.5 text-right font-mono tabular-nums">{{ fmtQty(e.broker_qty) }}</td>
-                  <td class="px-3 py-1.5 text-xs text-neutral-600">{{ e.detail || '—' }}</td>
+                  <td class="px-3 py-1.5 text-xs text-neutral-700">{{ e.detail || '—' }}</td>
                 </tr>
               }
             </tbody>
@@ -221,99 +221,99 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
 
         <dl class="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[13px]">
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.asset_class' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.asset_class' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.asset_class }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.side' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.side' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.side }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.type' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.type' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.order_type }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.tif' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.tif' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.time_in_force }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.qty' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.qty' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs tabular-nums">{{ fmtQty(o.qty) }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.filled' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.filled' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs tabular-nums">{{ fmtQty(o.filled_qty) }}</dd>
           </div>
           @if (o.limit_price) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.limit_price' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.limit_price' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs tabular-nums">{{ fmtMoney(o.limit_price) }}</dd>
             </div>
           }
           @if (o.stop_price) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.stop_price' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.stop_price' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs tabular-nums">{{ fmtMoney(o.stop_price) }}</dd>
             </div>
           }
           @if (o.option_expiry) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.option_expiry' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.option_expiry' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs">{{ o.option_expiry }}</dd>
             </div>
           }
           @if (o.option_strike) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.option_strike' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.option_strike' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs tabular-nums">{{ fmtMoney(o.option_strike) }}</dd>
             </div>
           }
           @if (o.option_right) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.option_right' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.option_right' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs">{{ o.option_right }}</dd>
             </div>
           }
           @if (o.future_root) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.future_root' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.future_root' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs">{{ o.future_root }}</dd>
             </div>
           }
           @if (o.future_expiry) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.future_expiry' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.future_expiry' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs">{{ o.future_expiry }}</dd>
             </div>
           }
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.broker' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.broker' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.broker || '—' }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.strategy' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.strategy' | translate }}</dt>
             <dd class="mt-0.5 break-all font-mono text-xs">{{ o.strategy || '—' }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.client_order_id' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.client_order_id' | translate }}</dt>
             <dd class="mt-0.5 break-all font-mono text-xs">{{ o.client_order_id || '—' }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.broker_order_id' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.broker_order_id' | translate }}</dt>
             <dd class="mt-0.5 break-all font-mono text-xs">{{ o.broker_order_id || '—' }}</dd>
           </div>
           @if (o.reason) {
             <div>
-              <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.reason' | translate }}</dt>
+              <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.reason' | translate }}</dt>
               <dd class="mt-0.5 font-mono text-xs">{{ o.reason }}</dd>
             </div>
           }
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.created' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.created' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.created_at | date:'medium' }}</dd>
           </div>
           <div>
-            <dt class="text-[11px] text-neutral-600">{{ 'orders.detail.field.updated' | translate }}</dt>
+            <dt class="text-[11px] text-neutral-700">{{ 'orders.detail.field.updated' | translate }}</dt>
             <dd class="mt-0.5 font-mono text-xs">{{ o.updated_at | date:'medium' }}</dd>
           </div>
         </dl>
@@ -324,13 +324,13 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
             {{ 'orders.detail.fills' | translate }}
           </h3>
           @if (o.fills.length === 0) {
-            <p class="text-sm text-neutral-600">{{ 'orders.detail.no_fills' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'orders.detail.no_fills' | translate }}</p>
           } @else {
             <ul class="divide-y divide-neutral-200 border border-divider">
               @for (f of o.fills; track f.id) {
                 <li class="flex items-center justify-between px-3 py-2 font-mono text-xs">
                   <span class="tabular-nums">{{ fmtQty(f.qty) }} &#64; {{ fmtMoney(f.price) }}</span>
-                  <span class="text-neutral-600">{{ f.ts | date:'short' }}</span>
+                  <span class="text-neutral-700">{{ f.ts | date:'short' }}</span>
                 </li>
               }
             </ul>

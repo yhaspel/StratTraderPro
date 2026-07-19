@@ -50,7 +50,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
       <!-- ===== Filters ===== -->
       <form [formGroup]="filterForm" (ngSubmit)="apply()" class="flex flex-wrap items-end gap-3">
         <div>
-          <label for="admin-users-q" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+          <label for="admin-users-q" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
             {{ 'admin.users.filter.search' | translate }}
           </label>
           <input id="admin-users-q" type="text" formControlName="q"
@@ -58,7 +58,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
                  class="rounded-none border border-divider bg-surface px-3 py-2 text-sm text-ink" />
         </div>
         <div>
-          <label for="admin-users-active" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+          <label for="admin-users-active" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
             {{ 'admin.users.filter.active' | translate }}
           </label>
           <select id="admin-users-active" formControlName="is_active"
@@ -69,7 +69,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
           </select>
         </div>
         <div>
-          <label for="admin-users-broker" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+          <label for="admin-users-broker" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
             {{ 'admin.users.filter.broker' | translate }}
           </label>
           <select id="admin-users-broker" formControlName="has_broker"
@@ -90,20 +90,20 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
 
       <!-- ===== Table ===== -->
       @if (admin.loading()) {
-        <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       } @else if (admin.users().length === 0) {
-        <p class="text-sm text-neutral-600">{{ 'admin.users.empty' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'admin.users.empty' | translate }}</p>
       } @else {
         <app-card>
           <table class="w-full border-collapse text-[13px]">
             <thead class="text-left">
               <tr class="border-b border-divider">
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.users.col.email' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.users.col.name' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.users.col.active' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.users.col.mfa' | translate }}</th>
-                <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.users.col.brokers' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'admin.users.col.created' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.users.col.email' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.users.col.name' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.users.col.active' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.users.col.mfa' | translate }}</th>
+                <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.users.col.brokers' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'admin.users.col.created' | translate }}</th>
               </tr>
             </thead>
             <tbody>
@@ -125,7 +125,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
                   </td>
                   <td class="px-3 py-2">{{ (u.mfa_enabled ? 'admin.users.on' : 'admin.users.off') | translate }}</td>
                   <td class="px-3 py-2 text-right font-mono tabular-nums">{{ u.broker_count }}</td>
-                  <td class="px-3 py-2 text-neutral-600">{{ u.created_at | date:'short' }}</td>
+                  <td class="px-3 py-2 text-neutral-700">{{ u.created_at | date:'short' }}</td>
                 </tr>
               }
             </tbody>
@@ -134,7 +134,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
 
         <!-- ===== Pagination ===== -->
         <div class="flex items-center justify-between text-sm">
-          <span class="text-neutral-600">
+          <span class="text-neutral-700">
             {{ 'admin.pagination.page' | translate:{ page: admin.usersPage(), pages: admin.usersTotalPages(), total: admin.usersTotal() } }}
           </span>
           <div class="flex gap-2">

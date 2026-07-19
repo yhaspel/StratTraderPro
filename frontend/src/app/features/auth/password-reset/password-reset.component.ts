@@ -34,7 +34,7 @@ import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
               {{ 'auth.reset.sent' | translate }}
             </div>
           } @else {
-            <p class="mb-4 mt-0 text-sm text-neutral-600">{{ 'auth.reset.description' | translate }}</p>
+            <p class="mb-4 mt-0 text-sm text-neutral-700">{{ 'auth.reset.description' | translate }}</p>
             @if (error()) {
               <div role="alert" class="mb-4 rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep">
                 {{ 'auth.reset.error' | translate }}

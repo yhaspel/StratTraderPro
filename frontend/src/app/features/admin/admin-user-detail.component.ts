@@ -33,7 +33,7 @@ type Action = 'disable' | 'enable' | 'impersonate';
       <a routerLink="/admin/users" class="text-sm text-accent-700 hover:underline">{{ 'admin.nav.back_users' | translate }}</a>
 
       @if (admin.loading()) {
-        <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
       }
       @if (!admin.loading() && admin.selectedUser(); as u) {
         <app-page-header [heading]="u.display_name" [subtitle]="u.email">
@@ -47,13 +47,13 @@ type Action = 'disable' | 'enable' | 'impersonate';
         <!-- ===== Fields ===== -->
         <app-card>
           <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <dt class="text-neutral-600">{{ 'admin.detail.verified' | translate }}</dt>
+            <dt class="text-neutral-700">{{ 'admin.detail.verified' | translate }}</dt>
             <dd>{{ (u.is_verified ? 'admin.users.filter.active_yes' : 'admin.users.filter.active_no') | translate }}</dd>
-            <dt class="text-neutral-600">{{ 'admin.detail.mfa' | translate }}</dt>
+            <dt class="text-neutral-700">{{ 'admin.detail.mfa' | translate }}</dt>
             <dd>{{ (u.mfa_enabled ? 'admin.users.on' : 'admin.users.off') | translate }}</dd>
-            <dt class="text-neutral-600">{{ 'admin.detail.staff' | translate }}</dt>
+            <dt class="text-neutral-700">{{ 'admin.detail.staff' | translate }}</dt>
             <dd>{{ (u.is_staff ? 'admin.users.filter.active_yes' : 'admin.users.filter.active_no') | translate }}</dd>
-            <dt class="text-neutral-600">{{ 'admin.detail.created' | translate }}</dt>
+            <dt class="text-neutral-700">{{ 'admin.detail.created' | translate }}</dt>
             <dd>{{ u.created_at | date:'medium' }}</dd>
           </dl>
         </app-card>
@@ -62,14 +62,14 @@ type Action = 'disable' | 'enable' | 'impersonate';
         <section>
           <h2 class="mb-2 font-heading text-lg font-semibold text-ink">{{ 'admin.detail.brokers' | translate }}</h2>
           @if (u.brokers.length === 0) {
-            <p class="text-sm text-neutral-600">{{ 'admin.detail.no_brokers' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'admin.detail.no_brokers' | translate }}</p>
           } @else {
             <app-card>
               <ul class="divide-y divide-divider text-[13px]">
                 @for (b of u.brokers; track b.id) {
                   <li class="flex items-center justify-between gap-3 px-3 py-2">
                     <span class="font-medium">{{ b.broker }} · {{ b.mode }}</span>
-                    <span class="font-mono tabular-nums text-neutral-600">{{ b.account_number || '—' }}</span>
+                    <span class="font-mono tabular-nums text-neutral-700">{{ b.account_number || '—' }}</span>
                     <app-status-chip [status]="b.status" [dot]="true">{{ b.status }}</app-status-chip>
                     @if (b.is_default) {
                       <app-status-chip tone="outline">{{ 'admin.detail.default' | translate }}</app-status-chip>
@@ -105,7 +105,7 @@ type Action = 'disable' | 'enable' | 'impersonate';
               <div class="space-y-3 border-t border-divider pt-3">
                 <p class="text-sm font-medium">{{ ('admin.detail.confirm.' + act) | translate }}</p>
                 <div>
-                  <label for="admin-action-reason" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+                  <label for="admin-action-reason" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">
                     {{ 'admin.detail.reason' | translate }}
                   </label>
                   <input id="admin-action-reason" type="text" [value]="reason()"
@@ -141,14 +141,14 @@ type Action = 'disable' | 'enable' | 'impersonate';
         <section>
           <h2 class="mb-2 font-heading text-lg font-semibold text-ink">{{ 'admin.detail.recent_audit' | translate }}</h2>
           @if (u.recent_audit.length === 0) {
-            <p class="text-sm text-neutral-600">{{ 'admin.detail.no_audit' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'admin.detail.no_audit' | translate }}</p>
           } @else {
             <app-card>
               <ul class="divide-y divide-divider text-[13px]">
                 @for (a of u.recent_audit; track a.id) {
                   <li class="flex items-center justify-between px-3 py-2">
                     <span class="font-medium">{{ eventLabel(a.event_type) }}</span>
-                    <span class="text-xs text-neutral-600">{{ a.occurred_at | date:'short' }}</span>
+                    <span class="text-xs text-neutral-700">{{ a.occurred_at | date:'short' }}</span>
                   </li>
                 }
               </ul>

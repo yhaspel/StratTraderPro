@@ -33,7 +33,7 @@ let drawerSeq = 0;
             class="font-heading font-semibold text-[13px] uppercase tracking-[0.08em] text-neutral-700">{{ heading }}</h2>
           <button
             type="button"
-            class="p-1 text-neutral-600 hover:text-neutral-800"
+            class="p-1 text-neutral-700 hover:text-neutral-800"
             [attr.aria-label]="closeLabel"
             (click)="close()">✕</button>
         </div>

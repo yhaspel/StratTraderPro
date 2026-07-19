@@ -92,7 +92,7 @@ const PNL_NEUTRAL_BAND = 0.05;
           @if (mfaRequired()) {
             <p class="text-sm text-warn-deep">{{ 'dashboard.requires_mfa' | translate }}</p>
           } @else {
-            <p class="text-sm text-neutral-600">{{ 'dashboard.broker_status.empty' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'dashboard.broker_status.empty' | translate }}</p>
           }
         } @else {
           <div class="flex flex-wrap gap-3">
@@ -115,23 +115,23 @@ const PNL_NEUTRAL_BAND = 0.05;
           {{ 'dashboard.positions.title' | translate }}
         </h2>
         @if (facade.loading()) {
-          <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
         } @else if (facade.positions().length === 0) {
           @if (mfaRequired()) {
             <p class="text-sm text-warn-deep">{{ 'dashboard.requires_mfa' | translate }}</p>
           } @else {
-            <p class="text-sm text-neutral-600">{{ 'dashboard.positions.empty' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'dashboard.positions.empty' | translate }}</p>
           }
         } @else {
           <div stpBlueprint class="bg-transparent">
             <table class="w-full text-[13px]">
               <thead class="text-left">
                 <tr class="border-b border-divider">
-                  <th class="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'dashboard.positions.col.symbol' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'dashboard.positions.col.qty' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'dashboard.positions.col.avg_cost' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'dashboard.positions.col.mark' | translate }}</th>
-                  <th class="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-600">{{ 'dashboard.positions.col.pnl' | translate }}</th>
+                  <th class="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'dashboard.positions.col.symbol' | translate }}</th>
+                  <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'dashboard.positions.col.qty' | translate }}</th>
+                  <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'dashboard.positions.col.avg_cost' | translate }}</th>
+                  <th class="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'dashboard.positions.col.mark' | translate }}</th>
+                  <th class="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-700">{{ 'dashboard.positions.col.pnl' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,8 +139,8 @@ const PNL_NEUTRAL_BAND = 0.05;
                   <tr class="border-t border-divider first:border-t-0 hover:bg-surface">
                     <td class="px-4 py-2 font-semibold">{{ p.symbol }}</td>
                     <td class="px-3 py-2 text-right font-mono tabular-nums">{{ fmtQty(p.qty) }}</td>
-                    <td class="px-3 py-2 text-right font-mono tabular-nums text-neutral-600">{{ fmtMoney(p.avg_cost) }}</td>
-                    <td class="px-3 py-2 text-right font-mono tabular-nums text-neutral-600">{{ p.market_price ? fmtMoney(p.market_price) : '—' }}</td>
+                    <td class="px-3 py-2 text-right font-mono tabular-nums text-neutral-700">{{ fmtMoney(p.avg_cost) }}</td>
+                    <td class="px-3 py-2 text-right font-mono tabular-nums text-neutral-700">{{ p.market_price ? fmtMoney(p.market_price) : '—' }}</td>
                     <td class="px-4 py-2 text-right font-mono font-medium tabular-nums" [ngClass]="pnlClass(p.unrealized_pnl)">
                       {{ p.unrealized_pnl != null ? fmtPnl(p.unrealized_pnl) : '—' }}
                     </td>
@@ -161,7 +161,7 @@ const PNL_NEUTRAL_BAND = 0.05;
           @if (mfaRequired()) {
             <p class="text-sm text-warn-deep">{{ 'dashboard.requires_mfa' | translate }}</p>
           } @else {
-            <p class="text-sm text-neutral-600">{{ 'dashboard.fills.empty' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'dashboard.fills.empty' | translate }}</p>
           }
         } @else {
           <div stpBlueprint class="bg-transparent px-4 py-2">
@@ -169,8 +169,8 @@ const PNL_NEUTRAL_BAND = 0.05;
               @for (f of facade.fills(); track f.id) {
                 <li class="flex items-center justify-between gap-3 border-t border-divider py-2 text-[13px] first:border-t-0">
                   <span class="font-semibold">{{ f.symbol }}</span>
-                  <span class="font-mono tabular-nums text-neutral-600">{{ fmtQty(f.qty) }} &#64; {{ fmtMoney(f.price) }}</span>
-                  <span class="font-mono text-xs text-neutral-600">{{ f.ts | date:'shortTime' }}</span>
+                  <span class="font-mono tabular-nums text-neutral-700">{{ fmtQty(f.qty) }} &#64; {{ fmtMoney(f.price) }}</span>
+                  <span class="font-mono text-xs text-neutral-700">{{ f.ts | date:'shortTime' }}</span>
                 </li>
               }
             </ul>
@@ -182,7 +182,7 @@ const PNL_NEUTRAL_BAND = 0.05;
       @if (!isProd) {
         <section class="border-t border-divider pt-4">
           <button type="button" (click)="sendTestAlert()"
-                  class="rounded-none border border-dashed border-neutral-400 px-3 py-2 text-sm text-neutral-600 hover:bg-surface">
+                  class="rounded-none border border-dashed border-neutral-400 px-3 py-2 text-sm text-neutral-700 hover:bg-surface">
             {{ 'dashboard.dev.send_test_alert' | translate }}
           </button>
           @if (toast()) {
@@ -199,7 +199,7 @@ const PNL_NEUTRAL_BAND = 0.05;
       [destructive]="true"
       [closeLabel]="'common.close' | translate"
       (closed)="cancelHalt()">
-      <p class="mb-3 text-sm text-neutral-600">{{ 'risk.halt_confirm' | translate }}</p>
+      <p class="mb-3 text-sm text-neutral-700">{{ 'risk.halt_confirm' | translate }}</p>
       <form [formGroup]="mfaForm" (ngSubmit)="confirmHalt()" class="space-y-3">
         <div>
           <label class="mb-1 block text-sm font-medium" for="halt-mfa-code">{{ 'risk.mfa_prompt' | translate }}</label>
@@ -286,7 +286,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const n = this.pnlNum(value);
     if (n > PNL_NEUTRAL_BAND) { return 'text-up'; }
     if (n < -PNL_NEUTRAL_BAND) { return 'text-down'; }
-    return 'text-neutral-600';
+    return 'text-neutral-700';
   }
 
   fmtMoney(value: string): string {

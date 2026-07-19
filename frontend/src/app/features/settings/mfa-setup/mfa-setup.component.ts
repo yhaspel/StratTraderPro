@@ -44,7 +44,7 @@ type Step = 'intro' | 'qr' | 'verify' | 'backup' | 'done';
 
       <app-card>
         <!-- step indicator -->
-        <div class="mb-s6 flex gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-neutral-600">
+        <div class="mb-s6 flex gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-neutral-700">
           <span [class.font-bold]="step() === 'intro'" [class.text-accent-700]="step() === 'intro'">1. {{ 'mfa.setup.step.intro' | translate }}</span>
           <span>›</span>
           <span [class.font-bold]="step() === 'qr'" [class.text-accent-700]="step() === 'qr'">2. {{ 'mfa.setup.step.qr' | translate }}</span>
@@ -76,7 +76,7 @@ type Step = 'intro' | 'qr' | 'verify' | 'backup' | 'done';
                 class="mx-auto mb-s3 h-48 w-48 rounded-none border border-divider bg-bg"
               />
               <details class="mb-s3">
-                <summary class="cursor-pointer text-sm text-neutral-600">
+                <summary class="cursor-pointer text-sm text-neutral-700">
                   {{ 'mfa.setup.qr.show_secret' | translate }}
                 </summary>
                 <code class="mt-2 block break-all rounded-none border border-divider bg-surface p-2 font-mono text-sm text-ink">

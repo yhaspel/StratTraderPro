@@ -25,7 +25,7 @@ const MAX_SEGMENTS = 90;
         {{ 'regime.history' | translate }}
       </div>
       @if (series().length === 0) {
-        <p class="text-xs text-neutral-600">{{ 'regime.no_data' | translate }}</p>
+        <p class="text-xs text-neutral-700">{{ 'regime.no_data' | translate }}</p>
       } @else {
         <div class="flex h-5 w-full gap-px overflow-hidden border border-divider"
              role="img" [attr.aria-label]="ariaSummary()">
@@ -34,7 +34,7 @@ const MAX_SEGMENTS = 90;
           }
         </div>
         <!-- Legend: color → regime label, so meaning is not color-only. -->
-        <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-600" aria-hidden="true">
+        <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-700" aria-hidden="true">
           @for (l of legendLabels(); track l) {
             <li class="inline-flex items-center gap-[5px]">
               <span class="inline-block h-[9px] w-[9px]" [ngClass]="barClass(l)"></span>

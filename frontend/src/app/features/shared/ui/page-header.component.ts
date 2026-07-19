@@ -11,7 +11,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
       <div>
         <h1 class="font-heading font-semibold text-[32px] leading-[1.12] tracking-tight text-ink">{{ heading }}</h1>
         @if (subtitle) {
-          <p class="mt-0.5 text-sm text-neutral-600">{{ subtitle }}</p>
+          <p class="mt-0.5 text-sm text-neutral-700">{{ subtitle }}</p>
         }
       </div>
       <div class="flex items-center gap-s2">

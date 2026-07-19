@@ -11,7 +11,7 @@ import { RouterLink } from '@angular/router';
   template: `
     <a
       [routerLink]="['/help', slug]"
-      class="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+      class="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-none border border-divider text-[10px] font-semibold text-neutral-700 hover:bg-accent-100 hover:text-accent-700"
       [attr.aria-label]="label">?</a>
   `,
 })

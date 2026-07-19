@@ -96,18 +96,18 @@ const EVENT_TONES: Record<string, ChipTone> = {
           </h2>
 
           @if (facade.loading() && !facade.profile()) {
-            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
           } @else {
             <form [formGroup]="profileForm" (ngSubmit)="onSave()" class="space-y-s4">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 @for (f of numericFields; track f.key) {
                   <div>
-                    <label class="mb-1 block text-xs font-medium text-neutral-600" [attr.for]="f.key">
+                    <label class="mb-1 block text-xs font-medium text-neutral-700" [attr.for]="f.key">
                       {{ ('risk.profile.' + f.key) | translate }}
                     </label>
                     <input type="number" [id]="f.key" [formControlName]="f.key" [step]="f.step"
                            class="w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
-                    <p class="mt-1 text-[11px] text-neutral-600">{{ ('risk.profile.' + f.key + '_help') | translate }}</p>
+                    <p class="mt-1 text-[11px] text-neutral-700">{{ ('risk.profile.' + f.key + '_help') | translate }}</p>
                     @if (fieldErrors()[f.key]; as errs) {
                       <p class="mt-1 text-xs text-down-deep">{{ errs.join(' ') }}</p>
                     }
@@ -122,12 +122,12 @@ const EVENT_TONES: Record<string, ChipTone> = {
                          class="h-[15px] w-[15px] rounded-none accent-accent" />
                   {{ 'risk.profile.strict_mode' | translate }}
                 </label>
-                <p class="mt-1 text-[11px] text-neutral-600">{{ 'risk.profile.strict_mode_help' | translate }}</p>
+                <p class="mt-1 text-[11px] text-neutral-700">{{ 'risk.profile.strict_mode_help' | translate }}</p>
               </div>
 
               <!-- permitted_asset_classes multi-select -->
               <div>
-                <span class="mb-1 block text-xs font-medium text-neutral-600">{{ 'risk.profile.permitted_asset_classes' | translate }}</span>
+                <span class="mb-1 block text-xs font-medium text-neutral-700">{{ 'risk.profile.permitted_asset_classes' | translate }}</span>
                 <div class="flex flex-wrap gap-2">
                   @for (cls of assetClasses; track cls) {
                     <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-none border px-3 py-1.5 text-sm"
@@ -190,7 +190,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
                 <p class="text-sm font-bold text-ink">
                   {{ 'risk.switch.USER' | translate }}
                   @if (userHalt(); as ks) {
-                    <span class="ml-1 font-mono text-[10px] font-normal text-neutral-600">{{ ks.level }} / {{ ks.scope }}</span>
+                    <span class="ml-1 font-mono text-[10px] font-normal text-neutral-700">{{ ks.level }} / {{ ks.scope }}</span>
                   }
                 </p>
                 @if (userHalt(); as ks) {
@@ -200,7 +200,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
                     @if (ks.reason) { · {{ ('risk.reason.' + ks.reason) | translate }} }
                   </p>
                 } @else {
-                  <p class="mt-0.5 text-sm text-neutral-600">{{ 'risk.switch.inactive' | translate }}</p>
+                  <p class="mt-0.5 text-sm text-neutral-700">{{ 'risk.switch.inactive' | translate }}</p>
                 }
               </div>
               @if (userHalt(); as ks) {
@@ -220,7 +220,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
               }
             </div>
 
-            <label class="mt-s3 inline-flex items-center gap-2 text-sm text-neutral-600">
+            <label class="mt-s3 inline-flex items-center gap-2 text-sm text-neutral-700">
               <input type="checkbox" [checked]="userFlatten()" (change)="toggleUserFlatten()"
                      class="h-[15px] w-[15px] rounded-none accent-accent" />
               {{ 'risk.switch.flatten' | translate }}
@@ -231,7 +231,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
             @if (userMfaOpen()) {
               <form [formGroup]="mfaForm" (ngSubmit)="onConfirmHalt()"
                     class="mt-s3 flex flex-wrap items-center gap-2 border-t border-divider pt-s3">
-                <span class="text-sm text-neutral-600">{{ 'risk.mfa_prompt' | translate }}</span>
+                <span class="text-sm text-neutral-700">{{ 'risk.mfa_prompt' | translate }}</span>
                 <input type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
                        autocomplete="one-time-code"
                        [placeholder]="'risk.switch.mfa_placeholder' | translate"
@@ -262,7 +262,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
                   <div>
                     <p class="text-sm font-bold text-ink">
                       {{ ('risk.switch.' + ks.scope) | translate }}
-                      <span class="ml-1 font-mono text-[10px] font-normal text-neutral-600">{{ ks.level }}</span>
+                      <span class="ml-1 font-mono text-[10px] font-normal text-neutral-700">{{ ks.level }}</span>
                       @if (ks.auto) {
                         <app-status-chip status="AUTO" class="ml-1">
                           {{ 'risk.switch.auto' | translate }}
@@ -270,12 +270,12 @@ const EVENT_TONES: Record<string, ChipTone> = {
                       }
                     </p>
                     @if (ks.strategy) {
-                      <p class="break-all font-mono text-[11px] text-neutral-600">{{ ks.strategy }}</p>
+                      <p class="break-all font-mono text-[11px] text-neutral-700">{{ ks.strategy }}</p>
                     }
                     @if (ks.reason) {
-                      <p class="text-sm text-neutral-600">{{ ('risk.reason.' + ks.reason) | translate }}</p>
+                      <p class="text-sm text-neutral-700">{{ ('risk.reason.' + ks.reason) | translate }}</p>
                     }
-                    <p class="font-mono text-xs text-neutral-600">{{ ks.created_at | date:'short' }}</p>
+                    <p class="font-mono text-xs text-neutral-700">{{ ks.created_at | date:'short' }}</p>
                   </div>
                   <app-button variant="success" class="shrink-0" (clicked)="onReleaseOther(ks)">
                     {{ 'risk.switch.release' | translate }}
@@ -300,7 +300,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
               {{ 'risk.events.title' | translate }}
             </h2>
             @if (facade.events().length === 0) {
-              <p class="text-sm text-neutral-600">{{ 'risk.events.empty' | translate }}</p>
+              <p class="text-sm text-neutral-700">{{ 'risk.events.empty' | translate }}</p>
             } @else {
               <ul class="divide-y divide-divider">
                 @for (e of facade.events(); track e.id) {
@@ -308,8 +308,8 @@ const EVENT_TONES: Record<string, ChipTone> = {
                     <app-status-chip [tone]="eventTone(e.type)" class="shrink-0">
                       {{ ('risk.event.' + e.type) | translate }}
                     </app-status-chip>
-                    <span class="shrink-0 font-mono text-xs text-neutral-600">{{ e.created_at | date:'short' }}</span>
-                    <code class="min-w-0 truncate font-mono text-xs text-neutral-600">{{ e.details | json }}</code>
+                    <span class="shrink-0 font-mono text-xs text-neutral-700">{{ e.created_at | date:'short' }}</span>
+                    <code class="min-w-0 truncate font-mono text-xs text-neutral-700">{{ e.details | json }}</code>
                   </li>
                 }
               </ul>
@@ -325,22 +325,22 @@ const EVENT_TONES: Record<string, ChipTone> = {
             {{ 'risk.sizing.title' | translate }}
           </h2>
           @if (sizingRows().length === 0) {
-            <p class="text-sm text-neutral-600">{{ 'risk.sizing.empty' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'risk.sizing.empty' | translate }}</p>
           } @else {
             <table class="w-full text-[13px]">
               <thead class="text-left">
                 <tr>
-                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-600">{{ 'risk.sizing.col.time' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-600">{{ 'risk.sizing.col.symbol' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-600">{{ 'risk.sizing.col.requested' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-600">{{ 'risk.sizing.col.computed' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-600">{{ 'risk.sizing.col.result' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.time' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.symbol' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.requested' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.computed' | translate }}</th>
+                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.result' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (d of sizingRows(); track d.id) {
                   <tr class="border-t border-divider">
-                    <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-600">{{ d.created_at | date:'short' }}</td>
+                    <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-neutral-700">{{ d.created_at | date:'short' }}</td>
                     <td class="px-3 py-1.5 font-bold text-ink">{{ d.symbol }}</td>
                     <td class="px-3 py-1.5 text-right font-mono">{{ fmtQty(d.requested_qty) }}</td>
                     <td class="px-3 py-1.5 text-right font-mono">{{ fmtQty(d.computed_qty) }}</td>

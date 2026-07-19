@@ -42,7 +42,7 @@ const SPARK_PAD = 4;
           <div class="flex flex-wrap items-center gap-5">
             <!-- Current market polarity — signed mono, colored by sign. -->
             <div class="flex flex-col">
-              <span class="text-[11px] font-medium uppercase tracking-wide text-neutral-600">
+              <span class="text-[11px] font-medium uppercase tracking-wide text-neutral-700">
                 {{ 'sentiment.market' | translate }}
               </span>
               <span class="font-mono text-[28px] font-semibold tabular-nums" [ngClass]="polarityTextClass(c.polarity)">
@@ -71,9 +71,9 @@ const SPARK_PAD = 4;
             }
           </div>
         } @else if (loading()) {
-          <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
         } @else {
-          <p class="text-sm text-neutral-600">{{ 'sentiment.no_data' | translate }}</p>
+          <p class="text-sm text-neutral-700">{{ 'sentiment.no_data' | translate }}</p>
         }
 
         <!-- Recent impactful news. -->
@@ -82,7 +82,7 @@ const SPARK_PAD = 4;
             {{ 'sentiment.recent_news' | translate }}
           </div>
           @if (topArticles().length === 0) {
-            <p class="text-xs text-neutral-600">{{ 'sentiment.no_data' | translate }}</p>
+            <p class="text-xs text-neutral-700">{{ 'sentiment.no_data' | translate }}</p>
           } @else {
             <ul>
               @for (a of topArticles(); track a.id) {
@@ -93,9 +93,9 @@ const SPARK_PAD = 4;
                   </span>
                   <a [href]="a.url" target="_blank" rel="noopener"
                      class="flex-1 truncate text-ink hover:underline">{{ a.title }}</a>
-                  <span class="shrink-0 text-[11px] text-neutral-600">{{ a.source }}</span>
+                  <span class="shrink-0 text-[11px] text-neutral-700">{{ a.source }}</span>
                   @if (a.impact != null) {
-                    <span class="shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">
+                    <span class="shrink-0 font-mono text-[11px] tabular-nums text-neutral-700">
                       {{ 'sentiment.impact' | translate }} {{ fmtImpact(a.impact) }}
                     </span>
                   }
@@ -147,7 +147,7 @@ export class SentimentPanelComponent {
     const p = polarity ?? 0;
     if (p > NEUTRAL_BAND) { return 'text-up'; }
     if (p < -NEUTRAL_BAND) { return 'text-down'; }
-    return 'text-neutral-600';
+    return 'text-neutral-700';
   }
 
   polarityArrow(polarity: number | null): string {

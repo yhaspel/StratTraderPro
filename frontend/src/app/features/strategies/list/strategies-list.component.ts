@@ -34,7 +34,7 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
     <div class="mx-auto max-w-6xl p-6">
       <app-page-header [heading]="'strategies.list.title' | translate">
         <a actions routerLink="/strategies/upload" stpBlueprint
-           class="inline-flex items-center justify-center rounded-none border border-accent bg-accent px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-bg no-underline transition-colors hover:bg-accent-600 active:bg-accent-700">
+           class="inline-flex items-center justify-center rounded-none border border-accent-700 bg-accent-700 px-3 py-1.5 font-heading text-sm font-semibold leading-tight text-bg no-underline transition-colors hover:bg-accent-800 active:bg-accent-900">
           {{ 'strategies.list.upload_button' | translate }}
         </a>
       </app-page-header>
@@ -46,18 +46,18 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
       }
 
       @if (facade.loading()) {
-        <p class="text-sm text-neutral-600">{{ 'strategies.list.loading' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'strategies.list.loading' | translate }}</p>
       } @else if (facade.strategies().length === 0) {
-        <p class="text-sm text-neutral-600">{{ 'strategies.list.empty' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'strategies.list.empty' | translate }}</p>
       } @else {
         <div stpBlueprint class="bg-transparent">
           <table class="w-full text-[13px]">
             <thead class="text-left">
               <tr class="border-b border-divider">
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'strategies.list.col.name' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'strategies.list.col.type' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'strategies.list.col.enabled' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-600">{{ 'strategies.list.col.webhook' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'strategies.list.col.name' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'strategies.list.col.type' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'strategies.list.col.enabled' | translate }}</th>
+                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'strategies.list.col.webhook' | translate }}</th>
                 <th class="px-3 py-2"></th>
               </tr>
             </thead>
@@ -66,7 +66,7 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
                 <tr class="border-t border-neutral-200">
                   <td class="px-3 py-3">
                     <div class="font-bold">{{ s.name }}</div>
-                    <div class="mt-0.5 text-xs text-neutral-600">{{ s.description_short }}</div>
+                    <div class="mt-0.5 text-xs text-neutral-700">{{ s.description_short }}</div>
                     @if (!s.is_system) {
                       <div class="mt-1.5">
                         <app-status-chip tone="warn">
@@ -92,7 +92,7 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
                       [ariaLabel]="(s.is_enabled ? 'strategies.list.disable' : 'strategies.list.enable') | translate"
                       (toggled)="onToggle(s)" />
                   </td>
-                  <td class="px-3 py-3 text-xs text-neutral-600">
+                  <td class="px-3 py-3 text-xs text-neutral-700">
                     {{ (s.has_webhook_config ? 'strategies.list.webhook.configured' : 'strategies.list.webhook.unconfigured') | translate }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-3 text-right space-x-2">

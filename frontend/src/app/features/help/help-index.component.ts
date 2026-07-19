@@ -18,7 +18,7 @@ interface Article {
   template: `
     <div class="mx-auto max-w-3xl">
       <h1 class="font-heading text-[32px] font-semibold leading-tight text-ink">{{ 'help.index.title' | translate }}</h1>
-      <p class="mt-1 text-sm text-neutral-600">{{ 'help.index.subtitle' | translate }}</p>
+      <p class="mt-1 text-sm text-neutral-700">{{ 'help.index.subtitle' | translate }}</p>
       <ul class="mt-s4 grid gap-2 sm:grid-cols-2">
         @for (a of articles; track a.slug) {
           <li>

@@ -74,7 +74,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
         @if (admin.health(); as h) {
           <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
             <app-card>
-              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.db' | translate }}</div>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-700">{{ 'admin.health.db' | translate }}</div>
               <div class="mt-1.5">
                 <app-status-chip [tone]="h.db_ok ? 'up' : 'down'" [dot]="true">
                   {{ (h.db_ok ? 'admin.health.ok' : 'admin.health.down') | translate }}
@@ -82,7 +82,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
               </div>
             </app-card>
             <app-card>
-              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.redis' | translate }}</div>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-700">{{ 'admin.health.redis' | translate }}</div>
               <div class="mt-1.5">
                 <app-status-chip [tone]="h.redis_ok ? 'up' : 'down'" [dot]="true">
                   {{ (h.redis_ok ? 'admin.health.ok' : 'admin.health.down') | translate }}
@@ -90,11 +90,11 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
               </div>
             </app-card>
             <app-card>
-              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.queue_total' | translate }}</div>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-700">{{ 'admin.health.queue_total' | translate }}</div>
               <div class="mt-1 font-mono text-[20px] font-semibold tabular-nums text-ink">{{ queueTotal(h.queue_depths) }}</div>
             </app-card>
             <app-card>
-              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-600">{{ 'admin.health.sentiment_backlog' | translate }}</div>
+              <div class="text-[10px] uppercase tracking-[.1em] text-neutral-700">{{ 'admin.health.sentiment_backlog' | translate }}</div>
               <div class="mt-1 font-mono text-[20px] font-semibold tabular-nums text-ink">{{ h.sentiment_backlog }}</div>
             </app-card>
           </div>
@@ -108,7 +108,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
               }
             </p>
           } @else {
-            <p class="text-sm text-neutral-600">{{ 'common.loading' | translate }}</p>
+            <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
           }
         }
       </section>
@@ -122,7 +122,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
               {{ (admin.platformHalted() ? 'admin.overview.halted' : 'admin.overview.running') | translate }}
             </p>
             @if (admin.platform()?.note; as note) {
-              <p class="mt-1 text-xs text-neutral-600">{{ note }}</p>
+              <p class="mt-1 text-xs text-neutral-700">{{ note }}</p>
             }
           </div>
           @if (admin.platformHalted()) {

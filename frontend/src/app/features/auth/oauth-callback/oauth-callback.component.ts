@@ -26,7 +26,7 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
     <div class="mx-auto max-w-[400px] px-6 py-12 text-center">
       @if (state() === 'working') {
         <h1 class="mb-4 font-heading text-2xl font-semibold text-ink">{{ 'oauth.callback.working_title' | translate }}</h1>
-        <p class="text-sm text-neutral-600">{{ 'oauth.callback.working_body' | translate }}</p>
+        <p class="text-sm text-neutral-700">{{ 'oauth.callback.working_body' | translate }}</p>
         <div class="mt-6 inline-block h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" role="status"></div>
       } @else if (state() === 'error') {
         <div class="mb-4 rounded-none border border-down bg-down-tint px-4 py-6 text-down-deep">
@@ -36,7 +36,7 @@ import { AuthFacade } from '../../../abstraction/facades/auth.facade';
           </p>
         </div>
         <a routerLink="/login"
-           class="inline-flex items-center justify-center rounded-none bg-accent px-4 py-2 font-heading text-sm font-semibold text-bg transition-colors hover:bg-accent-600">
+           class="inline-flex items-center justify-center rounded-none bg-accent-700 px-4 py-2 font-heading text-sm font-semibold text-bg transition-colors hover:bg-accent-800">
           {{ 'oauth.callback.back_to_login' | translate }}
         </a>
       }
