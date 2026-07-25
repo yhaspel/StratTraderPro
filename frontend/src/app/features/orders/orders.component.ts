@@ -7,7 +7,7 @@
  * Visual layer: "Industry" design system — blueprint-framed panels, dense
  * mono-numeric table, shared status chips and the shared app-drawer.
  */
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
@@ -28,6 +28,7 @@ const ORDER_STATUSES = [
   'FILLED',
   'CANCELLED',
   'REJECTED',
+  'NEEDS_RECONCILE',
 ] as const;
 
 const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
@@ -35,6 +36,7 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
 @Component({
   selector: 'app-orders',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, ReactiveFormsModule, TranslateModule, DatePipe,
     BlueprintDirective, ButtonComponent, CardComponent, DrawerComponent,
@@ -110,15 +112,15 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
             <table class="w-full text-[13px]">
               <thead class="text-left">
                 <tr class="border-b border-divider">
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.time' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.broker' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.strategy' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.symbol' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.side' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.qty' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.type' | translate }}</th>
-                  <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.status' | translate }}</th>
-                  <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.filled' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.time' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.broker' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.strategy' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.symbol' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.side' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.qty' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.type' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.status' | translate }}</th>
+                  <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.col.filled' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,12 +179,12 @@ const BROKERS = ['ALPACA', 'TRADESTATION'] as const;
           <table class="w-full text-[13px]">
             <thead class="text-left">
               <tr class="border-b border-divider">
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.time' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.symbol' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.kind' | translate }}</th>
-                <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.our_qty' | translate }}</th>
-                <th class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.broker_qty' | translate }}</th>
-                <th class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.detail' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.time' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.symbol' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.kind' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.our_qty' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.broker_qty' | translate }}</th>
+                <th scope="col" class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-700">{{ 'orders.recon.col.detail' | translate }}</th>
               </tr>
             </thead>
             <tbody>

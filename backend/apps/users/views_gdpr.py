@@ -27,7 +27,7 @@ from .metrics_gdpr import DELETE_REQUESTS_TOTAL, EXPORT_REQUESTS_TOTAL
 from .models import DataExportJob
 from .responses import fail, ok
 from .services import _send_templated
-from .tasks import run_data_export, signed_export_url
+from .tasks import export_storage, run_data_export, signed_export_url
 
 # 30-day soft-delete window (frozen decision §4.3).
 DELETE_WINDOW = timedelta(days=30)
@@ -95,8 +95,39 @@ class DataExportStatusView(APIView):
             if job.is_expired:
                 body["status"] = DataExportJob.Status.EXPIRED
             else:
-                body["download_url"] = signed_export_url(job.file_key)
+                body["download_url"] = signed_export_url(job)
         return ok(body)
+
+
+class DataExportDownloadView(APIView):
+    """P1-3 — serve the export ZIP through an authenticated, owner-checked view.
+
+    The filesystem export backend (the default self-hosted deploy) has no served
+    ``/media/`` path, so the previously-advertised signed URL 404'd. This streams
+    the bytes only to the owner, only while the job is READY and unexpired."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Download a produced personal-data export (owner only)")
+    def get(self, request, job_id):
+        from django.http import FileResponse
+
+        try:
+            job = DataExportJob.objects.get(id=job_id, user=request.user)
+        except (DataExportJob.DoesNotExist, ValueError, TypeError):
+            return fail("EXPORT_NOT_FOUND", "Export job not found.", status=status.HTTP_404_NOT_FOUND)
+        if job.status != DataExportJob.Status.READY or not job.file_key:
+            return fail("EXPORT_NOT_READY", "Export is not ready.", status=status.HTTP_404_NOT_FOUND)
+        if job.is_expired:
+            return fail("EXPORT_EXPIRED", "This export has expired.", status=status.HTTP_410_GONE)
+        try:
+            fh = export_storage().open(job.file_key)
+        except (FileNotFoundError, OSError):
+            return fail("EXPORT_NOT_FOUND", "Export file is no longer available.",
+                        status=status.HTTP_404_NOT_FOUND)
+        resp = FileResponse(fh, content_type="application/zip")
+        resp["Content-Disposition"] = f'attachment; filename="strattraderpro-export-{job.id}.zip"'
+        return resp
 
 
 # ---------------------------------------------------------------------------

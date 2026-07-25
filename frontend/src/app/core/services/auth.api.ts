@@ -16,6 +16,11 @@ import {
 
 const BASE = `${environment.apiBase}/v1`;
 
+// P1-4: requests that set or send the HttpOnly refresh cookie must attach
+// credentials so the browser stores the Set-Cookie / replays the cookie
+// (required cross-origin; harmless same-origin).
+const WITH_COOKIE = { withCredentials: true } as const;
+
 @Injectable({ providedIn: 'root' })
 export class AuthApi {
   private http = inject(HttpClient);
@@ -27,7 +32,7 @@ export class AuthApi {
   }
 
   verifyEmail(token: string): Observable<ApiEnvelope<AuthTokenPair>> {
-    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/verify-email/`, { token });
+    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/verify-email/`, { token }, WITH_COOKIE);
   }
 
   resendVerification(email: string): Observable<ApiEnvelope<{ status: string }>> {
@@ -39,15 +44,17 @@ export class AuthApi {
    * backend's response shape is discriminated by `mfa_required`.
    */
   login(email: string, password: string): Observable<ApiEnvelope<LoginResult>> {
-    return this.http.post<ApiEnvelope<LoginResult>>(`${BASE}/auth/login/`, { email, password });
+    return this.http.post<ApiEnvelope<LoginResult>>(`${BASE}/auth/login/`, { email, password }, WITH_COOKIE);
   }
 
-  refresh(refreshToken: string): Observable<ApiEnvelope<AuthTokenPair>> {
-    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/refresh/`, { refresh: refreshToken });
+  /** P1-4: no body — the refresh token rides the HttpOnly cookie. */
+  refresh(): Observable<ApiEnvelope<AuthTokenPair>> {
+    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/refresh/`, {}, WITH_COOKIE);
   }
 
-  logout(refreshToken: string): Observable<ApiEnvelope<{ status: string }>> {
-    return this.http.post<ApiEnvelope<{ status: string }>>(`${BASE}/auth/logout/`, { refresh: refreshToken });
+  /** P1-4: no body — the cookie identifies the family; the server clears it. */
+  logout(): Observable<ApiEnvelope<{ status: string }>> {
+    return this.http.post<ApiEnvelope<{ status: string }>>(`${BASE}/auth/logout/`, {}, WITH_COOKIE);
   }
 
   passwordReset(email: string): Observable<ApiEnvelope<{ status: string }>> {
@@ -55,7 +62,9 @@ export class AuthApi {
   }
 
   passwordResetConfirm(token: string, password: string): Observable<ApiEnvelope<AuthTokenPair>> {
-    return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/password/reset/confirm/`, { token, password });
+    return this.http.post<ApiEnvelope<AuthTokenPair>>(
+      `${BASE}/auth/password/reset/confirm/`, { token, password }, WITH_COOKIE,
+    );
   }
 
   me(): Observable<ApiEnvelope<AuthMeResponse>> {
@@ -76,7 +85,7 @@ export class AuthApi {
   mfaVerify(mfaToken: string, code: string, isBackupCode = false): Observable<ApiEnvelope<AuthTokenPair>> {
     return this.http.post<ApiEnvelope<AuthTokenPair>>(`${BASE}/auth/mfa/verify/`, {
       mfa_token: mfaToken, code, is_backup_code: isBackupCode,
-    });
+    }, WITH_COOKIE);
   }
 
   mfaDisable(currentPassword: string, code: string): Observable<ApiEnvelope<{ status: string }>> {
@@ -133,6 +142,6 @@ export class AuthApi {
   oauthExchange(exchangeCode: string): Observable<ApiEnvelope<LoginResult>> {
     return this.http.post<ApiEnvelope<LoginResult>>(`${BASE}/auth/oauth/exchange/`, {
       exchange: exchangeCode,
-    });
+    }, WITH_COOKIE);
   }
 }

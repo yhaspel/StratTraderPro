@@ -265,7 +265,10 @@ class StrategyDetailView(APIView):
         emit(
             AuditEventType.STRATEGY_UPDATED, user=request.user, actor=request.user, request=request,
             entity_type="strategy", entity_id=str(strategy.id),
-            data_after={k: request.data.get(k) for k in request.data},
+            # P1-9: audit only the known, validated fields — never echo arbitrary
+            # client body keys (a body like {"current_password": "…"} would
+            # otherwise persist unredacted into the immutable log).
+            data_after=dict(ser.validated_data),
         )
         return ok(StrategySerializer(strategy, context={"request": request}).data)
 
@@ -337,14 +340,20 @@ class WebhookConfigView(APIView):
         strategy = self._load_strategy(request, pk)
         if not can_user_view(request.user, strategy):
             return fail("STRATEGY_NOT_FOUND", "Strategy not found.", status=404)
+        # P0-3: "read-only" impersonation must mean side-effect read-only. A GET
+        # under impersonation must NOT create a config (a DB write) nor reveal the
+        # target's webhook secret (a bearer credential for order placement).
+        impersonating = getattr(request, "impersonation", None) is not None
         cfg, created, raw_secret = services.get_or_create_webhook_config(
-            user=request.user, strategy=strategy,
+            user=request.user, strategy=strategy, allow_create=not impersonating,
         )
+        if cfg is None:
+            return fail("WEBHOOK_CONFIG_NOT_FOUND", "No webhook config exists.", status=404)
         body = WebhookConfigReadSerializer(cfg).data
         # Reveal-once: first-time creation surfaces the secret here. Subsequent
-        # gets do NOT include the secret — caller must use /rotate/ to reveal
-        # a new one.
-        if created and raw_secret is not None:
+        # gets (and any impersonated read) do NOT include the secret — caller must
+        # use /rotate/ to reveal a new one.
+        if created and raw_secret is not None and not impersonating:
             body["secret"] = raw_secret
             body["reveal_once"] = True
         else:

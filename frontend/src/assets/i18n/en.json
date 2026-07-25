@@ -152,6 +152,7 @@
     },
     "error": {
       "MFA_CODE_INVALID": "That code didn't match. Try again.",
+      "MFA_LOCKED": "Too many incorrect codes. Please sign in again.",
       "TOKEN_INVALID": "Your sign-in session expired. Please sign in again.",
       "INVALID_CREDENTIALS": "Password or code didn't match.",
       "MFA_NOT_ENABLED": "MFA is not enabled on this account.",
@@ -233,8 +234,14 @@
       "untested_banner": "Community-tested: No",
       "configure_webhook": "Configure webhook",
       "delete": "Delete",
+      "delete_confirm": "Delete \"{{name}}\"? It will be disabled and hidden from your list; you can re-upload it later.",
       "enable": "Enable",
       "disable": "Disable",
+      "enable_confirm": {
+        "title": "Enable this strategy?",
+        "body": "Enabling this strategy will execute live orders from its webhook alerts.",
+        "confirm": "Enable strategy"
+      },
       "col": {
         "name": "Strategy",
         "type": "Type",
@@ -257,6 +264,12 @@
       "back": "Back",
       "submit": "Upload strategy",
       "submitting": "Uploading…",
+      "warn": {
+        "pine_ext": "File must end in .pine",
+        "stem": "Name must be 3–64 characters (letters, numbers, _ or -)",
+        "filename": "Filename must be {{name}}",
+        "too_large": "File exceeds {{size}}"
+      },
       "pine": {
         "label": "Pine script (.pine)",
         "hint": "Must start with //@version= within the first 64 bytes. Max 64 KB."
@@ -341,6 +354,12 @@
       "flatten": "Flatten all",
       "mfa_placeholder": "6-digit code",
       "confirm_remove": "Confirm remove"
+    },
+    "flatten": {
+      "title": "Flatten all positions?",
+      "warning": "This closes ALL open positions on this account at market. This cannot be undone.",
+      "type_to_confirm": "Type FLATTEN to confirm",
+      "confirm": "Flatten positions"
     },
     "connect": {
       "title": "Connect Alpaca Paper",
@@ -438,7 +457,8 @@
       "PARTIAL": "Partially filled",
       "FILLED": "Filled",
       "CANCELLED": "Cancelled",
-      "REJECTED": "Rejected"
+      "REJECTED": "Rejected",
+      "NEEDS_RECONCILE": "Reconciling"
     },
     "pagination": {
       "page": "Page {{page}} of {{pages}} · {{total}} total",
@@ -558,7 +578,8 @@
     "save": "Save",
     "defaults": "Reset to defaults",
     "halt_my_trading": "Halt my trading",
-    "halt_confirm": "This immediately stops new orders and flattens your open positions. Enter your authenticator code to confirm.",
+    "halt_confirm": "This immediately stops new orders. Enter your authenticator code to confirm.",
+    "halt_flatten_choice": "Also flatten (close) all open positions at market. This cannot be undone.",
     "halt_banner": "Trading is halted — a kill switch is active. New orders are blocked.",
     "mfa_prompt": "Authenticator code",
     "profile": {
@@ -621,6 +642,8 @@
       "REGIME_SIDE_MISMATCH": "Order side conflicts with the current regime",
       "SIZING_ZERO": "Computed size rounded to zero",
       "SIZING_ERROR": "Sizing failed — order rejected for safety",
+      "NO_RISK_PROFILE": "Set up your risk profile before live trading — order rejected for safety",
+      "HARD_STOP": "Hard-stop drawdown reached — trading halted for the day",
       "DAILY_LOSS_BREACH": "Daily loss limit reached",
       "KILL_SWITCH_ACTIVE": "A kill switch is active",
       "LIMIT_POSITION_PCT": "Position-size limit exceeded"
@@ -634,7 +657,8 @@
     },
     "events": {
       "title": "Risk events",
-      "empty": "No risk events yet."
+      "empty": "No risk events yet.",
+      "details": "Details"
     },
     "sizing": {
       "title": "Sizing decisions",

@@ -78,6 +78,55 @@ class ImpersonationRequestTests(TestCase):
         self.assertEqual(self.client.get("/api/v1/risk/profile/").status_code, 401)
 
 
+class ImpersonationWebhookSecretTests(TestCase):
+    """P0-3: a read-only impersonation GET must never create a webhook config
+    (a DB write) nor reveal the target's webhook secret (a bearer credential for
+    order placement)."""
+
+    def setUp(self):
+        from apps.m04_testutils import create_strategy, create_webhook_config
+
+        self.admin, _ = make_user("wsadmin@x.com", is_staff=True, mfa=True)
+        self.target, _ = make_user("wstarget@x.com", mfa=True)
+        self.strategy = create_strategy(self.target)
+        self._create_webhook_config = create_webhook_config
+        self.session, self.token = start_session(actor=self.admin, target=self.target, reason="debug")
+        self.client = APIClient()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
+
+    def _url(self):
+        return f"/api/v1/strategies/{self.strategy.id}/webhook-config/"
+
+    def test_impersonation_get_webhook_config_never_creates_or_reveals(self):
+        from apps.strategies.models import WebhookConfig
+
+        self.assertFalse(WebhookConfig.objects.filter(strategy=self.strategy).exists())
+        resp = self.client.get(self._url())
+        # No config exists and impersonation must not mint one → 404, zero rows.
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(WebhookConfig.objects.filter(strategy=self.strategy).count(), 0)
+
+    def test_impersonation_get_existing_config_hides_secret(self):
+        self._create_webhook_config(self.target, self.strategy)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()["data"]
+        self.assertIsNone(body["secret"])
+        self.assertFalse(body["reveal_once"])
+
+    def test_owner_reveal_once_still_works_without_impersonation(self):
+        # Non-regression: the real owner still gets the reveal-once secret.
+        from apps.m04_testutils import access_token
+
+        owner_client = APIClient()
+        owner_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token(self.target)}")
+        resp = owner_client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()["data"]
+        self.assertTrue(body["reveal_once"])
+        self.assertTrue(body["secret"])
+
+
 class AdminPortalDisabledTests(TestCase):
     @override_settings(ADMIN_PORTAL_ENABLED=False)
     def test_all_admin_routes_503_when_disabled(self):

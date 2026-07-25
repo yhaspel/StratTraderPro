@@ -52,7 +52,7 @@ describe('refreshInterceptor', () => {
   it('passes through non-401 errors without refresh attempt', (done) => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
-      'access', 'refresh'
+      'access'
     );
     http.get(`${API}/some-endpoint`).subscribe({
       error: (err: HttpErrorResponse) => {
@@ -63,10 +63,19 @@ describe('refreshInterceptor', () => {
     controller.expectOne(`${API}/some-endpoint`).flush({}, { status: 403, statusText: 'Forbidden' });
   });
 
-  it('logs out when 401 received and no refresh token is stored', (done) => {
+  it('attempts a refresh on 401 (cookie may hold a session) before logging out', (done) => {
+    // P1-4: the refresh token is an HttpOnly cookie the SPA can't inspect, so a
+    // 401 always triggers a refresh attempt rather than an immediate logout.
+    const refreshSpy = spyOn(facade, 'refreshSession').and.returnValue(Promise.resolve(false));
     spyOn(facade, 'logout').and.returnValue(Promise.resolve());
 
-    http.get(`${API}/protected`).subscribe({ error: () => done() });
+    http.get(`${API}/protected`).subscribe({
+      error: () => {
+        expect(refreshSpy).toHaveBeenCalled();
+        expect(facade.logout).toHaveBeenCalled();
+        done();
+      },
+    });
 
     controller.expectOne(`${API}/protected`).flush({}, { status: 401, statusText: 'Unauthorized' });
   });
@@ -74,7 +83,7 @@ describe('refreshInterceptor', () => {
   it('does NOT refresh or logout on a 401 from /auth/login/ (C-FE-1)', (done) => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
-      'access', 'refresh'
+      'access'
     );
     const refreshSpy = spyOn(facade, 'refreshSession').and.returnValue(Promise.resolve(true));
     const logoutSpy = spyOn(facade, 'logout').and.returnValue(Promise.resolve());
@@ -96,10 +105,10 @@ describe('refreshInterceptor', () => {
   it('retries the request with new access token after successful refresh', async () => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
-      'old-access', 'refresh-tok'
+      'old-access'
     );
     spyOn(facade, 'refreshSession').and.callFake(async () => {
-      store.updateTokens('new-access', 'new-refresh');
+      store.updateTokens('new-access');
       return true;
     });
 
@@ -126,7 +135,7 @@ describe('refreshInterceptor', () => {
   it('logs out when refresh itself fails', (done) => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
-      'old-access', 'refresh-tok'
+      'old-access'
     );
     spyOn(facade, 'refreshSession').and.returnValue(Promise.resolve(false));
     spyOn(facade, 'logout').and.returnValue(Promise.resolve());
@@ -144,7 +153,7 @@ describe('refreshInterceptor', () => {
   it('queues a second concurrent 401 request while refresh is in-flight', (done) => {
     store.setAuthed(
       { id: 'u1', email: 'a@b.com', display_name: 'A', is_verified: true },
-      'old-access', 'refresh-tok'
+      'old-access'
     );
 
     let resolveRefresh!: (ok: boolean) => void;
@@ -163,7 +172,7 @@ describe('refreshInterceptor', () => {
     controller.expectOne(`${API}/r2`).flush({}, { status: 401, statusText: 'Unauthorized' });
 
     // Resolve refresh — both retries should fire
-    store.updateTokens('new-access', 'new-refresh');
+    store.updateTokens('new-access');
     resolveRefresh(true);
 
     // Answer both retried requests

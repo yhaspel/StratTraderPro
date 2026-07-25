@@ -44,7 +44,13 @@ def reconcile_account(account) -> list[ReconEvent]:
 
     adapter = build_adapter(account)
     broker_positions = {p.symbol: p for p in adapter.list_positions()}
-    return _apply_reconcile(account, broker_positions)
+    events = _apply_reconcile(account, broker_positions)
+    # P1-5 — the periodic reconcile also resolves ambiguous (NEEDS_RECONCILE)
+    # orders by probing the broker by client_order_id.
+    from .services import resolve_needs_reconcile
+
+    resolve_needs_reconcile(account, adapter)
+    return events
 
 
 @transaction.atomic

@@ -6,6 +6,98 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Review remediation, Phase 3 (P3 · Low / defense-in-depth)
+- Backend: P3-5 admin-gate `/api/schema/` + `/api/docs/` in prod; P3-6 enforce the strict
+  `default-src 'none'` CSP in prod; P3-4 bound user-editable JSON Schema complexity at save
+  (depth / no `patternProperties` / capped `pattern`) to prevent a self-inflicted regex-DoS on
+  the ingest hot path; P3-1 document the sizing float→Decimal boundary; P3-2 bad-sig write
+  amplification is bounded by the P2-2 rate limit + keyless P2-5 rows.
+- Frontend: P3-7 same-origin-only post-login redirect; P3-8 validated OAuth authorize URL
+  (https + host allowlist); P3-9 unified guard predicate (via P1-4); P3-10 leak-safe help
+  subscription; P3-11 removed the dead refresh-interceptor filter; P3-12 typed the retry path;
+  P3-13 24×24 help tap target; P3-14 `scope="col"` on the orders/risk tables.
+- Scoped follow-up: P3-3 (daily-loss equity caching — scaling note), chart.js config typing,
+  and filter/paginate `aria-live` result counts.
+
+### Fixed — Review remediation, Phase 2 (P2 · Medium)
+- **Backend abuse-resistance** — P2-1 webhook IP allowlist reads the trusted (right-most)
+  XFF entry per `WEBHOOK_TRUSTED_PROXY_COUNT`; P2-2 split bad-sig vs valid-alert rate
+  budgets so a flood can't starve a victim's alerts; P2-3 per-IP limits on
+  register/resend/reset; P2-4 IP-scoped login lockout (ADR-108); P2-5 durable
+  idempotency anchor (`unique(user, idempotency_key)`, migration 0002) + stranded-alert
+  requeue; P2-6 nightly export eviction + purge-on-anonymize; P2-7 kept the audit chain's
+  advisory lock (the suggested row-lock forks the chain — validated + documented);
+  P2-8 row-locked refresh rotation + one-step grace jti (migration 0006).
+- **Frontend lifecycle** — P2-9 WS refcount no longer leaks on reconnect (openSocket split);
+  P2-10 dashboard JWT rides the `Sec-WebSocket-Protocol` subprotocol, not the URL;
+  P2-11 socket tears down on logout / stops reconnecting when logged out; P2-12 help HTML
+  bound via Angular's sanitizer (no `bypassSecurityTrustHtml`); P2-13 OnPush on data-heavy
+  screens; P2-14 `provideAppInitializer` + timeout-bounded bootstrap refresh.
+- **Design / a11y / UX** — P2-DESIGN-1 dashboard halt uses the shared focus-trapping modal
+  with an explicit flatten choice; DESIGN-2 register form wires `aria-describedby`;
+  DESIGN-3 route-change focus + aria-live announcement; DESIGN-4 AA-contrast danger/success/
+  accent tokens; DESIGN-6 auth submit buttons stay enabled (focus first invalid on submit);
+  DESIGN-7 risk-event JSON behind a keyboard-accessible expander; DESIGN-8 strategies-upload
+  validation moved to i18n with humanized sizes.
+  DESIGN-5 (migrate 485 hardcoded Tailwind palette colors → design tokens across 34 feature
+  files) is tracked as incremental follow-up per the plan's "screen-by-screen" guidance.
+
+### Fixed — Review remediation, Phase 1 (P1 · High)
+- **P1-1 · MFA login brute-force** — the login second factor was per-IP-limited only.
+  Added a per-user failure cap (locks the challenge, `MFA_LOCKED`) plus per-token (jti)
+  burn so a failed `mfa_token` can't be reused. (`apps/users/{views_m02,mfa}.py`.)
+- **P1-2 · Option/future sizing multiplier** — sizing ran with multiplier=1, so every
+  option/future risk ceiling was ~100× too loose. `apply_sizing` now sets the contract
+  multiplier (100 options; per-root futures map); `max_qty_by_pos` divides by
+  price×multiplier. (`apps/risk/{sizing,integration}.py`, `apps/webhooks/tasks.py`.)
+- **P1-3 · GDPR export download** — the emailed `/media/exports/…` URL 404'd (nothing
+  serves `/media/`). Now served through an authenticated, owner-checked, expiry-checked
+  `FileResponse` view. (`apps/users/{views_gdpr,tasks,urls}.py`.)
+- **P1-4 · Refresh token in localStorage** — moved to an `HttpOnly; Secure; SameSite=Strict`
+  cookie stripped from the JSON body; the SPA never sees it. SameSite=Strict is the CSRF
+  control (ADR-107). (`apps/users/cookies.py` + auth views; frontend auth store/facade/api/
+  interceptor/guards.)
+- **P1-5 · Ambiguous submit orphaned a live order** — a timeout/transient submit failure
+  now marks the order `NEEDS_RECONCILE` (new non-terminal status, migration 0005), not
+  `REJECTED`; reconcile resolves it by `client_order_id`. (`apps/orders/{models,services,
+  reconcile}.py`, `apps/webhooks/tasks.py`, `apps/brokers/{streams,alpaca/adapter}.py`.)
+- **P1-6 · Order filled_qty** — terminal state now trusts the broker's cumulative
+  `filled_qty` (local sum fallback), so a dropped intermediate fill still reaches FILLED.
+  (`apps/orders/services.py`.)
+- **P1-7 · Halts voided by engine flag** — `is_blocked` always enforces active
+  platform/user/daily-loss halts; `KILL_SWITCHES_ENABLED` gates only auto-tripping.
+  (`apps/risk/killswitch.py`.)
+- **P1-8 · hard_stop_pct never enforced** — at/above the hard-stop drawdown the order is
+  rejected (`HARD_STOP`) and the daily L2 halt trips. (`apps/risk/{sizing,integration}.py`.)
+- **P1-9 · Audit scrubber exact-match** — `scrub()` now redacts by substring (shared list
+  with the GDPR redactor); `StrategyDetailView.patch` audits only allowlisted fields.
+  (`apps/audit/scrub.py`, `apps/users/gdpr.py`, `apps/strategies/views.py`.)
+- **P1-10 · One-tap strategy enable** — enabling now routes through the shared modal with
+  consequence copy; disable stays one-click; toggle exposes `role="switch"`/`aria-checked`.
+  (`features/strategies/list/`.)
+
+### Fixed — Review remediation, Phase 0 (P0 · money & trust safety)
+- **P0-1 · Risk/sizing fail-open with no RiskProfile** — a user without a `RiskProfile`
+  (the default state) had the entire sizing + auto-circuit-breaker layer disabled: raw
+  webhook qty reached the broker unclamped and the L2 daily-loss auto-halt never armed.
+  Now a **live** account with no profile is rejected (`NO_RISK_PROFILE`); a conservative
+  default profile is **auto-provisioned on broker connect** (leverage 1×, strict, STOCK/ETF);
+  the daily-loss watcher covers every connected live account via a default threshold. Paper
+  keeps M04 verbatim-qty behavior. (`apps/risk/{integration,killswitch,tasks,provisioning}.py`,
+  `apps/brokers/views.py`.)
+- **P0-2 · Dropped fills on transient ingest error** — `drain_stream` ack'd the Redis-stream
+  entry unconditionally after a bare `except`, so a transient DB error silently dropped the
+  fill (at-least-once → at-most-once). Now ack only on success; poison → per-user dead-letter
+  stream + `fills_deadlettered_total`; transient → left pending for replay (dedup-safe) with a
+  bounded retry. (`apps/orders/fills.py`, `apps/brokers/metrics.py`.)
+- **P0-3 · Impersonation webhook-secret leak** — a read-only impersonation `GET` could mint a
+  `WebhookConfig` (a write) and reveal the target's webhook `sig` (an order-placement bearer
+  credential), burning the owner's reveal-once. Read-only impersonation now creates nothing and
+  never reveals a secret. (`apps/strategies/{services,views}.py`.)
+- **P0-4 · One-click Flatten-all** — the "Flatten all positions" market liquidation fired on a
+  single click. Now routed through the shared focus-trapping modal with consequence copy + a
+  typed `FLATTEN` confirmation, and gated on staff capability. (`features/settings/brokers/`.)
+
 ### Added — M11 (Hardening, Security, Load Test & Docs)
 - **SERVICE_ROLE image entrypoint dispatch (§7.0, BUG-011)** — `docker/entrypoint.sh` (0755)
   dispatches on a **required** `SERVICE_ROLE` over seven roles (`web`, `web-dev`, `worker`,

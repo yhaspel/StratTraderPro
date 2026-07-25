@@ -184,6 +184,10 @@ class RefreshTokenFamily(models.Model):
     # JTI of the currently-valid refresh token in this family. Any other JTI
     # presented for this family is treated as reuse → family revoked.
     current_jti = models.CharField(max_length=64, db_index=True)
+    # P2-8 — the immediately-preceding JTI. Presenting it is treated as a
+    # one-step GRACE (a double-submitting client racing the rotation), not reuse,
+    # so a legitimate concurrent refresh doesn't self-revoke the whole family.
+    previous_jti = models.CharField(max_length=64, blank=True, default="")
     # M02 — sessions UI hints. Captured at family creation, refreshed on
     # successful rotation. Stored verbatim then redacted at serialization.
     user_agent = models.CharField(max_length=512, blank=True, default="")

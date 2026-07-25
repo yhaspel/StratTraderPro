@@ -16,6 +16,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken
 from apps.audit.events import AuthEventType as EventType
 
 from . import services
+from .cookies import clear_refresh_cookie, read_refresh, token_pair_response
 from .metrics import (
     FAMILY_REVOCATIONS_TOTAL,
     LOGIN_TOTAL,
@@ -159,7 +160,11 @@ class RegisterView(APIView):
         return ok({"id": str(user.id), "email": user.email}, status=status.HTTP_201_CREATED)
 
 
-RegisterView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(RegisterView.as_view())
+# P2-3: stack a per-IP limit under the per-email one (mirroring LoginView) so one
+# IP can't email-bomb by cycling addresses.
+RegisterView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(
+    ratelimit(key="ip", rate="10/m", method="POST", block=False)(RegisterView.as_view())
+)
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +205,7 @@ class VerifyEmailView(APIView):
         services.record_event(
             EventType.VERIFY_EMAIL, user=user, request=request
         )
-        return ok(services.issue_token_pair(user, request=request))
+        return token_pair_response(services.issue_token_pair(user, request=request))
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +279,7 @@ class ResendVerificationView(APIView):
 
 
 ResendVerificationView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(
-    ResendVerificationView.as_view()
+    ratelimit(key="ip", rate="10/m", method="POST", block=False)(ResendVerificationView.as_view())
 )
 
 
@@ -325,8 +330,12 @@ class LoginView(APIView):
 
         email = ser.validated_data["email"]
         password = ser.validated_data["password"]
+        # P2-4: the lockout is scoped to the requesting IP so a remote attacker
+        # can't lock a victim out of their own (different) IP. The per-email 5/m
+        # rate limit is the primary throttle (ADR-108).
+        ip = services._client_ip(request)
 
-        if services.is_locked(email):
+        if services.is_locked(email, ip):
             services.record_event(
                 EventType.LOGIN_FAIL, email=email, request=request,
                 metadata={"reason": "locked"},
@@ -346,7 +355,7 @@ class LoginView(APIView):
                 metadata={"reason": "invalid_credentials"},
             )
             # If this attempt just crossed the threshold, notify the user.
-            if services.is_locked(email):
+            if services.is_locked(email, ip):
                 target = User.objects.filter(email=email).first()
                 if target:
                     services.send_account_locked_email(target)
@@ -390,7 +399,7 @@ class LoginView(APIView):
         pair["mfa_required"] = False
         services.record_event(EventType.LOGIN_OK, user=user, request=request)
         LOGIN_TOTAL.labels(result=LoginResult.OK).inc()
-        return ok(pair)
+        return token_pair_response(pair)
 
 
 LoginView = ratelimit(key=_email_keyer, rate="5/m", method="POST", block=False)(
@@ -425,15 +434,19 @@ class RefreshView(APIView):
         ],
     )
     def post(self, request):
-        ser = RefreshSerializer(data=request.data)
-        bad = _handle_validation(ser)
-        if bad:
-            return bad
+        # P1-4: the browser sends the refresh via HttpOnly cookie (no body);
+        # non-browser clients may still POST it in the body (read_refresh: body
+        # wins, else cookie).
+        raw = read_refresh(request)
+        if not raw:
+            return fail("TOKEN_INVALID", "No refresh token supplied.", status=401)
         try:
-            pair = services.rotate_refresh(ser.validated_data["refresh"], request=request)
+            pair = services.rotate_refresh(raw, request=request)
         except InvalidToken as exc:
-            return fail("TOKEN_INVALID", str(exc) or "Invalid refresh token.", status=401)
-        return ok(pair)
+            resp = fail("TOKEN_INVALID", str(exc) or "Invalid refresh token.", status=401)
+            clear_refresh_cookie(resp)  # drop a now-dead cookie so the browser stops retrying it
+            return resp
+        return token_pair_response(pair)
 
 
 # ---------------------------------------------------------------------------
@@ -458,12 +471,14 @@ class LogoutView(APIView):
         ],
     )
     def post(self, request):
-        ser = LogoutSerializer(data=request.data)
-        bad = _handle_validation(ser)
-        if bad:
-            return bad
-        services.revoke_refresh(ser.validated_data["refresh"], request=request)
-        return ok({"status": "ok"})
+        # Accept the refresh from cookie (browser) or body (API); revoke the
+        # family and clear the cookie regardless.
+        raw = read_refresh(request)
+        if raw:
+            services.revoke_refresh(raw, request=request)
+        resp = ok({"status": "ok"})
+        clear_refresh_cookie(resp)
+        return resp
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +526,7 @@ class PasswordResetView(APIView):
 
 
 PasswordResetView = ratelimit(key=_email_keyer, rate="3/m", method="POST", block=False)(
-    PasswordResetView.as_view()
+    ratelimit(key="ip", rate="10/m", method="POST", block=False)(PasswordResetView.as_view())
 )
 
 
@@ -566,7 +581,7 @@ class PasswordResetConfirmView(APIView):
             EventType.PASSWORD_RESET_CONFIRMED, user=user, request=request
         )
         PASSWORD_RESET_TOTAL.labels(step=PasswordResetStep.CONFIRMED).inc()
-        return ok(services.issue_token_pair(user, request=request))
+        return token_pair_response(services.issue_token_pair(user, request=request))
 
 
 # ---------------------------------------------------------------------------

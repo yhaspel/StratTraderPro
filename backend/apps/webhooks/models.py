@@ -46,6 +46,17 @@ class AlertMessage(models.Model):
             models.Index(fields=["user", "-received_at"]),
             models.Index(fields=["idempotency_key"]),
         ]
+        constraints = [
+            # P2-5: the committed row is the durable idempotency anchor (survives a
+            # crash between the old SETNX and dispatch). Partial — only non-empty
+            # keys are unique, so keyless alerts and audit-only SIG_BAD/INVALID
+            # rows (which carry no key) can coexist freely.
+            models.UniqueConstraint(
+                fields=["user", "idempotency_key"],
+                condition=models.Q(idempotency_key__gt=""),
+                name="uniq_alert_user_idempotency",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"AlertMessage<{self.id} {self.status}>"

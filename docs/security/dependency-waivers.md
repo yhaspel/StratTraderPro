@@ -74,13 +74,33 @@ Angular 21 toolchain upgrade.
 *Category 2 — dev/build-tooling transitive deps, NOT present in the shipped SPA bundle:*
 `shell-quote` (GHSA-w7jw-789q-3m8p, critical), `tar` (×6), `ws`, `tmp`, `vite`, `piscina`,
 `serialize-javascript`, `sigstore`, `fast-uri` (×2), `http-proxy-middleware`,
-`@babel/plugin-transform-modules-systemjs`. All are transitive deps of `@angular/cli` /
-`@angular-devkit/build-angular` / `karma` / `webpack-dev-server` — build- and test-time only.
+`websocket-driver` (GHSA-xv26-6w52-cph6, critical — HTTP-parser DoS; only `sockjs@0.3.24` ⇒
+`webpack-dev-server`/`karma` pull it, and there is no patched 0.7.x release, so `ng build`'s
+compiled bundle contains none of it and only a dev machine running the test/serve tooling
+could be targeted), `@babel/plugin-transform-modules-systemjs`. All are transitive deps of
+`@angular/cli` / `@angular-devkit/build-angular` / `karma` / `webpack-dev-server` — build- and
+test-time only.
 The compiled bundle (`ng build`) contains none of them, so they are not a runtime attack
 surface for end users. `pnpm overrides` were considered but rejected for a hardening PR
 (forcing a dozen deep toolchain deps risks destabilising the build for zero shipped-code
 benefit); the real fix is the deferred Angular 21 toolchain upgrade (Dependabot #9). Revisit
 at that upgrade.
+
+*Category 2 addendum — 2026-07-25 (review-remediation integration):* the osv-scanner
+advisory database added 11 new GHSA IDs (16 advisory rows across versions) since these
+branches were cut, all for the **same build/test-time transitive dev tooling** already
+covered above — no dependency was added or changed (the `pnpm-lock.yaml` is byte-identical to
+`main`). Waived for the same reason (build-/test-time only, absent from the `ng build`
+bundle), so `main` too would fail this gate until they are listed:
+`brace-expansion` (GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg — via `glob` in the toolchain),
+`fast-uri` (GHSA-4c8g-83qw-93j6, GHSA-v2hh-gcrm-f6hx — via `ajv` schema validation),
+`immutable` (GHSA-v56q-mh7h-f735, GHSA-xvcm-6775-5m9r — `@angular/build`),
+`js-yaml` (GHSA-52cp-r559-cp3m — config tooling),
+`postcss` (GHSA-r28c-9q8g-f849 — dev CSS pipeline / Tailwind),
+`shell-quote` (GHSA-395f-4hp3-45gv — dev server),
+`tar` (GHSA-23hp-3jrh-7fpw *critical*, GHSA-8x88-c5mf-7j5w — `@angular/cli` extraction).
+None appear in the shipped SPA; the real fix remains the deferred Angular 21 toolchain
+upgrade (Dependabot #9).
 
 ## Dependabot triage (13 open PRs, counted 2026-07-12)
 

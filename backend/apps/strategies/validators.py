@@ -240,6 +240,40 @@ def validate_uploaded_bundle(files: Mapping[str, tuple[str, bytes]]) -> ParsedBu
 # ---------------------------------------------------------------------------
 # JSON Schema validation (for the per-config schema editor)
 # ---------------------------------------------------------------------------
+# P3-4 — bound user-editable schema complexity at SAVE time so the hot webhook
+# ingest path (which runs jsonschema.validate on every alert) can't be turned into
+# a self-inflicted ReDoS / CPU burn by a pathological schema.
+_MAX_SCHEMA_DEPTH = 12
+_MAX_PATTERN_LEN = 200
+
+
+def _check_schema_complexity(node: Any, depth: int = 0) -> None:
+    if depth > _MAX_SCHEMA_DEPTH:
+        raise StrategyValidationError(
+            "WEBHOOK_SCHEMA_INVALID",
+            f"JSON Schema nesting exceeds {_MAX_SCHEMA_DEPTH} levels.",
+        )
+    if isinstance(node, dict):
+        # patternProperties compiles an unbounded, user-controlled regex against
+        # every property on every alert — forbid it outright.
+        if "patternProperties" in node:
+            raise StrategyValidationError(
+                "WEBHOOK_SCHEMA_INVALID",
+                "patternProperties is not allowed (regex-DoS risk).",
+            )
+        pattern = node.get("pattern")
+        if isinstance(pattern, str) and len(pattern) > _MAX_PATTERN_LEN:
+            raise StrategyValidationError(
+                "WEBHOOK_SCHEMA_INVALID",
+                f"A `pattern` exceeds {_MAX_PATTERN_LEN} characters.",
+            )
+        for value in node.values():
+            _check_schema_complexity(value, depth + 1)
+    elif isinstance(node, list):
+        for value in node:
+            _check_schema_complexity(value, depth + 1)
+
+
 def validate_json_schema(schema: Any) -> None:
     """Reject malformed JSON Schemas. Allows the empty dict (= no constraints)."""
     if not isinstance(schema, dict):
@@ -254,6 +288,7 @@ def validate_json_schema(schema: Any) -> None:
             "WEBHOOK_SCHEMA_INVALID",
             f"Invalid JSON Schema: {exc.message}",
         ) from exc
+    _check_schema_complexity(schema)
 
 
 def validate_payload_against_schema(payload: Any, schema: Mapping) -> None:

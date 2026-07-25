@@ -233,3 +233,206 @@ class PositionFillApiTests(TestCase):
         aapl = next(p for p in resp.json()["data"] if p["symbol"] == "AAPL")
         # (155 - 150) * 5 = 25
         self.assertEqual(Decimal(aapl["unrealized_pnl"]), Decimal("25"))
+
+
+class BrokerCumulativeFilledQtyTests(TestCase):
+    """P1-6: terminal order state uses the broker's authoritative cumulative
+    filled_qty, so a dropped intermediate fill still reaches FILLED on the final
+    event instead of sticking at PARTIAL forever."""
+
+    def setUp(self):
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.account = create_broker_account(self.user)
+
+    def _event(self, exec_id, qty, cumulative, *, event="fill"):
+        return FillEvent(
+            broker_exec_id=exec_id, client_order_id="c1", broker_order_id="b-c1",
+            symbol="AAPL", side=Side.BUY, event_type=event,
+            qty=Decimal(qty), price=Decimal("100"), filled_qty=Decimal(cumulative),
+        )
+
+    def test_filled_qty_uses_broker_cumulative(self):
+        _order(self.user, self.account, self.strategy, qty="10")
+        # A single event whose broker cumulative (10) exceeds the per-fill qty (6).
+        ingest_fill_event(self._event("x1", "6", "10"), user_id=self.user.id)
+        order = Order.objects.get()
+        self.assertEqual(order.filled_qty, Decimal("10"))
+        self.assertEqual(order.status, Order.Status.FILLED)
+
+    def test_dropped_intermediate_fill_still_reaches_filled_on_final_event(self):
+        _order(self.user, self.account, self.strategy, qty="10")
+        # The partial_fill (qty 4) was dropped; only the final event arrives, but
+        # it carries the broker cumulative of 10 → FILLED, not PARTIAL.
+        ingest_fill_event(self._event("x2", "6", "10"), user_id=self.user.id)
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.FILLED)
+        self.assertEqual(order.filled_qty, Decimal("10"))
+
+    def test_partial_then_full_sequence_correct(self):
+        _order(self.user, self.account, self.strategy, qty="10")
+        ingest_fill_event(self._event("x1", "4", "4", event="partial_fill"), user_id=self.user.id)
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.PARTIAL)
+        self.assertEqual(order.filled_qty, Decimal("4"))
+        ingest_fill_event(self._event("x2", "6", "10", event="fill"), user_id=self.user.id)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.FILLED)
+        self.assertEqual(order.filled_qty, Decimal("10"))
+
+
+class ResolveNeedsReconcileTests(TestCase):
+    """P1-5: an order stranded NEEDS_RECONCILE (ambiguous submit) is resolved by
+    probing the broker by client_order_id — found ⇒ broker status; unseen ⇒ reject."""
+
+    def setUp(self):
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.account = create_broker_account(self.user)
+
+    def _order_nr(self, coid):
+        return Order.objects.create(
+            user=self.user, strategy=self.strategy, broker_account=self.account,
+            client_order_id=coid, symbol="AAPL", side=Order.Side.BUY, qty=Decimal("5"),
+            status=Order.Status.NEEDS_RECONCILE,
+        )
+
+    def test_reconcile_resolves_needs_reconcile_order(self):
+        from unittest import mock
+
+        from apps.brokers.base import OrderAck, OrderStatus
+        from apps.orders.services import resolve_needs_reconcile
+
+        order = self._order_nr("nr-1")
+        adapter = mock.Mock()
+        adapter.resolve_by_client_id.return_value = OrderAck(
+            client_order_id="nr-1", broker_order_id="bkr-9",
+            status=OrderStatus.SUBMITTED, symbol="AAPL", qty=Decimal("5"),
+        )
+        self.assertEqual(resolve_needs_reconcile(self.account, adapter), 1)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.SUBMITTED)
+        self.assertEqual(order.broker_order_id, "bkr-9")
+
+    def test_needs_reconcile_rejected_when_broker_never_saw_it(self):
+        from unittest import mock
+
+        from apps.orders.services import resolve_needs_reconcile
+
+        order = self._order_nr("nr-2")
+        adapter = mock.Mock()
+        adapter.resolve_by_client_id.return_value = None
+        resolve_needs_reconcile(self.account, adapter)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "RECONCILE_NOT_FOUND")
+
+
+class DrainStreamAckSafetyTests(TestCase):
+    """P0-2: a transient ingest error must NOT ack (drop) the fill; poison goes
+    to a dead-letter stream. Exercises the real Redis stream path — skipped when
+    Redis is unreachable (CI provisions a redis service, so it runs there)."""
+
+    def setUp(self):
+        import json as _json
+
+        from apps.orders import fills as fills_mod
+
+        self._json = _json
+        self.fills = fills_mod
+        try:
+            self.rds = fills_mod._redis()
+            self.rds.ping()
+        except Exception:  # pragma: no cover — no redis locally
+            self.skipTest("Redis not reachable")
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.account = create_broker_account(self.user)
+        self.stream = fills_mod._stream_key(self.user.id)
+        self.dead = fills_mod._dead_stream_key(self.user.id)
+        self._cleanup()
+
+    def tearDown(self):
+        if hasattr(self, "rds"):
+            self._cleanup()
+
+    def _cleanup(self):
+        for k in self.rds.scan_iter(match=f"{self.fills._STREAM_PREFIX}{self.user.id}*"):
+            self.rds.delete(k)
+
+    def _publish(self, fill):
+        from apps.orders.fills import fill_to_wire
+
+        self.rds.xadd(self.stream, {"data": self._json.dumps(fill_to_wire(fill))})
+
+    def _pending(self):
+        return self.rds.xpending(self.stream, self.fills._CONSUMER_GROUP)["pending"]
+
+    @staticmethod
+    def _dead_count(reason):
+        from prometheus_client import REGISTRY
+
+        return REGISTRY.get_sample_value("fills_deadlettered_total", {"reason": reason}) or 0.0
+
+    def test_transient_ingest_error_leaves_message_pending(self):
+        from unittest import mock
+
+        from django.db import OperationalError
+
+        _order(self.user, self.account, self.strategy)
+        self._publish(_fill("c1", "x1", "5", "150"))
+        # First drain: ingest hits a transient error → message stays PENDING, not ack'd.
+        with mock.patch(
+            "apps.orders.services.ingest_fill_event", side_effect=OperationalError("deadlock")
+        ):
+            settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 0)
+        self.assertEqual(Fill.objects.count(), 0)
+        self.assertEqual(self._pending(), 1)
+        # Second drain: real ingest succeeds via the "0" replay → exactly one Fill.
+        settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 1)
+        self.assertEqual(Fill.objects.count(), 1)
+        self.assertEqual(self._pending(), 0)
+
+    def test_poison_message_is_deadlettered_not_lost(self):
+        _order(self.user, self.account, self.strategy)
+        before = self._dead_count("poison")
+        self.rds.xadd(self.stream, {"data": "{not valid json"})  # malformed
+        settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 1)  # ack'd (skipped), not left to wedge
+        self.assertEqual(Fill.objects.count(), 0)
+        self.assertEqual(self.rds.xlen(self.dead), 1)  # routed to dead-letter, not lost
+        self.assertEqual(self._pending(), 0)
+        self.assertEqual(self._dead_count("poison") - before, 1.0)
+
+    def test_dedup_survives_replay(self):
+        _order(self.user, self.account, self.strategy)
+        fill = _fill("c1", "x1", "5", "150")
+        self._publish(fill)
+        self._publish(fill)  # same broker_exec_id delivered twice
+        settled = self.fills.drain_stream(self.user.id)
+        self.assertEqual(settled, 2)  # both settle (ack'd)
+        self.assertEqual(Fill.objects.count(), 1)  # dedup → exactly one Fill
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.FILLED)
+
+    def test_exhausted_transient_retries_deadletter(self):
+        from unittest import mock
+
+        from django.db import OperationalError
+
+        _order(self.user, self.account, self.strategy)
+        before = self._dead_count("max_retries")
+        self._publish(_fill("c1", "x1", "5", "150"))
+        # Persistently-failing ingest: after _MAX_DELIVERIES drains it dead-letters
+        # rather than wedging the consumer forever.
+        with mock.patch(
+            "apps.orders.services.ingest_fill_event", side_effect=OperationalError("down")
+        ):
+            for _ in range(self.fills._MAX_DELIVERIES):
+                self.fills.drain_stream(self.user.id)
+        self.assertEqual(Fill.objects.count(), 0)
+        self.assertEqual(self.rds.xlen(self.dead), 1)
+        self.assertEqual(self._pending(), 0)
+        self.assertEqual(self._dead_count("max_retries") - before, 1.0)

@@ -117,7 +117,9 @@ class VerifyEmailTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        # P1-4: refresh is delivered as an HttpOnly cookie, never in the body.
+        self.assertNotIn("refresh", data)
+        self.assertIn("stp_refresh", resp.cookies)
         user.refresh_from_db()
         self.assertTrue(user.is_verified)
 
@@ -160,9 +162,12 @@ class LoginTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        self.assertNotIn("refresh", data)  # P1-4 — cookie, not body
         self.assertIn("user", data)
         self.assertFalse(data["mfa_required"])
+        cookie = resp.cookies["stp_refresh"]
+        self.assertTrue(cookie["httponly"])
+        self.assertEqual(cookie["samesite"], "Strict")
 
     def test_login_unverified_returns_email_not_verified(self):
         _create_user(verified=False)
@@ -185,9 +190,11 @@ class LoginTests(TestCase):
 
     def test_login_10th_failure_locks_account(self):
         _create_user()
+        # Failures from the test client's own IP (127.0.0.1) so the per-IP lock
+        # applies to the subsequent login POST from the same IP (P2-4).
         for _ in range(10):
-            record_failed_login("test@example.com")
-        self.assertTrue(is_locked("test@example.com"))
+            record_failed_login("test@example.com", ip="127.0.0.1")
+        self.assertTrue(is_locked("test@example.com", "127.0.0.1"))
         resp = self.client.post(
             f"{API}auth/login/",
             {"email": "test@example.com", "password": GOOD_PW},
@@ -195,6 +202,22 @@ class LoginTests(TestCase):
         )
         self.assertEqual(resp.status_code, 423)
         self.assertEqual(resp.json()["error"]["code"], "ACCOUNT_LOCKED")
+
+    def test_remote_attacker_cannot_lock_victim_from_one_ip_alone(self):
+        # P2-4: an attacker flooding failures from their IP locks only that IP;
+        # the victim logging in from a different IP is unaffected.
+        _create_user()
+        for _ in range(10):
+            record_failed_login("test@example.com", ip="6.6.6.6")
+        self.assertTrue(is_locked("test@example.com", "6.6.6.6"))   # attacker's IP locked
+        self.assertFalse(is_locked("test@example.com", "1.2.3.4"))  # victim's IP is not
+        resp = self.client.post(
+            f"{API}auth/login/",
+            {"email": "test@example.com", "password": GOOD_PW},
+            content_type="application/json",
+            REMOTE_ADDR="1.2.3.4",
+        )
+        self.assertEqual(resp.status_code, 200)  # victim logs in fine
 
     def test_login_after_lockout_expires_succeeds(self):
         _create_user()
@@ -221,30 +244,65 @@ class RefreshTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         new_data = resp.json()["data"]
-        self.assertNotEqual(new_data["refresh"], pair["refresh"])
+        # P1-4: the rotated refresh comes back as a cookie, not in the body.
+        self.assertNotIn("refresh", new_data)
+        self.assertNotEqual(resp.cookies["stp_refresh"].value, pair["refresh"])
         self.assertIn("access", new_data)
+
+    def test_refresh_via_cookie_only_rotates(self):
+        # P1-4: a browser never sends a body — the HttpOnly cookie carries it.
+        _create_user()
+        login = self.client.post(
+            f"{API}auth/login/",
+            {"email": "test@example.com", "password": GOOD_PW},
+            content_type="application/json",
+        )
+        first = login.cookies["stp_refresh"].value
+        # No body: the persisted cookie is used by the test client automatically.
+        resp = self.client.post(f"{API}auth/refresh/", content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotEqual(resp.cookies["stp_refresh"].value, first)
+
+    def test_refresh_missing_token_401(self):
+        resp = self.client.post(f"{API}auth/refresh/", content_type="application/json")
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "TOKEN_INVALID")
 
     def test_refresh_reuse_revokes_family(self):
         user = _create_user()
         pair = issue_token_pair(user)
         old_refresh = pair["refresh"]
-        # Legitimate rotation.
+        # Rotate TWICE so `old_refresh` is two steps behind (past the P2-8
+        # one-step grace) — then reusing it is genuine reuse.
+        r1 = self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
+        )
+        new1 = r1.cookies["stp_refresh"].value
         self.client.post(
-            f"{API}auth/refresh/",
-            {"refresh": old_refresh},
-            content_type="application/json",
+            f"{API}auth/refresh/", {"refresh": new1}, content_type="application/json",
         )
-        # Reuse the OLD refresh.
-        resp2 = self.client.post(
-            f"{API}auth/refresh/",
-            {"refresh": old_refresh},
-            content_type="application/json",
+        resp = self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
         )
-        self.assertEqual(resp2.status_code, 401)
-        self.assertIn("reuse", resp2.json()["error"]["message"].lower())
-        # Family is revoked.
-        family = RefreshTokenFamily.objects.first()
-        self.assertTrue(family.is_revoked)
+        self.assertEqual(resp.status_code, 401)
+        self.assertIn("reuse", resp.json()["error"]["message"].lower())
+        self.assertTrue(RefreshTokenFamily.objects.first().is_revoked)
+
+    def test_one_step_grace_does_not_revoke_family(self):
+        # P2-8: presenting the JUST-rotated token again (a double-submit racing
+        # the rotation) is tolerated once — a new pair is issued and the family
+        # is NOT revoked.
+        user = _create_user()
+        pair = issue_token_pair(user)
+        old_refresh = pair["refresh"]
+        self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
+        )
+        grace = self.client.post(
+            f"{API}auth/refresh/", {"refresh": old_refresh}, content_type="application/json",
+        )
+        self.assertEqual(grace.status_code, 200)  # grace, not reuse
+        self.assertFalse(RefreshTokenFamily.objects.first().is_revoked)
 
 
 # =========================================================================
@@ -263,6 +321,19 @@ class LogoutTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         family = RefreshTokenFamily.objects.first()
         self.assertTrue(family.is_revoked)
+
+    def test_logout_clears_refresh_cookie(self):
+        _create_user()
+        self.client.post(
+            f"{API}auth/login/",
+            {"email": "test@example.com", "password": GOOD_PW},
+            content_type="application/json",
+        )
+        resp = self.client.post(f"{API}auth/logout/", content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        # delete_cookie expires the cookie (max-age 0 / empty value).
+        self.assertEqual(resp.cookies["stp_refresh"].value, "")
+        self.assertTrue(RefreshTokenFamily.objects.first().is_revoked)
 
 
 # =========================================================================
@@ -425,6 +496,18 @@ class RateLimitKeyTests(TestCase):
         # Email B is a *different* bucket — its first request is NOT limited.
         # (Under the old bug both share "anon", so B would be the 7th and 429.)
         self.assertNotEqual(self._login("bob@example.com").status_code, 429)
+
+    def test_reset_rate_limited_per_ip_across_emails(self):
+        # P2-3: cycling a fresh email each time slips past the per-email limit,
+        # but the per-IP limit (10/m) still stops an email-bomb from one IP.
+        last = None
+        for i in range(12):
+            last = self.client.post(
+                f"{API}auth/password/reset/",
+                {"email": f"u{i}@example.com"},
+                content_type="application/json",
+            )
+        self.assertEqual(last.status_code, 429)
 
     def test_email_keyer_returns_distinct_keys(self):
         from apps.users.views import _email_keyer

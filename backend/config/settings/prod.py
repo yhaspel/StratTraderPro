@@ -55,6 +55,11 @@ if SIMPLE_JWT.get("SIGNING_KEY") in ("", None, _INSECURE_SECRET):  # noqa: F405
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+REFRESH_COOKIE_SECURE = True  # P1-4 — refresh cookie only over HTTPS in prod
+# P3-6 — enforce the strict default-src 'none' CSP (was report-only). Safe: prod
+# Django serves only JSON + the admin-gated Swagger docs (P3-5); the SPA is served
+# by nginx with its own policy. Django admin is DEBUG-only.
+CSP_REPORT_ONLY = False
 SECURE_HSTS_SECONDS = 31_536_000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True

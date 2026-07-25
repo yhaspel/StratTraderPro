@@ -23,19 +23,9 @@ from typing import Any
 from django.utils import timezone
 
 # Field-name substrings that must never appear in an export, regardless of which
-# model they live on. Matched case-insensitively against the field name.
-SENSITIVE_FIELD_PARTS = (
-    "secret",
-    "password",
-    "_enc",
-    "encrypted",
-    "token_hash",
-    "code_hash",
-    "current_jti",
-    "salt",
-    "api_key",
-    "api_secret",
-)
+# model they live on. Shared with the audit scrubber (P1-9) so there is one
+# source of truth for what "looks sensitive".
+from apps.audit.scrub import SENSITIVE_FIELD_PARTS
 
 REDACTED = "[REDACTED]"
 
@@ -176,6 +166,27 @@ def build_export_zip(user) -> bytes:
 # ---------------------------------------------------------------------------
 # Anonymize-in-place (30-day soft delete expiry) — §7.7 / frozen decision §4.3
 # ---------------------------------------------------------------------------
+def _delete_export_jobs(jobs) -> int:
+    """Delete the ZIP artifact for each export job, then the rows (P2-6).
+    File deletion is best-effort; the row is always removed so it can't be
+    re-served. Returns the number of jobs deleted."""
+    import logging
+
+    from .tasks import export_storage
+
+    log = logging.getLogger(__name__)
+    n = 0
+    for job in list(jobs):
+        if job.file_key:
+            try:
+                export_storage().delete(job.file_key)
+            except Exception:  # noqa: BLE001 — best-effort; still drop the row
+                log.warning("gdpr.export.delete_file_failed job_id=%s", job.id)
+        job.delete()
+        n += 1
+    return n
+
+
 def anonymize_user(user) -> None:
     """Scrub PII on the live User row **in place**, keeping its PK.
 
@@ -187,7 +198,7 @@ def anonymize_user(user) -> None:
     """
     from apps.audit.services import emit
 
-    from .models import BackupCode, MFADevice, UserProfile
+    from .models import BackupCode, DataExportJob, MFADevice, UserProfile
 
     # 1) Drop credential/secret material FIRST, before scrubbing the row / clearing
     #    pending_delete_at. If a delete FAILS (e.g. a future PROTECT FK on
@@ -205,6 +216,10 @@ def anonymize_user(user) -> None:
     if BrokerAccount is not None:
         # No bare except here on purpose — a delete failure must be loud.
         BrokerAccount.objects.filter(user=user).delete()
+
+    # 1b) P2-6 — purge personal-data exports (files + rows). A full export must
+    #     not survive right-to-erasure.
+    _delete_export_jobs(DataExportJob.objects.filter(user=user))
 
     # 2) Scrub PII on the live row + clear the pending flag (only now that the
     #    credential material is provably gone).

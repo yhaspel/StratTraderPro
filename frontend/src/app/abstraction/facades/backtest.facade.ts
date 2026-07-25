@@ -187,10 +187,13 @@ export class BacktestFacade {
     this.ws.connect();
   }
 
-  /** Drop the subscription. Leaves the shared socket up (dashboard owns close). */
+  /** Drop the subscription and release our socket ref (refcounted — the socket
+   * stays up while another subscriber, e.g. the dashboard, still holds a ref). */
   stop(): void {
-    this.sub?.unsubscribe();
+    if (!this.sub) { return; }
+    this.sub.unsubscribe();
     this.sub = null;
+    this.ws.disconnect();  // P2-9: balance the connect() from start()
   }
 
   private _apply(ev: DashboardEvent): void {

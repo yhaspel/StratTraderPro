@@ -186,6 +186,14 @@ def ingest_fill_event(fill: FillEvent, *, user_id) -> dict:
         else:
             fill_row = None  # already ingested — dedup, emit nothing
 
+    # P1-6: trust the broker's authoritative cumulative filled qty when the event
+    # carries one, so a dropped intermediate fill still reaches FILLED on the
+    # final event (the local running sum alone would stick at PARTIAL forever).
+    # The local sum is the fallback when no cumulative is present, and max() keeps
+    # a late/duplicate event from ever reducing the count.
+    if fill.filled_qty and fill.filled_qty > 0:
+        order.filled_qty = max(order.filled_qty or Decimal("0"), fill.filled_qty)
+
     # Resolve order status.
     if fill.event_type == "fill":
         # 'fill' is the terminal execution for the order.
@@ -255,3 +263,36 @@ def reconcile_positions(account, adapter) -> int:
             changed += 1
             push_to_user(account.user_id, POSITION_UPDATED, position_to_wire(pos))
     return changed
+
+
+def resolve_needs_reconcile(account, adapter) -> int:
+    """P1-5 — resolve orders stranded in NEEDS_RECONCILE (an ambiguous submit that
+    may or may not have landed) by asking the broker for their real state *by
+    client_order_id*. An order found at the broker takes the broker's status (and
+    its broker_order_id, so future stream/reconcile passes track it); one the
+    broker never saw is a genuine rejection. Returns the count resolved."""
+    resolver = getattr(adapter, "resolve_by_client_id", None)
+    if not callable(resolver):
+        return 0
+    resolved = 0
+    for order in Order.objects.filter(
+        broker_account=account, status=Order.Status.NEEDS_RECONCILE
+    ):
+        try:
+            ack = resolver(order.client_order_id)
+        except Exception:  # noqa: BLE001 — broker hiccup; leave for the next sweep
+            logger.warning("reconcile.needs_reconcile_probe_failed", extra={"order": str(order.id)})
+            continue
+        if ack is None:
+            # The broker never saw it → the submit genuinely failed.
+            Order.objects.filter(id=order.id, status=Order.Status.NEEDS_RECONCILE).update(
+                status=Order.Status.REJECTED, reason="RECONCILE_NOT_FOUND"
+            )
+        else:
+            status = ack.status.value if hasattr(ack.status, "value") else str(ack.status)
+            fields = {"status": status}
+            if ack.broker_order_id:
+                fields["broker_order_id"] = ack.broker_order_id
+            Order.objects.filter(id=order.id).update(**fields)
+        resolved += 1
+    return resolved

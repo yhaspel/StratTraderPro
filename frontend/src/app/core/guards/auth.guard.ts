@@ -1,11 +1,9 @@
 /** Redirects unauthenticated users to /login?next=<attempted-url>.
  *
- * Checks BOTH the in-memory auth state AND the persisted refresh token. If
- * the in-memory state thinks we're authed but the refresh token has been
- * cleared from storage (e.g. by the refresh-interceptor's logout-on-401),
- * we treat the user as unauthenticated and redirect. This prevents the
- * "stuck on /dashboard while logged out" UX where the SPA's stale signal
- * value lets navigation through after the persistence layer was wiped.
+ * P1-4: the refresh token now lives in an HttpOnly cookie the SPA can't read,
+ * so authentication is judged solely by the in-memory auth state. On a cold
+ * load the app-initializer's silent refresh (initSession) sets this before the
+ * guard runs; a refresh-interceptor logout-on-401 clears it.
  */
 import { inject } from '@angular/core';
 import { CanMatchFn, Router, UrlSegment } from '@angular/router';
@@ -15,7 +13,7 @@ export const authGuard: CanMatchFn = (route, segments: UrlSegment[]) => {
   const store = inject(AuthStore);
   const router = inject(Router);
 
-  if (store.isAuthenticated() && store.refreshToken()) {
+  if (store.isAuthenticated()) {
     return true;
   }
 

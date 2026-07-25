@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AbstractControl, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -55,9 +55,10 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
               <label for="email" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.register.email' | translate }}</label>
               <input id="email" type="email" formControlName="email" autocomplete="email"
                      [attr.aria-invalid]="isInvalid('email')"
+                     [attr.aria-describedby]="isInvalid('email') ? 'email-error' : null"
                      class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
               @if (isInvalid('email')) {
-                <p class="mt-1 text-xs text-down-deep" role="alert">
+                <p id="email-error" class="mt-1 text-xs text-down-deep" role="alert">
                   @if (form.controls.email.errors?.['required']) {
                     {{ 'auth.register.errors.email_required' | translate }}
                   } @else {
@@ -71,9 +72,10 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
               <label for="displayName" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.register.display_name' | translate }}</label>
               <input id="displayName" type="text" formControlName="displayName" autocomplete="name"
                      [attr.aria-invalid]="isInvalid('displayName')"
+                     [attr.aria-describedby]="isInvalid('displayName') ? 'displayName-error' : null"
                      class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
               @if (isInvalid('displayName')) {
-                <p class="mt-1 text-xs text-down-deep" role="alert">
+                <p id="displayName-error" class="mt-1 text-xs text-down-deep" role="alert">
                   {{ 'auth.register.errors.display_name_required' | translate }}
                 </p>
               }
@@ -83,9 +85,10 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
               <label for="password" class="mb-1 block text-xs font-medium text-neutral-700">{{ 'auth.register.password' | translate }}</label>
               <input id="password" type="password" formControlName="password" autocomplete="new-password"
                      [attr.aria-invalid]="isInvalid('password')"
+                     [attr.aria-describedby]="isInvalid('password') ? 'password-error' : null"
                      class="min-h-[36px] w-full rounded-none border border-divider bg-surface px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none" />
               @if (isInvalid('password')) {
-                <p class="mt-1 text-xs text-down-deep" role="alert">
+                <p id="password-error" class="mt-1 text-xs text-down-deep" role="alert">
                   @if (form.controls.password.errors?.['required']) {
                     {{ 'auth.register.errors.password_required' | translate }}
                   } @else if (form.controls.password.errors?.['minlength']) {
@@ -101,7 +104,7 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
 
             <app-button type="submit" variant="primary" [frame]="true"
                         class="block [&>button]:w-full"
-                        [disabled]="form.invalid || facade.status() === 'loading'"
+                        [disabled]="facade.status() === 'loading'"
                         [loading]="facade.status() === 'loading'">
               {{ 'auth.register.submit' | translate }}
             </app-button>
@@ -119,6 +122,7 @@ function lettersAndDigitsValidator(control: AbstractControl): ValidationErrors |
 export class RegisterComponent {
   facade = inject(AuthFacade);
   private fb = inject(FormBuilder);
+  private host = inject(ElementRef) as ElementRef<HTMLElement>;
 
   form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -141,10 +145,19 @@ export class RegisterComponent {
 
   async onSubmit(): Promise<void> {
     if (this.form.invalid) {
-      this.form.markAllAsTouched(); // reveal what's wrong if they force-submit
+      // P2-DESIGN-6: button stays enabled; reveal errors + focus the first one.
+      this.form.markAllAsTouched();
+      this.focusFirstInvalid();
       return;
     }
     const { email, displayName, password } = this.form.getRawValue();
     await this.facade.register(email, displayName, password);
+  }
+
+  /** P2-DESIGN-6: move keyboard focus to the first invalid control. */
+  private focusFirstInvalid(): void {
+    (this.host.nativeElement.querySelector(
+      'input.ng-invalid, select.ng-invalid, textarea.ng-invalid',
+    ) as HTMLElement | null)?.focus();
   }
 }
