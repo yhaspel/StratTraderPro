@@ -86,6 +86,22 @@ surface for end users. `pnpm overrides` were considered but rejected for a harde
 benefit); the real fix is the deferred Angular 21 toolchain upgrade (Dependabot #9). Revisit
 at that upgrade.
 
+*Category 2 addendum — 2026-07-25 (review-remediation integration):* the osv-scanner
+advisory database added 11 new GHSA IDs (16 advisory rows across versions) since these
+branches were cut, all for the **same build/test-time transitive dev tooling** already
+covered above — no dependency was added or changed (the `pnpm-lock.yaml` is byte-identical to
+`main`). Waived for the same reason (build-/test-time only, absent from the `ng build`
+bundle), so `main` too would fail this gate until they are listed:
+`brace-expansion` (GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg — via `glob` in the toolchain),
+`fast-uri` (GHSA-4c8g-83qw-93j6, GHSA-v2hh-gcrm-f6hx — via `ajv` schema validation),
+`immutable` (GHSA-v56q-mh7h-f735, GHSA-xvcm-6775-5m9r — `@angular/build`),
+`js-yaml` (GHSA-52cp-r559-cp3m — config tooling),
+`postcss` (GHSA-r28c-9q8g-f849 — dev CSS pipeline / Tailwind),
+`shell-quote` (GHSA-395f-4hp3-45gv — dev server),
+`tar` (GHSA-23hp-3jrh-7fpw *critical*, GHSA-8x88-c5mf-7j5w — `@angular/cli` extraction).
+None appear in the shipped SPA; the real fix remains the deferred Angular 21 toolchain
+upgrade (Dependabot #9).
+
 ## Dependabot triage (13 open PRs, counted 2026-07-12)
 
 The freeze-time estimate of "~5" was low. Disposition of each:
