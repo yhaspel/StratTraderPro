@@ -15,7 +15,6 @@ from datetime import time as dt_time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -42,8 +41,13 @@ def _resolve_user(user_id):
 _NY_TZ = ZoneInfo("America/New_York")
 
 
-def _enabled() -> bool:
-    return getattr(settings, "KILL_SWITCHES_ENABLED", True)
+def _default_threshold_profile():
+    """Conservative daily-loss thresholds for a connected account that has no
+    explicit RiskProfile (P0-1). An unsaved instance — only its threshold fields
+    are read by ``check_daily_loss``."""
+    from .models import RiskProfile
+
+    return RiskProfile(daily_loss_usd=Decimal("1000"), daily_loss_pct=Decimal("5"))
 
 
 def trading_day(dt=None):
@@ -70,14 +74,15 @@ def market_is_open(dt=None) -> bool:
 # Read path (hot)
 # ---------------------------------------------------------------------------
 def is_blocked(user_id, strategy_id=None) -> str | None:
-    """Return a block reason code or None. Order: platform → user → strategy."""
-    if not _enabled():
-        # Even with the engine off, honor a plain strategy toggle (plan §15).
-        if strategy_id and TradingHalt.objects.filter(
-            user_id=user_id, strategy_id=strategy_id, level=TradingHalt.Level.L0, released_at__isnull=True
-        ).exists():
-            return "STRATEGY_HALTED"
-        return None
+    """Return a block reason code or None. Order: platform → user → strategy.
+
+    P1-7: active ``TradingHalt`` rows are ALWAYS enforced — they are explicit
+    operator/state decisions. ``KILL_SWITCHES_ENABLED`` gates only the AUTOMATIC
+    tripping of new L2 daily-loss halts (in ``daily_loss_watcher``), never the
+    reading/enforcement of existing halts. An operator flipping the engine off to
+    pause automation must NOT thereby void the platform emergency stop, a
+    user-global halt, or an already-tripped daily-loss breaker.
+    """
     if TradingHalt.objects.filter(
         user__isnull=True, level=TradingHalt.Level.L3, released_at__isnull=True
     ).exists():
@@ -248,7 +253,9 @@ def check_daily_loss(user, *, require_consecutive: int = 2) -> bool:
 
     profile = RiskProfile.objects.filter(user=user).first()
     if profile is None:
-        return False
+        # P0-1: an account with no explicit profile still gets daily-loss
+        # protection using a conservative default threshold — never "skip".
+        profile = _default_threshold_profile()
     # Already tripped today — don't re-emit the breach event/metric on every poll.
     if TradingHalt.objects.filter(
         user=user, level=TradingHalt.Level.L2, auto=True, released_at__isnull=True

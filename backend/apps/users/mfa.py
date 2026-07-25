@@ -188,10 +188,10 @@ def issue_mfa_token(user) -> str:
     return str(tok)
 
 
-def decode_mfa_token(raw: str) -> str:
-    """Return the user_id encoded in ``raw``. Raises ``InvalidToken`` on
-    malformed token, expired token, or wrong ``purpose``.
-    """
+def decode_mfa_token_claims(raw: str) -> tuple[str, str]:
+    """Return ``(user_id, jti)`` for ``raw``. Raises ``InvalidToken`` on a
+    malformed/expired token or wrong ``purpose``. The jti lets the login verify
+    path burn a specific challenge token after too many failures (P1-1)."""
     try:
         tok = _MFAToken(token=raw)
     except TokenError as exc:
@@ -201,7 +201,13 @@ def decode_mfa_token(raw: str) -> str:
     user_id = tok.get("user_id")
     if not user_id:
         raise InvalidToken("MFA token missing user_id claim.")
-    return str(user_id)
+    return str(user_id), str(tok.get("jti") or "")
+
+
+def decode_mfa_token(raw: str) -> str:
+    """Return the user_id encoded in ``raw``. Raises ``InvalidToken`` on a
+    malformed/expired token or wrong ``purpose``."""
+    return decode_mfa_token_claims(raw)[0]
 
 
 def verify_mfa_code(user, code: str) -> bool:

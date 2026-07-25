@@ -6,7 +6,7 @@
  *      and an admin-only flatten button (backend 403s non-staff — that's fine).
  *   2. Connect Alpaca Paper — write-only API key + secret form.
  */
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -19,10 +19,15 @@ import {
   BrokerTestConnectionResult,
 } from '../../../core/models/brokers.models';
 import { BrokersFacade } from '../../../abstraction/facades/brokers.facade';
+import { AuthStore } from '../../../abstraction/stores/auth.store';
 import { ButtonComponent } from '../../shared/ui/button.component';
 import { CardComponent } from '../../shared/ui/card.component';
+import { ModalComponent } from '../../shared/ui/modal.component';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent } from '../../shared/ui/status-chip.component';
+
+/** Typed-confirmation word gating the irreversible flatten action (P0-4). */
+const FLATTEN_CONFIRM_WORD = 'FLATTEN';
 
 /** Error codes that have a dedicated translated message. */
 const KNOWN_ERRORS = new Set([
@@ -41,6 +46,7 @@ const KNOWN_ERRORS = new Set([
 @Component({
   selector: 'app-brokers',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -49,6 +55,7 @@ const KNOWN_ERRORS = new Set([
     RouterLink,
     ButtonComponent,
     CardComponent,
+    ModalComponent,
     PageHeaderComponent,
     StatusChipComponent,
   ],
@@ -101,9 +108,11 @@ const KNOWN_ERRORS = new Set([
                     <app-button variant="ghost" (clicked)="startRemove(acct.id)">
                       <span class="text-down">{{ 'brokers.connected.remove' | translate }}</span>
                     </app-button>
-                    <app-button variant="ghost" (clicked)="onFlatten(acct.id)">
-                      <span class="text-warn-deep">{{ 'brokers.connected.flatten' | translate }}</span>
-                    </app-button>
+                    @if (isStaff()) {
+                      <app-button variant="ghost" (clicked)="onFlatten(acct.id)">
+                        <span class="text-warn-deep">{{ 'brokers.connected.flatten' | translate }}</span>
+                      </app-button>
+                    }
                   </div>
 
                   <!-- Mode control (PAPER active; LIVE disabled until enabled) -->
@@ -166,6 +175,31 @@ const KNOWN_ERRORS = new Set([
             </ul>
           }
         </app-card>
+
+        <!-- ========== Flatten confirmation (P0-4) — irreversible, typed confirm ========== -->
+        <app-modal
+          [open]="flatteningId() !== null"
+          [heading]="'brokers.flatten.title' | translate"
+          [destructive]="true"
+          (closed)="cancelFlatten()">
+          <p class="mb-s3 text-sm text-down-deep">{{ 'brokers.flatten.warning' | translate }}</p>
+          <label class="mb-1 block text-xs font-medium text-neutral-700" for="flatten-confirm">
+            {{ 'brokers.flatten.type_to_confirm' | translate }}
+          </label>
+          <input id="flatten-confirm" type="text" autocomplete="off"
+                 [placeholder]="'brokers.flatten.type_to_confirm' | translate"
+                 [value]="flattenConfirm()"
+                 (input)="flattenConfirm.set($any($event.target).value)"
+                 class="mb-s3 w-full rounded-none border border-divider bg-surface px-3 py-2 font-mono text-sm text-ink focus:border-accent focus:outline-none" />
+          <div class="flex justify-end gap-2">
+            <app-button variant="secondary" (clicked)="cancelFlatten()">
+              {{ 'common.cancel' | translate }}
+            </app-button>
+            <app-button variant="danger" [disabled]="!flattenConfirmed()" (clicked)="confirmFlatten()">
+              {{ 'brokers.flatten.confirm' | translate }}
+            </app-button>
+          </div>
+        </app-modal>
 
         <!-- ========== Connect Alpaca Paper ========== -->
         <app-card>
@@ -252,6 +286,11 @@ const KNOWN_ERRORS = new Set([
 export class BrokersComponent implements OnInit {
   facade = inject(BrokersFacade);
   private fb = inject(FormBuilder);
+  private store = inject(AuthStore);
+
+  /** Flatten is admin-gated server-side (403 otherwise); don't render it to
+   * users who can't use it (P0-4). */
+  isStaff = computed(() => this.store.user()?.is_staff === true);
 
   connectResult = signal<BrokerConnectResult | null>(null);
   connectError = signal<ApiError | null>(null);
@@ -259,6 +298,11 @@ export class BrokersComponent implements OnInit {
   testResults = signal<Record<string, BrokerTestConnectionResult>>({});
   rowErrors = signal<Record<string, ApiError>>({});
   removingId = signal<string | null>(null);
+
+  // Flatten confirmation (P0-4): the account pending flatten + typed-confirm text.
+  flatteningId = signal<string | null>(null);
+  flattenConfirm = signal('');
+  flattenConfirmed = computed(() => this.flattenConfirm() === FLATTEN_CONFIRM_WORD);
 
   connectForm = this.fb.nonNullable.group({
     api_key_id: ['', Validators.required],
@@ -338,8 +382,24 @@ export class BrokersComponent implements OnInit {
     }
   }
 
-  async onFlatten(id: string): Promise<void> {
+  /** Open the typed-confirm modal — flatten is irreversible, so it must NOT
+   * fire on a single click (P0-4). */
+  onFlatten(id: string): void {
     this._clearRowError(id);
+    this.flattenConfirm.set('');
+    this.flatteningId.set(id);
+  }
+
+  cancelFlatten(): void {
+    this.flatteningId.set(null);
+    this.flattenConfirm.set('');
+  }
+
+  async confirmFlatten(): Promise<void> {
+    const id = this.flatteningId();
+    if (!id || !this.flattenConfirmed()) { return; }
+    this.flatteningId.set(null);
+    this.flattenConfirm.set('');
     const res = await this.facade.flatten(id);
     if (!res.ok) {
       this._setRowError(id, res.error);
@@ -355,14 +415,26 @@ export class BrokersComponent implements OnInit {
     }
   }
 
+  /** Allowed OAuth authorize hosts — a server-supplied URL is a top-level nav
+   * sink, so validate scheme + host before assigning (P3-8). */
+  private static readonly OAUTH_HOSTS = new Set(['signin.tradestation.com', 'api.tradestation.com']);
+
   async onConnectTradeStation(): Promise<void> {
     this.tsError.set(null);
     const res = await this.facade.tradestationOauthStart();
-    if (res.ok) {
-      window.location.href = res.value.authorize_url;
-    } else {
-      this.tsError.set(res.error);
+    if (!res.ok) { this.tsError.set(res.error); return; }
+    let url: URL;
+    try {
+      url = new URL(res.value.authorize_url);
+    } catch {
+      this.tsError.set({ code: 'BROKER_UNAVAILABLE', message: 'Invalid authorization URL.' });
+      return;
     }
+    if (url.protocol !== 'https:' || !BrokersComponent.OAUTH_HOSTS.has(url.hostname)) {
+      this.tsError.set({ code: 'BROKER_UNAVAILABLE', message: 'Unexpected authorization host.' });
+      return;
+    }
+    window.location.href = url.href;
   }
 
   /** True when the code has a dedicated translated message under brokers.error.*. */

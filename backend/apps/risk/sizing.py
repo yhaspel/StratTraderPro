@@ -4,6 +4,16 @@ Pure Python, no I/O — deterministic given (inputs, profile) so it is property-
 testable and reusable by the M09 backtester. Every call site persists a
 ``SizingDecision`` (done by the caller, not here). The Kelly damper (plan §6.2)
 is deferred until the M09 ``TradeHistory`` exists.
+
+Numeric note (P3-1): the intermediate math runs in ``float`` and the result is
+converted to ``Decimal`` only at the end (``Decimal(str(qty))`` after a
+``floor``-to-lot). This is acceptable because the OUTPUT is an integer/lot count,
+not a money value — the final quantity is floored to a whole lot, so float
+rounding within the computation cannot change the floored result at any realistic
+scale (equity, price and multipliers here are far below float64's 2^53 exact
+range). Money values on the ledger (positions, fills, P&L) stay ``Decimal``
+end-to-end; only this sizing arithmetic, whose result is quantised to a lot, uses
+float — deliberately, for speed and readability.
 """
 from __future__ import annotations
 
@@ -15,6 +25,32 @@ from decimal import Decimal
 REGIME_SCALE = {"CRISIS": 0.0, "BEAR": 0.3, "CHOP": 0.6, "NEUTRAL": 0.6, "BULL": 1.0}
 _LONG_SIDES = {"LONG", "BUY", "BUY_TO_OPEN", "BUY_TO_CLOSE"}
 _DEFAULT_STOP_FRAC = 0.02  # 2% of price when no ATR/stop info
+
+# P1-2 — contract multipliers so notional/leverage math is per-contract, not
+# per-share. An equity option controls 100 shares; a future has a per-root point
+# value. Without this every option/future risk ceiling is ~100× too loose.
+EQUITY_OPTION_MULTIPLIER = Decimal("100")
+# Per-root futures point value. Conservative (large) default for unknown roots so
+# an unmapped contract UNDER-sizes rather than over-sizes.
+# TODO(M09+): complete this table / source it from a contract-spec service.
+FUTURE_MULTIPLIERS = {
+    "ES": Decimal("50"), "MES": Decimal("5"),
+    "NQ": Decimal("20"), "MNQ": Decimal("2"),
+    "YM": Decimal("5"), "RTY": Decimal("50"),
+    "CL": Decimal("1000"), "GC": Decimal("100"), "MGC": Decimal("10"),
+    "ZB": Decimal("1000"), "ZN": Decimal("1000"), "6E": Decimal("125000"),
+}
+_DEFAULT_FUTURE_MULTIPLIER = Decimal("50")
+
+
+def contract_multiplier_for(asset_class: str | None, future_root: str = "") -> Decimal:
+    """Resolve the contract multiplier from the order's trusted asset class."""
+    ac = (asset_class or "").upper()
+    if ac == "OPTION":
+        return EQUITY_OPTION_MULTIPLIER
+    if ac == "FUTURE":
+        return FUTURE_MULTIPLIERS.get((future_root or "").upper(), _DEFAULT_FUTURE_MULTIPLIER)
+    return Decimal("1")
 
 
 @dataclass(frozen=True)
@@ -66,9 +102,21 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
     if label == "CRISIS" or scale <= 0:
         return SizingResult.reject("REGIME_CRISIS")
 
+    # P1-8: hard stop is a full stop, not a size reduction. At/above the configured
+    # intraday drawdown the order is REJECTED outright (the caller also trips the
+    # daily L2 halt so trading stops for the day). Checked before the soft stop.
+    hard_stop = float(getattr(profile, "hard_stop_pct", 0) or 0)
+    if hard_stop > 0 and inp.intraday_dd_pct >= hard_stop:
+        return SizingResult.reject(
+            "HARD_STOP",
+            {"intraday_dd_pct": inp.intraday_dd_pct, "hard_stop_pct": hard_stop},
+        )
+
     risk_pct = float(profile.risk_per_trade_pct) * scale
     price = max(float(inp.price), 0.01)
     equity = float(inp.equity)
+    # Notional and every ceiling are per-CONTRACT: price × qty × multiplier (P1-2).
+    mult = float(inp.contract_multiplier or 1) or 1.0
 
     atr_stop = float(profile.atr_factor) * float(inp.atr14 or 0)
     stop_dist = max(float(inp.stop_distance or 0), atr_stop)
@@ -76,10 +124,10 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
         stop_dist = price * _DEFAULT_STOP_FRAC
 
     dollar_risk = equity * (risk_pct / 100.0)
-    raw_qty = dollar_risk / (stop_dist * float(inp.contract_multiplier or 1))
+    raw_qty = dollar_risk / (stop_dist * mult)
 
-    # Position-size clamp.
-    max_qty_by_pos = (equity * float(profile.max_position_pct) / 100.0) / price
+    # Position-size clamp (per-contract notional = price × multiplier).
+    max_qty_by_pos = (equity * float(profile.max_position_pct) / 100.0) / (price * mult)
     qty = min(raw_qty, max_qty_by_pos)
 
     # Sentiment adjustment.
@@ -101,7 +149,7 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
     leverage_cap = float(getattr(profile, "leverage_cap", 0) or 0)
     max_qty_by_leverage = None
     if leverage_cap > 0:
-        max_qty_by_leverage = (equity * leverage_cap) / (price * float(inp.contract_multiplier or 1))
+        max_qty_by_leverage = (equity * leverage_cap) / (price * mult)
         qty = min(qty, max_qty_by_leverage)
 
     # RISK-3: never size ABOVE what the alert requested — a "qty": 1 alert must
@@ -120,6 +168,7 @@ def compute_size(inp: SizingInputs, profile) -> SizingResult:
         "leverage_cap": leverage_cap,
         "max_qty_by_leverage": round(max_qty_by_leverage, 6) if max_qty_by_leverage is not None else None,
         "requested_qty": req_qty,
+        "contract_multiplier": mult,
     }
     if qty <= 0:
         return SizingResult.reject("SIZING_ZERO", meta)

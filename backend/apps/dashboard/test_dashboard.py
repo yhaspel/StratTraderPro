@@ -38,6 +38,24 @@ class DashboardConsumerTests(TransactionTestCase):
 
         async_to_sync(scenario)()
 
+    def test_connect_with_subprotocol_token(self):
+        # P2-10: the JWT can ride the Sec-WebSocket-Protocol subprotocol instead
+        # of the URL query string; the consumer echoes the negotiated subprotocol.
+        token = access_token(create_user(email="subproto@example.com"))
+
+        async def scenario():
+            comm = WebsocketCommunicator(
+                application, "/ws/dashboard/", subprotocols=["stp-jwt", token]
+            )
+            connected, subprotocol = await comm.connect()
+            self.assertTrue(connected)
+            self.assertEqual(subprotocol, "stp-jwt")
+            ack = await comm.receive_json_from()
+            self.assertEqual(ack["type"], "connection.ack")
+            await comm.disconnect()
+
+        async_to_sync(scenario)()
+
     def test_reject_without_token(self):
         async def scenario():
             comm = _comm(None)

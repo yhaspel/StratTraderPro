@@ -97,6 +97,15 @@ def emit(
 
     try:
         with transaction.atomic():
+            # NOTE (P2-7): a NAMED advisory lock is required here, not a row-level
+            # SELECT ... FOR UPDATE on the head. The chain head MOVES on every
+            # insert, so a lock taken on the row that is the head *at read time*
+            # is stale by the time the next writer commits — two concurrent
+            # emits then chain from the same prev_hash and the DB linkage trigger
+            # rejects the second (proven by the `-m pg` concurrency test). The
+            # lock must span to commit for chain integrity; reducing that window
+            # would require decoupling audit from the business transaction (a
+            # semantic change, out of scope). Kept as-is deliberately.
             _advisory_lock()
             head = AuditLog.objects.order_by("-id").values_list("self_hash", flat=True).first()
             prev_hash = head or GENESIS_PREV_HASH

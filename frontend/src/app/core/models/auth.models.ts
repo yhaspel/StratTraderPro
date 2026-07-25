@@ -24,6 +24,9 @@ export interface AuthMeResponse extends AuthUser {
 
 export interface AuthTokenPair {
   access: string;
+  // P1-4: the refresh token is delivered as an HttpOnly cookie, never read by
+  // the SPA. This field is retained only to stay equivalent to the generated
+  // OpenAPI schema (the contract spec asserts it); nothing consumes it.
   refresh: string;
   user: AuthUser;
   mfa_required?: boolean;

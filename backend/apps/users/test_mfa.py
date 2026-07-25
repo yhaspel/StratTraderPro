@@ -225,7 +225,8 @@ class LoginMFAFlowTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()["data"]
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        self.assertNotIn("refresh", data)  # P1-4 — cookie, not body
+        self.assertIn("stp_refresh", resp.cookies)
         self.assertTrue(AuditLog.objects.filter(event_type="auth.mfa_challenge_ok").exists())
 
     def test_mfa_verify_with_backup_code(self):
@@ -298,6 +299,59 @@ class LoginMFAFlowTests(TestCase):
         self.assertNotEqual(resp.status_code, 500)
         self.assertEqual(resp.status_code, 401)
         self.assertIn(resp.json()["error"]["code"], {"TOKEN_INVALID", "RATE_LIMITED"})
+
+
+@override_settings(MFA_LOGIN_MAX_FAILURES=3, MFA_LOGIN_WINDOW_SECONDS=900)
+class MfaLoginBruteForceTests(TestCase):
+    """P1-1: the login second factor needs a per-user cap (not just per-IP) and
+    must burn the challenge token after repeated failures."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = _create_user()
+        self.secret = _enroll_mfa(self.user)
+
+    def _mint(self) -> str:
+        from apps.users.mfa import issue_mfa_token
+
+        return issue_mfa_token(self.user)
+
+    def _verify(self, token, code):
+        return self.client.post(
+            f"{API}auth/mfa/verify/",
+            {"mfa_token": token, "code": code},
+            content_type="application/json",
+        )
+
+    def _good_code(self):
+        return pyotp.TOTP(self.secret, interval=30, digits=6).now()
+
+    def test_valid_mfa_still_succeeds_within_limit(self):
+        token = self._mint()
+        self.assertEqual(self._verify(token, "000000").status_code, 401)  # 1 fail (< cap)
+        self.assertEqual(self._verify(token, "000000").status_code, 401)  # 2 fails (< cap)
+        self.assertEqual(self._verify(token, self._good_code()).status_code, 200)
+
+    def test_mfa_token_burned_after_failures(self):
+        token = self._mint()
+        for _ in range(3):  # == MFA_LOGIN_MAX_FAILURES
+            self.assertEqual(self._verify(token, "000000").status_code, 401)
+        # The token is now burned: even a correct code on it is rejected outright.
+        resp = self._verify(token, self._good_code())
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "TOKEN_INVALID")
+
+    def test_mfa_login_locks_after_n_failures_per_user(self):
+        # Re-mint a FRESH token each attempt so a per-token cap alone wouldn't fire
+        # — the per-user counter must still lock the challenge.
+        for _ in range(3):
+            self.assertEqual(self._verify(self._mint(), "000000").status_code, 401)
+        # A brand-new token + a CORRECT code is now locked out at the user level.
+        resp = self._verify(self._mint(), self._good_code())
+        self.assertEqual(resp.status_code, 429)
+        self.assertEqual(resp.json()["error"]["code"], "MFA_LOCKED")
 
 
 # =========================================================================

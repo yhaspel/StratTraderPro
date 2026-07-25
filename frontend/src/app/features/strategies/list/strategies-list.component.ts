@@ -10,7 +10,7 @@
  * Visual layer: "Industry" design system — blueprint-framed table panel,
  * shared status chips (SYSTEM/USER/untested), shared square toggle.
  */
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
@@ -19,6 +19,7 @@ import { Strategy } from '../../../core/models/strategies.models';
 import { WebhookConfigModalComponent } from '../webhook-config/webhook-config-modal.component';
 import { BlueprintDirective } from '../../shared/ui/blueprint.directive';
 import { ButtonComponent } from '../../shared/ui/button.component';
+import { ModalComponent } from '../../shared/ui/modal.component';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 import { StatusChipComponent } from '../../shared/ui/status-chip.component';
 import { ToggleComponent } from '../../shared/ui/toggle.component';
@@ -26,9 +27,10 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
 @Component({
   selector: 'app-strategies-list',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, RouterLink, TranslateModule, WebhookConfigModalComponent,
-    BlueprintDirective, ButtonComponent, PageHeaderComponent, StatusChipComponent, ToggleComponent,
+    BlueprintDirective, ButtonComponent, ModalComponent, PageHeaderComponent, StatusChipComponent, ToggleComponent,
   ],
   template: `
     <div class="mx-auto max-w-6xl p-6">
@@ -119,6 +121,41 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
         [strategy]="ms"
         (closed)="closeModal()" />
     }
+
+    <!-- P1-10 — enabling arms live execution; confirm the consequence first. -->
+    <app-modal
+      [open]="enablingStrategy() !== null"
+      [heading]="'strategies.list.enable_confirm.title' | translate"
+      (closed)="cancelEnable()">
+      <p class="mb-3 text-sm text-neutral-700">{{ 'strategies.list.enable_confirm.body' | translate }}</p>
+      <div class="mt-6 flex justify-end gap-3">
+        <app-button variant="ghost" (clicked)="cancelEnable()">
+          {{ 'common.cancel' | translate }}
+        </app-button>
+        <app-button variant="primary" (clicked)="confirmEnable()">
+          {{ 'strategies.list.enable_confirm.confirm' | translate }}
+        </app-button>
+      </div>
+    </app-modal>
+
+    <!-- Delete confirmation — shared focus-trapping modal (replaces native confirm()). -->
+    <app-modal
+      [open]="deletingStrategy() !== null"
+      [destructive]="true"
+      [heading]="'strategies.list.delete' | translate"
+      (closed)="cancelDelete()">
+      <p class="mb-3 text-sm text-neutral-700">
+        {{ 'strategies.list.delete_confirm' | translate: { name: deletingStrategy()?.name } }}
+      </p>
+      <div class="mt-6 flex justify-end gap-3">
+        <app-button variant="ghost" (clicked)="cancelDelete()">
+          {{ 'common.cancel' | translate }}
+        </app-button>
+        <app-button variant="danger" (clicked)="confirmDelete()">
+          {{ 'strategies.list.delete' | translate }}
+        </app-button>
+      </div>
+    </app-modal>
   `,
 })
 export class StrategiesListComponent implements OnInit {
@@ -127,19 +164,49 @@ export class StrategiesListComponent implements OnInit {
 
   /** Strategy currently being configured in the modal, or null. */
   modalStrategy = signal<Strategy | null>(null);
+  /** Strategy pending an enable confirmation, or null (P1-10). */
+  enablingStrategy = signal<Strategy | null>(null);
+  /** Strategy pending a delete confirmation, or null. */
+  deletingStrategy = signal<Strategy | null>(null);
 
   ngOnInit(): void {
     this.facade.load();
   }
 
-  async onToggle(s: Strategy): Promise<void> {
-    await this.facade.toggleEnabled(s.id, !s.is_enabled);
+  onToggle(s: Strategy): void {
+    // Disabling is safe and immediate; enabling arms live order execution, so it
+    // requires an explicit confirmation (P1-10).
+    if (s.is_enabled) {
+      void this.facade.toggleEnabled(s.id, false);
+    } else {
+      this.enablingStrategy.set(s);
+    }
   }
 
-  async onDelete(s: Strategy): Promise<void> {
-    if (!confirm(`Delete ${s.name}? This is reversible by toggling 'is_enabled' in admin.`)) {
-      return;
-    }
+  cancelEnable(): void {
+    this.enablingStrategy.set(null);
+  }
+
+  async confirmEnable(): Promise<void> {
+    const s = this.enablingStrategy();
+    if (!s) { return; }
+    this.enablingStrategy.set(null);
+    await this.facade.toggleEnabled(s.id, true);
+  }
+
+  onDelete(s: Strategy): void {
+    // Route deletion through the shared confirm modal (replaces native confirm()).
+    this.deletingStrategy.set(s);
+  }
+
+  cancelDelete(): void {
+    this.deletingStrategy.set(null);
+  }
+
+  async confirmDelete(): Promise<void> {
+    const s = this.deletingStrategy();
+    if (!s) { return; }
+    this.deletingStrategy.set(null);
     await this.facade.softDelete(s.id);
   }
 

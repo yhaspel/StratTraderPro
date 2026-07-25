@@ -2,8 +2,9 @@
 
 Gathers the three trusted server-side inputs (regime, sentiment, account equity)
 — alerts cannot override sizing params (§11) — computes the size, and persists a
-``SizingDecision`` for every path. Returns ``None`` when the user has no
-RiskProfile (→ caller uses the raw alert qty, preserving M04 behavior).
+``SizingDecision`` for every path. Returns ``None`` only when sizing is off or the
+user has no RiskProfile on a *paper* account (→ caller uses the raw alert qty, M04
+behavior). A live account with no profile fails closed (``NO_RISK_PROFILE``, P0-1).
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from apps.admin_portal.flags import is_enabled
 
 from .metrics import SIZING_DECISIONS, SIZING_REJECT_REASON
 from .models import RiskEvent, RiskProfile, SizingDecision
-from .sizing import SizingInputs, SizingResult, compute_size
+from .sizing import SizingInputs, SizingResult, compute_size, contract_multiplier_for
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +88,8 @@ def _atr14(symbol: str) -> Decimal | None:
 
 
 def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol, price_hint=None):
-    """Returns a SizingResult, or None if sizing is off / no profile."""
+    """Returns a SizingResult, or None if sizing is off / no profile (paper)."""
     if not is_enabled("SIZING_V1_ENABLED"):
-        return None
-    profile = RiskProfile.objects.filter(user=alert.user).first()
-    if profile is None:
         return None
 
     req_qty = _dec(requested_qty)
@@ -116,6 +114,19 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
             details={"reason": reason, "symbol": symbol},
         )
         return SizingResult.reject(reason, inputs)
+
+    profile = RiskProfile.objects.filter(user=alert.user).first()
+    if profile is None:
+        # P0-1: fail closed on a live-money account. With no RiskProfile there is
+        # no sizing, no position/leverage clamp, no asset-class filter, and the L2
+        # daily-loss breaker never arms — so a LIVE order must not go out unsized.
+        # Paper keeps the M04 verbatim-qty behavior; auto-provision on broker
+        # connect makes the common case safe-by-default rather than reject.
+        from apps.brokers.models import BrokerAccount
+
+        if getattr(account, "mode", None) == BrokerAccount.Mode.LIVE:
+            return _persist_reject("NO_RISK_PROFILE")
+        return None
 
     # RISK-2: reject asset classes the profile does not permit (order.asset_class
     # is the trusted server-side classification). Enforced before the broker read
@@ -168,6 +179,11 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
         return _persist_reject("SIZING_NO_PRICE", equity=equity)
     price = _dec(price)
 
+    # P1-2 — the trusted server-side asset class sets the contract multiplier so
+    # option/future notional + leverage ceilings bind (an equity option controls
+    # 100 shares; a future carries a per-root point value).
+    multiplier = contract_multiplier_for(asset_class, getattr(order, "future_root", ""))
+
     inp = SizingInputs(
         requested_qty=req_qty,
         side=side,
@@ -178,6 +194,7 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
         sentiment_polarity=_latest_sentiment(symbol),
         intraday_dd_pct=intraday_dd_pct,
         atr14=_atr14(symbol),
+        contract_multiplier=multiplier,
     )
     result = compute_size(inp, profile)
     # Persist the two most safety-relevant inputs alongside the sizing meta (FIX-L3).
@@ -195,6 +212,17 @@ def apply_sizing(*, alert, order, account, adapter, requested_qty, side, symbol,
             user=alert.user, type=RiskEvent.Type.SIZING_REJECT, scope="USER",
             details={"reason": result.reason, "symbol": symbol},
         )
+        # P1-8: a hard-stop breach doesn't just reject this order — it trips the
+        # daily L2 halt (mirroring the daily-loss trip) so trading stops for the
+        # day rather than the next alert re-attempting into the same drawdown.
+        if result.reason == "HARD_STOP":
+            from apps.brokers.models import TradingHalt
+            from apps.risk.killswitch import trigger_halt
+
+            trigger_halt(
+                user_id=alert.user_id, level=TradingHalt.Level.L2,
+                reason="HARD_STOP", auto=True, flatten=True,
+            )
     elif result.meta.get("soft_stop_applied"):
         # SOFT_STOP fires only on an accepted, halved size (FIX-L6).
         RiskEvent.objects.create(

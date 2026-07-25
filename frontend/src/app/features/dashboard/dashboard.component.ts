@@ -10,7 +10,7 @@
  * table → fills. The halt banner moved into the shell (renders above the
  * header on every route); the Live dot moved into the shell header.
  */
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -42,6 +42,7 @@ const PNL_NEUTRAL_BAND = 0.05;
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, ReactiveFormsModule, RouterLink, TranslateModule, DatePipe,
     RegimeBadgeComponent, SentimentPanelComponent, OnboardingChecklistComponent,
@@ -201,6 +202,13 @@ const PNL_NEUTRAL_BAND = 0.05;
       (closed)="cancelHalt()">
       <p class="mb-3 text-sm text-neutral-700">{{ 'risk.halt_confirm' | translate }}</p>
       <form [formGroup]="mfaForm" (ngSubmit)="confirmHalt()" class="space-y-3">
+        <!-- P2-DESIGN-1: explicit, disclosed flatten choice — no longer a silent hardcoded flatten:true. -->
+        <label class="flex items-start gap-2 text-sm text-neutral-700">
+          <input type="checkbox" [checked]="flattenChoice()"
+                 (change)="flattenChoice.set($any($event.target).checked)"
+                 class="mt-[3px] h-[15px] w-[15px] rounded-none accent-accent" />
+          <span>{{ 'risk.halt_flatten_choice' | translate }}</span>
+        </label>
         <div>
           <label class="mb-1 block text-sm font-medium" for="halt-mfa-code">{{ 'risk.mfa_prompt' | translate }}</label>
           <input id="halt-mfa-code" type="text" inputmode="numeric" formControlName="mfa_code" maxlength="6"
@@ -310,9 +318,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(n);
   }
 
+  /** P2-DESIGN-1 — explicit flatten choice (default on: halting usually means
+   * "close my book"), no longer hardcoded + hidden. */
+  flattenChoice = signal(true);
+
   openHalt(): void {
     this.haltError.set(null);
     this.mfaForm.reset();
+    this.flattenChoice.set(true);
     this.haltOpen.set(true);
   }
 
@@ -325,7 +338,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.mfaForm.invalid) { return; }
     this.haltError.set(null);
     const { mfa_code } = this.mfaForm.getRawValue();
-    const res = await this.risk.triggerHalt('USER', { flatten: true, mfa_code });
+    const res = await this.risk.triggerHalt('USER', { flatten: this.flattenChoice(), mfa_code });
     if (res.ok) {
       this.haltOpen.set(false);
       this.mfaForm.reset();

@@ -27,6 +27,49 @@ def _reject(order, alert, reason: str):
     return {"order_id": str(order.id), "rejected": reason}
 
 
+def _needs_reconcile(order, alert, reason: str):
+    """P1-5 — an ambiguous submit that may have landed at the broker. Mark the
+    order NEEDS_RECONCILE (non-terminal) so the reconnect/periodic reconcile
+    resolves its real state, instead of REJECTED (which the sweep ignores,
+    orphaning a possibly-live order)."""
+    from apps.dashboard.events import ORDER_UPDATED, push_to_user
+    from apps.orders.models import Order
+    from apps.orders.services import order_to_wire
+
+    Order.objects.filter(id=order.id).update(status=Order.Status.NEEDS_RECONCILE, reason=reason[:64])
+    order.refresh_from_db()
+    push_to_user(alert.user_id, ORDER_UPDATED, order_to_wire(order))
+    # The alert WAS processed — an order exists, its broker state pending
+    # reconciliation. Accepted (not rejected) so it isn't reprocessed.
+    alert.status = alert.Status.ACCEPTED
+    alert.processed_at = timezone.now()
+    alert.save(update_fields=["status", "processed_at"])
+    return {"order_id": str(order.id), "needs_reconcile": reason}
+
+
+@shared_task(bind=True, ignore_result=True)
+def redispatch_stranded_alerts(self, older_than_seconds: int = 120):
+    """P2-5 — re-dispatch alerts stranded in RECEIVED (a crash between the
+    committed idempotency-anchor row and ``process_alert.delay``). ``process_alert``
+    is idempotent (status guard + order client_order_id dedup), so re-dispatch is
+    safe."""
+    from datetime import timedelta
+
+    from .models import AlertMessage
+
+    cutoff = timezone.now() - timedelta(seconds=older_than_seconds)
+    stranded = list(
+        AlertMessage.objects.filter(
+            status=AlertMessage.Status.RECEIVED, received_at__lt=cutoff
+        ).values_list("id", flat=True)
+    )
+    for alert_id in stranded:
+        process_alert.delay(str(alert_id))
+    if stranded:
+        logger.info("webhook.redispatch_stranded", extra={"count": len(stranded)})
+    return {"redispatched": len(stranded)}
+
+
 @shared_task(bind=True, max_retries=0)
 def process_alert(self, alert_id):
     """Hydrate an alert, size (verbatim qty in M04), place via the user's
@@ -257,6 +300,11 @@ def process_alert(self, alert_id):
         future_expiry=(future.expiry if future else ""),
         side=order_side,
     )
+    # Reload so the resolved asset_class / option / future fields are visible to
+    # the risk layer (apply_sizing reads order.asset_class + future_root to pick
+    # the permitted-class filter and the contract multiplier — P1-2). Without
+    # this the in-memory order still holds the creation-time default.
+    order.refresh_from_db()
 
     def _build_req(q):
         return OrderRequest(
@@ -309,11 +357,23 @@ def process_alert(self, alert_id):
             ack = adapter.place_order(req, client_order_id)
             ORDER_SUBMIT_LATENCY.labels(broker=str(account.broker).lower()).observe(time.monotonic() - t0)
         except BrokerError as exc:
+            # P1-5: a retryable/ambiguous failure (timeout, 5xx, rate-limited)
+            # may mean the order actually landed — the duplicate probe in the
+            # adapter was inconclusive. Mark NEEDS_RECONCILE, not REJECTED, so the
+            # reconnect sweep re-resolves it and a live order isn't orphaned.
+            if exc.retryable:
+                logger.warning(
+                    "process_alert.broker_ambiguous",
+                    extra={"code": exc.code, "order": str(order.id)},
+                )
+                return _needs_reconcile(order, alert, exc.code)
             logger.info("process_alert.broker_error", extra={"code": exc.code, "order": str(order.id)})
             return _reject(order, alert, exc.code)
         except Exception:  # noqa: BLE001 — never re-raise into a retry storm (§6.3)
+            # An unexpected exception is ambiguous by definition — the submit may
+            # have landed. Reconcile, don't reject.
             logger.exception("process_alert.unexpected", extra={"order": str(order.id)})
-            return _reject(order, alert, "BROKER_UNKNOWN_ERROR")
+            return _needs_reconcile(order, alert, "BROKER_UNKNOWN_ERROR")
 
     # Record broker id; advance status only if inline fills haven't already
     # moved it past PENDING_SUBMIT (FILLS_INLINE path).

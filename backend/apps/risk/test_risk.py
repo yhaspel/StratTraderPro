@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import pyotp
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.brokers.models import TradingHalt
@@ -115,6 +115,52 @@ class SizingTests(TestCase):
         stopped = compute_size(self._inp(intraday_dd_pct=6.0), self.profile).qty  # >5% soft stop
         self.assertEqual(stopped, normal * Decimal("0.5"))
 
+    def test_option_notional_uses_100x_multiplier(self):
+        # P1-2: an option controls 100 shares — notional = qty × price × 100, so
+        # the leverage-1.0 cap binds at qty=10, not the ~1000 it would with mult=1.
+        p = _profile(create_user(email="opt@example.com"), leverage_cap=Decimal("1.0"),
+                     max_position_pct=Decimal("100"), risk_per_trade_pct=Decimal("50"))
+        r = compute_size(
+            self._inp(price=Decimal("100"), equity=Decimal("100000"),
+                      contract_multiplier=Decimal("100")), p)
+        self.assertTrue(r.ok)
+        self.assertEqual(r.qty, Decimal("10"))
+        notional = r.qty * Decimal("100") * Decimal("100")  # qty × price × multiplier
+        self.assertLessEqual(notional, Decimal("100000"))  # ≤ equity × leverage_cap
+
+    def test_leverage_cap_binds_for_options(self):
+        # The option ceiling is exactly 100× tighter than the equity ceiling.
+        p = _profile(create_user(email="optlev@example.com"), leverage_cap=Decimal("1.0"),
+                     max_position_pct=Decimal("100"), risk_per_trade_pct=Decimal("50"))
+        opt = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000"),
+                                     contract_multiplier=Decimal("100")), p).qty
+        eq = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000"),
+                                    contract_multiplier=Decimal("1")), p).qty
+        self.assertEqual(eq, opt * Decimal("100"))
+
+    def test_equity_sizing_unchanged(self):
+        # Regression: default multiplier (1) reproduces pre-P1-2 sizing exactly.
+        r = compute_size(self._inp(price=Decimal("100"), equity=Decimal("100000")), self.profile)
+        self.assertEqual(r.qty, Decimal("200"))  # equity × 20% / price
+
+    def test_hard_stop_rejects_at_threshold(self):
+        # P1-8: at/above hard_stop_pct (default 10%) the order is rejected outright.
+        r = compute_size(self._inp(intraday_dd_pct=11.0), self.profile)
+        self.assertFalse(r.ok)
+        self.assertEqual(r.reason, "HARD_STOP")
+
+    def test_hard_stop_boundary_is_inclusive(self):
+        # Exactly at the threshold rejects (>=).
+        r = compute_size(self._inp(intraday_dd_pct=10.0), self.profile)  # hard_stop 10%
+        self.assertFalse(r.ok)
+        self.assertEqual(r.reason, "HARD_STOP")
+
+    def test_soft_stop_still_only_halves_below_hard(self):
+        # Between soft (5%) and hard (10%): halve, don't reject.
+        r = compute_size(self._inp(intraday_dd_pct=6.0), self.profile)
+        self.assertTrue(r.ok)
+        self.assertTrue(r.meta.get("soft_stop_applied"))
+
 
 class KillSwitchEngineTests(TestCase):
     def setUp(self):
@@ -139,6 +185,31 @@ class KillSwitchEngineTests(TestCase):
         killswitch.trigger_halt(user_id=None, level=TradingHalt.Level.L3, reason="platform")
         other_user = create_user(email="u2@example.com")
         self.assertEqual(killswitch.is_blocked(other_user.id, None), "PLATFORM_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_platform_halt_enforced_even_when_engine_disabled(self):
+        # P1-7: the ops flag disables auto-tripping, NEVER the emergency stop.
+        killswitch.trigger_halt(user_id=None, level=TradingHalt.Level.L3, reason="platform")
+        self.assertEqual(killswitch.is_blocked(self.user.id, None), "PLATFORM_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_user_halt_enforced_when_engine_disabled(self):
+        killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L1, reason="halt")
+        self.assertEqual(killswitch.is_blocked(self.user.id, self.strategy.id), "USER_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_existing_l2_daily_loss_halt_enforced_when_engine_disabled(self):
+        killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L2,
+                                reason="DAILY_LOSS_BREACH", auto=True)
+        self.assertEqual(killswitch.is_blocked(self.user.id, None), "USER_HALTED")
+
+    @override_settings(KILL_SWITCHES_ENABLED=False)
+    def test_flag_only_gates_auto_trip_not_enforcement(self):
+        # With the engine off the watcher must not TRIP a new L2 halt...
+        from apps.risk.tasks import daily_loss_watcher
+
+        self.assertEqual(daily_loss_watcher(), {"skipped": "disabled"})
+        # ...but an operator-created halt is still enforced (proven above).
 
     def test_l2_release_locked_until_next_day(self):
         h = killswitch.trigger_halt(user_id=self.user.id, level=TradingHalt.Level.L2,
@@ -196,6 +267,20 @@ class DailyLossTests(TestCase):
             TradingHalt.objects.filter(user=self.user, level=TradingHalt.Level.L2, released_at__isnull=True).exists()
         )
         self.assertTrue(RiskEvent.objects.filter(type="DAILY_LOSS_BREACH").exists())
+
+    def test_check_daily_loss_uses_default_threshold_without_profile(self):
+        # P0-1: a connected account with no explicit RiskProfile still gets
+        # daily-loss protection via the conservative default threshold ($1000).
+        user = create_user(email="np@example.com")
+        create_broker_account(user)  # connected; NO RiskProfile
+        self.assertFalse(RiskProfile.objects.filter(user=user).exists())
+        with self._adapter(equity=Decimal("98500"), last_equity=Decimal("100000")):
+            self.assertFalse(killswitch.check_daily_loss(user))  # −1500 < −1000, poll 1
+            tripped = killswitch.check_daily_loss(user)  # poll 2 → trip
+        self.assertTrue(tripped)
+        self.assertTrue(
+            TradingHalt.objects.filter(user=user, level=TradingHalt.Level.L2).exists()
+        )
 
     def test_held_overnight_loss_flat_on_day_does_not_trip(self):
         # A swing position sitting at a loss but flat on the DAY (equity ==
@@ -296,6 +381,31 @@ class DailyLossWatcherTests(TestCase):
             result = daily_loss_watcher()
         self.assertEqual(result.get("skipped"), "market_closed")
 
+    def test_daily_loss_watcher_covers_accounts_without_explicit_profile(self):
+        # P0-1: the watcher sweeps every connected LIVE account, even one whose
+        # user has no RiskProfile — the L2 breaker must arm on live money.
+        from unittest import mock
+
+        from apps.brokers.models import BrokerAccount
+        from apps.risk.tasks import daily_loss_watcher
+
+        user = create_user(email="livenp@example.com")
+        BrokerAccount.objects.create(
+            user=user, broker=BrokerAccount.Broker.ALPACA, mode=BrokerAccount.Mode.LIVE,
+            api_key_id_enc=b"x", api_secret_enc=b"x", account_number="LIVE9",
+            status=BrokerAccount.Status.CONNECTED,
+        )
+        self.assertFalse(RiskProfile.objects.filter(user=user).exists())
+        with mock.patch("apps.risk.killswitch.market_is_open", return_value=True), mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=fake_factory(equity=Decimal("98000"), last_equity=Decimal("100000")),
+        ):
+            daily_loss_watcher()  # poll 1 (releases its single-flight lock on exit)
+            daily_loss_watcher()  # poll 2 → trip
+        self.assertTrue(
+            TradingHalt.objects.filter(user=user, level=TradingHalt.Level.L2).exists()
+        )
+
 
 class ProcessAlertSizingTests(TestCase):
     def setUp(self):
@@ -335,7 +445,8 @@ class ProcessAlertSizingTests(TestCase):
 
     def test_soft_stop_fires_on_real_intraday_drawdown(self):
         # RISK-1: intraday DD from equity vs last_equity trips the soft-stop (halves).
-        _profile(self.user)
+        # hard_stop raised to 20% so the 10% DD stays in soft-stop territory (P1-8).
+        _profile(self.user, hard_stop_pct=Decimal("20"))
         from unittest import mock
 
         with mock.patch(
@@ -358,6 +469,81 @@ class ProcessAlertSizingTests(TestCase):
         order = Order.objects.get()
         self.assertEqual(order.status, Order.Status.REJECTED)
         self.assertEqual(order.reason, "SIZING_ASSET_CLASS_BLOCKED")
+
+    def test_no_risk_profile_rejects_in_live_mode(self):
+        # P0-1: a LIVE account with no RiskProfile fails closed (NO_RISK_PROFILE);
+        # nothing reaches the adapter — the raw alert qty must not go out unsized.
+        from unittest import mock
+
+        from apps.brokers.fake import FakeBrokerAdapter
+        from apps.brokers.models import BrokerAccount
+
+        BrokerAccount.objects.filter(user=self.user).delete()
+        BrokerAccount.objects.create(
+            user=self.user, broker=BrokerAccount.Broker.ALPACA, mode=BrokerAccount.Mode.LIVE,
+            api_key_id_enc=b"x", api_secret_enc=b"x", account_number="LIVE001",
+            is_default=True, status=BrokerAccount.Status.CONNECTED,
+        )
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()), \
+                mock.patch.object(FakeBrokerAdapter, "place_order") as place:
+            self._post(valid_alert(symbol="AAPL", qty=1000, idempotency_key="nrp-1"))
+        place.assert_not_called()
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "NO_RISK_PROFILE")
+        self.assertTrue(
+            SizingDecision.objects.filter(order=order, reject_reason="NO_RISK_PROFILE").exists()
+        )
+
+    def test_process_alert_option_uses_100x_multiplier(self):
+        # P1-2: an OPTION order is sized with the 100× multiplier end-to-end.
+        _profile(self.user, permitted_asset_classes=["OPTION"],
+                 max_position_pct=Decimal("100"), leverage_cap=Decimal("1.0"),
+                 risk_per_trade_pct=Decimal("50"))
+        from unittest import mock
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(
+                symbol="AAPL", qty=1000, asset_class="OPTION",
+                option_expiry="2026-12-18", option_strike=100, option_right="CALL",
+                idempotency_key="opt-mult-1",
+            ))
+        dec = SizingDecision.objects.get()
+        self.assertEqual(dec.inputs.get("contract_multiplier"), 100.0)
+        # price 100 × mult 100, leverage cap 1.0, equity 100k ⇒ ≤ 10 contracts.
+        self.assertEqual(Order.objects.get().qty, Decimal("10"))
+
+    def test_hard_stop_rejects_and_halts_at_threshold(self):
+        # P1-8: a hard-stop breach rejects the order AND trips an L2 daily halt.
+        _profile(self.user)  # hard_stop 10%
+        from unittest import mock
+
+        with mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=fake_factory(equity=Decimal("88000"), last_equity=Decimal("100000")),
+        ):  # 12% intraday drawdown ≥ 10%
+            self._post(valid_alert(symbol="AAPL", qty=10, idempotency_key="hs-1"))
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "HARD_STOP")
+        self.assertTrue(
+            TradingHalt.objects.filter(
+                user=self.user, level=TradingHalt.Level.L2, auto=True, released_at__isnull=True
+            ).exists()
+        )
+
+    def test_paper_no_profile_places_verbatim_qty(self):
+        # Regression: paper + no profile keeps M04 verbatim-qty behavior (sizing off).
+        from unittest import mock
+
+        self.assertFalse(RiskProfile.objects.filter(user=self.user).exists())
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self._post(valid_alert(symbol="AAPL", qty=7, idempotency_key="pnp-1"))
+        order = Order.objects.get()
+        self.assertEqual(order.qty, Decimal("7"))
+        self.assertNotEqual(order.status, Order.Status.REJECTED)
+        self.assertFalse(SizingDecision.objects.exists())
 
     def test_max_concurrent_rejects_new_symbol(self):
         # RISK-2: at max_concurrent open positions, a new symbol is rejected.

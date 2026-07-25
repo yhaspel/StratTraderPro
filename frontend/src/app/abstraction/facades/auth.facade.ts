@@ -8,6 +8,9 @@ import { ApiError, AuthTokenPair, LoginResult } from '../../core/models/auth.mod
 import { environment } from '../../../environments/environment';
 import { DashboardWsService } from '../../core/services/ws.service';
 
+/** P2-14 — bootstrap silent-refresh timeout; the app boots unauthenticated past this. */
+const INIT_REFRESH_TIMEOUT_MS = 8_000;
+
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private api = inject(AuthApi);
@@ -143,8 +146,7 @@ export class AuthFacade {
         return true;
       }
       this.applyTokenPair(data as AuthTokenPair);
-      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
-      await this.router.navigateByUrl(next as string);
+      await this.router.navigateByUrl(this.safeNext());
       return true;
     } catch (e) {
       this.handleError(e);
@@ -170,8 +172,7 @@ export class AuthFacade {
         return false;
       }
       this.applyTokenPair(res.data!);
-      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
-      await this.router.navigateByUrl(next as string);
+      await this.router.navigateByUrl(this.safeNext());
       return true;
     } catch (e) {
       this.handleError(e);
@@ -230,8 +231,7 @@ export class AuthFacade {
         return true;
       }
       this.applyTokenPair(data as AuthTokenPair);
-      const next = this.router.parseUrl(this.router.url).queryParams['next'] || '/dashboard';
-      await this.router.navigateByUrl(next as string);
+      await this.router.navigateByUrl(this.safeNext());
       return true;
     } catch (e) {
       this.handleError(e);
@@ -240,10 +240,12 @@ export class AuthFacade {
   }
 
   async logout(): Promise<void> {
-    const refresh = this.store.refreshToken();
-    if (refresh) {
-      try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
-    }
+    // P2-11: tear the dashboard socket down (this is the path the refresh
+    // interceptor calls on auth failure) so it doesn't reconnect on a dead session.
+    this.ws.forceDisconnect();
+    // P1-4: the refresh token rides the HttpOnly cookie; logout() sends no body
+    // and the server revokes the family + clears the cookie.
+    try { await firstValueFrom(this.api.logout()); } catch { /* best effort */ }
     this.store.clearAuth();
     await this.router.navigate(['/login']);
   }
@@ -253,19 +255,16 @@ export class AuthFacade {
    * (best-effort), clears auth state, and lands on the public landing ("/"). */
   async signOut(): Promise<void> {
     this.ws.forceDisconnect();
-    const refresh = this.store.refreshToken();
-    if (refresh) {
-      try { await firstValueFrom(this.api.logout(refresh)); } catch { /* best effort */ }
-    }
+    try { await firstValueFrom(this.api.logout()); } catch { /* best effort */ }
     this.store.clearAuth();
     await this.router.navigate(['/']);
   }
 
   async refreshSession(): Promise<boolean> {
-    const refresh = this.store.refreshToken();
-    if (!refresh) return false;
+    // P1-4: the refresh token is an HttpOnly cookie the SPA can't read, so we
+    // always attempt a rotation; the server 401s (and we clear) if there's none.
     try {
-      const res = await firstValueFrom(this.api.refresh(refresh));
+      const res = await firstValueFrom(this.api.refresh());
       if (res.error) { this.store.clearAuth(); return false; }
       this.applyTokenPair(res.data!);
       return true;
@@ -300,15 +299,27 @@ export class AuthFacade {
 
   /** Attempt silent refresh on app bootstrap. */
   async initSession(): Promise<void> {
-    if (this.store.refreshToken()) {
-      await this.refreshSession();
-    }
+    // P1-4: we can't read the HttpOnly cookie from JS, so always try a refresh;
+    // it resolves to authed if a valid session cookie exists, else clears.
+    // P2-14: cap it so a slow/hung backend can't white-screen first paint — the
+    // app boots unauthenticated and recovers when the refresh eventually settles.
+    await Promise.race([
+      this.refreshSession(),
+      new Promise<void>((resolve) => setTimeout(resolve, INIT_REFRESH_TIMEOUT_MS)),
+    ]);
   }
 
   // --- Private ---
 
+  /** P3-7 — a post-login `next` is honoured only if it is a same-origin absolute
+   * path: exactly one leading '/', never '//' (protocol-relative) or 'scheme:'. */
+  private safeNext(): string {
+    const raw = this.router.parseUrl(this.router.url).queryParams['next'];
+    return typeof raw === 'string' && /^\/(?!\/)/.test(raw) ? raw : '/dashboard';
+  }
+
   private applyTokenPair(pair: AuthTokenPair): void {
-    this.store.setAuthed(pair.user, pair.access, pair.refresh);
+    this.store.setAuthed(pair.user, pair.access);
   }
 
   private handleError(e: unknown): void {

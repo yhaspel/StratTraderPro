@@ -305,6 +305,13 @@ MFA_ENABLED = env.bool("MFA_ENABLED", default=True)
 MFA_STEPUP_MAX_FAILURES = env.int("MFA_STEPUP_MAX_FAILURES", default=5)
 MFA_STEPUP_WINDOW_SECONDS = env.int("MFA_STEPUP_WINDOW_SECONDS", default=900)
 
+# P1-1 — login MFA challenge brute-force cap. The per-IP ratelimit is only half a
+# control (attacker with the password can re-mint mfa_tokens from a distributed IP
+# pool). A per-user counter locks the challenge after this many failures within the
+# window, and the specific mfa_token's jti is burned so it cannot be reused.
+MFA_LOGIN_MAX_FAILURES = env.int("MFA_LOGIN_MAX_FAILURES", default=5)
+MFA_LOGIN_WINDOW_SECONDS = env.int("MFA_LOGIN_WINDOW_SECONDS", default=900)
+
 # Fernet key-encryption key (KEK) for MFA secrets at rest. In dev/test we
 # derive a deterministic KEK from SECRET_KEY so the test suite + a fresh
 # `runserver` work without provisioning. In prod, FERNET_KEK MUST be a real
@@ -315,6 +322,16 @@ import hashlib as _hashlib
 
 _default_kek = _b64.urlsafe_b64encode(_hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()).decode("ascii")
 FERNET_KEK = env("FERNET_KEK", default=_default_kek)
+
+# P1-4 — the refresh token is delivered to browsers as an HttpOnly cookie (never
+# in the JSON body / localStorage, which any XSS can exfiltrate). SameSite=Strict
+# is the CSRF control: the cookie is never sent on cross-site requests, so a
+# malicious origin cannot trigger a rotation with the victim's cookie. Scoped to
+# the auth path so it reaches /auth/refresh/ + /auth/logout/ only. Secure is off
+# in dev/test (plain http) and forced on in prod.py.
+REFRESH_COOKIE_NAME = env("REFRESH_COOKIE_NAME", default="stp_refresh")
+REFRESH_COOKIE_PATH = env("REFRESH_COOKIE_PATH", default="/api/v1/auth/")
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
 
 # MFA token (issued at login for enrolled users, exchanged at /auth/mfa/verify/)
 MFA_TOKEN_TTL_MINUTES = env.int("MFA_TOKEN_TTL_MINUTES", default=5)
@@ -417,6 +434,11 @@ WEBHOOK_MAX_BODY_BYTES = env.int("WEBHOOK_MAX_BODY_BYTES", default=16 * 1024)
 WEBHOOK_IDEMPOTENCY_TTL_SECONDS = env.int("WEBHOOK_IDEMPOTENCY_TTL_SECONDS", default=86400)
 # Optional TradingView source-IP allowlist — empty = disabled (default).
 WEBHOOK_IP_ALLOWLIST = env.list("WEBHOOK_IP_ALLOWLIST", default=[])
+# Number of trusted proxies that append to X-Forwarded-For between the client and
+# this app (e.g. Railway edge + nginx = 2). The client IP is read as the Nth entry
+# from the RIGHT; the left-most entries are client-settable and never trusted
+# (P2-1). 0 (default) → use REMOTE_ADDR only. Set this when enabling the allowlist.
+WEBHOOK_TRUSTED_PROXY_COUNT = env.int("WEBHOOK_TRUSTED_PROXY_COUNT", default=0)
 
 # Fill transport. When True, publish_fill applies fills inline/synchronously
 # (no Redis Stream, no consumer group) so the whole webhook→fill→position→WS
@@ -669,10 +691,21 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.users.tasks.anonymize_expired_accounts",
         "schedule": crontab(hour=2, minute=0),
     },
+    # P2-6 — nightly (02:30 UTC) eviction of expired GDPR export ZIPs + job rows.
+    "users-evict-expired-exports": {
+        "task": "apps.users.tasks.evict_expired_exports",
+        "schedule": crontab(hour=2, minute=30),
+    },
     # M10 — refresh celery_queue_depth{queue} gauge every 30s (default queue).
     "admin-queue-depths": {
         "task": "apps.admin_portal.tasks.update_queue_depths",
         "schedule": env.float("QUEUE_DEPTH_INTERVAL_SECONDS", default=30.0),
+    },
+    # P2-5 — re-dispatch webhook alerts stranded RECEIVED (a crash between the
+    # committed idempotency anchor and process_alert.delay). Default queue.
+    "webhooks-redispatch-stranded": {
+        "task": "apps.webhooks.tasks.redispatch_stranded_alerts",
+        "schedule": env.float("WEBHOOK_REDISPATCH_INTERVAL_SECONDS", default=60.0),
     },
 }
 

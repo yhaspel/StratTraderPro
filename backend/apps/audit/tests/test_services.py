@@ -51,6 +51,42 @@ class EmitTests(TestCase):
         # And the secret never appears anywhere in the persisted payload.
         self.assertNotIn("supersecret", str(row.data_after))
 
+    def test_scrub_redacts_substring_keys(self):
+        # P1-9: exact-match missed variants like api_secret / current_password.
+        from apps.audit.scrub import scrub
+
+        out = scrub({
+            "api_secret": "x", "current_password": "y", "secret_encrypted": "z",
+            "refresh_token": "r", "access_token": "a", "authorization": "b",
+            "api_key_id_enc": "c", "name": "keep", "count": 3,
+        })
+        for k in ("api_secret", "current_password", "secret_encrypted",
+                  "refresh_token", "access_token", "authorization", "api_key_id_enc"):
+            self.assertEqual(out[k], "***REDACTED***", k)
+        self.assertEqual(out["name"], "keep")
+        self.assertEqual(out["count"], 3)
+
+    def test_scrub_nested_and_no_overmatch(self):
+        from apps.audit.scrub import scrub
+
+        out = scrub({"outer": {"api_secret": "x"}, "list": [{"password_hash": "y"}],
+                     "design": 1, "monkey": 2, "zip_code": "90210"})
+        self.assertEqual(out["outer"]["api_secret"], "***REDACTED***")
+        self.assertEqual(out["list"][0]["password_hash"], "***REDACTED***")
+        # Benign field names must not be over-redacted.
+        self.assertEqual((out["design"], out["monkey"], out["zip_code"]), (1, 2, "90210"))
+
+    def test_scrub_and_gdpr_share_denylist(self):
+        # One shared substring list backs both the audit scrubber and the GDPR
+        # export redactor.
+        from apps.audit.scrub import _key_is_sensitive
+        from apps.users.gdpr import _is_sensitive
+
+        for name in ("api_secret", "current_password", "secret_encrypted",
+                     "refresh_token", "ts_access_token_enc"):
+            self.assertTrue(_is_sensitive(name), name)
+            self.assertTrue(_key_is_sensitive(name), name)
+
     def test_captures_ip_and_ua_from_request(self):
         req = RequestFactory().post("/x", HTTP_USER_AGENT="UnitAgent/1.0",
                                     HTTP_X_FORWARDED_FOR="9.9.9.9, 10.0.0.1")

@@ -32,7 +32,7 @@ describe('authGuard', () => {
   afterEach(() => localStorage.clear());
 
   it('returns true when user is authenticated', () => {
-    store.setAuthed(mockUser, 'access', 'refresh');
+    store.setAuthed(mockUser, 'access');
     expect(runGuard(['dashboard'])).toBeTrue();
   });
 

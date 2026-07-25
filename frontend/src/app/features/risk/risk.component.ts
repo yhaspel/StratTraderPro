@@ -8,7 +8,7 @@
  *   (c) Risk events feed.
  *   (d) Sizing decisions feed (last ~50).
  */
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
@@ -73,6 +73,7 @@ const EVENT_TONES: Record<string, ChipTone> = {
 @Component({
   selector: 'app-risk',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -309,7 +310,12 @@ const EVENT_TONES: Record<string, ChipTone> = {
                       {{ ('risk.event.' + e.type) | translate }}
                     </app-status-chip>
                     <span class="shrink-0 font-mono text-xs text-neutral-700">{{ e.created_at | date:'short' }}</span>
-                    <code class="min-w-0 truncate font-mono text-xs text-neutral-700">{{ e.details | json }}</code>
+                    <!-- P2-DESIGN-7: raw JSON behind a keyboard-accessible expander,
+                         not an always-on truncated dump. -->
+                    <details class="min-w-0 text-xs text-neutral-700">
+                      <summary class="cursor-pointer">{{ 'risk.events.details' | translate }}</summary>
+                      <pre class="mt-1 overflow-x-auto whitespace-pre-wrap font-mono">{{ e.details | json }}</pre>
+                    </details>
                   </li>
                 }
               </ul>
@@ -330,11 +336,11 @@ const EVENT_TONES: Record<string, ChipTone> = {
             <table class="w-full text-[13px]">
               <thead class="text-left">
                 <tr>
-                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.time' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.symbol' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.requested' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.computed' | translate }}</th>
-                  <th class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.result' | translate }}</th>
+                  <th scope="col" class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.time' | translate }}</th>
+                  <th scope="col" class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.symbol' | translate }}</th>
+                  <th scope="col" class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.requested' | translate }}</th>
+                  <th scope="col" class="border-b border-divider px-3 py-2 text-right font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.computed' | translate }}</th>
+                  <th scope="col" class="border-b border-divider px-3 py-2 font-heading font-semibold text-[11px] uppercase tracking-[0.08em] text-neutral-700">{{ 'risk.sizing.col.result' | translate }}</th>
                 </tr>
               </thead>
               <tbody>

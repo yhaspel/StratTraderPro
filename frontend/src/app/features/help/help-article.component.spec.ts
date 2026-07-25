@@ -32,6 +32,18 @@ describe('HelpArticleComponent', () => {
     http.verify();
   });
 
+  it('strips injected script / onerror from help HTML (P2-12)', () => {
+    const { fixture, http } = setup('mfa');
+    http.expectOne('assets/help/mfa.html').flush(
+      '<h1>Ok</h1><script>window.__pwned=1</script><img src="x" onerror="window.__pwned=1">',
+    );
+    fixture.detectChanges();
+    const html = (fixture.nativeElement as HTMLElement).innerHTML;
+    expect(html).toContain('Ok');
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('onerror');
+  });
+
   it('shows not-found for an unknown slug (404)', () => {
     const { fixture, http } = setup('does-not-exist');
     http.expectOne('assets/help/does-not-exist.html').flush('nope', { status: 404, statusText: 'Not Found' });

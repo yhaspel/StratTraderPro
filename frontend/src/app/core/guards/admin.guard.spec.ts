@@ -31,12 +31,12 @@ describe('adminGuard', () => {
   afterEach(() => localStorage.clear());
 
   it('returns true when the user is staff', () => {
-    store.setAuthed(staffUser, 'access', 'refresh');
+    store.setAuthed(staffUser, 'access');
     expect(runGuard()).toBeTrue();
   });
 
   it('redirects to /dashboard when the user is not staff', () => {
-    store.setAuthed(plainUser, 'access', 'refresh');
+    store.setAuthed(plainUser, 'access');
     const result = runGuard() as UrlTree;
     expect(result).toBeInstanceOf(UrlTree);
     expect(router.serializeUrl(result)).toBe('/dashboard');

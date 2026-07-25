@@ -281,6 +281,13 @@ class AlpacaAdapter:
         except BrokerError:
             return None
 
+    def resolve_by_client_id(self, client_order_id: str):
+        """P1-5 — the broker's authoritative order state by client_order_id, as an
+        ``OrderAck``, or ``None`` if the order never landed. Used by reconcile to
+        resolve an ambiguous (NEEDS_RECONCILE) submit."""
+        raw = self._lookup_by_client_id(client_order_id)
+        return mapping.map_order_ack(raw) if raw is not None else None
+
     def get_order_status(self, broker_order_id: str) -> str | None:
         """Fetch the broker's authoritative status for one order (used by the
         reconnect catch-up to resolve closed orders without assuming FILLED).

@@ -219,6 +219,29 @@ class ValidatorJsonSchemaTests(TestCase):
         with self.assertRaises(StrategyValidationError):
             validate_payload_against_schema({"x": "nope"}, schema)
 
+    def test_default_schema_passes_complexity_check(self):
+        from apps.strategies.services import default_json_schema
+
+        validate_json_schema(default_json_schema())  # no exception
+
+    def test_pattern_properties_rejected(self):
+        with self.assertRaises(StrategyValidationError) as ctx:
+            validate_json_schema({"type": "object", "patternProperties": {".*": {"type": "string"}}})
+        self.assertEqual(ctx.exception.code, "WEBHOOK_SCHEMA_INVALID")
+
+    def test_overlong_pattern_rejected(self):
+        with self.assertRaises(StrategyValidationError):
+            validate_json_schema({"type": "string", "pattern": "a" * 500})
+
+    def test_deep_nesting_rejected(self):
+        node: dict = {"type": "object"}
+        cur = node
+        for _ in range(15):  # > _MAX_SCHEMA_DEPTH
+            cur["properties"] = {"x": {"type": "object"}}
+            cur = cur["properties"]["x"]
+        with self.assertRaises(StrategyValidationError):
+            validate_json_schema(node)
+
 
 # =========================================================================
 # AC-03-1, AC-03-10 — load_strategies seed command
@@ -407,6 +430,26 @@ class StrategySystemImmutabilityTests(TestCase):
             **_auth(user),
         )
         self.assertEqual(resp.status_code, 403)
+
+
+class StrategyPatchAuditTests(TestCase):
+    def test_strategy_patch_audit_only_allowlisted_fields(self):
+        # P1-9: the PATCH audit must record only known validated fields, never
+        # echo arbitrary client body keys (which could carry a secret).
+        from apps.audit.models import AuditLog
+
+        user = _create_user()
+        s = Strategy.objects.create(slug="mine", name="Old", owner=user)
+        resp = self.client.patch(
+            f"{API}/{s.id}/",
+            data=json.dumps({"name": "New", "is_enabled": False, "current_password": "hunter2"}),
+            content_type="application/json",
+            **_auth(user),
+        )
+        self.assertEqual(resp.status_code, 200)
+        row = AuditLog.objects.filter(event_type="strategy.updated").latest("occurred_at")
+        self.assertEqual(set(row.data_after.keys()), {"name", "is_enabled"})
+        self.assertNotIn("current_password", str(row.data_after))
 
 
 class StrategyDeleteTests(TestCase):

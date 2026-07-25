@@ -11,6 +11,7 @@ from typing import Optional
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -92,10 +93,13 @@ def issue_token_pair(
             last_used_at=timezone.now(),
         )
     else:
+        # P2-8 — remember the JTI we're rotating away from as the one-step grace
+        # anchor before overwriting it.
+        family.previous_jti = family.current_jti or ""
         family.current_jti = str(refresh["jti"])
         family.last_used_at = timezone.now()
         # Refresh device hints if we got new ones.
-        update_fields = ["current_jti", "last_used_at"]
+        update_fields = ["current_jti", "previous_jti", "last_used_at"]
         if ip:
             family.ip = ip
             update_fields.append("ip")
@@ -136,51 +140,64 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
         REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("Refresh token is missing required claims")
 
-    try:
-        family = RefreshTokenFamily.objects.select_related("user").get(family_id=family_id)
-    except RefreshTokenFamily.DoesNotExist as exc:
-        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
-        raise InvalidToken("Unknown refresh token family") from exc
+    # P2-8: lock the family row for the compare-and-swap so two near-simultaneous
+    # refreshes serialize instead of racing (the loser would otherwise trip
+    # reuse-detection and revoke the whole family, logging a double-submitting
+    # client out everywhere). The DB writes (rotation OR revoke) happen inside the
+    # locked block and commit on exit; audit events + the InvalidToken raise are
+    # done AFTER the block so the revoke isn't rolled back by the raise.
+    #   jti == current  → normal rotation.
+    #   jti == previous → one-step GRACE: a double-submit of the just-rotated
+    #                     token (a client racing itself). Rotate again, don't revoke.
+    #   anything else   → genuine reuse → burn the family.
+    pair = None
+    with transaction.atomic():
+        try:
+            family = (
+                RefreshTokenFamily.objects.select_for_update()
+                .select_related("user")
+                .get(family_id=family_id)
+            )
+        except RefreshTokenFamily.DoesNotExist as exc:
+            REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
+            raise InvalidToken("Unknown refresh token family") from exc
 
-    if family.is_revoked:
+        already_revoked = family.is_revoked
+        is_reuse = (not already_revoked) and jti != family.current_jti and jti != (
+            family.previous_jti or None
+        )
+        inactive = (not already_revoked and not is_reuse) and not family.user.is_active
+        if is_reuse:
+            family.revoke(reason="reuse_detected")
+        elif not already_revoked and not inactive:
+            pair = issue_token_pair(family.user, family=family, request=request)
+
+    # Outside the locked block (writes committed) — now emit + signal outcome.
+    if already_revoked:
         record_event(
-            EventType.REFRESH_REUSE,
-            user=family.user,
-            request=request,
+            EventType.REFRESH_REUSE, user=family.user, request=request,
             metadata={"family_id": str(family.family_id), "reason": "already_revoked"},
         )
         REFRESH_TOTAL.labels(result=RefreshResult.FAMILY_REVOKED).inc()
         raise InvalidToken("Refresh token family revoked")
-
-    if jti != family.current_jti:
-        # Reuse detected — burn the entire family.
-        family.revoke(reason="reuse_detected")
+    if is_reuse:
         record_event(
-            EventType.REFRESH_REUSE,
-            user=family.user,
-            request=request,
+            EventType.REFRESH_REUSE, user=family.user, request=request,
             metadata={"family_id": str(family.family_id), "presented_jti": jti},
         )
         record_event(
-            EventType.FAMILY_REVOKED,
-            user=family.user,
-            request=request,
+            EventType.FAMILY_REVOKED, user=family.user, request=request,
             metadata={"family_id": str(family.family_id)},
         )
         REFRESH_TOTAL.labels(result=RefreshResult.REUSE_DETECTED).inc()
         FAMILY_REVOCATIONS_TOTAL.inc()
         raise InvalidToken("Refresh token reuse detected — family revoked")
-
-    user = family.user
-    if not user.is_active:
+    if inactive:
         REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("User inactive")
 
-    pair = issue_token_pair(user, family=family, request=request)
     record_event(
-        EventType.REFRESH_OK,
-        user=user,
-        request=request,
+        EventType.REFRESH_OK, user=family.user, request=request,
         metadata={"family_id": str(family.family_id)},
     )
     REFRESH_TOTAL.labels(result=RefreshResult.OK).inc()
@@ -216,18 +233,26 @@ def revoke_refresh(raw_refresh: str, *, request=None) -> bool:
 # ---------------------------------------------------------------------------
 # Lockout
 # ---------------------------------------------------------------------------
-def is_locked(email: str) -> bool:
+def is_locked(email: str, ip: Optional[str] = None) -> bool:
+    """Whether ``email`` is locked out of login.
+
+    P2-4: when ``ip`` is given the count is scoped to that IP, so a remote
+    attacker flooding failures from their own IP cannot lock the victim out of a
+    *different* IP (a targeted-DoS primitive). The per-email 5/m rate limit is the
+    primary throttle; this lock is a secondary, IP-scoped control (ADR-108).
+    ``ip=None`` preserves the legacy per-email count for callers without an IP."""
     threshold = settings.AUTH_LOCKOUT_THRESHOLD
     window = timedelta(minutes=settings.AUTH_LOCKOUT_WINDOW_MINUTES)
     cutoff = timezone.now() - window
-    return (
-        FailedLoginAttempt.objects.filter(email=email, occurred_at__gte=cutoff).count()
-        >= threshold
-    )
+    qs = FailedLoginAttempt.objects.filter(email=email, occurred_at__gte=cutoff)
+    if ip:
+        qs = qs.filter(ip=ip)
+    return qs.count() >= threshold
 
 
-def record_failed_login(email: str, request=None) -> None:
-    FailedLoginAttempt.objects.create(email=email, ip=_client_ip(request) if request else None)
+def record_failed_login(email: str, request=None, ip: Optional[str] = None) -> None:
+    resolved = ip if ip is not None else (_client_ip(request) if request else None)
+    FailedLoginAttempt.objects.create(email=email, ip=resolved)
 
 
 def clear_failed_logins(email: str) -> None:

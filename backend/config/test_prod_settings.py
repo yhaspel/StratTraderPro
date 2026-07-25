@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from django.test import SimpleTestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import Resolver404, resolve
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -69,6 +69,35 @@ class ProdKeyFailClosedTests(SimpleTestCase):
             "ALLOWED_HOSTS": "example.com",
         })
         self.assertEqual(res.returncode, 0, res.stderr)
+
+
+class SchemaEndpointGatingTests(TestCase):
+    """P3-5 — OpenAPI schema + docs are admin-gated when not DEBUG (test/prod)."""
+
+    def test_schema_requires_admin(self):
+        self.assertIn(Client().get("/api/schema/").status_code, (401, 403))
+
+    def test_docs_requires_admin(self):
+        self.assertIn(Client().get("/api/docs/").status_code, (401, 403))
+
+
+class CspEnforcedInProdTests(SimpleTestCase):
+    """P3-6 — prod enforces the CSP (not report-only)."""
+
+    def test_prod_disables_csp_report_only(self):
+        res = subprocess.run(
+            [sys.executable, "-c", "import config.settings.prod as p; print('CSP', p.CSP_REPORT_ONLY)"],
+            cwd=str(BACKEND_DIR),
+            env={
+                "PATH": os.environ.get("PATH", ""),
+                "DJANGO_SETTINGS_MODULE": "config.settings.prod",
+                "SECRET_KEY": _REAL_SECRET, "FERNET_KEK": _REAL_KEK,
+                "DATABASE_URL": "sqlite:///prodtest.db", "ALLOWED_HOSTS": "example.com",
+            },
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("CSP False", res.stdout)
 
 
 class AdminUnmountTests(SimpleTestCase):

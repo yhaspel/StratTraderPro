@@ -4,11 +4,11 @@ import { landingGuard } from './landing.guard';
 import { AuthStore } from '../../abstraction/stores/auth.store';
 
 describe('landingGuard', () => {
-  function run(authed: boolean, refresh: string | null): boolean | UrlTree {
+  function run(authed: boolean): boolean | UrlTree {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: AuthStore, useValue: { isAuthenticated: () => authed, refreshToken: () => refresh } },
+        { provide: AuthStore, useValue: { isAuthenticated: () => authed } },
       ],
     });
     return TestBed.runInInjectionContext(() => landingGuard({} as never, [] as never)) as boolean | UrlTree;
@@ -17,11 +17,11 @@ describe('landingGuard', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   it('allows anonymous users to see the landing', () => {
-    expect(run(false, null)).toBeTrue();
+    expect(run(false)).toBeTrue();
   });
 
   it('redirects authenticated users to /dashboard', () => {
-    const result = run(true, 'refresh-token');
+    const result = run(true);
     expect(result instanceof UrlTree).toBeTrue();
     expect((result as UrlTree).toString()).toBe('/dashboard');
   });

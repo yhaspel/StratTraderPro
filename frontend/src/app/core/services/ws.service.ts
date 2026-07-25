@@ -42,7 +42,14 @@ export class DashboardWsService {
   readonly connected = this._connected.asReadonly();
 
   connect(): void {
+    // P2-9: only the PUBLIC connect() mutates the refcount. openSocket() (also
+    // called by the reconnect timer) must not, or every reconnect inflates refs
+    // so disconnect() can never reach 0 and the socket + heartbeat leak forever.
     this.refs += 1;
+    this.openSocket();
+  }
+
+  private openSocket(): void {
     // SSR / no-window guard.
     if (typeof window === 'undefined' || typeof WebSocket === 'undefined') { return; }
     if (this.socket &&
@@ -53,8 +60,10 @@ export class DashboardWsService {
     if (!token) { return; }
 
     this.closedByClient = false;
-    const url = `${environment.wsBase}/ws/dashboard/?token=${encodeURIComponent(token)}`;
-    const ws = new WebSocket(url);
+    // P2-10: carry the JWT in the Sec-WebSocket-Protocol subprotocol, not the URL
+    // query string (URLs leak into proxy/daphne access logs + browser history).
+    const url = `${environment.wsBase}/ws/dashboard/`;
+    const ws = new WebSocket(url, ['stp-jwt', token]);
     this.socket = ws;
 
     ws.onopen = () => {
@@ -79,7 +88,11 @@ export class DashboardWsService {
     ws.onclose = () => {
       this._connected.set(false);
       this.stopHeartbeat();
-      if (!this.closedByClient) { this.scheduleReconnect(); }
+      // P2-11: don't reconnect if the client closed it OR there's no longer an
+      // access token (logged out) — otherwise it loops forever on a dead session.
+      if (!this.closedByClient && this.refs > 0 && this.auth.accessToken()) {
+        this.scheduleReconnect();
+      }
     };
   }
 
@@ -127,7 +140,7 @@ export class DashboardWsService {
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect();
+      this.openSocket();  // P2-9: reconnect must NOT bump the refcount
     }, delay);
   }
 }
