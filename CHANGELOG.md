@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Strategy list: pausing a strategy made it vanish (looked like upload deleted it) (#46)
+- `Strategy.is_enabled` doubled as the soft-delete flag AND the list-row arm/disarm toggle:
+  the list endpoint filtered `is_enabled=True`, so switching the toggle off removed the row
+  from the list on the next load — indistinguishable from deletion, with no UI path back.
+  Reported as "uploading a strategy removes the older one": upload → pause → next upload's
+  list reload hid the paused row.
+- Deletion is now its own field: `Strategy.deleted_at` (migration `0002`, with a data rule
+  stamping pre-existing `is_enabled=False` rows as legacy soft-deletes). The list and the
+  backtest picker show all non-deleted rows — paused strategies stay visible with the toggle
+  off; deleted rows 404 on detail/PATCH (no resurrection). DELETE stamps `deleted_at` and
+  disarms. The strategy-count gauge now excludes deleted rows.
+- **Ingest actually honors the toggle now**: neither the webhook view nor `process_alert`
+  ever consulted the strategy row, so a paused *or soft-deleted* strategy with a live
+  webhook config kept accepting alerts and placing orders. Both now reject with an audited
+  `STRATEGY_DISABLED` (same 200-reject envelope as a halt), including the task-side
+  re-check for pause races and stranded-alert redispatch.
+- Frontend needs no changes: the list template already renders `is_enabled=false` rows with
+  the toggle off, and re-enabling goes through the existing P1-10 confirm.
+- Regression tests: paused-visible/deleted-hidden list split, delete stamps + 404s,
+  ingest + task-level `STRATEGY_DISABLED`, and a pause→reject→re-enable→accept round-trip.
+
 ### Fixed — Strategy upload: Pine `//@version` detection
 - Upload step 3 rejected every unmodified TradingView export with *"Pine file must declare
   //@version=N within first 64 bytes."* The licence header TradingView auto-inserts is ~110

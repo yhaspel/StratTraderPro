@@ -410,3 +410,67 @@ class ProcessAlertValidationTests(_Base):
                            "option_strike": 100, "idempotency_key": "ic-1"})
         self.assertEqual(alert.status, "REJECTED")
         self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
+
+
+class WebhookStrategyDisabledTests(_Base):
+    """#46 — pausing (is_enabled=False) or soft-deleting (deleted_at) a strategy
+    must gate BOTH the ingest endpoint and process_alert; before this fix the
+    pipeline never consulted the strategy row and a paused/deleted strategy
+    kept trading."""
+
+    def test_paused_strategy_rejects_alert(self):
+        self.strategy.is_enabled = False
+        self.strategy.save(update_fields=["is_enabled"])
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["rejected"], "STRATEGY_DISABLED")
+        alert = AlertMessage.objects.get()
+        self.assertEqual(alert.status, AlertMessage.Status.REJECTED)
+        self.assertEqual(alert.reject_reason, "STRATEGY_DISABLED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_soft_deleted_strategy_rejects_alert(self):
+        from django.utils import timezone
+
+        self.strategy.is_enabled = False
+        self.strategy.deleted_at = timezone.now()
+        self.strategy.save(update_fields=["is_enabled", "deleted_at"])
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["rejected"], "STRATEGY_DISABLED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_process_alert_rechecks_strategy_state(self):
+        # Accepted while armed; paused before the worker picks it up (or before
+        # a stranded-alert redispatch) — the task-side re-check must reject.
+        create_broker_account(self.user)
+        body = {k: v for k, v in valid_alert().items() if k != "sig"}
+        alert = AlertMessage.objects.create(
+            user=self.user, strategy=self.strategy, body_json=body,
+            idempotency_key="paused-race-1",
+            status=AlertMessage.Status.RECEIVED,
+        )
+        self.strategy.is_enabled = False
+        self.strategy.save(update_fields=["is_enabled"])
+        from apps.webhooks.tasks import process_alert
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            process_alert.delay(str(alert.id))
+        alert.refresh_from_db()
+        self.assertEqual(alert.status, AlertMessage.Status.REJECTED)
+        self.assertEqual(alert.reject_reason, "STRATEGY_DISABLED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_reenabled_strategy_accepts_again(self):
+        # Round-trip: pause -> reject, re-enable -> accept (idempotency key
+        # differs; the paused reject must not burn the retry).
+        self.strategy.is_enabled = False
+        self.strategy.save(update_fields=["is_enabled"])
+        self.post(valid_alert(idempotency_key="rt-1"))
+        self.strategy.is_enabled = True
+        self.strategy.save(update_fields=["is_enabled"])
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            resp = self.post(valid_alert(idempotency_key="rt-2"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["data"].get("accepted"))

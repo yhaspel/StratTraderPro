@@ -23,6 +23,7 @@ from typing import Optional
 
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.text import slugify
 from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
@@ -76,11 +77,12 @@ def _enabled() -> bool:
 
 
 def _visible_qs(user):
-    """List queryset: own strategies + all system strategies. Defaults to
-    is_enabled=True; the caller can apply ``include_disabled`` from the
-    query string if needed."""
+    """List queryset: own strategies + all system strategies, minus
+    soft-deleted rows. Paused (``is_enabled=False``) strategies ARE listed —
+    the toggle only arms/disarms live execution; hiding them made a pause
+    indistinguishable from a delete (#46)."""
     return (
-        Strategy.objects.filter(is_enabled=True)
+        Strategy.objects.filter(deleted_at__isnull=True)
         .filter(_owner_or_system_q(user))
         .order_by("is_system", "name")
     )
@@ -92,9 +94,12 @@ def _owner_or_system_q(user):
 
 
 def _detail_qs(user):
-    """For show / edit / delete — bypass is_enabled filter so users can
-    view their own soft-deleted ones."""
-    return Strategy.objects.filter(_owner_or_system_q(user))
+    """For show / edit / delete — same non-deleted scope as the list.
+    Paused rows are fully accessible; deleted rows 404 like any other
+    non-existent id (no resurrection via PATCH, no existence leak) (#46)."""
+    return Strategy.objects.filter(deleted_at__isnull=True).filter(
+        _owner_or_system_q(user)
+    )
 
 
 def _make_unique_slug(user, base: str) -> str:
@@ -283,14 +288,17 @@ class StrategyDetailView(APIView):
                 "System strategies cannot be deleted.",
                 status=403,
             )
-        # Soft-delete = is_enabled=False. Hard delete is admin-only.
+        # Soft-delete = deleted_at timestamp; also disarm so the ingest gate
+        # rejects any in-flight alerts. Hard delete is admin-only. (#46)
         strategy.is_enabled = False
-        strategy.save(update_fields=["is_enabled", "updated_at"])
+        strategy.deleted_at = timezone.now()
+        strategy.save(update_fields=["is_enabled", "deleted_at", "updated_at"])
         refresh_count_gauge()
         emit(
             AuditEventType.STRATEGY_DELETED, user=request.user, actor=request.user, request=request,
             entity_type="strategy", entity_id=str(strategy.id),
-            data_before={"is_enabled": True}, data_after={"is_enabled": False},
+            data_before={"deleted": False},
+            data_after={"is_enabled": False, "deleted": True},
         )
         return ok({"id": str(strategy.id), "is_enabled": False})
 

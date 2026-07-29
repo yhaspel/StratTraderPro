@@ -27,6 +27,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.strategies.models import Strategy, WebhookConfig
 from apps.strategies.validators import (
@@ -399,13 +400,21 @@ class StrategyListTests(TestCase):
         self.assertEqual(types["sys-a"], "system")
         self.assertEqual(types["user-a"], "user")
 
-    def test_list_excludes_soft_deleted(self):
+    def test_list_excludes_soft_deleted_but_keeps_paused(self):
+        """#46 — deletion (deleted_at) hides a row; pausing (is_enabled=False)
+        must NOT: the toggle only disarms live execution."""
         user = _create_user()
-        Strategy.objects.create(slug="off", name="Off", owner=user, is_enabled=False)
+        Strategy.objects.create(
+            slug="gone", name="Gone", owner=user,
+            is_enabled=False, deleted_at=timezone.now(),
+        )
+        Strategy.objects.create(slug="paused", name="Paused", owner=user, is_enabled=False)
         Strategy.objects.create(slug="on", name="On", owner=user, is_enabled=True)
         resp = self.client.get(f"{API}/", **_auth(user))
-        slugs = [d["slug"] for d in resp.json()["data"]]
-        self.assertEqual(slugs, ["on"])
+        by_slug = {d["slug"]: d for d in resp.json()["data"]}
+        self.assertEqual(sorted(by_slug), ["on", "paused"])
+        self.assertFalse(by_slug["paused"]["is_enabled"])
+        self.assertTrue(by_slug["on"]["is_enabled"])
 
 
 class StrategyUploadTests(TestCase):
@@ -528,6 +537,24 @@ class StrategyDeleteTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         s.refresh_from_db()
         self.assertFalse(s.is_enabled)
+        self.assertIsNotNone(s.deleted_at)  # #46 — delete stamps deleted_at
+        # ...and the row is gone from the list (unlike a mere pause).
+        resp = self.client.get(f"{API}/", **_auth(user))
+        self.assertEqual(resp.json()["data"], [])
+
+    def test_deleted_strategy_detail_is_404(self):
+        """#46 — deleted rows 404 on detail/PATCH: no resurrection path."""
+        user = _create_user()
+        s = Strategy.objects.create(slug="gone2", name="Gone2", owner=user)
+        self.client.delete(f"{API}/{s.id}/", **_auth(user))
+        self.assertEqual(
+            self.client.get(f"{API}/{s.id}/", **_auth(user)).status_code, 404
+        )
+        resp = self.client.patch(
+            f"{API}/{s.id}/", data={"is_enabled": True},
+            content_type="application/json", **_auth(user),
+        )
+        self.assertEqual(resp.status_code, 404)
 
     def test_user_cannot_delete_other_users_strategy(self):
         user = _create_user()
