@@ -232,7 +232,14 @@ class WebhookView(View):
             WEBHOOK_RECEIVED_TOTAL.labels(result=R_DUPLICATE).inc()
             return _json({"data": {"duplicate": True}}, 200)
 
-        reason = is_blocked(wc.user_id, wc.strategy_id)
+        # #46 — the enable toggle must actually govern trading: a paused or
+        # soft-deleted strategy rejects the alert (audited row, idempotency
+        # cached) instead of placing orders. Same 200-reject envelope as a
+        # halt so TradingView does not retry-storm.
+        if wc.strategy.deleted_at is not None or not wc.strategy.is_enabled:
+            reason = "STRATEGY_DISABLED"
+        else:
+            reason = is_blocked(wc.user_id, wc.strategy_id)
         if reason:
             alert.status = AlertMessage.Status.REJECTED
             alert.reject_reason = reason

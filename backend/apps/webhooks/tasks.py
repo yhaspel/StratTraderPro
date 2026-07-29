@@ -100,6 +100,16 @@ def process_alert(self, alert_id):
     if alert.status != AlertMessage.Status.RECEIVED:
         return {"skipped": "already_processed"}
 
+    # #46 belt-and-suspenders: a strategy paused or soft-deleted between
+    # webhook accept and worker pickup (incl. stranded-alert redispatch)
+    # must not trade — mirrors the kill-switch re-check below.
+    if alert.strategy.deleted_at is not None or not alert.strategy.is_enabled:
+        alert.status = AlertMessage.Status.REJECTED
+        alert.reject_reason = "STRATEGY_DISABLED"
+        alert.processed_at = timezone.now()
+        alert.save(update_fields=["status", "reject_reason", "processed_at"])
+        return {"rejected": "STRATEGY_DISABLED"}
+
     body = alert.body_json or {}
     account = (
         BrokerAccount.objects.filter(user=alert.user, is_default=True).first()

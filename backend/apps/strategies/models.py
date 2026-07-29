@@ -13,8 +13,9 @@ Tables:
   payload template + version counter for rotation.
 
 Design notes:
-- Soft delete = ``is_enabled=False``. List view filters it out by default.
-  No separate ``deleted_at`` until M10 audit-log work needs it.
+- Soft delete = ``deleted_at`` timestamp (#46). Deleted rows are hidden from
+  every list and 404 on detail. ``is_enabled`` is ONLY the live-execution
+  arm/disarm toggle: paused strategies stay listed and reject webhook alerts.
 - ``secret_encrypted`` is Fernet-wrapped using the same KEK as M02
   (apps/users/mfa._fernet). Plain bytes are never written to disk.
 - The webhook URL itself is generated (not persisted) via
@@ -48,7 +49,14 @@ class Strategy(models.Model):
     is_system = models.BooleanField(default=False)
     is_enabled = models.BooleanField(
         default=True,
-        help_text="Soft-delete flag. False = hidden from default list.",
+        help_text="Live-execution toggle (arm/disarm). False = paused: still "
+                  "listed, but webhook alerts are rejected. Deletion is "
+                  "``deleted_at``, not this flag (#46).",
+    )
+    deleted_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Soft-delete timestamp. NULL = live. Set by user DELETE; "
+                  "row is hidden from all lists and rejects alerts (#46).",
     )
     is_community_tested = models.BooleanField(
         default=False,

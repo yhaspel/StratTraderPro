@@ -33,8 +33,10 @@ STRATEGY_COUNT_GAUGE = Gauge(
 def refresh_count_gauge() -> None:
     """Cheap recompute — call on app ready + on each create/delete."""
     from .models import Strategy
-    sys = Strategy.objects.filter(is_system=True).count()
-    user = Strategy.objects.filter(is_system=False).count()
+    # Soft-deleted rows are not "strategies on the platform" (#46).
+    live = Strategy.objects.filter(deleted_at__isnull=True)
+    sys = live.filter(is_system=True).count()
+    user = live.filter(is_system=False).count()
     STRATEGY_COUNT_GAUGE.labels(type="system").set(sys)
     STRATEGY_COUNT_GAUGE.labels(type="user").set(user)
 

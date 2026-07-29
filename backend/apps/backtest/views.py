@@ -46,7 +46,9 @@ class _BaseBacktestView(APIView):
 
 def _visible_strategies(user):
     """System strategies (backtestable by anyone) + the caller's own (§11)."""
-    return Strategy.objects.filter(Q(is_system=True) | Q(owner=user), is_enabled=True)
+    # Paused strategies stay backtestable — pause-and-iterate is the point.
+    # Only soft-deleted rows disappear (#46).
+    return Strategy.objects.filter(Q(is_system=True) | Q(owner=user), deleted_at__isnull=True)
 
 
 class BacktestStrategyListView(_BaseBacktestView):
