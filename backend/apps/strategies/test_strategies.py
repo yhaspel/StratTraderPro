@@ -69,6 +69,23 @@ def _valid_pine() -> bytes:
     return b"//@version=5\nstrategy('demo', overlay=true)\nplotshape(close)\n"
 
 
+def _tradingview_pine(version: int = 5) -> bytes:
+    """A script exactly as TradingView exports it.
+
+    The licence line TradingView auto-inserts is ~110 bytes on its own, so the
+    //@version annotation lands around byte 127 — well past the 64-byte window
+    the validator used to look in.
+    """
+    return (
+        b"// This source code is subject to the terms of the Mozilla Public"
+        b" License 2.0 at https://mozilla.org/MPL/2.0/\n"
+        b"// \xc2\xa9 yuval3000\n"
+        b"\n"
+        b"//@version=" + str(version).encode() + b"\n"
+        b"strategy('demo', overlay=true)\n"
+    )
+
+
 def _valid_desc() -> bytes:
     return b"Demo strategy. Buys on signal, sells on stop.\n"
 
@@ -122,6 +139,56 @@ class ValidatorBundleTests(TestCase):
         }
         with self.assertRaises(StrategyValidationError) as ctx:
             validate_uploaded_bundle(files)
+        self.assertEqual(ctx.exception.code, "STRATEGY_FILE_MISMATCH")
+
+    def _bundle(self, pine: bytes, stem: str = "VerStrat") -> dict:
+        return {
+            "pine": (f"{stem}.pine", pine),
+            "description": (f"{stem}_Description.txt", _valid_desc()),
+            "webhook": (
+                f"{stem}_Webhook.json",
+                json.dumps(_valid_webhook()).encode(),
+            ),
+        }
+
+    def test_pine_version_after_tradingview_licence_header(self):
+        """Regression: an unmodified TradingView export must be accepted.
+
+        The annotation sits at ~byte 127 behind the auto-inserted licence
+        header; the old 64-byte window rejected every such upload.
+        """
+        parsed = validate_uploaded_bundle(self._bundle(_tradingview_pine(5)))
+        self.assertEqual(parsed.stem, "VerStrat")
+
+    def test_pine_version_accepted_anywhere_in_file(self):
+        pine = b"// filler comment\n" * 400 + b"//@version=6\nstrategy('x')\n"
+        validate_uploaded_bundle(self._bundle(pine))
+
+    def test_pine_version_survives_utf8_bom_and_crlf(self):
+        pine = b"\xef\xbb\xbf// header\r\n//@version=5\r\nstrategy('x')\r\n"
+        validate_uploaded_bundle(self._bundle(pine))
+
+    def test_pine_version_at_token_boundary_accepted(self):
+        """The old slice cut the token in half when it started near byte 64."""
+        pine = b"// a header comment that is exactly fifty-eight ch!\n//@version=5\n"
+        validate_uploaded_bundle(self._bundle(pine))
+
+    def test_pine_unsupported_version_rejected(self):
+        with self.assertRaises(StrategyValidationError) as ctx:
+            validate_uploaded_bundle(self._bundle(_tradingview_pine(4)))
+        self.assertEqual(ctx.exception.code, "STRATEGY_FILE_MISMATCH")
+        self.assertIn("v4", ctx.exception.message)
+        self.assertEqual(ctx.exception.details["declared_version"], 4)
+
+    def test_pine_version_without_number_rejected(self):
+        with self.assertRaises(StrategyValidationError) as ctx:
+            validate_uploaded_bundle(self._bundle(b"//@version=\nstrategy('x')\n"))
+        self.assertEqual(ctx.exception.code, "STRATEGY_FILE_MISMATCH")
+
+    def test_pine_version_in_string_literal_does_not_count(self):
+        pine = b"strategy('x')\nmsg = \'//@version=5\'\n"
+        with self.assertRaises(StrategyValidationError) as ctx:
+            validate_uploaded_bundle(self._bundle(pine))
         self.assertEqual(ctx.exception.code, "STRATEGY_FILE_MISMATCH")
 
     def test_description_filename_mismatch(self):

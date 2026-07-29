@@ -11,6 +11,7 @@ Public surface:
 """
 from __future__ import annotations
 
+import codecs
 import hashlib
 import json
 import re
@@ -41,6 +42,21 @@ REQUIRED_WEBHOOK_KEYS = ("strategy", "action", "symbol", "qty", "order_type")
 #: anything matching here is rejected up-front (defense in depth — Angular
 #: also escapes by default).
 XSS_SIGNATURES = (b"<script", b"javascript:", b"onerror=", b"onload=")
+
+#: Pine versions the platform accepts. TradingView sunset v1–v4, so a script
+#: declaring one of those would not compile on their side either.
+SUPPORTED_PINE_VERSIONS = (5, 6)
+
+#: The Pine compiler annotation, matched on *any* line of the script.
+#: TradingView prepends a multi-line MPL licence header to every exported
+#: script, so the annotation routinely sits well past the first line and this
+#: pattern is deliberately not anchored to the top of the file. Leading
+#: indentation and whitespace around the ``=`` are tolerated; matching is
+#: case-insensitive to preserve the leniency of the previous byte-level check.
+PINE_VERSION_REGEX = re.compile(
+    rb"^[ \t]*//[ \t]*@version[ \t]*=[ \t]*(\d+)",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 # ---------------------------------------------------------------------------
 # Errors — raised by validators, caught by the view and mapped to envelope codes.
@@ -95,6 +111,36 @@ def _reject_path_traversal(filename: str) -> None:
         raise StrategyValidationError(
             "STRATEGY_FILE_MISMATCH", "Filename contains '..'.",
         )
+
+
+def _validate_pine_version(pine_bytes: bytes) -> int:
+    """Return the Pine version declared by the script, or raise.
+
+    The annotation is searched for on any line of the file. The previous rule
+    only looked at the first 64 bytes, which false-rejected every unmodified
+    TradingView export: the licence header TradingView auto-inserts runs past
+    110 bytes on its own, pushing ``//@version=N`` to roughly byte 127.
+    """
+    # A UTF-8 BOM would otherwise defeat the start-of-line anchor on line 1.
+    body = pine_bytes.removeprefix(codecs.BOM_UTF8)
+    match = PINE_VERSION_REGEX.search(body)
+    supported = " or ".join(f"//@version={v}" for v in SUPPORTED_PINE_VERSIONS)
+    if match is None:
+        raise StrategyValidationError(
+            "STRATEGY_FILE_MISMATCH",
+            f"Pine file must declare {supported} on a line of its own.",
+        )
+    version = int(match.group(1))
+    if version not in SUPPORTED_PINE_VERSIONS:
+        raise StrategyValidationError(
+            "STRATEGY_FILE_MISMATCH",
+            f"Pine v{version} is not supported — declare {supported}.",
+            details={
+                "declared_version": version,
+                "supported": list(SUPPORTED_PINE_VERSIONS),
+            },
+        )
+    return version
 
 
 def _scan_for_xss(label: str, blob: bytes) -> None:
@@ -181,13 +227,8 @@ def validate_uploaded_bundle(files: Mapping[str, tuple[str, bytes]]) -> ParsedBu
             f"Webhook JSON exceeds {WEBHOOK_MAX_BYTES} bytes.",
         )
 
-    # Pine sanity: must declare //@version=N within first 64 bytes.
-    head = pine_bytes[:64].lower()
-    if b"//@version=" not in head:
-        raise StrategyValidationError(
-            "STRATEGY_FILE_MISMATCH",
-            "Pine file must declare //@version=N within first 64 bytes.",
-        )
+    # Pine sanity: the //@version=N annotation may sit anywhere in the file.
+    _validate_pine_version(pine_bytes)
 
     # XSS scan.
     _scan_for_xss("pine", pine_bytes)
