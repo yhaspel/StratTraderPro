@@ -96,6 +96,21 @@ def _flags_overridden():
     return FeatureFlag.objects.count()
 
 
+def _regime_source_configured():
+    """Whether the M06 daily regime pipeline can run at all.
+
+    ``apps.regime.tasks.compute_features_daily`` short-circuits with
+    ``{"skipped": "no_market_data_source_configured"}`` when either key is
+    missing, so no FeatureVectorSnapshot and no RegimeObservation is ever
+    written and the dashboard's Market Regime card stays empty forever. That
+    was indistinguishable from "the task is broken" — surface the real reason
+    instead of making an operator read Celery logs to find it.
+    """
+    from apps.regime.tasks import _daily_source_configured
+
+    return _daily_source_configured()
+
+
 def collect_health() -> dict:
     return {
         "queue_depths": _safe(_queue_depths, {}),
@@ -107,5 +122,6 @@ def collect_health() -> dict:
         "verifier": _safe(_verifier_state, {}),
         "active_halts": _safe(_active_halts, {}),
         "flags_overridden": _safe(_flags_overridden, 0),
+        "regime_source_configured": bool(_safe(_regime_source_configured, False)),
         "generated_at": timezone.now().isoformat(),
     }

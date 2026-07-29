@@ -37,12 +37,16 @@ export interface RegimeModelActive {
   trained_at: string;
   holdout_ll: number;
   degraded: boolean;
+  /** Both FMP_API_KEY and FRED_API_KEY are set, so the daily feature pipeline
+   * can actually produce observations. Absent on older backends. */
+  source_configured?: boolean;
 }
 
 /** GET /regime/model/ — no trained model available; rule-based fallback only. */
 export interface RegimeModelDegraded {
   active: null;
   degraded: true;
+  source_configured?: boolean;
 }
 
 export type RegimeModelInfo = RegimeModelActive | RegimeModelDegraded;

@@ -7,6 +7,7 @@ import { STRATEGIES_ROUTES } from './features/strategies/strategies.routes';
 import { RISK_ROUTES } from './features/risk/risk.routes';
 import { BACKTEST_ROUTES } from './features/backtest/backtest.routes';
 import { ADMIN_ROUTES } from './features/admin/admin.routes';
+import { GUIDES_ROUTES } from './features/guides/guides.routes';
 
 /**
  * M10.5 §7.1 — one ShellComponent wraps every authenticated route via a
@@ -52,17 +53,7 @@ export const routes: Routes = [
       ...RISK_ROUTES,
       ...BACKTEST_ROUTES,
       ...ADMIN_ROUTES,
-      {
-        path: 'help',
-        pathMatch: 'full',
-        loadComponent: () =>
-          import('./features/help/help-index.component').then(m => m.HelpIndexComponent),
-      },
-      {
-        path: 'help/:slug',
-        loadComponent: () =>
-          import('./features/help/help-article.component').then(m => m.HelpArticleComponent),
-      },
+      ...GUIDES_ROUTES,
     ],
   },
 

@@ -1,5 +1,5 @@
 /** RegimeFacade — bridges the RegimeApi + RegimeStore + UI (M06). */
-import { Injectable, inject } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiError } from '../../core/models/auth.models';
 import { RegimeApi, RegimeHistoryParams } from '../../core/services/regime.api';
@@ -15,6 +15,16 @@ export class RegimeFacade {
   readonly model = this.store.model;
   readonly loading = this.store.loading;
   readonly error = this.store.error;
+
+  /** Whether the backend has the market-data keys the daily regime pipeline
+   * needs (FMP + FRED). `undefined` when unknown — either the model call has
+   * not landed yet, or the backend predates the field. The UI must only make
+   * the "not configured" claim on an explicit `false`, never on a missing
+   * value, or it will lie on an older backend. */
+  readonly sourceConfigured = computed<boolean | undefined>(() => {
+    const m = this.store.model() as { source_configured?: boolean } | null;
+    return m?.source_configured;
+  });
 
   async loadCurrent(): Promise<void> {
     this.store.setLoading(true);

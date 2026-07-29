@@ -66,15 +66,28 @@ class RegimeHistoryView(_Base):
 class RegimeModelView(_Base):
     @extend_schema(operation_id="regime_model", tags=["regime"])
     def get(self, request):
+        # `source_configured` is the difference between "the pipeline ran and
+        # found nothing" and "the pipeline never ran because FMP_API_KEY /
+        # FRED_API_KEY are unset". Without it the dashboard can only say
+        # "No regime data yet", which reads as a bug rather than as missing
+        # configuration — see apps.regime.tasks.compute_features_daily.
+        from .tasks import _daily_source_configured
+
+        source_configured = _daily_source_configured()
         model = get_active_model()
         if model is None:
-            return ok({"active": None, "degraded": True})
+            return ok({
+                "active": None,
+                "degraded": True,
+                "source_configured": source_configured,
+            })
         return ok({
             "version": model.version,
             "n_states": model.n_states,
             "trained_at": model.trained_at.isoformat() if model.trained_at else None,
             "holdout_ll": model.holdout_ll,
             "degraded": model_degraded(model),
+            "source_configured": source_configured,
         })
 
 

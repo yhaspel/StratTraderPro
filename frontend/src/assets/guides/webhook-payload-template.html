@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Guide — The webhook payload template</title>
+</head>
+<body>
+
+<h1>The webhook payload template</h1>
+
+<p>The payload template is the JSON body TradingView POSTs to StratTraderPro when
+your alert fires. It is the entire contract between the two systems: the URL says
+<em>who</em> and <em>which strategy</em>, the body says <em>what to do</em>.</p>
+
+<h2>Where the template lives</h2>
+
+<p>Every strategy has its own. You can read it in two places, and they are the
+same bytes:</p>
+
+<ul>
+  <li><em>Strategies &rarr; (name) &rarr; TradingView payload template</em> — the
+  copy-friendly view, pretty-printed.</li>
+  <li><em>Strategies &rarr; Configure webhook</em> — alongside the URL and the
+  reveal-once secret, which is what you need at the same moment.</li>
+</ul>
+
+<figure>
+  <img src="assets/guides/img/strategy-detail-template.png"
+       alt="A JSON payload template showing strategy, action, symbol, qty, order_type, sig and idempotency_key fields. The sig field reads PASTE_YOUR_SECRET_HERE." />
+  <figcaption>The starter template on a strategy detail page.</figcaption>
+</figure>
+
+<h2>Where it goes in TradingView</h2>
+
+<ol>
+  <li>Open the chart with your Pine strategy applied.</li>
+  <li>Create an alert <strong>on the strategy</strong>, not on a bare price
+  condition.</li>
+  <li>In the alert dialog, open <em>Notifications</em> and tick
+  <strong>Webhook URL</strong>. Paste the URL from <em>Configure webhook</em>.</li>
+  <li>Switch to <em>Settings</em> and paste the template into the
+  <strong>Message</strong> box. The Message box is the request body — nothing
+  else is sent.</li>
+  <li>Save the alert.</li>
+</ol>
+
+<div class="warn">
+  <strong>The Message box must contain JSON and nothing else.</strong> No leading
+  text, no trailing note, no comments. TradingView sends the box verbatim; any
+  stray character makes it unparseable and the delivery is rejected.
+</div>
+
+<h2>The fields</h2>
+
+<table>
+  <tr><th>Field</th><th>Required</th><th>What it is</th></tr>
+  <tr><td><code>strategy</code></td><td>yes</td><td>The strategy slug. Comes pre-filled; do not change it.</td></tr>
+  <tr><td><code>action</code></td><td>yes</td><td><code>buy</code>, <code>sell</code> or <code>exit</code>.</td></tr>
+  <tr><td><code>symbol</code></td><td>yes</td><td>The instrument to trade.</td></tr>
+  <tr><td><code>qty</code></td><td>yes</td><td>Quantity as a number. Your risk profile still has the final say on size.</td></tr>
+  <tr><td><code>order_type</code></td><td>yes</td><td><code>MKT</code>, <code>LMT</code>, <code>STP</code> or <code>STP_LMT</code>.</td></tr>
+  <tr><td><code>sig</code></td><td>yes</td><td>Your webhook secret, verbatim. See below.</td></tr>
+  <tr><td><code>idempotency_key</code></td><td>recommended</td><td>A value unique per intended order. A repeat of the same key is answered with <code>{"duplicate": true}</code> and places nothing.</td></tr>
+  <tr><td><code>asset_class</code></td><td>optional</td><td><code>STOCK</code>, <code>ETF</code>, <code>OPTION</code> or <code>FUTURE</code>.</td></tr>
+</table>
+
+<p>Extra fields are allowed and are stored with the alert, so you can carry your
+own metadata through.</p>
+
+<h3>About <code>sig</code></h3>
+
+<p><code>sig</code> is a shared secret compared in constant time — it is
+<strong>not</strong> an HMAC over the body, so there is nothing to compute. Paste
+the secret exactly as shown, replacing <code>PASTE_YOUR_SECRET_HERE</code>.</p>
+
+<ul>
+  <li>The secret is displayed <strong>once</strong>, when the config is created or
+  rotated. Copy it into a password manager at that moment.</li>
+  <li>Rotating invalidates the previous secret <strong>immediately</strong>. Any
+  alert still carrying the old value starts failing on the very next fire, so
+  update TradingView in the same sitting.</li>
+  <li>A wrong <code>sig</code> is rejected with <code>SIG_BAD</code> and recorded
+  in the audit log. It is never treated as a duplicate, so a failed attempt during
+  a rotation does not block the corrected retry.</li>
+</ul>
+
+<h3>About <code>idempotency_key</code></h3>
+
+<p>TradingView retries. Without an idempotency key, a retried delivery is a second
+order. The starter template uses TradingView placeholders to build a key that is
+stable for one signal and different for the next:</p>
+
+<pre><code>"idempotency_key": "tv-{{strategy.order.id}}-{{time}}"</code></pre>
+
+<p>Keep it unique <em>per intended order</em>. A constant string means only the
+first alert ever trades; a value that changes on every retry defeats the purpose.</p>
+
+<h2>TradingView placeholders</h2>
+
+<p>Anything in <code>{{ … }}</code> is substituted by TradingView at fire time.
+Leave those markers exactly as they are — replacing one with a literal value means
+every alert reports the same thing. Useful ones:</p>
+
+<table>
+  <tr><th>Placeholder</th><th>Becomes</th></tr>
+  <tr><td><code>{{ticker}}</code></td><td>The chart's symbol</td></tr>
+  <tr><td><code>{{close}}</code></td><td>The bar's closing price</td></tr>
+  <tr><td><code>{{time}}</code></td><td>The bar time, ISO-8601 UTC</td></tr>
+  <tr><td><code>{{strategy.order.action}}</code></td><td><code>buy</code> or <code>sell</code></td></tr>
+  <tr><td><code>{{strategy.order.contracts}}</code></td><td>The size the Pine strategy asked for</td></tr>
+  <tr><td><code>{{strategy.order.id}}</code></td><td>The Pine order identifier</td></tr>
+</table>
+
+<p>To drive the payload from the script rather than hard-coding it, swap the
+literals for placeholders — for example
+<code>"symbol": "{{ticker}}"</code> and
+<code>"action": "{{strategy.order.action}}"</code>. A placeholder that expands to
+a number still has to be quoted in valid JSON if you leave the quotes in place;
+the schema accepts <code>qty</code> as a number, so remove the quotes there if you
+substitute it.</p>
+
+<h2>Editing the schema</h2>
+
+<p>Each webhook config carries a JSON Schema that the body is validated against
+after <code>sig</code> is stripped. You can edit it in <em>Configure webhook</em> to
+require your own fields or tighten enums. Two things are non-negotiable regardless
+of what your schema says: the five required keys above, and a valid <code>sig</code>.</p>
+
+<p>Use <em>Dry run</em> in the same modal to validate a sample body against your
+schema before touching TradingView. A dry run places no order.</p>
+
+<h2>Reading a rejection</h2>
+
+<table>
+  <tr><th>Reason</th><th>Meaning</th></tr>
+  <tr><td><code>SIG_BAD</code></td><td>The <code>sig</code> value does not match the current secret.</td></tr>
+  <tr><td><code>SCHEMA_INVALID</code></td><td>The body parsed but failed the strategy's JSON Schema — usually a missing required key or a value outside an enum.</td></tr>
+  <tr><td><code>STRATEGY_DISABLED</code></td><td>Delivery accepted and recorded; the strategy's toggle is off (or it was deleted), so nothing was placed.</td></tr>
+  <tr><td><code>NO_BROKER_CONNECTED</code></td><td>No broker account is linked to your user.</td></tr>
+  <tr><td><code>BROKER_NOT_CONNECTED</code></td><td>A broker exists but is not currently connected.</td></tr>
+  <tr><td><code>{"duplicate": true}</code></td><td>This <code>idempotency_key</code> was already processed. Working as intended.</td></tr>
+</table>
+
+<p>A rejection returns HTTP 200 on purpose: TradingView treats a non-2xx as a
+failure and retries, which turns one bad alert into a retry storm. The reason is in
+the response body and in the audit log.</p>
+
+<h2>Testing before you arm it</h2>
+
+<p>A disabled strategy still accepts and records deliveries, then drops them with
+<code>STRATEGY_DISABLED</code>. That is the safe way to prove the URL, the JSON and
+the secret are all correct: leave the toggle off, fire a test alert from
+TradingView, confirm the delivery succeeded, and only then enable.</p>
+
+</body>
+</html>

@@ -316,6 +316,24 @@ class RegimeApiTests(TestCase):
         resp = self.client.get("/api/v1/regime/symbol/AAPL/", **auth_headers(self.user))
         self.assertEqual(resp.status_code, 501)
 
+    @override_settings(FMP_API_KEY="", FRED_API_KEY="")
+    def test_model_endpoint_reports_unconfigured_source_with_no_model(self):
+        """With no keys the daily task never writes an observation, so the
+        dashboard would otherwise show a bare "No regime data yet" forever. The
+        SPA needs to distinguish "not computed yet" from "cannot be computed"."""
+        resp = self.client.get("/api/v1/regime/model/", **auth_headers(self.user))
+        data = resp.json()["data"]
+        self.assertIsNone(data["active"])
+        self.assertIs(data["source_configured"], False)
+
+    @override_settings(FMP_API_KEY="fmp-key", FRED_API_KEY="fred-key")
+    def test_model_endpoint_reports_configured_source_with_a_model(self):
+        HMMModel.objects.create(version="v2", holdout_ll=-50.0, trained_at=timezone.now(), active=True)
+        resp = self.client.get("/api/v1/regime/model/", **auth_headers(self.user))
+        data = resp.json()["data"]
+        self.assertEqual(data["version"], "v2")
+        self.assertIs(data["source_configured"], True)
+
     def test_requires_mfa(self):
         resp = self.client.get("/api/v1/regime/current/")
         self.assertIn(resp.status_code, (401, 403))

@@ -39,7 +39,7 @@ ever had. **Both follow-ups are now closed too** (2026-07-11):
 - The Railway service-level `NGINX_ENVSUBST_FILTER` override has been **deleted on
   both frontend services**. While it existed it shadowed the image's `ENV`, so the
   CI guard was protecting an artifact nobody ran. The Dockerfile value —
-  `^(BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE)$`, cross-checked
+  `^(BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE|WS_URL)$`, cross-checked
   against the template by `scripts/check_envsubst_filter.py` — is now the single
   source of truth, and the guard finally protects production. Verified after
   redeploy: `/config.js` is fully substituted on both envs, no `${...}` literals.
