@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Strategy upload: Pine `//@version` detection
+- Upload step 3 rejected every unmodified TradingView export with *"Pine file must declare
+  //@version=N within first 64 bytes."* The licence header TradingView auto-inserts is ~110
+  bytes on its own, pushing the annotation to roughly byte 127 — outside the window the
+  validator looked in. The annotation is now matched on any line of the file
+  (`PINE_VERSION_REGEX`, start-of-line anchored so a match inside a string literal doesn't
+  count), which also fixes the case where the 64-byte slice cut the token in half.
+- The declared version is now parsed rather than merely detected: a bare `//@version=` no
+  longer passes, and `SUPPORTED_PINE_VERSIONS = (5, 6)` rejects the TradingView-sunset v1–v4
+  with an explicit message plus `details.declared_version`. A leading UTF-8 BOM is stripped
+  before matching. Error code stays `STRATEGY_FILE_MISMATCH`.
+- Every pine fixture in `test_strategies.py` had the annotation on line 1, which is why the
+  suite never caught this; added `_tradingview_pine()` plus seven regression tests covering
+  the licence header, deep placement, BOM/CRLF, the token boundary, and the reject paths.
+- Help doc (`assets/help/strategy-upload.html`) updated to describe the real rule.
+
 ### Fixed — Review remediation, Phase 3 (P3 · Low / defense-in-depth)
 - Backend: P3-5 admin-gate `/api/schema/` + `/api/docs/` in prod; P3-6 enforce the strict
   `default-src 'none'` CSP in prod; P3-4 bound user-editable JSON Schema complexity at save

@@ -57,10 +57,15 @@ share that stem.</p>
   </tr>
 </table>
 
-<p>The pine script must declare its TradingView Pine version within the
-first 64 bytes:</p>
+<p>The pine script must declare a supported Pine version —
+<code>//@version=5</code> or <code>//@version=6</code> — on a line of its
+own. It may appear anywhere in the file, so the licence header TradingView
+adds to exported scripts can be left exactly as it is:</p>
 
-<pre>//@version=5
+<pre>// This source code is subject to the terms of the Mozilla Public License 2.0…
+// © you
+
+//@version=5
 strategy("Demo Strategy", overlay=true)
 …</pre>
 
@@ -110,7 +115,7 @@ anything else) — they'll be passed through to the broker layer.</p>
 
 <table>
   <tr><th>Code</th><th>What it means</th></tr>
-  <tr><td><code>STRATEGY_FILE_MISMATCH</code></td><td>Stem doesn't match across the three files, OR the stem contains an illegal character.</td></tr>
+  <tr><td><code>STRATEGY_FILE_MISMATCH</code></td><td>Stem doesn't match across the three files, the stem contains an illegal character, OR the pine script declares no supported <code>//@version=N</code>.</td></tr>
   <tr><td><code>STRATEGY_FILE_TOO_LARGE</code></td><td>One of the files exceeds its size limit.</td></tr>
   <tr><td><code>STRATEGY_WEBHOOK_INVALID</code></td><td>Webhook JSON didn't parse, or is missing one of the required keys.</td></tr>
 </table>
