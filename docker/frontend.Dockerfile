@@ -29,8 +29,15 @@ RUN rm /etc/nginx/conf.d/default.conf
 # single event. scripts/check_envsubst_filter.py now cross-checks this list
 # against the template in CI, so the two cannot drift apart again.
 COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
-ENV NGINX_ENVSUBST_FILTER='^(BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE)$' \
-    BACKEND_URL='http://backend:8777'
+#
+# WS_URL is the daphne (SERVICE_ROLE=ws) origin for the /ws/ proxy. It carries a
+# compose-shaped default for the same reason BACKEND_URL does: `proxy_pass ;`
+# with an empty value is a config-parse error, so nginx would refuse to start
+# rather than merely losing the websocket. On Railway, override it with the ws
+# service's PUBLIC url.
+ENV NGINX_ENVSUBST_FILTER='^(BACKEND_URL|GRAFANA_URL|SENTRY_DSN|SENTRY_ENVIRONMENT|RELEASE|WS_URL)$' \
+    BACKEND_URL='http://backend:8777' \
+    WS_URL='http://ws:8788'
 
 # BUG-003 — default RELEASE from the platform's commit SHA, so Sentry events carry
 # a release and the sourcemaps CI uploads under $GITHUB_SHA can actually match.

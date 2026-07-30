@@ -6,6 +6,106 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Guides tab (replaces the buried /help index)
+- **Guides is now a primary nav tab.** The help articles shipped in M10.5 were reachable
+  only from the user dropdown, so in practice nothing in the product told a user how to use
+  the product. `/help` and `/help/:slug` still resolve (redirect), because those links are
+  in older builds and in people's bookmarks; every inline "?" affordance now points at
+  `/guides/:slug`.
+- `frontend/src/app/features/guides/` replaces `features/help/`; assets moved
+  `assets/help/` -> `assets/guides/`. New `guides.catalog.ts` is the single source of truth
+  for which articles exist — it drives the index, the viewer's slug allow-list (an unknown
+  slug now 404s before any HTTP call, not just a malformed one) and prev/next links.
+- Index is grouped into six sections with a one-line summary per article and a filter box,
+  instead of thirteen bare titles in one column.
+- **Five new step-by-step guides, with screenshots**: `getting-started` (account -> 2FA ->
+  broker -> strategy -> first fill), `using-a-strategy`, `webhook-payload-template` (every
+  field, where it goes in TradingView, and how to read each rejection code),
+  `settings-profile`, `market-regime-setup`.
+- Screenshots are generated, not hand-captured: `frontend/tools/guide-screenshots.mjs`
+  drives the production bundle against stubbed API fixtures under Playwright. They show the
+  real components with fictional data, so they carry no account identifiers into a public
+  repo and can be regenerated after any restyle.
+- Guard: `scripts/check_guides_catalog.py` (CI) cross-checks the catalog against
+  `assets/guides/*.html` in both directions and verifies every referenced screenshot exists
+  — a catalog entry with no file renders a card that opens "not found", and a file with no
+  entry is an orphan article unreachable from the index.
+- New a11y specs cover `/guides`, an article, and the `/help/:slug` redirect.
+
+### Fixed — Admin health cards: `[object Object]`, and two cards that rendered nothing
+- `sentiment_backlog` has always been `{depth, oldest_age_min, alert}` on the wire. The SPA
+  typed it `number` and interpolated the object, so the Overview and Health KPI cards
+  displayed the literal string **`[object Object]`**. Now renders `depth`, plus the oldest
+  unscored age and a warn chip when the backlog alert threshold is crossed.
+- Same drift, worse symptom, in two neighbours: `active_halts` is `{total, platform}` and
+  `flags_overridden` is a count, both typed as `string[]`. `.length === 0` on an object is
+  `undefined === 0` — false — so the "no active halts" / "no overrides" empty states never
+  rendered and `@for` got a non-iterable: **both cards drew a heading and nothing else**.
+- `broker_streams` is stream-state -> *count*, not -> label. The count was being bound to a
+  status chip's `[status]`, so every chip read "1" and took its tone from the string "1"
+  rather than from CONNECTED/DEGRADED/DOWN.
+- Backend tests now pin all four shapes, so the wire contract fails in CI rather than in a
+  screenshot.
+
+### Fixed — Settings: the timezone could not be selected
+- The option list was `allTimezones.slice(0, 100)` — the first hundred IANA names
+  alphabetically, i.e. `Africa/*` through `America/A*`. A profile saved as `Asia/Jerusalem`
+  had no matching `<option>`, so the `<select>` rendered with `selectedIndex = -1`: nothing
+  looked selected, the saved value was named nowhere on screen, and scrolling the six-row
+  listbox could never reach the wanted zone. The only way through was guessing that the
+  unlabelled search box above it was the answer.
+- The full IANA list renders now (~420 entries, no cap); the saved zone is unioned into the
+  list even if the browser does not enumerate it, is scrolled into view, is named above the
+  field with its UTC offset, and survives filtering. Added a "Use my browser timezone"
+  shortcut, a "showing N of M" count so a stale filter is visible, a label for the search
+  input, and an explicit no-match message.
+
+### Fixed — Strategy descriptions were write-only
+- `/strategies/:id` rendered the uploaded description all along, but **nothing in the UI
+  linked to it** — the list showed only `description_short` ("User-uploaded strategy.
+  Untested.") and the row actions were Configure webhook / Delete. A description typed at
+  upload time could not be read back anywhere in the app.
+- The strategy name is now a link, and each row has explicit **View** and **How to use**
+  actions. The detail page leads with the description (loading state instead of a false
+  "no description" while the file is in flight), adds the TradingView payload template
+  pretty-printed, and links to the relevant guides.
+- File loads are `Promise.allSettled`: a missing `WEBHOOK_TEMPLATE` no longer blanks out the
+  description as collateral.
+
+### Fixed — Header read "Offline" everywhere, always
+- **nginx had no `/ws/` location.** `environment.prod.ts` derives
+  `wss://<page-host>/ws/dashboard/` and its comment claims nginx proxies it — but the
+  handshake fell through to the SPA fallback, so nginx answered the Upgrade request with
+  `200 text/html` (index.html). A browser cannot upgrade an HTML response: every socket died
+  with close code 1006, the client retried on its capped backoff forever, and the Live dot
+  read Offline in every session since the M04 dashboard shipped. Added the proxy block with
+  the `$connection_upgrade` map, `WS_URL` (+ envsubst allowlist, compose-shaped default),
+  and a 3600s read timeout so the 25s client heartbeat is never cut.
+- **Second, independent bug:** only `DashboardComponent` opened the socket, while the
+  indicator lives in the shell header on *every* route. Strategies / Risk / Settings / Admin
+  were therefore Offline by construction. The shell now owns the connection for the
+  authenticated session (`DashboardWsService` is already refcounted, so the dashboard
+  attaching on top is safe), and the indicator carries a tooltip saying which thing is
+  offline and what it costs.
+- Note: `WS_URL` must point at the daphne service (`SERVICE_ROLE=ws`), not the gunicorn one
+  — prod backend runs `config.wsgi`, and WSGI cannot serve WebSockets at all.
+
+### Fixed — Dashboard "Market Regime" said "no data yet" with no way to find out why
+- Not a UI bug: `compute_features_daily` short-circuits with
+  `{"skipped": "no_market_data_source_configured"}` unless **both** `FMP_API_KEY` and
+  `FRED_API_KEY` are set. It is a deliberate no-op (writing neutral placeholder features
+  would bias the rolling z-scores for months), so with the keys unset no `RegimeObservation`
+  is ever written, the HMM never trains, and the card is empty forever — indistinguishable
+  from a broken pipeline.
+- `GET /regime/model/` now returns `source_configured`, and the dashboard card says "data
+  source not configured" with a link to the new `market-regime-setup` guide instead of the
+  misleading "no data yet". The history band is suppressed in that state rather than
+  repeating the same empty message underneath.
+- `GET /admin/health/` gains `regime_source_configured` (+ a card on Admin -> Health), so an
+  operator gets the answer in the product rather than from Celery logs.
+- The claim is only made on an explicit `false`; an older backend that omits the field
+  degrades to the previous wording rather than lying.
+
 ### Fixed — Strategy list: pausing a strategy made it vanish (looked like upload deleted it) (#46)
 - `Strategy.is_enabled` doubled as the soft-delete flag AND the list-row arm/disarm toggle:
   the list endpoint filtered `is_enabled=True`, so switching the toggle off removed the row

@@ -17,7 +17,8 @@
     "primary": "Primary navigation",
     "open_menu": "Open menu",
     "skip_to_content": "Skip to content",
-    "help": "Help"
+    "help": "Help",
+    "guides": "Guides"
   },
   "common": {
     "loading": "Loading...",
@@ -206,7 +207,11 @@
     "language": "Language",
     "language_hint": "Only English is currently supported. More languages coming soon.",
     "notification_email": "Email me about important account events",
-    "saved": "Profile saved."
+    "saved": "Profile saved.",
+    "timezone_current": "Current",
+    "timezone_no_match": "No timezone matches that search.",
+    "timezone_count": "Showing {{shown}} of {{total}} timezones",
+    "timezone_detect": "Use my browser timezone"
   },
   "oauth": {
     "continue_with_google": "Continue with Google",
@@ -255,7 +260,9 @@
       "webhook": {
         "configured": "Configured",
         "unconfigured": "Not yet configured"
-      }
+      },
+      "view": "View",
+      "how_to": "How to use"
     },
     "upload": {
       "title": "Upload a strategy",
@@ -301,7 +308,13 @@
       "loading": "Loading…",
       "not_found": "Strategy not found.",
       "pine": "Pine script",
-      "description": "Description"
+      "description": "Description",
+      "how_to": "How to run this strategy",
+      "how_to_webhook": "How to use the webhook template",
+      "description_empty": "This strategy has no description file.",
+      "webhook_template": "TradingView payload template",
+      "webhook_template_hint": "Paste this into the Message box of your TradingView alert, then replace the placeholder secret with the one shown once in Configure webhook.",
+      "webhook_template_empty": "This strategy has no webhook payload template."
     }
   },
   "webhook": {
@@ -425,7 +438,9 @@
       "alert_sent": "Test alert sent"
     },
     "mfa_required": "Enable two-factor authentication to use this",
-    "requires_mfa": "Requires two-factor authentication"
+    "requires_mfa": "Requires two-factor authentication",
+    "live_hint": "Realtime stream connected — positions and fills update as they happen.",
+    "offline_hint": "Realtime stream disconnected. Data still loads when you open or refresh a page, but it will not update on its own."
   },
   "orders": {
     "title": "Orders",
@@ -546,7 +561,10 @@
       "rsi_14": "RSI (14)",
       "yield_spread": "Yield-curve spread",
       "dxy": "US dollar index"
-    }
+    },
+    "source_missing": "Data source not configured",
+    "source_missing_hint": "The daily regime pipeline needs market-data credentials that are not set on this deployment, so no regime has ever been computed.",
+    "source_missing_link": "How to configure the regime data source"
   },
   "sentiment": {
     "title": "Market sentiment",
@@ -961,7 +979,14 @@
       "no_halts": "No active halts.",
       "overridden_flags": "Overridden flags",
       "no_overrides": "No overridden flags.",
-      "generated": "Generated"
+      "generated": "Generated",
+      "sentiment_oldest": "Oldest unscored",
+      "sentiment_alert": "Backlog alert",
+      "halt_platform": "Platform-wide",
+      "regime_source": "Regime data source",
+      "regime_source_ok": "Configured",
+      "regime_source_missing": "Not configured",
+      "regime_source_hint": "FMP_API_KEY and FRED_API_KEY are not both set, so the daily regime pipeline skips every run and no observations are written. The dashboard Market Regime card stays empty until both are set on the backend, worker and beat services."
     }
   },
   "audit": {
@@ -1066,5 +1091,15 @@
     "accept": "I Accept",
     "accepting": "Accepting…",
     "error": "We couldn't record your acceptance. Please try again."
+  },
+  "guides": {
+    "index": {
+      "title": "Guides",
+      "subtitle": "Step-by-step instructions for everything StratTraderPro does.",
+      "filter": "Filter guides…",
+      "no_match": "No guide matches that. Try a shorter word."
+    },
+    "back": "All guides",
+    "nav": "Guide navigation"
   }
 }

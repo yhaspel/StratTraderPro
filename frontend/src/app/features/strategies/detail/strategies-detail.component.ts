@@ -38,14 +38,46 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
           </div>
         }
 
+        <!-- Actions: the guide is one click from the thing it explains. -->
+        <div class="mt-4 flex flex-wrap items-center gap-3 text-[13px]">
+          <a routerLink="/guides/using-a-strategy"
+             class="rounded-none px-1 text-accent-700 underline transition-colors hover:bg-accent-100">
+            {{ 'strategies.detail.how_to' | translate }}
+          </a>
+          <a routerLink="/guides/tradingview-alert-config"
+             class="rounded-none px-1 text-accent-700 underline transition-colors hover:bg-accent-100">
+            {{ 'strategies.detail.how_to_webhook' | translate }}
+          </a>
+        </div>
+
+        <!-- Description FIRST — it is what the user came to read. The route
+             existed and rendered it, but nothing in the UI linked here, so the
+             description a user typed at upload time was write-only. -->
+        <h2 class="mt-6 mb-2 font-heading text-lg font-semibold text-ink" id="desc-heading">{{ 'strategies.detail.description' | translate }}</h2>
+        @if (filesLoading()) {
+          <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
+        } @else if (descText()) {
+          <!-- tabindex=0 + role=region + aria-labelledby satisfies WCAG 2.1.1 (Keyboard) for scrollable content. -->
+          <pre tabindex="0" role="region" aria-labelledby="desc-heading"
+               class="max-h-96 overflow-auto whitespace-pre-wrap rounded-none border border-divider bg-surface p-3 text-[13px] leading-relaxed text-ink">{{ descText() }}</pre>
+        } @else {
+          <p class="text-sm text-neutral-700">{{ 'strategies.detail.description_empty' | translate }}</p>
+        }
+
+        <h2 class="mt-6 mb-2 font-heading text-lg font-semibold text-ink" id="tmpl-heading">{{ 'strategies.detail.webhook_template' | translate }}</h2>
+        <p class="mb-2 text-[13px] text-neutral-700">{{ 'strategies.detail.webhook_template_hint' | translate }}</p>
+        @if (filesLoading()) {
+          <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
+        } @else if (templateText()) {
+          <pre tabindex="0" role="region" aria-labelledby="tmpl-heading"
+               class="max-h-96 overflow-auto whitespace-pre-wrap rounded-none border border-divider bg-surface p-3 font-mono text-xs text-ink"><code>{{ templateText() }}</code></pre>
+        } @else {
+          <p class="text-sm text-neutral-700">{{ 'strategies.detail.webhook_template_empty' | translate }}</p>
+        }
+
         <h2 class="mt-6 mb-2 font-heading text-lg font-semibold text-ink" id="pine-heading">{{ 'strategies.detail.pine' | translate }}</h2>
-        <!-- tabindex=0 + role=region + aria-labelledby satisfies WCAG 2.1.1 (Keyboard) for scrollable content. -->
         <pre tabindex="0" role="region" aria-labelledby="pine-heading"
              class="max-h-96 overflow-auto whitespace-pre-wrap rounded-none border border-divider bg-surface p-3 font-mono text-xs text-ink"><code>{{ pineText() }}</code></pre>
-
-        <h2 class="mt-6 mb-2 font-heading text-lg font-semibold text-ink" id="desc-heading">{{ 'strategies.detail.description' | translate }}</h2>
-        <pre tabindex="0" role="region" aria-labelledby="desc-heading"
-             class="max-h-96 overflow-auto whitespace-pre-wrap rounded-none border border-divider bg-surface p-3 font-mono text-xs text-ink"><code>{{ descText() }}</code></pre>
       }
       @if (!loading() && !strategy()) {
         <div class="mt-4 rounded-none border border-down bg-down-tint px-4 py-3 text-sm text-down-deep" role="alert">
@@ -60,34 +92,59 @@ export class StrategiesDetailComponent implements OnInit {
   private api = inject(StrategiesApi);
 
   loading = signal(true);
+  /** File bodies load after the route resolves; the panels say "loading"
+   *  rather than falsely reporting "no description" while they are in flight. */
+  filesLoading = signal(true);
   strategy = signal<Strategy | null>(null);
   pineText = signal<string>('');
   descText = signal<string>('');
+  templateText = signal<string>('');
 
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id) { this.loading.set(false); return; }
+    if (!id) { this.loading.set(false); this.filesLoading.set(false); return; }
     try {
       const res = await firstValueFrom(this.api.get(id));
-      if (res.error) { this.loading.set(false); return; }
+      if (res.error) { this.loading.set(false); this.filesLoading.set(false); return; }
       this.strategy.set(res.data!);
       // Lazy-load file bytes — don't block the route on them.
-      this._loadFiles(id);
+      void this._loadFiles(id);
     } finally {
       this.loading.set(false);
     }
   }
 
   private async _loadFiles(id: string): Promise<void> {
+    // Settled, not all-or-nothing: a missing WEBHOOK_TEMPLATE must not blank
+    // out the description too (Promise.all rejects the whole batch).
+    const [pine, desc, tmpl] = await Promise.allSettled([
+      firstValueFrom(this.api.download(id, 'PINE')),
+      firstValueFrom(this.api.download(id, 'DESC')),
+      firstValueFrom(this.api.download(id, 'WEBHOOK_TEMPLATE')),
+    ]);
+    this.pineText.set(await this._text(pine));
+    this.descText.set(await this._text(desc));
+    this.templateText.set(this._pretty(await this._text(tmpl)));
+    this.filesLoading.set(false);
+  }
+
+  private async _text(r: PromiseSettledResult<Blob>): Promise<string> {
+    if (r.status !== 'fulfilled') { return ''; }
     try {
-      const [pine, desc] = await Promise.all([
-        firstValueFrom(this.api.download(id, 'PINE')),
-        firstValueFrom(this.api.download(id, 'DESC')),
-      ]);
-      this.pineText.set(await pine.text());
-      this.descText.set(await desc.text());
+      return (await r.value.text()).trim();
     } catch {
-      // Best-effort previews — silently degrade.
+      return '';
+    }
+  }
+
+  /** Pretty-print the payload template when it is valid JSON; otherwise show
+   *  the raw bytes rather than swallowing them. */
+  private _pretty(raw: string): string {
+    if (!raw) { return ''; }
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      return raw;
     }
   }
 }

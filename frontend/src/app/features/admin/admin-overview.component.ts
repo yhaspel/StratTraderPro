@@ -14,6 +14,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AdminFacade } from '../../abstraction/facades/admin.facade';
+import { SentimentBacklog } from '../../core/models/admin.models';
 import { ApiError } from '../../core/models/auth.models';
 import { HaltPlatformModalComponent } from './halt-platform-modal.component';
 import { ImpersonationBannerComponent } from './impersonation-banner.component';
@@ -95,7 +96,16 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
             </app-card>
             <app-card>
               <div class="text-[10px] uppercase tracking-[.1em] text-neutral-700">{{ 'admin.health.sentiment_backlog' | translate }}</div>
-              <div class="mt-1 font-mono text-[20px] font-semibold tabular-nums text-ink">{{ h.sentiment_backlog }}</div>
+              <!-- sentiment_backlog is an object {depth, oldest_age_min, alert} — printing
+                   the object itself is what produced "[object Object]" here. -->
+              <div class="mt-1 font-mono text-[20px] font-semibold tabular-nums text-ink">{{ backlogDepth(h.sentiment_backlog) }}</div>
+              @if (h.sentiment_backlog?.alert) {
+                <div class="mt-1.5">
+                  <app-status-chip tone="warn">
+                    <span aria-hidden="true">⚠&nbsp;</span>{{ 'admin.health.sentiment_alert' | translate }}
+                  </app-status-chip>
+                </div>
+              }
             </app-card>
           </div>
         } @else {
@@ -187,6 +197,11 @@ export class AdminOverviewComponent implements OnInit {
 
   queueTotal(depths: Record<string, number>): number {
     return Object.values(depths ?? {}).reduce((a, b) => a + b, 0);
+  }
+
+  /** Unscored-article count. `—` when the section degraded to `{}` server-side. */
+  backlogDepth(b: SentimentBacklog | undefined): string {
+    return b?.depth != null ? String(b.depth) : '—';
   }
 
   onHalted(): void {

@@ -157,3 +157,36 @@ class FlagApiHealthTests(TestCase):
         data = resp.json()["data"]
         self.assertIn("queue_depths", data)
         self.assertIn("verifier", data)
+
+    def test_health_sentiment_backlog_is_an_object_not_a_scalar(self):
+        """The admin UI renders `depth` out of this. It printed `[object Object]`
+        for as long as the frontend model typed the field as a number, so pin the
+        shape here rather than leaving it to a hand-check of the rendered page."""
+        data = self.client.get("/api/v1/admin/health/").json()["data"]
+        backlog = data["sentiment_backlog"]
+        self.assertIsInstance(backlog, dict)
+        self.assertEqual({"depth", "oldest_age_min", "alert"}, set(backlog))
+        self.assertIsInstance(backlog["depth"], int)
+        self.assertIsInstance(backlog["alert"], bool)
+
+    def test_health_active_halts_is_an_object_and_flags_is_a_count(self):
+        """Same class of drift: the SPA typed these as string lists."""
+        data = self.client.get("/api/v1/admin/health/").json()["data"]
+        self.assertEqual({"total", "platform"}, set(data["active_halts"]))
+        self.assertIsInstance(data["flags_overridden"], int)
+
+    def test_health_reports_whether_the_regime_source_is_configured(self):
+        """`regime_source_configured` is the only in-app answer to "why is the
+        Market Regime card empty?" — the daily task silently no-ops without both
+        market-data keys."""
+        with self.settings(FMP_API_KEY="", FRED_API_KEY=""):
+            data = self.client.get("/api/v1/admin/health/").json()["data"]
+            self.assertIs(data["regime_source_configured"], False)
+        with self.settings(FMP_API_KEY="fmp-key", FRED_API_KEY="fred-key"):
+            data = self.client.get("/api/v1/admin/health/").json()["data"]
+            self.assertIs(data["regime_source_configured"], True)
+
+    def test_health_regime_source_needs_both_keys(self):
+        with self.settings(FMP_API_KEY="fmp-key", FRED_API_KEY=""):
+            data = self.client.get("/api/v1/admin/health/").json()["data"]
+            self.assertIs(data["regime_source_configured"], False)

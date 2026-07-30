@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Guide — Run a strategy end to end</title>
+</head>
+<body>
+
+<h1>Run a strategy end to end</h1>
+
+<p>This is the full loop for one strategy: read what it does, get its webhook
+URL and secret, wire the TradingView alert that fires it, enable it, and confirm
+the first order. Do it once and every subsequent strategy is the same five
+minutes.</p>
+
+<div class="warn">
+  <strong>Before you start:</strong> two-factor authentication must be enrolled
+  (<a href="/guides/mfa">guide</a>) and a paper broker connected
+  (<a href="/guides/alpaca-paper-connect">guide</a>). Without a broker the webhook
+  accepts your alert and then rejects it downstream with
+  <code>NO_BROKER_CONNECTED</code>.
+</div>
+
+<h2>1. Read the strategy description</h2>
+
+<p>Open <em>Strategies</em>. Every row shows the strategy name as a link and a
+one-line summary. Click the <strong>name</strong>, or <strong>View</strong>, to
+open the full description that was uploaded with the strategy.</p>
+
+<figure>
+  <img src="assets/guides/img/strategies-list.png"
+       alt="The strategies table. Each row shows the strategy name as a link, a short summary, a type badge, an enabled toggle, webhook status, and View / How to use / Configure webhook actions." />
+  <figcaption><em>View</em> opens the description. <em>How to use</em> opens this guide.</figcaption>
+</figure>
+
+<p>The detail page shows the description exactly as the author wrote it —
+what the strategy trades, on what timeframe, and where it is known to be
+weak.</p>
+
+<figure>
+  <img src="assets/guides/img/strategy-detail-description.png"
+       alt="The description panel on a strategy detail page, showing the strategy's idea, universe and timeframe, position sizing and known weaknesses." />
+  <figcaption>The description panel on <em>/strategies/&lt;id&gt;</em>.</figcaption>
+</figure>
+
+<p>Read the <em>Known weaknesses</em> section before enabling anything. A
+<strong>Community-tested: No</strong> chip means exactly what it says: the Pine
+bytes were stored and never executed or reviewed by us. You are responsible for
+what it does with your money.</p>
+
+<p>The same page also shows the Pine source and the strategy's TradingView
+payload template, so you can check all three against each other in one place.</p>
+
+<h2>2. Get the webhook URL and secret</h2>
+
+<ol>
+  <li>Back on <em>Strategies</em>, click <strong>Configure webhook</strong> on the
+  row you want.</li>
+  <li>The modal shows a URL unique to you and this strategy. It is safe to store;
+  it is not a credential on its own.</li>
+  <li>The <strong>webhook secret</strong> is shown <strong>once</strong>. Copy it
+  now into your password manager. If you close the modal without copying it, your
+  only option is <em>Rotate</em> — and rotating immediately invalidates the old
+  secret, which breaks any alert already using it.</li>
+</ol>
+
+<h2>3. Copy the payload template</h2>
+
+<p>The payload template is the JSON body TradingView will POST. Take it from the
+<em>TradingView payload template</em> panel on the strategy detail page (or from
+the webhook modal).</p>
+
+<figure>
+  <img src="assets/guides/img/strategy-detail-template.png"
+       alt="A JSON payload template with strategy, sig, action, symbol, qty, price and time fields. The sig field contains a placeholder reading paste-your-webhook-secret-here." />
+  <figcaption>The template. <code>{{…}}</code> markers are TradingView placeholders — leave them alone.</figcaption>
+</figure>
+
+<p>Two rules:</p>
+
+<ul>
+  <li>Replace <strong>only</strong> the placeholder in <code>sig</code> with your
+  webhook secret.</li>
+  <li>Leave every <code>{{ … }}</code> marker exactly as it is. TradingView
+  substitutes those at fire time; typing a literal value there means every alert
+  reports the same symbol or size.</li>
+</ul>
+
+<p>Field-by-field detail:
+<a href="/guides/webhook-payload-template">The webhook payload template</a>.</p>
+
+<h2>4. Create the TradingView alert</h2>
+
+<ol>
+  <li>Open the chart with the matching Pine strategy applied.</li>
+  <li>Create an alert on <em>that strategy</em>, not on a bare price condition.</li>
+  <li>Under <em>Notifications</em>, tick <strong>Webhook URL</strong> and paste the
+  URL from step 2.</li>
+  <li>Paste the edited template into the <strong>Message</strong> box.</li>
+  <li>Set the alert to <em>Once per bar close</em> unless you specifically want
+  intrabar firing — intrabar alerts fire on ticks that may never close, and each
+  one is a real order.</li>
+  <li>Save.</li>
+</ol>
+
+<p>Detail, including TradingView's own quirks:
+<a href="/guides/tradingview-alert-config">Configure your TradingView alert</a>.</p>
+
+<h2>5. Enable the strategy</h2>
+
+<p>Back on <em>Strategies</em>, flip the <strong>Enabled</strong> toggle. The app
+asks you to confirm, because enabling arms live execution: from that moment a
+delivered alert becomes an order.</p>
+
+<p>Disabling is immediate and needs no confirmation. A disabled strategy still
+accepts webhook deliveries — they are recorded and then dropped, so you can wire
+and test an alert before arming it.</p>
+
+<h2>6. Confirm the first order</h2>
+
+<ul>
+  <li><em>Dashboard &rarr; Today's fills</em> shows fills as they land.</li>
+  <li><em>Orders</em> shows every order with its state and, for a rejection, the
+  reason.</li>
+</ul>
+
+<p>If the header reads <strong>Offline</strong>, the realtime stream is not
+connected — refresh the page to pull the current state. Orders are still placed
+normally; only the automatic updating is affected.</p>
+
+<h2>Common failures</h2>
+
+<table>
+  <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+  <tr><td>TradingView shows a failed webhook delivery</td><td>Wrong URL, or malformed JSON in <em>Message</em></td><td>Re-copy both from the strategy detail page</td></tr>
+  <tr><td>Delivery succeeds, no order</td><td>Strategy disabled, or no broker connected</td><td>Check the toggle and <em>Settings &rarr; Brokers</em></td></tr>
+  <tr><td>Rejected with a signature error</td><td><code>sig</code> does not match the current secret</td><td>Rotate the secret and update the alert message</td></tr>
+  <tr><td>Every alert trades the same symbol</td><td>A <code>{{…}}</code> marker was replaced with a literal</td><td>Restore the template and edit only <code>sig</code></td></tr>
+  <tr><td>Orders fire far more often than expected</td><td>Alert set to fire intrabar</td><td>Switch to <em>Once per bar close</em></td></tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Guide — Getting started, end to end</title>
+</head>
+<body>
+
+<h1>Getting started, end to end</h1>
+
+<p>This is the whole path from a fresh account to a paper fill you can see on
+the dashboard. Each step links to a guide with the detail. Expect about
+twenty minutes, most of it waiting on Alpaca and TradingView rather than on
+StratTraderPro.</p>
+
+<div class="warn">
+  <strong>Paper first.</strong> Everything below runs against a paper broker
+  account. Nothing here can spend real money. Live trading is a separate,
+  explicitly-gated step and is not covered by this guide.
+</div>
+
+<h2>Where things live</h2>
+
+<p>Every page in this guide is reachable from the header. <em>Guides</em> is the
+tab you are reading now; it is always one click away from any screen.</p>
+
+<figure>
+  <img src="assets/guides/img/nav-guides.png"
+       alt="The application header, showing the Dashboard, Strategies, Backtest, Risk, Orders, Guides, Settings and Admin tabs, a stream status indicator, and the user menu." />
+  <figcaption>The header. <em>Admin</em> only appears for staff accounts.</figcaption>
+</figure>
+
+<p>On the right of the header is the realtime stream indicator. <strong>Live</strong>
+means positions and fills are pushed to your browser as they happen;
+<strong>Offline</strong> means the page still loads data when you open or refresh
+it, but nothing updates on its own. It is not an error state and it does not stop
+orders from being placed.</p>
+
+<h2>Step 1 — Verify your email</h2>
+
+<ol>
+  <li>Register, then open the verification link we email you.</li>
+  <li>If it never arrives, use <em>Resend verification</em> on the login page.</li>
+</ol>
+
+<p>Until your address is verified you can sign in, but the trading endpoints
+will refuse you.</p>
+
+<h2>Step 2 — Turn on two-factor authentication</h2>
+
+<p>This is not optional. Every strategy, broker, order and risk endpoint is
+behind an MFA gate: without an enrolled authenticator you will see
+<em>Two-factor authentication required</em> on the dashboard and every panel
+will be empty.</p>
+
+<ol>
+  <li>Go to <em>Settings &rarr; Security &rarr; Set up two-factor authentication</em>.</li>
+  <li>Scan the QR code with your authenticator app and enter the six-digit code.</li>
+  <li><strong>Save the ten backup codes.</strong> They are shown once. Losing both
+  your authenticator and these codes means losing the account.</li>
+</ol>
+
+<p>Detail: <a href="/guides/mfa">Two-factor authentication</a>.</p>
+
+<h2>Step 3 — Set your timezone</h2>
+
+<p>Every timestamp in the app — fills, orders, audit entries, backtest windows —
+is rendered in the timezone on your profile. Set it before you start reading
+timestamps, not after.</p>
+
+<p>Detail: <a href="/guides/settings-profile">Profile settings</a>.</p>
+
+<h2>Step 4 — Connect a paper broker</h2>
+
+<ol>
+  <li>Create a paper account at Alpaca and generate paper API keys.</li>
+  <li>Paste them into <em>Settings &rarr; Brokers</em>.</li>
+  <li>Wait for the connection chip to read <strong>Connected</strong>.</li>
+</ol>
+
+<p>Without a connected broker an alert is still accepted at the webhook URL, but
+it is rejected downstream with <code>NO_BROKER_CONNECTED</code> and no order is
+placed.</p>
+
+<p>Detail: <a href="/guides/alpaca-paper-connect">Connect your Alpaca paper account</a>.</p>
+
+<h2>Step 5 — Pick or upload a strategy</h2>
+
+<p>Open <em>Strategies</em>. System strategies are ready to use. To bring your own
+Pine script, use <em>Upload strategy</em> — it takes a three-file bundle.</p>
+
+<p>Click a strategy's name (or <em>View</em>) to read its full description before
+you enable it. <em>How to use</em> opens the step-by-step for that strategy.</p>
+
+<figure>
+  <img src="assets/guides/img/strategies-list.png"
+       alt="The strategies table with two rows. Each row shows the strategy name as a link, its type, an enabled toggle, webhook status, and View / How to use / Configure webhook actions." />
+  <figcaption>The strategies table. The name and <em>View</em> both open the full description.</figcaption>
+</figure>
+
+<p>Detail: <a href="/guides/using-a-strategy">Run a strategy end to end</a> and
+<a href="/guides/strategy-upload">Upload your first strategy</a>.</p>
+
+<h2>Step 6 — Wire the TradingView alert</h2>
+
+<ol>
+  <li><em>Configure webhook</em> gives you a URL and a secret. The secret is shown
+  <strong>once</strong> — copy it now.</li>
+  <li>In TradingView, create an alert on the same script, paste the URL into
+  <em>Webhook URL</em>, and paste the payload template into <em>Message</em>.</li>
+  <li>Replace the placeholder in the template's <code>sig</code> field with your secret.</li>
+</ol>
+
+<p>Detail: <a href="/guides/webhook-payload-template">The webhook payload template</a>
+and <a href="/guides/tradingview-alert-config">Configure your TradingView alert</a>.</p>
+
+<h2>Step 7 — Enable the strategy and watch for the fill</h2>
+
+<p>Flip the <em>Enabled</em> toggle. This arms live execution for that strategy, so
+the app asks you to confirm. From then on, a delivered alert becomes a paper
+order.</p>
+
+<p>The first fill shows up on the <em>Dashboard</em> under <em>Today's fills</em>, and
+in full on the <em>Orders</em> page. If nothing arrives, the <em>Orders</em> page is
+where you find out why — a rejected order carries its reason.</p>
+
+<h2>If you get stuck</h2>
+
+<table>
+  <tr><th>What you see</th><th>What it usually means</th></tr>
+  <tr><td>Every dashboard panel is empty and says two-factor is required</td><td>Step 2 is not done.</td></tr>
+  <tr><td>Alert delivers, no order appears</td><td>No broker connected, or the strategy is disabled.</td></tr>
+  <tr><td>TradingView reports a failed webhook</td><td>Wrong URL, or the <code>sig</code> value does not match the current secret. Rotating the secret invalidates the old one immediately.</td></tr>
+  <tr><td>Header says <em>Offline</em></td><td>The realtime stream is not connected. Data still loads on page open; it just will not update by itself.</td></tr>
+  <tr><td><em>Market Regime</em> says the data source is not configured</td><td>See <a href="/guides/market-regime-setup">Why Market Regime says "no data"</a>.</td></tr>
+</table>
+
+</body>
+</html>

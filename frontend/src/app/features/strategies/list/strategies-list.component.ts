@@ -67,7 +67,14 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
               @for (s of facade.strategies(); track s.id) {
                 <tr class="border-t border-neutral-200">
                   <td class="px-3 py-3">
-                    <div class="font-bold">{{ s.name }}</div>
+                    <!-- The name is the way in to the description. Before this it
+                         was plain text and the detail route was unreachable from
+                         the UI, so an uploaded strategy's description could not
+                         be read back anywhere in the app. -->
+                    <a [routerLink]="['/strategies', s.id]"
+                       class="font-bold text-ink underline decoration-divider underline-offset-2 hover:text-accent-700 hover:decoration-accent">
+                      {{ s.name }}
+                    </a>
                     <div class="mt-0.5 text-xs text-neutral-700">{{ s.description_short }}</div>
                     @if (!s.is_system) {
                       <div class="mt-1.5">
@@ -98,6 +105,14 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
                     {{ (s.has_webhook_config ? 'strategies.list.webhook.configured' : 'strategies.list.webhook.unconfigured') | translate }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-3 text-right space-x-2">
+                    <a [routerLink]="['/strategies', s.id]"
+                       class="inline-block rounded-none border border-transparent px-1 py-1.5 font-heading text-sm font-semibold leading-tight text-accent-700 no-underline transition-colors hover:bg-accent-100">
+                      {{ 'strategies.list.view' | translate }}
+                    </a>
+                    <a [routerLink]="['/guides', guideSlug]"
+                       class="inline-block rounded-none border border-transparent px-1 py-1.5 font-heading text-sm font-semibold leading-tight text-accent-700 no-underline transition-colors hover:bg-accent-100">
+                      {{ 'strategies.list.how_to' | translate }}
+                    </a>
                     <app-button variant="ghost" (clicked)="openWebhookModal(s)">
                       {{ 'strategies.list.configure_webhook' | translate }}
                     </app-button>
@@ -161,6 +176,10 @@ import { ToggleComponent } from '../../shared/ui/toggle.component';
 export class StrategiesListComponent implements OnInit {
   facade = inject(StrategiesFacade);
   private router = inject(Router);
+
+  /** Step-by-step "run a strategy end to end" guide (Guides tab). Every row
+   * links to it — including where to paste the TradingView payload template. */
+  readonly guideSlug = 'using-a-strategy';
 
   /** Strategy currently being configured in the modal, or null. */
   modalStrategy = signal<Strategy | null>(null);

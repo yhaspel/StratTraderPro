@@ -450,6 +450,13 @@ jobs:
       - name: Cross-check NGINX_ENVSUBST_FILTER against nginx.conf.template
         run: python3 scripts/check_envsubst_filter.py
 
+      # The Guides catalog and assets/guides/*.html can drift silently: a catalog
+      # entry with no file renders a card that opens "not found", and a file with
+      # no entry is an orphan article unreachable from the index. Both only fail
+      # in a user's browser, so cross-check them statically here.
+      - name: Cross-check the Guides catalog against assets/guides/
+        run: python3 scripts/check_guides_catalog.py
+
   # ---------- Image Scan ----------
   image-scan:
     name: Trivy — Docker Image Scan

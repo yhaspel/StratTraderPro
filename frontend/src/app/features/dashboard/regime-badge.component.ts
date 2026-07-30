@@ -10,6 +10,7 @@
  */
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { RegimeFacade } from '../../abstraction/facades/regime.facade';
 import { RegimeHistoryComponent } from './regime-history.component';
@@ -21,7 +22,7 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
   selector: 'app-regime-badge',
   standalone: true,
   imports: [
-    CommonModule, TranslateModule, RegimeHistoryComponent, HelpLinkComponent,
+    CommonModule, RouterLink, TranslateModule, RegimeHistoryComponent, HelpLinkComponent,
     CardComponent, StatusChipComponent,
   ],
   template: `
@@ -89,12 +90,30 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
           </div>
         } @else if (facade.loading()) {
           <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
+        } @else if (facade.sourceConfigured() === false) {
+          <!-- Honest empty state: the daily pipeline is a deliberate no-op
+               without FMP_API_KEY + FRED_API_KEY, so "No regime data yet"
+               would imply "wait" when the real answer is "configure it". -->
+          <div class="space-y-1.5" role="status">
+            <app-status-chip tone="warn">
+              <span aria-hidden="true">⚠&nbsp;</span>{{ 'regime.source_missing' | translate }}
+            </app-status-chip>
+            <p class="text-sm text-neutral-700">{{ 'regime.source_missing_hint' | translate }}</p>
+            <a routerLink="/guides/market-regime-setup"
+               class="inline-block text-[13px] text-accent-700 underline">
+              {{ 'regime.source_missing_link' | translate }}
+            </a>
+          </div>
         } @else {
           <p class="text-sm text-neutral-700">{{ 'regime.no_data' | translate }}</p>
         }
 
-        <!-- ~90-day regime band. -->
-        <app-regime-history />
+        <!-- ~90-day regime band. Suppressed when the data source is known to be
+             unconfigured — otherwise it repeats "No regime data yet" directly
+             under the explanation of why there is none. -->
+        @if (facade.sourceConfigured() !== false) {
+          <app-regime-history />
+        }
       </div>
     </app-card>
   `,

@@ -16,6 +16,8 @@ describe('ShellComponent', () => {
   let authFacade: jasmine.SpyObj<AuthFacade>;
   let load: jasmine.Spy;
   let loadKillswitches: jasmine.Spy;
+  let wsStart: jasmine.Spy;
+  let wsStop: jasmine.Spy;
 
   function setup(
     user: { email: string; is_staff?: boolean } | null,
@@ -26,6 +28,8 @@ describe('ShellComponent', () => {
     authFacade.signOut.and.resolveTo();
     load = jasmine.createSpy('load');
     loadKillswitches = jasmine.createSpy('loadKillswitches');
+    wsStart = jasmine.createSpy('start');
+    wsStop = jasmine.createSpy('stop');
     TestBed.configureTestingModule({
       imports: [ShellComponent, TranslateModule.forRoot()],
       providers: [
@@ -36,7 +40,10 @@ describe('ShellComponent', () => {
         { provide: AuthFacade, useValue: authFacade },
         { provide: OnboardingFacade, useValue: { load, incomplete: signal(incomplete) } },
         { provide: RiskFacade, useValue: { haltActive: signal(haltActive), loadKillswitches } },
-        { provide: DashboardFacade, useValue: { connected: signal(false) } },
+        {
+          provide: DashboardFacade,
+          useValue: { connected: signal(false), start: wsStart, stop: wsStop },
+        },
         {
           provide: TermsFacade,
           useValue: {
@@ -64,7 +71,7 @@ describe('ShellComponent', () => {
   it('renders the primary nav links', () => {
     const el = setup({ email: 'a@b.c' }).nativeElement as HTMLElement;
     const links = hrefs(el);
-    for (const link of ['/dashboard', '/strategies', '/backtest', '/risk', '/orders', '/settings/profile']) {
+    for (const link of ['/dashboard', '/strategies', '/backtest', '/risk', '/orders', '/guides', '/settings/profile']) {
       expect(links).toContain(link);
     }
   });
@@ -104,6 +111,17 @@ describe('ShellComponent', () => {
     expect(
       banner!.compareDocumentPosition(header!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it('opens the realtime stream on init so the Live dot is truthful on every route', () => {
+    setup({ email: 'a@b.c' });
+    expect(wsStart).toHaveBeenCalled();
+  });
+
+  it('releases its stream reference on destroy', () => {
+    const fixture = setup({ email: 'a@b.c' });
+    fixture.destroy();
+    expect(wsStop).toHaveBeenCalled();
   });
 
   it('sign out delegates to AuthFacade.signOut', async () => {

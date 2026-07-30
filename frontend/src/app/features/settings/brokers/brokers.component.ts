@@ -208,7 +208,7 @@ const KNOWN_ERRORS = new Set([
           </h2>
           <p class="mb-s3 text-sm text-neutral-700">
             {{ 'brokers.connect.help' | translate }}
-            <a routerLink="/help/alpaca-paper-connect"
+            <a routerLink="/guides/alpaca-paper-connect"
                class="text-accent-700 hover:underline">{{ 'brokers.connect.help_link' | translate }}</a>
           </p>
 

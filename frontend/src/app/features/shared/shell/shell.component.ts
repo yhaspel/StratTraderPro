@@ -14,7 +14,8 @@
  * AuthFacade.signOut() which also tears down the shared dashboard WebSocket.
  */
 import {
-  ChangeDetectionStrategy, Component, ElementRef, HostListener, OnInit, ViewChild, inject, signal,
+  ChangeDetectionStrategy, Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild,
+  inject, signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -105,8 +106,11 @@ interface NavItem {
         </div>
 
         <div class="flex items-center gap-[14px]">
-          <!-- Live dot (square, up-green — stream state, never color-only) -->
-          <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-700">
+          <!-- Live dot (square, up-green — stream state, never color-only).
+               The label is ambiguous on its own ("is the APP offline?"), so the
+               title says which thing is offline and what it costs you. -->
+          <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-700"
+                [title]="(dashboard.connected() ? 'dashboard.live_hint' : 'dashboard.offline_hint') | translate">
             <span
               class="h-[7px] w-[7px] flex-none"
               [class.bg-up]="dashboard.connected()"
@@ -139,10 +143,10 @@ interface NavItem {
                 </a>
                 <a
                   role="menuitem"
-                  routerLink="/help"
+                  routerLink="/guides"
                   class="block px-4 py-2 text-sm text-ink hover:bg-neutral-200"
                   (click)="closeMenu()">
-                  {{ 'nav.help' | translate }}
+                  {{ 'nav.guides' | translate }}
                 </a>
                 <button
                   type="button"
@@ -200,7 +204,7 @@ interface NavItem {
     </main>
   `,
 })
-export class ShellComponent implements OnInit {
+export class ShellComponent implements OnInit, OnDestroy {
   private store = inject(AuthStore);
   private auth = inject(AuthFacade);
   readonly onboarding = inject(OnboardingFacade);
@@ -240,6 +244,7 @@ export class ShellComponent implements OnInit {
     { key: 'nav.backtest', link: '/backtest' },
     { key: 'nav.risk', link: '/risk' },
     { key: 'nav.orders', link: '/orders' },
+    { key: 'nav.guides', link: '/guides' },
     { key: 'nav.settings', link: '/settings/profile' },
   ];
 
@@ -249,6 +254,19 @@ export class ShellComponent implements OnInit {
     // Halt banner lives in the shell now — refresh the active kill-switch set
     // so it is truthful on every route, not only after visiting the dashboard.
     void this.risk.loadKillswitches();
+    // Same reasoning for the Live/Offline dot, which also lives in the header on
+    // every route: only DashboardComponent used to open the socket, so the dot
+    // read "Offline" on Strategies / Risk / Settings / Admin no matter what the
+    // stream was actually doing. The shell owns the connection for the whole
+    // authenticated session; DashboardWsService is refcounted (C-FE-4/P2-9), so
+    // the dashboard attaching and detaching on top of this is safe.
+    this.dashboard.start();
+  }
+
+  ngOnDestroy(): void {
+    // Leaving the shell means signing out or leaving the app — release the
+    // shell's reference so the refcount can reach zero and close the socket.
+    this.dashboard.stop();
   }
 
   navItems(): NavItem[] {
