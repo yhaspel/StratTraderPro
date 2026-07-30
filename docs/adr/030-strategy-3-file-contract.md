@@ -22,7 +22,7 @@ request, with the `<stem>` derived from the `.pine` filename:
 - `<stem>.pine` — Pine script. ≤ 64 KB. Must declare `//@version=N`
   in the first 64 bytes.
 - `<stem>_Description.txt` — TradingView-format description shown on the
-  strategy detail page. ≤ 16 KB.
+  strategy detail page. ≤ 256 KB.
 - `<stem>_Webhook.json` — payload template, also used as the editor's
   starting point. ≤ 16 KB. Required top-level keys: `strategy`, `action`,
   `symbol`, `qty`, `order_type`. Additional keys are permitted.

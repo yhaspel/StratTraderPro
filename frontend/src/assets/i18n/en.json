@@ -283,7 +283,7 @@
       },
       "desc": {
         "label": "Description (.txt)",
-        "hint": "Filename must be {{stem}}_Description.txt. Max 16 KB."
+        "hint": "Filename must be {{stem}}_Description.txt. Max 256 KB."
       },
       "webhook": {
         "label": "Webhook payload template (.json)",
