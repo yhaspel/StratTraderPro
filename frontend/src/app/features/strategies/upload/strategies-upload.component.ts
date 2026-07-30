@@ -24,7 +24,7 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 
 const STEM_REGEX = /^[A-Za-z0-9_\-]{3,64}$/;
 const MAX_PINE = 64 * 1024;
-const MAX_DESC = 16 * 1024;
+const MAX_DESC = 256 * 1024;
 const MAX_WEBHOOK = 16 * 1024;
 
 @Component({

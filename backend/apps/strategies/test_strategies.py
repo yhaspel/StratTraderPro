@@ -31,6 +31,7 @@ from django.utils import timezone
 
 from apps.strategies.models import Strategy, WebhookConfig
 from apps.strategies.validators import (
+    DESC_MAX_BYTES,
     PINE_MAX_BYTES,
     StrategyValidationError,
     validate_json_schema,
@@ -210,6 +211,26 @@ class ValidatorBundleTests(TestCase):
         }
         with self.assertRaises(StrategyValidationError) as ctx:
             validate_uploaded_bundle(files)
+        self.assertEqual(ctx.exception.code, "STRATEGY_FILE_TOO_LARGE")
+
+    def test_description_too_large(self):
+        # The description has its own cap (DESC_MAX_BYTES). Exactly at the limit
+        # passes; one byte over raises STRATEGY_FILE_TOO_LARGE. Mirrors the pine
+        # boundary above so the two caps stay independently regression-tested.
+        at_limit = {
+            "pine": ("Big.pine", _valid_pine()),
+            "description": ("Big_Description.txt", b"x" * DESC_MAX_BYTES),
+            "webhook": ("Big_Webhook.json", json.dumps(_valid_webhook()).encode()),
+        }
+        validate_uploaded_bundle(at_limit)  # must not raise
+
+        over_limit = {
+            "pine": ("Big.pine", _valid_pine()),
+            "description": ("Big_Description.txt", b"x" * (DESC_MAX_BYTES + 1)),
+            "webhook": ("Big_Webhook.json", json.dumps(_valid_webhook()).encode()),
+        }
+        with self.assertRaises(StrategyValidationError) as ctx:
+            validate_uploaded_bundle(over_limit)
         self.assertEqual(ctx.exception.code, "STRATEGY_FILE_TOO_LARGE")
 
     def test_webhook_bad_json(self):

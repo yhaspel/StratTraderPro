@@ -26,7 +26,7 @@ from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 # Limits — surfaced as constants so tests + frontend can reference them.
 # ---------------------------------------------------------------------------
 PINE_MAX_BYTES = 64 * 1024
-DESC_MAX_BYTES = 16 * 1024
+DESC_MAX_BYTES = 256 * 1024
 WEBHOOK_MAX_BYTES = 16 * 1024
 
 #: Stem regex per plan §6.2 — the upload form sends three files; the *first*
