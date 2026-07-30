@@ -3,7 +3,7 @@
  * Visual layer: "Industry" design system — condensed heading, accent back
  * link, shared warn chip, code panels as font-mono on `--color-surface`.
  */
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
@@ -11,6 +11,7 @@ import { firstValueFrom } from 'rxjs';
 import { StrategiesApi } from '../../../core/services/strategies.api';
 import { Strategy } from '../../../core/models/strategies.models';
 import { StatusChipComponent } from '../../shared/ui/status-chip.component';
+import { renderTradingViewDescription } from '../../../core/util/tradingview-description';
 
 @Component({
   selector: 'app-strategies-detail',
@@ -56,10 +57,15 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
         <h2 class="mt-6 mb-2 font-heading text-lg font-semibold text-ink" id="desc-heading">{{ 'strategies.detail.description' | translate }}</h2>
         @if (filesLoading()) {
           <p class="text-sm text-neutral-700">{{ 'common.loading' | translate }}</p>
-        } @else if (descText()) {
-          <!-- tabindex=0 + role=region + aria-labelledby satisfies WCAG 2.1.1 (Keyboard) for scrollable content. -->
-          <pre tabindex="0" role="region" aria-labelledby="desc-heading"
-               class="max-h-96 overflow-auto whitespace-pre-wrap rounded-none border border-divider bg-surface p-3 text-[13px] leading-relaxed text-ink">{{ descText() }}</pre>
+        } @else if (descHtml()) {
+          <!-- TradingView BBCode ([b]/[list]/[url]/[pine]/…) rendered as visual
+               cues. descHtml() escapes all text and emits a fixed tag whitelist;
+               binding via [innerHTML] then runs Angular's default sanitizer
+               (P2-12). The stored DESC file is never modified — display only.
+               tabindex/role/aria-labelledby satisfy WCAG 2.1.1 for the scroll region. -->
+          <div tabindex="0" role="region" aria-labelledby="desc-heading"
+               class="tv-desc max-h-96 overflow-auto rounded-none border border-divider bg-surface p-3 text-[13px] leading-relaxed text-ink"
+               [innerHTML]="descHtml()"></div>
         } @else {
           <p class="text-sm text-neutral-700">{{ 'strategies.detail.description_empty' | translate }}</p>
         }
@@ -86,6 +92,23 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
       }
     </div>
   `,
+  // Styling for the [innerHTML] description. ::ng-deep is required because the
+  // rendered nodes are not view-encapsulated (same approach as guides
+  // .help-content). Tokens come from src/styles/tokens.css.
+  styles: [`
+    .tv-desc ::ng-deep strong { font-weight: 600; }
+    .tv-desc ::ng-deep em { font-style: italic; }
+    .tv-desc ::ng-deep s { text-decoration: line-through; }
+    .tv-desc ::ng-deep a { color: var(--color-accent-700); text-decoration: underline; }
+    .tv-desc ::ng-deep a:hover { background: var(--color-accent-100); }
+    .tv-desc ::ng-deep ul { list-style: disc; padding-inline-start: 1.5rem; margin: 0.5rem 0; }
+    .tv-desc ::ng-deep ol { list-style: decimal; padding-inline-start: 1.5rem; margin: 0.5rem 0; }
+    .tv-desc ::ng-deep li { margin-bottom: 0.25rem; }
+    .tv-desc ::ng-deep blockquote { border-inline-start: 2px solid var(--color-divider); padding-inline-start: 0.75rem; margin: 0.5rem 0; color: var(--color-neutral-700); font-style: italic; }
+    .tv-desc ::ng-deep pre { background: var(--color-surface); border: 1px solid var(--color-divider); padding: 0.75rem; overflow-x: auto; font-size: 0.8rem; margin: 0.5rem 0; }
+    .tv-desc ::ng-deep pre code { font-family: var(--font-mono), monospace; background: transparent; padding: 0; white-space: pre; }
+    .tv-desc ::ng-deep img { display: block; max-width: 100%; height: auto; border: 1px solid var(--color-divider); margin: 0.5rem 0; }
+  `],
 })
 export class StrategiesDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
@@ -99,6 +122,10 @@ export class StrategiesDetailComponent implements OnInit {
   pineText = signal<string>('');
   descText = signal<string>('');
   templateText = signal<string>('');
+
+  /** TradingView BBCode → safe HTML, recomputed when descText() changes.
+   *  Display-only; the stored DESC file is never touched. */
+  descHtml = computed(() => renderTradingViewDescription(this.descText()));
 
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
