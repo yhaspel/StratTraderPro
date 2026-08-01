@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Observability reduced to the safety core (ADR-109)
+- **Alert rules 18 → 9 in `alert-rules.yaml`** (+2 unchanged usage-budget rules = 11
+  as code). Retired: `OrderSubmitLatencyHigh`, `SentimentLag`, `HMMModelStale`,
+  `DBConnectionSaturation`, the three backtest rules, and both `ApiErrorBudget*Burn`
+  burn-rate rules. The dead-man's pair (`MetricsPipelineDown`/`TargetDown`), the
+  kill-switch/stream/webhook/audit safety alerts, and both budget guards stay.
+- **Dashboards 6 → 3**: `trading-ops`, `risk-ops`, `system-health` kept, with SLO
+  wording replaced by plain targets and the never-built exporter follow-up row
+  removed; the retired panels' series all remain exported and queryable in Explore.
+- `docs/runbooks/incident-triage.md` now triages exactly the 11 live rules —
+  including new rows for the dead-man's pair and the metrics-budget pair — and the
+  runbook/setup-guide set no longer references SLOs, exporters, or six dashboards.
+
+### Removed — service-era observability surface (ADR-109)
+- `postgres-exporter` + `redis-exporter` (compose services, agent scrape jobs
+  7 → 5; the Railway service deletion is the operator step in the plan). Their only
+  committed consumer was the retired `DBConnectionSaturation` rule.
+- Dashboards `auth-health`, `data-pipelines`, `backtest-ops`; the cloud-side
+  hand-made auth rules/folder are deleted in the operator step (alerts-as-code
+  invariant restored).
+- `docs/slo.md` — SLO/error-budget framing retired with the hosted-service
+  posture (PIVOT-TO-OSS WP-3); kept thresholds live on in `alert-rules.yaml` +
+  `incident-triage.md`.
+
 ### Added — Guides tab (replaces the buried /help index)
 - **Guides is now a primary nav tab.** The help articles shipped in M10.5 were reachable
   only from the user dropdown, so in practice nothing in the product told a user how to use

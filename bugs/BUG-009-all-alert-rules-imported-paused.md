@@ -1,7 +1,10 @@
 # BUG-009 — Every imported alert rule is PAUSED; the entire M10 alerting stack has never been able to fire
 
 - **Severity:** S1 — safety controls that silently don't work
-- **Status:** OPEN — **needs operator authorization to fix** (see "Fix")
+- **Status:** CLOSED — authorized and un-paused during the 2026-07-11 live bring-up
+  (PROGRESS M10 close-out; the daily audit has asserted "zero paused rules" since).
+  The paused-on-import trap itself is permanent — see the ⛔ gate in
+  `docs/runbooks/alerting-setup.md` before ANY future re-import (incl. ADR-109's).
 - **Area:** Observability / Alerting
 - **Found:** 2026-07-11, while investigating BUG-005
 - **Affects:** every StratTraderPro alert rule imported in M10 §B2

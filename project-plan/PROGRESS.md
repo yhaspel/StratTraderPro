@@ -118,6 +118,24 @@ users.**
 - **Self-hosting bootstrap:** `make setup` generates `SECRET_KEY` + `FERNET_KEK`; `make up` no longer
   pulls the ngrok tunnel; export storage falls back to filesystem when no R2.
 
+## The 2026-08-01 observability rightsizing (ADR-109)
+
+- Decision record: `docs/adr/109-observability-reduced-scope.md`; full plan + adversarial-review
+  log: `development-plans/2026-08-01-grafana-reduced-form.md`.
+- **Code (this repo): DONE** — `alert-rules.yaml` 18 → 9 rules (backtest-ops + slo-burn-rate groups
+  removed; `OrderSubmitLatencyHigh`/`SentimentLag`/`HMMModelStale`/`DBConnectionSaturation`
+  retired), agent scrape jobs 7 → 5 (exporter jobs gone), compose exporters deleted, dashboards
+  6 → 3 (SLO wording → targets), `docs/slo.md` deleted, runbooks/guides swept, `_EXTERNAL` pruned.
+  The dead-man's pair + both budget rules are untouched; zero executable backend lines changed.
+- **Operator track: ⏳ PENDING `[LIVE]`** — until executed, Grafana Cloud still shows the old
+  surface (≈23 rules incl. the 3 hand-made auth rules, 6+ dashboards) and the exporter Railway
+  services still run. Steps O-1…O-5 in the plan: backup → re-import + un-pause (⛔ BUG-009 gate) →
+  delete retired rules/dashboards/Auth folder → agent redeploy **before** exporter-service
+  deletion (else `TargetDown` pages) → drill one real rule → budget-rate check.
+- **Daily audit: ⏳ PENDING** — its assertion spec must move to the reduced shape (11 rules,
+  5 `up` targets, env=production only) per plan WP-8, or it will false-alarm after O-4.
+- D5 narrowed, not violated: the CI-required `infra/grafana/alerts/*.yaml` + `agent.yaml` stay.
+
 ## Next steps (ordered)
 
 1. **M04 Phase B — webhook ingest core** (broker-agnostic): `POST /hooks/v1/{user}/{strategy}/` with secret verify + schema + idempotency + halt gate, `AlertMessage`, `process_alert`, `Order`/`Fill`/`Position` models, `FakeBrokerAdapter`. Spec §6.1, §6.3–§6.4.

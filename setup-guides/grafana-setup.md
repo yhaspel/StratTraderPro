@@ -1,9 +1,16 @@
 # Grafana Cloud Setup — Auth Health Dashboard
 
+> ⚠️ **Superseded in part by ADR-109 (2026-08).** The Auth Health dashboard and
+> the three hand-made auth alert rules this guide builds were **retired** — do
+> not recreate them. Sections 0–3 (workspace signup, API token, grafana-agent
+> bring-up, the `ALLOWED_HOSTS` gotcha) remain the valid bring-up reference for
+> a fresh Grafana Cloud workspace; the current dashboards + alerts-as-code
+> import lives in `docs/runbooks/alerting-setup.md`.
+>
 > **Phase:** M01 (Auth Foundation) — exit-gate item 01.11.5
 > **Owner:** @yhaspel (manual)
 > **Time:** ~30–45 min
-> **Outcome:** A live **Auth Health** dashboard in Grafana Cloud scraping Prometheus metrics from the Railway-staging backend, with three alerts wired up.
+> **Outcome (historical):** A live **Auth Health** dashboard in Grafana Cloud scraping Prometheus metrics from the Railway-staging backend, with three alerts wired up.
 >
 > **Status (2026-05-01):** Sections 0–3 complete. Pipeline verified: `up{service="backend"}` returns `1` in Grafana Cloud Explore (datasource `grafanacloud-YOUR_ORG-prom`). Section 4 (dashboard import) and Section 5 (alert verification) outstanding.
 
@@ -139,15 +146,15 @@ Steps once metrics are flowing:
 
 1. Grafana → *Dashboards → New → Import*.
 2. Paste the contents of `infra/grafana/system-health-dashboard.json`. Or upload the file directly.
-3. When prompted for the data source, pick `grafanacloud-YOUR_ORG-prom` (auto-detected via the `${DS_PROMETHEUS}` template variable, same pattern Auth Health uses).
-4. Save into folder **StratTraderPro** (next to Auth Health).
-5. Confirm panels render. Six rows:
+3. When prompted for the data source, pick `grafanacloud-YOUR_ORG-prom` (auto-detected via the `${DS_PROMETHEUS}` template variable).
+4. Save into folder **StratTraderPro**.
+5. Confirm panels render. Rows (post-ADR-109 — the exporter follow-up row was removed with the exporters):
    - **Backend Health** — `up`, request rate by status class, p50/p95/p99 latency, 5xx error rate %.
    - **Application Activity (per-route breakdown)** — top 10 routes by request rate, top 10 by p95 latency, 4xx responses by view. (Container CPU/memory metrics are deliberately *not* on this dashboard: prometheus_client's `process_*` collector is disabled under multi-process gunicorn, and Railway container metrics aren't scraped — that's M10 §6.5 work.)
    - **Django DB (ORM-side metrics)** — query duration percentiles, new connections/sec. **Requires** `django_prometheus.db.backends.*` engine wrappers in `DATABASES` (added via `_wrap_db_engines_for_prometheus()` in `backend/config/settings/base.py`). Without the wrapper, panels render "No data". Backend redeploy required after the wrapper change for these to populate.
-   - **Postgres / Redis / Celery — exporter follow-up** — text-only explainer panel listing the exporters that need scraping (postgres_exporter, redis_exporter, celery-exporter). No metrics yet.
-   - **M04 Webhook Ingest (placeholder)** — three panels keyed off `webhook_ingest_total{result}` and `webhook_ingest_latency_seconds_bucket`. "No data" until M04 wires those counters/histograms.
-   - **M04 Broker Round-trip (placeholder)** — `broker_place_order_latency_seconds_bucket` (p95 by broker) and `broker_connection_up{broker}`. "No data" until M04 broker adapters land.
+   - **M04 Webhook Ingest** — three panels keyed off `webhook_ingest_total{result}` and `webhook_ingest_latency_seconds_bucket`.
+   - **M04 Broker Round-trip** — `broker_place_order_latency_seconds_bucket` (p95 by broker) and `broker_connection_up{broker}`.
+   - **Targets & Incidents** — request error ratio + backend availability stats.
 
 ### 7.2 Variables
 
