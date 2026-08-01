@@ -335,7 +335,7 @@
     },
     {
       "type": "row",
-      "title": "SLO & Incidents",
+      "title": "Targets & Incidents",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -348,8 +348,8 @@
     },
     {
       "type": "stat",
-      "title": "Kill-switch flatten p99 (SLO \u2264 5s)",
-      "description": "AC-08-8 SLO: p99 flatten latency \u2264 5s. Green under budget, red over.",
+      "title": "Kill-switch flatten p99 (target \u2264 5s)",
+      "description": "AC-08-8 Target: p99 flatten latency \u2264 5s. Green under budget, red over.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -406,7 +406,7 @@
           "editorMode": "code",
           "expr": "histogram_quantile(0.99, sum by (le) (rate(killswitch_flatten_latency_seconds_bucket{env=~\"$env\"}[10m])))",
           "range": true,
-          "legendFormat": "Kill-switch flatten p99 (SLO \u2264 5s)",
+          "legendFormat": "Kill-switch flatten p99 (target \u2264 5s)",
           "refId": "A"
         }
       ]

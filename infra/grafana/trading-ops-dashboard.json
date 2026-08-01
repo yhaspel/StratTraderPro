@@ -466,7 +466,7 @@
     },
     {
       "type": "row",
-      "title": "SLO & Incidents",
+      "title": "Targets & Incidents",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -479,8 +479,8 @@
     },
     {
       "type": "stat",
-      "title": "Order submit p95 (SLO \u2264 1.5s)",
-      "description": "SLO: order-submit p95 \u2264 1.5s across brokers.",
+      "title": "Order submit p95 (target \u2264 1.5s)",
+      "description": "Target: order-submit p95 \u2264 1.5s across brokers.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -541,15 +541,15 @@
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by (le) (rate(order_submit_latency_seconds_bucket{env=~\"$env\"}[5m])))",
           "range": true,
-          "legendFormat": "Order submit p95 (SLO \u2264 1.5s)",
+          "legendFormat": "Order submit p95 (target \u2264 1.5s)",
           "refId": "A"
         }
       ]
     },
     {
       "type": "stat",
-      "title": "Webhook error ratio (SLO < 1%)",
-      "description": "Share of webhook requests not accepted. SLO: < 1%.",
+      "title": "Webhook error ratio (target < 1%)",
+      "description": "Share of webhook requests not accepted. Target: < 1%.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -612,7 +612,7 @@
           "editorMode": "code",
           "expr": "sum(rate(webhook_received_total{env=~\"$env\",result!=\"accepted\"}[5m])) / clamp_min(sum(rate(webhook_received_total{env=~\"$env\"}[5m])), 0.0001)",
           "range": true,
-          "legendFormat": "Webhook error ratio (SLO < 1%)",
+          "legendFormat": "Webhook error ratio (target < 1%)",
           "refId": "A"
         }
       ]
