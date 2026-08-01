@@ -458,6 +458,7 @@ class IsAuthenticatedAndMFAEnforcedTests(TestCase):
             ("orders", "ping/"),
             ("risk", "ping/"),
             ("strategies", ""),  # M03 — real viewset, list at the prefix
+            ("marketdata", "keys/"),  # ADR-062 — data-provider key status
         )
         for prefix, suffix in scaffold_paths:
             with self.subTest(path=prefix):

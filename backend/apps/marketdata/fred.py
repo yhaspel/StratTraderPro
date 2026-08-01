@@ -4,8 +4,6 @@ Free API; key is a deferred external (fixture-mocked in CI).
 """
 from __future__ import annotations
 
-from django.conf import settings
-
 
 class FREDError(Exception):
     pass
@@ -13,7 +11,12 @@ class FREDError(Exception):
 
 class FREDClient:
     def __init__(self, *, api_key=None, http=None, base_url="https://api.stlouisfed.org/fred"):
-        self.api_key = api_key if api_key is not None else getattr(settings, "FRED_API_KEY", "")
+        if api_key is None:
+            # UI-stored instance key → FRED_API_KEY env fallback (ADR-062).
+            from .keys import resolve_key
+
+            api_key = resolve_key("FRED")
+        self.api_key = api_key
         self._http = http
         self._owned_http = None  # one reused client per instance (FIX-M10)
         self.base = base_url.rstrip("/")

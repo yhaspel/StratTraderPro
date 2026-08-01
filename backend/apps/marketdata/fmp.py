@@ -42,7 +42,12 @@ class FMPCircuitOpen(FMPError):
 class FMPClient:
     def __init__(self, *, api_key=None, base_url=None, http=None,
                  per_minute=None, cb_threshold=5, cb_cooldown=60):
-        self.api_key = api_key if api_key is not None else getattr(settings, "FMP_API_KEY", "")
+        if api_key is None:
+            # UI-stored instance key → FMP_API_KEY env fallback (ADR-062).
+            from .keys import resolve_key
+
+            api_key = resolve_key("FMP")
+        self.api_key = api_key
         self.base = (base_url or getattr(settings, "FMP_BASE_URL", "https://financialmodelingprep.com/stable")).rstrip("/")
         self._http = http
         self._owned_http = None  # one reused client per instance (FIX-M10)

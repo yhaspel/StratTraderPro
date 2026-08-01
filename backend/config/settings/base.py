@@ -484,6 +484,9 @@ LIVE_TRADING_DISCLAIMER_VERSION = env("LIVE_TRADING_DISCLAIMER_VERSION", default
 ENABLE_REGIME_UI = env.bool("ENABLE_REGIME_UI", default=True)
 # FMP (equities/sector/treasury) + FRED (credit spreads). Keys are deferred
 # externals — empty by default; all live calls are fixture-mocked in CI.
+# ADR-062: these env vars are the FALLBACK. A key stored via Settings → Data
+# Providers (encrypted DataProviderKey row, staff-set) takes precedence —
+# see apps.marketdata.keys.resolve_key, which every consumer goes through.
 FMP_API_KEY = env("FMP_API_KEY", default="")
 FMP_BASE_URL = env("FMP_BASE_URL", default="https://financialmodelingprep.com/stable")
 FMP_RATE_LIMIT_PER_MIN = env.int("FMP_RATE_LIMIT_PER_MIN", default=750)
