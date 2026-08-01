@@ -2,9 +2,9 @@
 Auth Prometheus counters (M01 plan §12).
 
 These are scraped by django-prometheus' /metrics endpoint and shipped by the
-Railway grafana-agent to Grafana Cloud. The Auth Health dashboard
-(https://YOUR_ORG.grafana.net/d/stp-auth-health) and its three alert rules
-all read these series.
+Railway grafana-agent to Grafana Cloud, where the series are queryable in
+Explore. The M01 Auth Health dashboard and its three alert rules that used to
+read them were retired by ADR-109 (2026-08).
 
 Result-label vocabulary is fixed — adding a new value is fine, but renaming
 one will break the dashboard panels and alert expressions.

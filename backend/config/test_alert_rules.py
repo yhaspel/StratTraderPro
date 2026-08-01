@@ -2,7 +2,7 @@
 
 Every PromQL series referenced by infra/grafana/alerts/*.yaml must resolve to a
 metric name the codebase exports (scanned from every apps/*/metrics.py) or a
-known externally-produced series (django_prometheus + postgres/redis exporters).
+known externally-produced series (django_prometheus + Grafana Cloud usage series).
 A renamed or removed metric fails this test.
 """
 import re
@@ -29,11 +29,6 @@ _EXTERNAL = {
     "up",
     "django_http_responses_total_by_status_total",
     "django_http_requests_latency_seconds_by_view_method",
-    "pg_stat_activity_count",
-    "pg_settings_max_connections",
-    "pg_up",
-    "redis_up",
-    "redis_connected_clients",
     # BUG-005 — usage-alerts.yaml queries the `grafanacloud-usage` datasource,
     # which Grafana Cloud maintains about our own account. These series are not
     # scraped from us and will never appear in an apps/*/metrics.py.
