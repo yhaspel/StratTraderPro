@@ -143,6 +143,13 @@ interface NavItem {
                 </a>
                 <a
                   role="menuitem"
+                  routerLink="/settings/data-providers"
+                  class="block px-4 py-2 text-sm text-ink hover:bg-neutral-200"
+                  (click)="closeMenu()">
+                  {{ 'nav.data_providers' | translate }}
+                </a>
+                <a
+                  role="menuitem"
                   routerLink="/guides"
                   class="block px-4 py-2 text-sm text-ink hover:bg-neutral-200"
                   (click)="closeMenu()">

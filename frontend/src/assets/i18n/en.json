@@ -10,6 +10,7 @@
     "risk": "Risk",
     "admin": "Admin",
     "settings": "Settings",
+    "data_providers": "Data providers",
     "login": "Log In",
     "logout": "Log Out",
     "orders": "Orders",
@@ -410,6 +411,49 @@
       "LIVE_TRADING_DISABLED": "Live trading is not enabled yet. Your broker stays in paper mode."
     }
   },
+  "data_providers": {
+    "title": "Data Providers",
+    "intro": "One set of API keys powers this instance's market data — the nightly Market Regime pipeline and strategy screening. Keys are validated with the provider before saving, stored encrypted, and take effect on every service immediately. A key saved here overrides the FMP_API_KEY / FRED_API_KEY environment variables; removing it falls back to them.",
+    "guide_link": "How the regime data source works",
+    "staff_only": "Only staff accounts can change these keys. Ask your administrator to configure them.",
+    "mfa_link": "Enroll in Settings → Security.",
+    "hint_label": "Key ending",
+    "updated_by": "set by",
+    "env_active_note": "This key currently comes from the server environment. Saving a key here overrides it without touching the deployment.",
+    "fmp": {
+      "title": "Financial Modeling Prep (FMP)",
+      "subtitle": "Daily equity bars, sector performance and the treasury curve — powers the regime pipeline and stock screening.",
+      "get_key": "Get an FMP API key ↗"
+    },
+    "fred": {
+      "title": "FRED (St. Louis Fed)",
+      "subtitle": "VIX, credit spreads, yields and the dollar index — free API from the St. Louis Fed.",
+      "get_key": "Get a FRED API key ↗"
+    },
+    "status": {
+      "configured_ui": "Configured",
+      "configured_env": "Configured (server environment)",
+      "not_configured": "Not configured"
+    },
+    "form": {
+      "api_key": "API key",
+      "save": "Validate & save",
+      "replace": "Validate & replace",
+      "saved": "Key validated and saved. It takes effect immediately on all services.",
+      "removed": "Key removed.",
+      "remove": "Remove",
+      "confirm_remove": "Confirm remove",
+      "env_note": "Removing falls back to the server environment variable, if one is set."
+    },
+    "error": {
+      "INVALID_API_KEY": "The provider rejected this key. Check it and try again.",
+      "PROVIDER_UNREACHABLE": "Could not reach the provider to validate the key. Try again shortly.",
+      "UNKNOWN_PROVIDER": "Unknown provider.",
+      "VALIDATION_ERROR": "Enter a valid API key (ASCII, up to 256 characters).",
+      "FORBIDDEN": "Only staff accounts can change data-provider keys.",
+      "MFA_REQUIRED": "MFA is required to view or change data-provider keys."
+    }
+  },
   "dashboard": {
     "title": "Dashboard",
     "live": "Live",
@@ -563,7 +607,8 @@
       "dxy": "US dollar index"
     },
     "source_missing": "Data source not configured",
-    "source_missing_hint": "The daily regime pipeline needs market-data credentials that are not set on this deployment, so no regime has ever been computed.",
+    "source_missing_hint": "The daily regime pipeline needs FMP and FRED API keys, and neither is configured on this instance, so no regime has ever been computed.",
+    "source_missing_settings_link": "Set up data-provider keys",
     "source_missing_link": "How to configure the regime data source"
   },
   "sentiment": {
@@ -986,7 +1031,7 @@
       "regime_source": "Regime data source",
       "regime_source_ok": "Configured",
       "regime_source_missing": "Not configured",
-      "regime_source_hint": "FMP_API_KEY and FRED_API_KEY are not both set, so the daily regime pipeline skips every run and no observations are written. The dashboard Market Regime card stays empty until both are set on the backend, worker and beat services."
+      "regime_source_hint": "No FMP + FRED keys are configured, so the daily regime pipeline skips every run and no observations are written. A staff user can set both in Settings → Data Providers (takes effect on web, worker and beat immediately, no redeploy); the FMP_API_KEY / FRED_API_KEY env vars remain supported as a fallback."
     }
   },
   "audit": {

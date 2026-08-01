@@ -18,9 +18,10 @@ like this:</p>
   <figcaption>The card with data: current label, rule bucket, and the ~90-day history band.</figcaption>
 </figure>
 
-<p>If yours is empty, this guide explains why and what to do. It is a
-self-hosting / operator topic — if you did not deploy this instance yourself,
-send it to whoever did.</p>
+<p>If yours is empty, this guide explains why and what to do. Fixing it takes a
+staff account (<em>Settings &rarr; Data Providers</em>) or access to the
+deployment's environment — if you have neither, send this to whoever runs your
+instance.</p>
 
 <h2>Where the data comes from</h2>
 
@@ -33,10 +34,17 @@ band renders the last ~90.</p>
 <p>The inputs come from two external providers:</p>
 
 <table>
-  <tr><th>Provider</th><th>Setting</th><th>Supplies</th></tr>
-  <tr><td>Financial Modeling Prep</td><td><code>FMP_API_KEY</code></td><td>Daily equity bars (SPY and sector proxies)</td></tr>
-  <tr><td>FRED (St. Louis Fed)</td><td><code>FRED_API_KEY</code></td><td>VIX, high-yield and investment-grade credit spreads, 2y/10y yields, dollar index</td></tr>
+  <tr><th>Provider</th><th>Key</th><th>Supplies</th></tr>
+  <tr><td>Financial Modeling Prep</td><td>Set in <em>Settings &rarr; Data Providers</em>, or the <code>FMP_API_KEY</code> env var</td><td>Daily equity bars (SPY and sector proxies)</td></tr>
+  <tr><td>FRED (St. Louis Fed)</td><td>Set in <em>Settings &rarr; Data Providers</em>, or the <code>FRED_API_KEY</code> env var</td><td>VIX, high-yield and investment-grade credit spreads, 2y/10y yields, dollar index</td></tr>
 </table>
+
+<p>There is one set of keys per instance. A key saved in Settings is validated
+against the provider, stored encrypted, and read from the shared database by
+every service — web, Celery worker and beat — so it takes effect immediately
+and <strong>overrides</strong> the corresponding environment variable. The env
+vars remain fully supported as a deploy-time fallback (local <code>.env</code>,
+Railway variables).</p>
 
 <h2>The actual failure mode</h2>
 
@@ -78,15 +86,26 @@ function the task uses, so it cannot drift from reality.</p>
 <ol>
   <li>Get an API key from each provider. FRED keys are free; FMP has a free tier
   that covers the daily bars this uses.</li>
-  <li>Set <code>FMP_API_KEY</code> and <code>FRED_API_KEY</code> on
-  <strong>every</strong> service that runs Django code — the web service, the
-  Celery worker <em>and</em> Celery beat. Setting them on the web service alone is
-  the most common mistake: the task runs on the worker, so the web tier reporting
-  "configured" while the worker is not means nothing ever gets written.</li>
-  <li>Redeploy so the processes pick up the new environment.</li>
+  <li><strong>Recommended:</strong> as a staff user, open
+  <em>Settings &rarr; Data Providers</em>, paste each key and hit
+  <em>Validate &amp; save</em>. The key is checked against the provider before it
+  is stored, and it reaches all services through the database — no env changes,
+  no redeploy.</li>
+  <li><em>Alternative (deploy-time):</em> set <code>FMP_API_KEY</code> and
+  <code>FRED_API_KEY</code> in the environment instead. If you go this route, set
+  them on <strong>every</strong> service that runs Django code — the web service,
+  the Celery worker <em>and</em> Celery beat — then redeploy. Setting them on the
+  web service alone is the classic mistake: the task runs on the worker, so the
+  web tier reporting "configured" while the worker is not means nothing ever gets
+  written.</li>
   <li>Re-check <em>Admin &rarr; Health</em>. It should now read
   <strong>Configured</strong>.</li>
 </ol>
+
+<p>To get a first observation without waiting for the nightly run, an operator
+with shell access can trigger one immediately:</p>
+
+<pre><code>python manage.py shell -c "from apps.regime.tasks import run_daily_feature_pipeline; print(run_daily_feature_pipeline())"</code></pre>
 
 <h2>What to expect afterwards</h2>
 
