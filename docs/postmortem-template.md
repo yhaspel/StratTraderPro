@@ -6,8 +6,8 @@ expected/intentional kill-switch trip). **Blameless:** the goal is to understand
 system and prevent recurrence, never to assign fault. Describe what happened and why
 the system allowed it, not who "should have" done something.
 
-See `docs/runbooks/incident-triage.md` for what pages, and `docs/slo.md` for
-error-budget accounting.
+See `docs/runbooks/incident-triage.md` for what pages; the alert thresholds are
+the ones committed in `infra/grafana/alerts/alert-rules.yaml`.
 
 ---
 
@@ -29,8 +29,8 @@ affected, for how long, and how it was resolved.
 - **User/trading impact:** what could and couldn't happen during the window (orders
   rejected? fills missed? positions un-flattened? audit trust frozen?).
 - **Duration:** detection → mitigation → full resolution (with timestamps, UTC).
-- **SLO / error-budget impact:** which SLO was affected and by how much
-  (`docs/slo.md`) — e.g. webhook availability, order-submit p95, flatten p99.
+- **Threshold impact:** which alert threshold was breached, by how much and for
+  how long (`alert-rules.yaml`) — e.g. webhook 5xx ratio, flatten p99.
 - **Data integrity:** any data lost, corrupted, or needing reconciliation.
 
 ## Timeline (UTC)

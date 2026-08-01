@@ -15,23 +15,11 @@
       }
     ]
   },
-  "description": "StratTraderPro System Health (M00.7.5b). Infrastructure-level view of the backend service: HTTP layer (rate / latency / error class), per-route application activity (top routes by traffic and latency, 4xx by view), and Django DB metrics (ORM-side query duration + connection rate, requires the django_prometheus engine wrapper). Includes deliberate placeholder rows for subsystems that aren't scraped yet (Postgres/Redis/Celery exporters) and for M04 webhook-ingest + broker metrics that will populate once M04 lands. Container CPU/memory deliberately omitted \u2014 multi-process gunicorn disables the prometheus_client process_* collector, and Railway container metrics aren't scraped (M10 \u00a76.5 work). Source: project-plan/plan-progress-tracker.md \u00a700.7.5b. Sibling dashboard: Auth Health (/d/stp-auth-health).",
+  "description": "StratTraderPro System Health (M00.7.5b). Infrastructure-level view of the backend service: HTTP layer (rate / latency / error class), per-route application activity (top routes by traffic and latency, 4xx by view), and Django DB metrics (ORM-side query duration + connection rate, requires the django_prometheus engine wrapper). Includes placeholder rows for M04 webhook-ingest + broker metrics that will populate once M04 lands. Container CPU/memory deliberately omitted \u2014 multi-process gunicorn disables the prometheus_client process_* collector, and Railway container metrics aren't scraped (M10 \u00a76.5 work). Source: project-plan/plan-progress-tracker.md \u00a700.7.5b.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "links": [
-    {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": false,
-      "keepTime": true,
-      "tags": [],
-      "targetBlank": true,
-      "title": "Sibling: Auth Health",
-      "tooltip": "M01 auth-flow dashboard",
-      "type": "link",
-      "url": "/d/stp-auth-health"
-    },
     {
       "asDropdown": false,
       "icon": "external link",
@@ -584,7 +572,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "p50 / p95 / p99 query duration as observed by Django ORM. This is ORM-side latency \u2014 it includes Python-side wait time but not server-side execution detail. A real Postgres exporter (planned follow-up) would be authoritative for slow-query investigation.",
+      "description": "p50 / p95 / p99 query duration as observed by Django ORM. This is ORM-side latency \u2014 it includes Python-side wait time but not server-side execution detail. For server-side detail use the Railway Postgres dashboard (the Postgres exporter route was retired by ADR-109).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -718,62 +706,6 @@
       ],
       "title": "New DB connections / sec",
       "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 43
-      },
-      "id": 400,
-      "panels": [],
-      "title": "Postgres / Redis / Celery \u2014 exporter follow-up",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "description": "Placeholder \u2014 explainer panel.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 24,
-        "x": 0,
-        "y": 44
-      },
-      "id": 10,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "## No exporters wired yet\n\nThis dashboard currently only scrapes the **backend** Django service via the grafana-agent (see `infra/grafana-agent/agent.yaml`). To populate Postgres, Redis, and Celery panels, the following exporters need to be added as scrape targets:\n\n- **postgres_exporter** \u2014 connection counts, transaction rate, slow queries, replication lag, deadlocks. Run as a Railway service pointed at the Railway-managed Postgres `DATABASE_URL`.\n- **redis_exporter** \u2014 ops/sec, memory usage, evicted keys, blocked clients. Point at `REDIS_URL`.\n- **celery-exporter** (e.g. `danihodovic/celery-exporter`) \u2014 queue depth (most important during M04 webhook spikes), worker count, task durations and failures by task name. Connects to the same Celery broker URL the workers use.\n\nFollow-up issue: file under M10 \u00a76.5 \"Observability polish\" \u2014 these exporters are listed there as part of the full system-health pass. They can also land earlier piecewise if M04 webhook ingest needs the Celery panels sooner.",
-        "mode": "markdown"
-      },
-      "pluginVersion": "11.0.0",
-      "title": "Why these panels are empty",
-      "type": "text"
     },
     {
       "collapsed": false,
@@ -1137,7 +1069,7 @@
     },
     {
       "type": "row",
-      "title": "SLO & Incidents",
+      "title": "Targets & Incidents",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1150,8 +1082,8 @@
     },
     {
       "type": "stat",
-      "title": "Request error ratio (SLO < 0.1%)",
-      "description": "5xx responses \u00f7 all responses over 5m. SLO: < 0.1% (0.001). Green under budget, red over.",
+      "title": "Request error ratio (target < 0.1%)",
+      "description": "5xx responses \u00f7 all responses over 5m. Target: < 0.1% (0.001). Green under budget, red over.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1218,8 +1150,8 @@
     },
     {
       "type": "stat",
-      "title": "Backend availability (SLO 99.9%)",
-      "description": "up{job=\"backend\"} \u2014 1 = scraped healthy. SLO: 99.9% availability.",
+      "title": "Backend availability (target 99.9%)",
+      "description": "up{job=\"backend\"} \u2014 1 = scraped healthy. Target: 99.9% availability.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"

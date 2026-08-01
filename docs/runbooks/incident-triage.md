@@ -1,15 +1,16 @@
 # Runbook — Incident triage (alert → severity → cause → runbook → escalation)
 
-**Last reviewed:** 2026-07-12
+**Last reviewed:** 2026-08-01 (reduced to the ADR-109 safety core)
 
 **Owner:** Yuval
 **Status:** The alert rules are committed as code at
-`infra/grafana/alerts/alert-rules.yaml` (a pytest cross-checks every referenced
-series against the exported metric names — `config/test_alert_rules.py`). Importing
-them to Grafana Cloud + wiring contact points is the operator step in
-`docs/runbooks/alerting-setup.md`. **Companion docs:** `docs/adr/102-observability-topology.md`
-(why the alerts exist + where the series come from), `docs/slo.md` (the four SLOs
-three of these alerts back), `docs/postmortem-template.md` (for the criticals).
+`infra/grafana/alerts/alert-rules.yaml` + `usage-alerts.yaml` (a pytest
+cross-checks every referenced series against the exported metric names —
+`config/test_alert_rules.py`). Importing them to Grafana Cloud + wiring contact
+points is the operator step in `docs/runbooks/alerting-setup.md`.
+**Companion docs:** `docs/adr/102-observability-topology.md` (where the series
+come from), `docs/adr/109-observability-reduced-scope.md` (why this is the full
+rule set), `docs/postmortem-template.md` (for the criticals).
 On a self-hosted instance, **you** are the one who responds.
 
 ## How to read a page
@@ -33,19 +34,16 @@ where to go next; "Escalate" is when to open a postmortem / stop trading.
 | Alert | Severity | Fires when | Likely cause | Runbook | Escalate |
 |---|---|---|---|---|---|
 | **WebhookErrorRatioWarn** | warning | 5xx / total responses > **1%** over 5m | A view is throwing — bad deploy, DB/Redis blip, an unhandled edge in ingest or an API view | `webhook-debug.md`; check Sentry (group by `release`=GIT_SHA) | If it climbs toward 2% (the crit), treat as the crit below |
-| **WebhookErrorRatioCrit** | critical | 5xx ratio > **2%** over 5m | Sustained server errors — the webhook-availability SLO (99.9%) is at risk | `webhook-debug.md`; Sentry; `docs/slo.md` (webhook SLO + burn) | Page. If ingest is dropping alerts, consider an L3 platform halt (`instance-halt.md`) while you fix. Postmortem. |
+| **WebhookErrorRatioCrit** | critical | 5xx ratio > **2%** over 5m | Sustained server errors — missed webhooks are missed trades | `webhook-debug.md`; Sentry (group by `release`=GIT_SHA) | Page. If ingest is dropping alerts, consider an L3 platform halt (`instance-halt.md`) while you fix. Postmortem. |
 | **BrokerStreamSilent** | critical | `max(broker_stream_heartbeat_age_seconds) > 120` for 2m | The trade-updates websocket is dead — no fills/acks arriving; supervisor wedged or broker-side outage | `alpaca-paper-smoke.md`, `reconcile-drift-investigation.md`; restart the `streams` service | Page. Positions/fills may be stale — reconcile before trusting the dashboard. Postmortem if fills were missed. |
-| **OrderSubmitLatencyHigh** | warning | `order_submit_latency_seconds` p95 > **2s** over 10m | Broker API slow, Alpaca degraded, or worker saturation | Check Alpaca status + `celery -A config.celery inspect stats`; `docs/slo.md` (order-submit SLO p95 ≤ 1.5s, alert at 2s) | Escalate if p95 stays > 2s — the order-submit SLO is burning |
-| **KillSwitchFlattenSlow** | critical | `killswitch_flatten_latency_seconds` p99 > **5s** over 5m | A flatten is taking too long — broker slow to `close_all_positions`, or many positions | `kill-switch-verify-monthly.md`, `strategy-flatten-limitation.md`; `docs/slo.md` (flatten SLO p99 ≤ 5s) | Page. A slow flatten means risk isn't being cut on time — verify positions actually flattened. Postmortem. |
+| **KillSwitchFlattenSlow** | critical | `killswitch_flatten_latency_seconds` p99 > **5s** over 5m | A flatten is taking too long — broker slow to `close_all_positions`, or many positions | `kill-switch-verify-monthly.md`, `strategy-flatten-limitation.md` | Page. A slow flatten means risk isn't being cut on time (target: p99 ≤ 5s) — verify positions actually flattened. Postmortem. |
 | **CeleryQueueDepthHigh** | warning | `max(celery_queue_depth) > 1000` for 5m | A queue is backing up — worker down/undersized, a task storm, or `backtest` with no `worker-backtest` | `backtest-stuck.md` (if it's the `backtest` queue), `sentiment-queue-backlog.md`; confirm workers are up | Escalate if the `celery` (order-flow) queue is the one backing up — order placement is delayed |
 | **KillSwitchTriggered** | critical | `increase(killswitch_trigger_total[5m]) > 0` | A kill switch engaged — L0/L1/L2/L3. **May be intentional** (you or an auto-trip) | `daily-loss-false-trigger.md` (if it's an L2 auto-trip you didn't expect), `kill-switch-verify-monthly.md` | Page — confirm it was expected. If it's an L2 false-trigger, follow the daily-loss runbook. Postmortem only if unexpected/erroneous. |
-| **SentimentLag** | warning | `sentiment_queue_oldest_age_minutes > 30` for 5m | Scoring is behind — LLM worker cold/off, ingest spike, or a stuck scorer | `sentiment-queue-backlog.md`, `llm-worker-cold-start.md` | Sentiment is an *input* to sizing, not a trade gate — degrades gracefully. Escalate only if chronic. |
-| **HMMModelStale** | warning | `regime_model_age_seconds > 172800` (48h) for 30m | Nightly `retrain_hmm` hasn't produced a fresh model in 48h (weekend mute is documented in the rule) | `hmm-retrain-failure.md` | Regime falls back to rule-only classification (M06 AC-06-8) — not urgent; fix the retrain beat |
 | **AuditIntegrityFailure** | critical | `increase(audit_integrity_check_total{result="fail"}[1h]) > 0` | The nightly verifier found a hash mismatch, a linkage break, or a missing trigger — **possible tamper or corruption** | **`audit-integrity-failure.md`** (freeze audit-consumer trust first) | Page. Treat as a potential security incident until proven benign. Full postmortem. |
-| **DBConnectionSaturation** | warning | `pg_stat_activity_count / pg_settings_max_connections > 0.8` for 5m | Connection leak, a pool misconfig, or genuine load. (Railway managed PG exposes no CPU — this is the saturation proxy; true CPU is the Railway dashboard.) | Check pool sizing + `pg_stat_activity`; Railway PG metrics | Escalate if it hits 100% — new connections will be refused platform-wide |
-| **BacktestQueueWaitHigh** | warning | `backtest_queue_wait_seconds` p95 > **600s** (10 min) over 15m | The `worker-backtest` service isn't consuming the queue — the #1 cause is it doesn't exist yet on Railway | **`backtest-stuck.md`** §1/§7 | Not a trading risk — backtests just queue. Stand up / restart `worker-backtest`. |
-| **BacktestFailureRate** | warning | `increase(backtest_failed_total[1h]) > 3` | Runs failing — often `BACKTEST_INSUFFICIENT_DATA` (backfill gaps) or `BACKTEST_TIME_CAP` (jobs too big) | `backtest-stuck.md` §5/§6 | Not a trading risk; user-side fix (shrink the job / backfill) |
-| **BacktestArtifactBloat** | warning | `backtest_artifact_bytes > 5e9` (5 GB) for 30m | Stored tearsheets approaching the R2-revisit trigger | `backtest-stuck.md` §9 (retention runs nightly) | ADR follow-up if it keeps climbing after eviction |
+| **MetricsPipelineDown** | critical | `absent(up{service="backend"})` for 5m | The Grafana Agent stopped scraping or remote-writing — agent dead, `/metrics` basic-auth broken, or the ingestion cap hit | `alerting-setup.md`, `worker-metrics-scrape.md`; check the `grafana-agent` Railway service logs | Page. **Alerting is blind, not green** — treat every self-filtering rule (kill switch, audit, stream) as unreliable until `up` returns. |
+| **TargetDown** | critical | `up == 0` for 5m | One scrape target died — service crashed or is running the wrong process (the BUG-011 class: gunicorn where Celery should be) | `worker-metrics-scrape.md`; inspect/restart the named Railway service | Page. Every rule reading that service's series is blind while it is down. |
+| **MetricsBudgetHigh** | warning | billable rate > **85%** of the included allowance for 30m | Scrape interval lowered below 60s, or a new high-cardinality series | **Check `scrape_interval: 60s` in `infra/grafana-agent/agent.yaml` FIRST** (BUG-005 — halving the interval doubles the bill without adding a series); only then hunt for new series | Escalate before 100% — past the cap Grafana may drop new series and alerting degrades to silently-green |
+| **MetricsBudgetExhausted** | critical | billable rate > **100%** for 15m | Same causes, past the cliff | Same as MetricsBudgetHigh; `bugs/BUG-005` + the `usage-alerts.yaml` header are the reference | Page. New series may be dropped — even the dead-man's switch can go blind. Fix the rate; do not delete metrics. |
 
 ## Advisory — admin logins from a new IP
 
@@ -73,5 +71,6 @@ review is part of that investigation.
 
 Every `critical` that reflects a real incident (not an expected/intentional
 kill-switch trip) gets a blameless postmortem — copy `docs/postmortem-template.md`.
-Record the date, the alert, and the outcome. For SLO-backing alerts
-(webhook, order-submit, flatten), note the error-budget impact per `docs/slo.md`.
+Record the date, the alert, and the outcome. For the trading-path alerts
+(webhook errors, broker stream, flatten latency), record the trading impact —
+missed webhooks and missed fills are missed trades.

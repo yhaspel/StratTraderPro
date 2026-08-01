@@ -1,12 +1,13 @@
 # Runbook — Scraping task-process Prometheus metrics (FIX-C1, M10 §6.5b)
 
-**Last reviewed:** 2026-07-12
+**Last reviewed:** 2026-08-01 (exporters removed per ADR-109)
 
 **Owner:** Yuval
 **Status:** Implemented in code + compose (M10, FIX-C1). The worker/beat/streams
-processes each expose a `/metrics` port, the postgres/redis exporters exist, and
-the grafana-agent scrape jobs are wired. **Provisioning the equivalent Railway
-services is the operator step** (below). **Companion docs:**
+processes each expose a `/metrics` port and the grafana-agent scrape jobs are
+wired. (The postgres/redis exporters were removed entirely by ADR-109 — their
+only consumer was the retired DB connection-saturation alert.) **Provisioning
+the equivalent Railway services is the operator step** (below). **Companion docs:**
 `docs/adr/102-observability-topology.md` §2/§3 (the topology), `alerting-setup.md`
 (the alerts that need this data), `backtest-stuck.md` §7 (the `worker-backtest`
 Railway service, of which this is the metrics half), `infra/grafana-agent/README.md`.
@@ -72,29 +73,13 @@ WORKER_TARGET=worker.railway.internal:9101
 WORKER_BACKTEST_TARGET=worker-backtest.railway.internal:9102
 BEAT_TARGET=beat.railway.internal:9103
 STREAMS_TARGET=streams.railway.internal:9104
-POSTGRES_EXPORTER_TARGET=postgres-exporter.railway.internal:9187
-REDIS_EXPORTER_TARGET=redis-exporter.railway.internal:9121
 ```
 
 (Plus the existing `BACKEND_TARGET=backend.railway.internal:8777` and the
 `GRAFANA_PROM_*` remote-write vars from `grafana-agent/README.md`.) The backend
 scrape job also carries `basic_auth` = `METRICS_BASIC_AUTH_USERNAME/PASSWORD`
-(ADR-102 §1).
-
-## Provisioning the exporter services on Railway
-
-Locally, `docker-compose.yml` runs two exporter containers; on Railway create them
-as **separate services** in the same environment (private network):
-
-- **postgres-exporter** — image `prometheuscommunity/postgres-exporter`, env
-  `DATA_SOURCE_NAME=postgresql://<user>:<pw>@<pg-host>:5432/<db>?sslmode=…`
-  (use the Railway `DATABASE_URL` components). Exposes `:9187`. Point
-  `POSTGRES_EXPORTER_TARGET` at `postgres-exporter.railway.internal:9187`. This
-  backs the `DBConnectionSaturation` alert (a connection-count proxy — Railway
-  managed PG exposes no CPU via the exporter; true CPU is the Railway dashboard).
-- **redis-exporter** — image `oliver006/redis_exporter`, env
-  `REDIS_ADDR=redis://<redis-host>:6379`. Exposes `:9121`. Point
-  `REDIS_EXPORTER_TARGET` at `redis-exporter.railway.internal:9121`.
+(ADR-102 §1). Postgres server-side detail lives on the Railway Postgres
+dashboard — the exporter route was retired (ADR-109).
 
 ## Provisioning the task services on Railway
 
@@ -110,11 +95,12 @@ for `backtest-stuck.md` §1 — it must exist or prod backtests sit `QUEUED`.)
 1. In each task-service's Railway logs, confirm `task_metrics.server_started` on the
    expected port.
 2. In Grafana Cloud → Explore → Prometheus:
-   - `up{service="worker"}` (and `worker-backtest` / `beat` / `streams` /
-     `postgres` / `redis`) → `1`.
-   - `celery_queue_depth`, `killswitch_trigger_total`, `sentiment_queue_depth`,
-     `audit_events_total`, `pg_stat_activity_count` return data.
-3. The task-process and exporter panels on the six dashboards populate, and the
-   alerts that read those series (`CeleryQueueDepthHigh`, `SentimentLag`,
-   `DBConnectionSaturation`, `AuditIntegrityFailure`, the kill-switch alerts) have
-   data to evaluate.
+   - `up{service="worker"}` (and `worker-backtest` / `beat` / `streams`) → `1`,
+     and `count by (job, env) (up)` shows exactly backend / worker /
+     worker-backtest / beat / streams for `env="production"` — no other jobs,
+     no other env values.
+   - `celery_queue_depth`, `killswitch_trigger_total`, `audit_events_total`
+     return data.
+3. The task-process panels on the three dashboards populate, and the alerts that
+   read those series (`CeleryQueueDepthHigh`, `AuditIntegrityFailure`, the
+   kill-switch alerts, `BrokerStreamSilent`) have data to evaluate.
