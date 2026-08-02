@@ -28,7 +28,7 @@ picked up later without re-deriving the investigation.
 | [BUG-006](BUG-006-otel-init-log-swallowed.md) | `otel.initialized` log line swallowed (init precedes Django logging config) | S4 | FIXED | Observability |
 | [BUG-007](BUG-007-frontend-tests-never-run-in-ci.md) | "Frontend — Lint & Test" CI job ran **neither** lint nor tests — no frontend spec had ever executed | S2 | **FIXED & VERIFIED** (67 specs now run) | CI |
 | [BUG-008](BUG-008-no-dead-mans-switch-alerting-fails-silent.md) | No dead-man's switch: a dead metrics pipeline was indistinguishable from "all healthy" | **S1** | **FIXED & VERIFIED** (caught BUG-011 within 60s) | Alerting |
-| [BUG-009](BUG-009-all-alert-rules-imported-paused.md) | **Every imported alert rule was PAUSED — the M10 alerting stack had never been able to fire** | **S1** | FIXED (all 21 live) | Alerting |
+| [BUG-009](BUG-009-all-alert-rules-imported-paused.md) | **Every imported alert rule was PAUSED — the M10 alerting stack had never been able to fire** | **S1** | FIXED (21 live at the time of the fix; 11 after the ADR-109 rightsizing, 0 paused) | Alerting |
 | [BUG-010](BUG-010-worker-beat-metrics-endpoints-unscrapeable.md) | celery-worker + celery-beat metrics endpoints unscrapeable in both envs | S2 | CLOSED — symptom of 011 | Observability/Railway |
 | [BUG-011](BUG-011-celery-worker-and-beat-are-not-running-celery.md) | **`celery-worker` + `celery-beat` were running gunicorn, not Celery — the default queue had no consumer and beat had never run, in both envs** | **S1/P0** | **FIXED & VERIFIED** | Railway/Celery |
 

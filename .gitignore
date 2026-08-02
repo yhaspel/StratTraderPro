@@ -118,3 +118,6 @@ CLAUDE.local.md
 
 # osv-scanner ephemeral output (CI dependency audit)
 frontend/osv.json
+
+# ADR-109 cutover backups (rollback artifacts — local safety net, not source)
+stp-adr109-backup-2026-08-01/

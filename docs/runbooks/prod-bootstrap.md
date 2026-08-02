@@ -149,9 +149,10 @@ and re-set, then redeploy).
 
 Grafana metrics: zero work. The grafana-agent in the duplicated env
 auto-tags metrics with `env=production` because `agent.yaml` reads
-`${RAILWAY_ENVIRONMENT_NAME}` (Railway-injected). Open the Auth Health
-dashboard and switch the **Env** dropdown to `production` — panels
-should populate within 5 minutes.
+`${RAILWAY_ENVIRONMENT_NAME}` (Railway-injected). Open the **System Health**
+dashboard (`stp-system-health`) and switch the **env** dropdown to `production`
+— panels should populate within 5 minutes. (This used to say Auth Health, which
+ADR-109 retired.)
 
 Sentry environment: with `prod.py` reading
 `SENTRY_ENVIRONMENT` (defaulting to `RAILWAY_ENVIRONMENT_NAME`), prod
