@@ -417,7 +417,7 @@ Everything is one PR + reversible operator actions:
 - **AC-R2** `pytest backend/config/test_alert_rules.py` green with the pruned `_EXTERNAL` (and the full backend gauntlet green).
 - **AC-R3** agent.yaml has exactly 5 scrape jobs; `scrape_interval: 60s` untouched; compose has no exporter services; `docker compose config -q` green.
 - **AC-R4** Kept dashboards: valid JSON (per-file json.tool), zero `pg_*`/`redis_*` queries, zero "SLO" strings (titles, descriptions, legendFormats — incl. system-health :1140/:1153/:1221), zero `stp-auth-health` refs, UIDs unchanged; the 3 retired dashboards deleted from repo.
-- **AC-R5** Grafana Cloud lists exactly 11 rules, zero paused, `StratTraderPro` folder only (Auth folder `cfkrwjgh3sxkwa` gone); exactly 3 dashboards.
+- **AC-R5** Grafana Cloud lists exactly 11 rules, zero paused, all under `StratTraderPro/` — in practice inside the converter's filename-derived subfolder (`StratTraderPro/stp-alert-rules.prom.yaml`), which `GET /api/folders` does not list, so resolve rule `folderUID`s via `GET /api/folders/{uid}` before asserting; Auth folder `cfkrwjgh3sxkwa` gone; exactly 3 `stp-*` dashboards.
 - **AC-R6** Railway: exporter services deleted; agent redeployed first (no `TargetDown` page during cutover, or a documented deliberate silence).
 - **AC-R7** `count by (job, env)(up)` == {backend, worker, worker-backtest, beat, streams} × {production} only, all 1 — no stray env label values.
 - **AC-R8** O-5 drill: one real kept rule tripped → Telegram + email received → restored.
