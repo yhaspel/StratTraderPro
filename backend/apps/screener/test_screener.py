@@ -321,6 +321,35 @@ class DegradationTests(ScreenerTestCase):
         self.assertEqual(run.counts["skipped_unavailable"], 0)
         self.assertNotIn("AAPL", fake.bar_calls)  # stopped fetching
 
+    def test_rate_limit_on_the_very_first_symbol_counts_every_candidate(self):
+        """Boundary for A4's 'raiser + unfetched remainder' arithmetic: at
+        index 0 that must be the whole candidate list, with nothing enriched."""
+        fake = _FakeHttp(bar_status={"NVDA": 429})
+        with patch_client(fake):
+            self.post_run()
+        run = ScreenRun.objects.get()
+        self.assertEqual(run.status, "DONE")
+        self.assertTrue(run.degraded)
+        self.assertEqual(run.counts["skipped_rate_limited"], 3)  # == len(candidates)
+        self.assertEqual(run.counts["enriched"], 0)
+        self.assertEqual(run.counts["returned"], 0)
+        # Stopped immediately: no OTHER symbol was fetched. (NVDA appears more
+        # than once because the shared client retries a 429 three times before
+        # it raises — that is the resilience stack, not the screener looping.)
+        self.assertEqual(set(fake.bar_calls), {"NVDA"})
+
+    def test_degraded_counts_never_exceed_the_candidate_count(self):
+        """No double-counting: skipped + enriched + insufficient == candidates."""
+        fake = _FakeHttp(bar_status={"MSFT": 404})
+        with patch_client(fake):
+            self.post_run()
+        c = ScreenRun.objects.get().counts
+        total = (
+            c["enriched"] + c["insufficient_history"]
+            + c["skipped_rate_limited"] + c["skipped_unavailable"]
+        )
+        self.assertEqual(total, 3)
+
     def test_outage_mid_enrichment_counts_skipped_unavailable(self):
         """A4 — FMPServerError is an outage, NOT a rate limit."""
         fake = _FakeHttp(bar_status={"MSFT": 500})
