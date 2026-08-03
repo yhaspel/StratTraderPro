@@ -11,9 +11,12 @@ may not see — a 403 would leak that the id exists.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from django.db import IntegrityError, transaction
-from django.shortcuts import get_object_or_404
+from django.db.models import Q
+from django.utils import timezone
+from django_ratelimit.core import is_ratelimited
 from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
@@ -36,6 +39,16 @@ logger = logging.getLogger(__name__)
 RUNS_LIST_DEFAULT = 5
 RUNS_LIST_MAX = 20
 
+#: AC-16-8 — run-creates per user per hour.
+RUN_RATE = "10/h"
+
+#: A QUEUED/RUNNING row older than this is treated as abandoned. Without it a
+#: run whose message never reached a worker (broker blip, worker redeploy
+#: between INSERT and pickup) would hold the one-active-run slot for that
+#: (user, strategy) forever, and every later POST would 409 with no way out
+#: short of DB surgery — there is no cancel endpoint.
+STALE_AFTER = timedelta(minutes=10)
+
 
 # ---------------------------------------------------------------------------
 # Shared gates
@@ -55,13 +68,44 @@ def _feature_disabled():
 
 
 def _load_strategy(request, strategy_id):
-    """Soft-delete-aware lookup + visibility check, or ``None``."""
-    strategy = get_object_or_404(
-        Strategy.objects.filter(deleted_at__isnull=True), pk=strategy_id,
+    """Soft-delete-aware, visibility-SCOPED lookup, or ``None``.
+
+    The queryset is scoped the way ``apps/strategies/views.py::_detail_qs``
+    scopes it, rather than fetching any non-deleted row and then consulting
+    ``can_user_view``. Both spellings 404, but only this one makes the two 404s
+    *identical*: a plain `get_object_or_404` raises DRF's own ``Http404`` for a
+    nonexistent id (rendered as ``VALIDATION_ERROR`` with a "No Strategy
+    matches the given query" detail) while an invisible-but-existing id returned
+    our ``STRATEGY_NOT_FOUND`` — the difference is an existence oracle, and this
+    module's docstring promises there isn't one.
+    """
+    strategy = (
+        Strategy.objects.filter(deleted_at__isnull=True)
+        .filter(Q(is_system=True) | Q(owner=request.user))
+        .filter(pk=strategy_id)
+        .first()
     )
-    if not can_user_view(request.user, strategy):
+    if strategy is None or not can_user_view(request.user, strategy):
         return None
     return strategy
+
+
+def _reap_stale_runs(user, strategy) -> None:
+    """Fail any abandoned QUEUED/RUNNING row so it stops holding the slot.
+
+    Self-healing rather than operator-healing: the partial unique index and the
+    pre-check both treat QUEUED as active, so without this a run that never
+    reached a worker locks screening for that (user, strategy) permanently.
+    """
+    cutoff = timezone.now() - STALE_AFTER
+    ScreenRun.objects.filter(
+        user=user, strategy=strategy,
+        status__in=ScreenRun.ACTIVE_STATUSES, created_at__lt=cutoff,
+    ).update(
+        status=ScreenRun.Status.FAILED,
+        error_code="SCREEN_STALE",
+        finished_at=timezone.now(),
+    )
 
 
 def _not_found():
@@ -127,7 +171,19 @@ class ScreenRunCreateView(APIView):
         # parse -> active-run), each returning its own code.
         if not _enabled():
             return _feature_disabled()
-        if getattr(request, "limited", False):
+
+        # Throttle HERE, not on the URL — DRF authenticates after any
+        # URL-level decorator would have run, so `request.user` is only a real
+        # user at this point. Keyed on the user's pk so AC-16-8's "per user"
+        # actually means per user.
+        if is_ratelimited(
+            request,
+            group="screener:run-create",
+            key=lambda _group, req: str(req.user.pk),
+            rate=RUN_RATE,
+            method="POST",
+            increment=True,
+        ):
             return fail("RATE_LIMITED", "Too many screen runs. Try again later.", status=429)
 
         strategy = _load_strategy(request, strategy_id)
@@ -159,6 +215,7 @@ class ScreenRunCreateView(APIView):
                 status=409,
             )
 
+        _reap_stale_runs(request.user, strategy)
         active = ScreenRun.objects.filter(
             user=request.user, strategy=strategy, status__in=ScreenRun.ACTIVE_STATUSES,
         ).exists()

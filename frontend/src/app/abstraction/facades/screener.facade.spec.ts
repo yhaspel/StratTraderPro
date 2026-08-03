@@ -152,6 +152,64 @@ describe('ScreenerFacade', () => {
     }
   });
 
+  describe('per-strategy state hygiene (root singleton)', () => {
+    it('clears the previous strategy\'s criteria and runs when loading another', async () => {
+      // Strategy A: block present, one past run.
+      const a = facade.loadCriteria('A');
+      http.expectOne(`${environment.apiBase}/v1/strategies/A/screen/criteria/`)
+        .flush({ data: { block_present: true, criteria: { sector: 'Tech' } } });
+      await a;
+      const aRuns = facade.loadRuns('A');
+      http.expectOne(`${environment.apiBase}/v1/strategies/A/screen/runs/?limit=5`)
+        .flush({ data: [{ id: 'run-a', status: 'DONE' }] });
+      await aRuns;
+      expect(facade.criteria()).not.toBeNull();
+      expect(facade.runs().length).toBe(1);
+
+      // Navigating to B must not render A's chips/history under B's heading
+      // while B's request is still in flight.
+      const b = facade.loadCriteria('B');
+      expect(facade.criteria()).toBeNull();
+      expect(facade.runs()).toEqual([]);
+      http.expectOne(`${environment.apiBase}/v1/strategies/B/screen/criteria/`)
+        .flush({ data: { block_present: false } });
+      await b;
+    });
+
+    it('clears `disabled` on a fresh load so a re-enabled flag is picked up', async () => {
+      const first = facade.loadCriteria(ID);
+      http.expectOne(`${base}/criteria/`).flush(
+        { error: { code: 'FEATURE_DISABLED', message: 'off' } },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
+      await first;
+      expect(facade.disabled()).toBeTrue();
+
+      // Admin flips the mutable flag back on; a reload must recover without
+      // the user having to restart the SPA.
+      const second = facade.loadCriteria(ID);
+      http.expectOne(`${base}/criteria/`).flush({ data: { block_present: true } });
+      await second;
+      expect(facade.disabled()).toBeFalse();
+      expect(facade.criteria()?.block_present).toBeTrue();
+    });
+
+    it('drops stale run history when the runs request fails', async () => {
+      const ok1 = facade.loadRuns(ID);
+      http.expectOne(`${base}/runs/?limit=5`).flush({ data: [{ id: 'r', status: 'DONE' }] });
+      await ok1;
+      expect(facade.runs().length).toBe(1);
+
+      const bad = facade.loadRuns(ID);
+      http.expectOne(`${base}/runs/?limit=5`).flush(
+        { error: { code: 'BOOM', message: 'x' } },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await bad;
+      expect(facade.runs()).toEqual([]);
+    });
+  });
+
   it('falls back to UNKNOWN rather than throwing on a bodyless failure', async () => {
     const promise = facade.run(ID);
     http.expectOne(`${base}/`).flush(null, { status: 500, statusText: 'Server Error' });

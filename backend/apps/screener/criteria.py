@@ -21,6 +21,7 @@ the block, so an author can jump straight to the offending line.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -44,13 +45,27 @@ SMA_WINDOWS = (50, 200)
 MAX_STRING_LEN = 64
 
 # Literal, non-backtracking tag patterns. Case-insensitive per §6.1.
-_OPEN_RE = re.compile(r"\[screen\]", re.IGNORECASE)
+#
+# The OPENING tag must start its own line (leading whitespace allowed). A
+# `[screen]` in running prose is a mention, not a block: the authoring guide
+# itself tells people to "add a [screen] block", and treating that sentence as
+# a second opener made a description with one real block fail as
+# `duplicate_block`. Same for a `# add a [screen] block` comment inside the
+# block, and for `[screen]` quoted inside a `[pine]` sample. The frontend
+# renderer applies the identical line-start rule, so the two never disagree
+# about what is a block.
+_OPEN_RE = re.compile(r"^[ \t]*\[screen\]", re.IGNORECASE | re.MULTILINE)
 _CLOSE_RE = re.compile(r"\[/screen\]", re.IGNORECASE)
 
 # Numeric literal with an optional K/M/B/T magnitude suffix. Anchored and
 # fully deterministic — every branch is a bounded character class.
 _NUMBER_RE = re.compile(r"^-?\d+(?:\.\d+)?([KMBT]?)$", re.IGNORECASE)
 _SUFFIX = {"": 1, "K": 10**3, "M": 10**6, "B": 10**9, "T": 10**12}
+
+# Largest magnitude any screening value may take. Comfortably above the biggest
+# real market cap (~1e13) while staying inside float's exact-integer range, so
+# nothing a real author writes is rejected and nothing overflows.
+MAX_NUMBER = 1e18
 
 # key -> the FMP param stem for its >=/<= halves (§6.1 mapping table).
 _RANGE_KEYS = {
@@ -106,8 +121,8 @@ def _line_of(text: str, index: int) -> int:
 
 def _parse_number(token: str):
     """``"2B"`` -> ``2000000000``. Returns ``None`` when ``token`` is not a
-    number. Integral results come back as ``int`` so the JSON snapshot and the
-    vendor params carry ``2000000000``, not ``2000000000.0``."""
+    usable number. Integral results come back as ``int`` so the JSON snapshot
+    and the vendor params carry ``2000000000``, not ``2000000000.0``."""
     m = _NUMBER_RE.match(token)
     if not m:
         return None
@@ -115,7 +130,15 @@ def _parse_number(token: str):
     body = token[: len(token) - len(m.group(1))] if suffix else token
     try:
         value = float(body) * _SUFFIX[suffix]
-    except ValueError:  # pragma: no cover — the regex already constrains this
+    except (ValueError, OverflowError):
+        return None
+    # A long-enough digit run overflows to `inf` WITHOUT raising (``float`` is
+    # happy to return it), and `int(inf)` then raises OverflowError — which is
+    # not a ValueError, so it escaped the parser, the view and DRF's handler
+    # and surfaced as a 500. AC-16-1 promises the block never 500s, so an
+    # unusable magnitude is rejected here and flows into the normal
+    # line-numbered error every caller already handles.
+    if not math.isfinite(value) or abs(value) > MAX_NUMBER:
         return None
     return int(value) if value == int(value) else value
 

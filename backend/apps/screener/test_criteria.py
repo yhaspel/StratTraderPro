@@ -208,6 +208,88 @@ class GrammarTests(TestCase):
         self.assertEqual(decode_desc(None), "")
 
 
+class NumericOverflowTests(TestCase):
+    """A huge literal must be a line-numbered error, never an exception.
+
+    ``float("9"*400)`` returns ``inf`` WITHOUT raising, and ``int(inf)`` then
+    raises ``OverflowError`` — not a ``ValueError``, so it used to escape the
+    parser, the view and DRF's handler and surface as a 500, breaking AC-16-1's
+    "never a 500" promise on every numeric key.
+    """
+
+    HUGE = "9" * 400
+
+    def test_every_numeric_key_rejects_an_overflowing_literal(self):
+        for line in (
+            f"market_cap: >= {self.HUGE}",
+            f"price: <= {self.HUGE}",
+            f"volume: >= {self.HUGE}",
+            f"beta: >= {self.HUGE}",
+            f"dividend: >= {self.HUGE}",
+            f"limit: {self.HUGE}",
+            f"near_52w_high: {self.HUGE}%",
+            f"min_history: {self.HUGE}",
+            f"above_sma: {self.HUGE}",
+            f"sma_rising: {self.HUGE}",
+            f"price: 1..{self.HUGE}",
+            f"market_cap: {self.HUGE}..{self.HUGE}",
+        ):
+            with self.subTest(line=line):
+                criteria, errors = parse_block(line)
+                self.assertIsNone(criteria)
+                self.assertEqual(len(errors), 1)
+                self.assertIsInstance(errors[0]["line"], int)
+
+    def test_a_finite_mantissa_that_overflows_only_after_the_suffix(self):
+        criteria, errors = parse_block(f"market_cap: >= {'9' * 300}T")
+        self.assertIsNone(criteria)
+        self.assertEqual(len(errors), 1)
+
+    def test_realistic_magnitudes_still_parse(self):
+        criteria, errors = parse_block("market_cap: >= 4T", "volume: >= 500M")
+        self.assertEqual(errors, [])
+        self.assertEqual(criteria.vendor_params["marketCapMoreThan"], 4_000_000_000_000)
+
+
+class BlockDetectionTests(TestCase):
+    """A `[screen]` mention in prose is NOT a block opener (line-anchored)."""
+
+    REAL = "[screen]\nlimit: 5\n[/screen]"
+
+    def test_prose_mention_before_a_real_block(self):
+        criteria, errors = parse(f"Add a [screen] block to your description.\n{self.REAL}")
+        self.assertEqual(errors, [])
+        self.assertEqual(criteria.limit, 5)
+
+    def test_comment_mention_inside_the_block(self):
+        criteria, errors = parse(
+            "[screen]\n# add a [screen] block like this\nlimit: 7\n[/screen]"
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(criteria.limit, 7)
+
+    def test_mention_inside_a_pine_sample(self):
+        criteria, errors = parse(f"[pine]// see [screen][/pine]\n{self.REAL}")
+        self.assertEqual(errors, [])
+        self.assertEqual(criteria.limit, 5)
+
+    def test_indented_opening_tag_still_opens_a_block(self):
+        criteria, errors = parse("   [screen]\nlimit: 9\n[/screen]")
+        self.assertEqual(errors, [])
+        self.assertEqual(criteria.limit, 9)
+
+    def test_an_inline_block_is_treated_as_prose_not_a_block(self):
+        # Matches the frontend renderer, which also requires a line-start
+        # opener — if they disagreed, one layer would eat text the other kept.
+        criteria, errors = parse("prose [screen]limit: 5[/screen] more prose")
+        self.assertEqual((criteria, errors), (None, []))
+
+    def test_two_real_blocks_are_still_a_duplicate(self):
+        criteria, errors = parse(f"{self.REAL}\nprose\n{self.REAL}")
+        self.assertIsNone(criteria)
+        self.assertIn("duplicate_block", errors[0]["error"])
+
+
 class GoldenMappingTests(TestCase):
     """The §6.1 table, exactly — one assertion per row plus the always-sent pair."""
 
@@ -268,7 +350,10 @@ class LinearScanTests(TestCase):
         self.assertLess(elapsed, 1.0)
 
     def test_pathological_brackets_before_a_valid_block(self):
-        text = "[" * 50_000 + block("limit: 3")
+        # The bracket run gets its own line: the opening tag is line-anchored,
+        # so a block glued to the end of 50k '[' is prose by definition. What
+        # this pins is that the scan stays linear regardless.
+        text = "[" * 50_000 + "\n" + block("limit: 3")
         criteria, errors = parse(text)
         self.assertEqual(errors, [])
         self.assertEqual(criteria.limit, 3)
