@@ -92,4 +92,8 @@ dead pipeline reading as green (BUG-008).
   instructions.
 - Any future re-import of rules re-enters the BUG-009 trap (converted rules
   arrive paused); the ⛔ gate in `alerting-setup.md` and the daily audit's
-  zero-paused assertion stay mandatory.
+  zero-paused assertion stay mandatory. A re-import also **duplicates rather
+  than reconciles**: the converter creates a folder named after the uploaded
+  file (live today: `StratTraderPro/stp-alert-rules.prom.yaml`), so importing
+  under a different filename leaves the original rules standing. Retire rules
+  by deleting them in place.
