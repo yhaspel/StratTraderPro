@@ -39,7 +39,17 @@ export class ScreenerFacade {
 
   async loadCriteria(strategyId: string): Promise<void> {
     this._loading.set(true);
+    // Reset EVERYTHING, not just the error. This facade is a root singleton
+    // holding per-strategy state, so leaving the previous strategy's criteria
+    // and runs in place meant navigating A -> B rendered A's chips and A's run
+    // history under B's heading for the length of B's round-trip — and, if B's
+    // runs GET failed, kept them indefinitely. Clearing `disabled` also lets a
+    // re-enabled feature flag be picked up without a reload, which is the
+    // documented roll-forward path for a mutable flag.
     this._criteriaError.set(null);
+    this._criteria.set(null);
+    this._runs.set([]);
+    this._disabled.set(false);
     try {
       const res = await firstValueFrom(this.api.criteria(strategyId));
       if (res.error) {
@@ -63,10 +73,10 @@ export class ScreenerFacade {
   async loadRuns(strategyId: string, limit = 5): Promise<void> {
     try {
       const res = await firstValueFrom(this.api.runs(strategyId, limit));
-      if (!res.error) {
-        this._runs.set(res.data ?? []);
-      }
+      this._runs.set(res.error ? [] : (res.data ?? []));
     } catch (err) {
+      // Never leave a previous strategy's history on screen after a failure.
+      this._runs.set([]);
       if (this._isFlagOff(err)) {
         this._disabled.set(true);
       }

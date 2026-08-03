@@ -1198,6 +1198,8 @@
       "FMP_UNAVAILABLE": "The market-data provider is unavailable right now.",
       "SCREEN_TIME_CAP": "The screen took too long and was stopped.",
       "SCREEN_FAILED": "The screen failed unexpectedly.",
+      "SCREEN_STALE": "This screen was abandoned (the worker never picked it up) and was cleared. Run it again.",
+      "POLL_LOST": "Lost contact while the screen was running. It may still have finished — reload to check.",
       "generic": "The screen did not complete."
     }
   }

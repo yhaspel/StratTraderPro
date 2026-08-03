@@ -45,6 +45,11 @@ import { StatusChipComponent } from '../../shared/ui/status-chip.component';
  *  GET is cheap, so this is NOT the backtest detail page's 5s WS-down fallback. */
 export const POLL_MS = 2000;
 
+/** Consecutive poll failures tolerated before giving up and saying so. A 502
+ *  from a proxy or a token-refresh race must not silently strand the panel on
+ *  "Queued…" while the run actually finishes server-side. */
+export const POLL_MAX_FAILURES = 3;
+
 /** Error codes with dedicated `screener.error.*` copy. FEATURE_DISABLED is
  *  absent on purpose — a 503 hides the panel, so it never needs a message. */
 const KNOWN_ERRORS = new Set([
@@ -57,6 +62,8 @@ const KNOWN_ERRORS = new Set([
   'FMP_UNAVAILABLE',
   'SCREEN_TIME_CAP',
   'SCREEN_FAILED',
+  'SCREEN_STALE',
+  'POLL_LOST',
 ]);
 
 const COMPACT = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 });
@@ -155,8 +162,8 @@ const COMPACT = new Intl.NumberFormat('en', { notation: 'compact', maximumFracti
             } @else {
               <div class="mt-4 flex flex-wrap items-center gap-3">
                 <app-button
-                  [disabled]="busy()"
-                  [loading]="busy()"
+                  [disabled]="busy() || !!activeRun()"
+                  [loading]="busy() || !!activeRun()"
                   (clicked)="startRun()"
                   data-testid="run-screen">
                   {{ 'screener.run' | translate }}
@@ -279,6 +286,8 @@ export class ScreeningPanelComponent implements OnInit, OnDestroy {
   readonly current = signal<ScreenRunDetail | null>(null);
   readonly activeRun = signal<ScreenRunSummary | null>(null);
   readonly busy = signal(false);
+  /** Consecutive failed polls for the current run (M5). */
+  readonly pollFailures = signal(0);
   readonly actionError = signal<string | null>(null);
   readonly actionErrorMessage = signal<string>('');
 
@@ -356,6 +365,7 @@ export class ScreeningPanelComponent implements OnInit, OnDestroy {
   /** Poll every 2s until the run reaches a terminal status (A8). */
   startPolling(runId: string): void {
     this.stopPolling();
+    this.pollFailures.set(0);
     void this.poll(runId);
     this.timer = setInterval(() => void this.poll(runId), POLL_MS);
   }
@@ -370,9 +380,22 @@ export class ScreeningPanelComponent implements OnInit, OnDestroy {
   private async poll(runId: string): Promise<void> {
     const res = await this.facade.runDetail(this.strategyId, runId);
     if (!res.ok) {
-      this.stopPolling();
+      // Terminal causes stop immediately; anything else gets a few retries
+      // before we give up, and giving up is always visible.
+      const terminal = res.error.code === 'SCREEN_RUN_NOT_FOUND'
+        || res.error.code === 'FEATURE_DISABLED';
+      this.pollFailures.update((n) => n + 1);
+      if (terminal || this.pollFailures() >= POLL_MAX_FAILURES) {
+        this.stopPolling();
+        this.activeRun.set(null);
+        if (!terminal) {
+          this.actionError.set('POLL_LOST');
+          this.actionErrorMessage.set(res.error.message);
+        }
+      }
       return;
     }
+    this.pollFailures.set(0);
     this.current.set(res.value);
     this.activeRun.set(res.value);
     if (isTerminal(res.value.status)) {

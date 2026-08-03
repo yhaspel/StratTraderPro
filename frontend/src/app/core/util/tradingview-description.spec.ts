@@ -195,7 +195,11 @@ describe('renderTradingViewDescription', () => {
     });
 
     it('is case-insensitive like every other tag', () => {
-      expect(render('a[SCREEN]x: 1[/Screen]b')).toBe('ab');
+      expect(render('a\n[SCREEN]\nx: 1\n[/Screen]\nb')).toBe('a<br><br>b');
+    });
+
+    it('allows the opening tag to be indented', () => {
+      expect(render('a\n   [screen]\nx: 1\n[/screen]\nb')).toBe('a<br>   <br>b');
     });
 
     it('swallows a block sitting mid-prose without touching the surrounding markup', () => {
@@ -222,9 +226,24 @@ describe('renderTradingViewDescription', () => {
       expect(out).not.toContain('screen');
     });
 
-    it('only the first block is swallowed; a second one is swallowed too', () => {
-      const out = render('a[screen]x: 1[/screen]b[screen]y: 2[/screen]c');
-      expect(out).toBe('abc');
+    it('swallows every block, not just the first', () => {
+      const out = render('a\n[screen]\nx: 1\n[/screen]\nb\n[screen]\ny: 2\n[/screen]\nc');
+      expect(out).not.toContain('x: 1');
+      expect(out).not.toContain('y: 2');
+      expect(out).toContain('a');
+      expect(out).toContain('b');
+      expect(out).toContain('c');
+    });
+
+    it('an INLINE [screen] is a prose mention, not a block — matching the server', () => {
+      // The server's opener is line-anchored (apps/screener/criteria.py
+      // _OPEN_RE). If the renderer swallowed inline ones anyway, an author who
+      // wrote "add a [screen] block" mid-sentence would watch their text vanish
+      // while the API reported no block at all.
+      const out = render('Add a [screen] block to your description.');
+      expect(out).toContain('Add a');
+      expect(out).toContain('block to your description.');
+      expect(out).not.toContain('[screen]');
     });
 
     it('does not disturb descriptions that contain no block at all', () => {

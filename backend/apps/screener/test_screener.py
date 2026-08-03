@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import json
 import pathlib
+from datetime import timedelta
 from unittest import mock
 
 from django.core.cache import cache
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.m04_testutils import auth_headers, create_user
@@ -512,6 +514,88 @@ class PostLadderTests(ScreenerTestCase):
             resp = self.post_run()
         self.assertEqual(resp.status_code, 429)
         self.assertEqual(resp.json()["error"]["code"], "RATE_LIMITED")
+
+    @override_settings(RATELIMIT_ENABLE=True)
+    def test_the_throttle_is_per_user_not_one_global_bucket(self):
+        """AC-16-8 says per USER. A URL-level `key="user"` decorator would run
+        before DRF authenticates, keying every caller on AnonymousUser — one
+        shared bucket that user A could exhaust for everyone."""
+        cache.clear()
+        other = create_user("second@example.com")
+        other_strategy = Strategy.objects.create(
+            owner=other, name="Other", slug="other-demo", is_system=False,
+        )
+        self._set_desc(other_strategy, BLOCK_VENDOR_ONLY)
+
+        with patch_client(_FakeHttp()):
+            for _ in range(10):
+                self.assertEqual(self.post_run().status_code, 202)
+            self.assertEqual(self.post_run().status_code, 429)  # user 1 exhausted
+            # User 2 has spent nothing and must be unaffected.
+            resp = self.client.post(
+                self.url(strategy=other_strategy), **auth_headers(other),
+            )
+        self.assertEqual(resp.status_code, 202)
+
+    @override_settings(RATELIMIT_ENABLE=True)
+    def test_unauthenticated_posts_do_not_consume_a_users_quota(self):
+        """Ten anonymous POSTs (all rejected) must not cost a real user a thing."""
+        cache.clear()
+        for _ in range(10):
+            anon = self.client.post(self.url())
+            self.assertIn(anon.status_code, (401, 403))
+        with patch_client(_FakeHttp()):
+            resp = self.post_run()
+        self.assertEqual(resp.status_code, 202)
+
+
+class StaleRunTests(ScreenerTestCase):
+    """An abandoned QUEUED row must not lock the pair forever (no cancel API)."""
+
+    def _stale_run(self, minutes=30):
+        from apps.screener.views import STALE_AFTER  # noqa: F401 — documents the link
+
+        run = ScreenRun.objects.create(
+            user=self.user, strategy=self.strategy, criteria={}, desc_sha256="x",
+            status=ScreenRun.Status.QUEUED,
+        )
+        ScreenRun.objects.filter(id=run.id).update(
+            created_at=timezone.now() - timedelta(minutes=minutes)
+        )
+        return run
+
+    def test_a_stale_queued_run_is_reaped_and_the_new_run_proceeds(self):
+        stale = self._stale_run()
+        with patch_client(_FakeHttp()):
+            resp = self.post_run()
+        self.assertEqual(resp.status_code, 202)
+        stale.refresh_from_db()
+        self.assertEqual(stale.status, "FAILED")
+        self.assertEqual(stale.error_code, "SCREEN_STALE")
+        self.assertIsNotNone(stale.finished_at)
+
+    def test_a_fresh_active_run_is_NOT_reaped(self):
+        fresh = self._stale_run(minutes=1)
+        resp = self.post_run()
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.json()["error"]["code"], "SCREEN_RUN_ACTIVE")
+        fresh.refresh_from_db()
+        self.assertEqual(fresh.status, "QUEUED")
+
+    def test_reaping_is_scoped_to_this_user_and_strategy(self):
+        other = create_user("third@example.com")
+        theirs = ScreenRun.objects.create(
+            user=other, strategy=self.strategy, criteria={}, desc_sha256="x",
+            status=ScreenRun.Status.QUEUED,
+        )
+        ScreenRun.objects.filter(id=theirs.id).update(
+            created_at=timezone.now() - timedelta(minutes=30)
+        )
+        self._stale_run()
+        with patch_client(_FakeHttp()):
+            self.post_run()
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.status, "QUEUED")  # untouched
 
 
 # ---------------------------------------------------------------------------

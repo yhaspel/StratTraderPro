@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TranslateModule } from '@ngx-translate/core';
-import { POLL_MS, ScreeningPanelComponent } from './screening-panel.component';
+import { POLL_MAX_FAILURES, POLL_MS, ScreeningPanelComponent } from './screening-panel.component';
 import { ScreenerFacade } from '../../../abstraction/facades/screener.facade';
 import { DataProvidersFacade } from '../../../abstraction/facades/data-providers.facade';
 import { AuthStore } from '../../../abstraction/stores/auth.store';
@@ -338,6 +338,80 @@ describe('ScreeningPanelComponent — M16 §6.6 state ladder', () => {
     fixture.detectChanges();
     tick();
     expect(facade.runDetail).toHaveBeenCalledWith('s-1', 'run-9');
+    discardPeriodicTasks();
+  }));
+
+  it('retries a transient poll failure instead of stranding on "Queued…"', fakeAsync(() => {
+    const fixture = setup();
+    // Two flaky polls, then success — the panel must survive and finish.
+    let call = 0;
+    facade.runDetail.and.callFake(() => {
+      call += 1;
+      return Promise.resolve(
+        call <= 2
+          ? { ok: false, error: { code: 'UNKNOWN', message: 'gateway' } }
+          : { ok: true, value: DONE_RUN },
+      );
+    });
+    fixture.detectChanges();
+    tick();
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="run-screen"] button')!
+      .click();
+    tick();
+    tick(POLL_MS * 3);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('NVDA');
+    discardPeriodicTasks();
+  }));
+
+  it('gives up visibly after repeated poll failures rather than silently', fakeAsync(() => {
+    const fixture = setup();
+    facade.runDetail.and.resolveTo({ ok: false, error: { code: 'UNKNOWN', message: 'gateway' } });
+    fixture.detectChanges();
+    tick();
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="run-screen"] button')!
+      .click();
+    tick();
+    tick(POLL_MS * (POLL_MAX_FAILURES + 2));
+    fixture.detectChanges();
+    // An explicit message, not an eternal "Queued…".
+    expect(html(fixture)).toContain('screener.error.POLL_LOST');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="run-status"]')).toBeNull();
+    discardPeriodicTasks();
+  }));
+
+  it('stops polling immediately when the run is gone (terminal cause)', fakeAsync(() => {
+    const fixture = setup();
+    facade.runDetail.and.resolveTo({
+      ok: false, error: { code: 'SCREEN_RUN_NOT_FOUND', message: 'gone' },
+    });
+    fixture.detectChanges();
+    tick();
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="run-screen"] button')!
+      .click();
+    tick();
+    const after = facade.runDetail.calls.count();
+    tick(POLL_MS * 4);
+    expect(facade.runDetail.calls.count()).toBe(after);
+    discardPeriodicTasks();
+  }));
+
+  it('disables Run while a run is in flight, not just during the POST', fakeAsync(() => {
+    const fixture = setup();
+    facade.runDetail.and.resolveTo({ ok: true, value: { ...DONE_RUN, status: 'RUNNING' } });
+    fixture.detectChanges();
+    tick();
+    fixture.detectChanges();
+    const btn = () => (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="run-screen"] button')!;
+    expect(btn().disabled).toBeFalse();
+    btn().click();
+    tick();
+    fixture.detectChanges();
+    expect(btn().disabled).toBeTrue();
     discardPeriodicTasks();
   }));
 
