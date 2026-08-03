@@ -18,6 +18,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs/runbooks/incident-triage.md` now triages exactly the 11 live rules —
   including new rows for the dead-man's pair and the metrics-budget pair — and the
   runbook/setup-guide set no longer references SLOs, exporters, or six dashboards.
+- Follow-up doc sweep: the four runbooks that still pointed at the retired Auth
+  Health dashboard (`user-locked-out`, `password-reset-abuse`, `user-lost-mfa`,
+  `prod-bootstrap`) now point at Grafana Explore or the System Health board, and
+  `bugs/README.md`'s BUG-009 row no longer pins a live rule count that goes stale.
+- `alerting-setup.md`, ADR-109 and the plan's AC-R5 now record that the Prometheus
+  converter files imported rules into a **subfolder named after the uploaded file**
+  (`StratTraderPro/stp-alert-rules.prom.yaml`), which `GET /api/folders` does not
+  list — so a re-import duplicates rather than reconciles.
 
 ### Removed — service-era observability surface (ADR-109)
 - `postgres-exporter` + `redis-exporter` (compose services, agent scrape jobs
