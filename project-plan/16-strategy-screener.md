@@ -99,6 +99,21 @@ bytes between tags, ≤ 40 lines; at most one block — a second is a
 `duplicate_block` error). Inside: `key: value` lines; blank lines and
 `# comment` lines ignored. Numbers accept `K/M/B/T` suffixes; `%` where noted.
 
+**The opening `[screen]` must start its own line** (leading whitespace is fine).
+A `[screen]` inside a sentence is a *mention*, not a block — without this rule a
+description that says "add a `[screen]` block" (exactly what the authoring guide
+teaches) counted as a second opener and failed the author's real block as
+`duplicate_block`; so did a `# … [screen] …` comment inside the block, and a
+`[screen]` quoted inside a `[pine]` sample. The frontend renderer's swallow rule
+applies the identical line-start test, so the two layers can never disagree
+about what is a block — if they did, an inline mention would be eaten from the
+prose while the API reported no block at all.
+
+Numeric values are magnitude-checked (`|v| ≤ 1e18`). A long digit run overflows
+`float` to `inf` *without* raising, and `int(inf)` raises `OverflowError` — not
+a `ValueError` — which would otherwise escape the parser and the view as a 500,
+breaking AC-16-1.
+
 ```
 [screen]
 # Minervini-style trend template, large caps
