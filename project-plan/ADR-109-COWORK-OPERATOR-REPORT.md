@@ -2085,3 +2085,103 @@ conflict.
 the merge with the change committed** (`git merge-tree --write-tree origin/main HEAD`) and compare
 the conflict set against the pre-change baseline. Region-level comparison was the same shortcut that
 produced the original false blocking discovery in B2 — inspecting content instead of asking git.
+
+---
+
+# SOAK DAY 1 — 2026-08-03. **GREEN.** And the H.3 mechanism failed and was replaced.
+
+## H.2 — soak day 1 is GREEN
+
+The rewritten daily audit ran on schedule at **2026-08-03T06:09:22Z** (09:09 IL) — its **first
+execution of the new prompt** — and returned, as its entire final message:
+
+```
+OK — 6/6 checks passed.
+```
+
+Transcript: `49db22dd-fad4-4020-aede-a3f3c8d0901a.jsonl`, verdict timestamped 06:14:25Z.
+
+⇒ **H.2 satisfied**, and AC-WP8's "runs green on schedule" leg is now proven in production rather
+than only by a manual invocation. Nothing fired unexpectedly; nothing that should have fired was
+found silent.
+
+## ⛔ The desktop-task H.3 mechanism was DESTROYED, exactly as predicted — and worse
+
+Part D3 flagged: *"the desktop app owns `scheduled-tasks.json` and may hold it cached… Monday's
+09:00 audit run writes `lastRunAt` back and a stale in-memory copy could overwrite my entry."*
+
+It did. Verified today:
+
+```
+scheduled-tasks.json now == the PRE-edit backup, byte-for-byte (True)
+audit lastRunAt rewritten to 2026-08-03T06:09:22.771Z
+adr109-h3-soak-verdict : GONE
+```
+
+**Re-adding it would have been useless, and Part D3 understated the problem.** The clobber is not a
+one-off race — the app rewrites the registry from memory at **every** task run, i.e. 09:00 daily.
+The H.3 task was scheduled for **10:00**. It would therefore be deleted **an hour before it could
+ever fire, every single day.** The mechanism could never have worked.
+
+**Root cause of the design error:** the registry was treated as a config file when it is
+app-owned mutable state. Session 1's memory note ("scheduled tasks are plain files, CLI-editable")
+is true for a task's `SKILL.md` — the app *reads* that at run time — but false for the registry,
+which the app *writes*. Editing something the owner rewrites is not persistence.
+
+## Replacement — `launchd`, which the desktop app cannot touch
+
+The H.3 check is pure mechanical assertion, so it needs no LLM and no Claude session at all:
+
+```
+script : ~/Documents/Claude/Scheduled/adr109-h3-soak-verdict/h3-check.py   (stdlib only)
+agent  : ~/Library/LaunchAgents/com.yuval.adr109-h3.plist
+label  : com.yuval.adr109-h3      state: loaded, waiting
+fires  : Month=8 Day=4 Hour=10 Minute=0  -> Tue 2026-08-04 10:00 local
+runs   : /usr/bin/python3 h3-check.py 2026-08-04      (target day passed explicitly)
+output : project-plan/ADR-109-H3-VERDICT.txt + a macOS notification
+logs   : h3-run.log / h3-run.err beside the script
+exit   : 0 = GREEN | 1 = NOT GREEN | 2 = inconclusive (audit did not run)
+```
+
+**What it asserts:** the audit's final line is exactly `OK — 6/6 checks passed.` for the target day
+(a missing run is reported **inconclusive**, never a pass), then independently re-verifies 11 live
+conditions — rule count, exact title set, zero paused, nothing firing, all `health=ok`, 3 `stp-*`
+dashboards, 5 `up` targets, `env=production` only, `up == 0` empty, budget < 0.85 (**empty = FAIL**),
+and the Auth folder 404. On green it prints the **revised** H.4 instruction and the full teardown
+including its own removal.
+
+**Proven end-to-end, not assumed** — run against real day-1 data:
+
+```
+STEP 1 audit verdict  [PASS]   first line: 'OK — 6/6 checks passed.'
+STEP 2  11/11 live checks PASS   (budget ratio 0.1501)
+VERDICT: H.3 GREEN      exit 0
+```
+
+Two bugs were found and fixed by that test run, both of which would have produced a wrong answer
+unattended:
+
+1. **`.env.grafana` uses `export KEY=value`** (it is shell-sourced). The naive `split("=")` parser
+   produced the key `"export GRAFANA_TOKEN"`, so the token lookup silently failed.
+2. **The failure message conflated two causes** — it reported "`.env.grafana` absent — teardown
+   already ran?" when the file was present and merely unparsed. That is the same
+   absence-vs-malformation confusion as the zsh word-split and the BSD `head` traps: a broken read
+   and a true negative looked identical. The message now names which one occurred.
+
+Also verified the script runs under **`/usr/bin/python3` (3.9.6)** — the interpreter launchd uses,
+not the shell's — since the type hints would otherwise need 3.10.
+
+The dead `SKILL.md` for the vanished desktop task was **deleted**. Leaving it would have implied a
+scheduled task that no longer exists, which is precisely the "looks like coverage and is not"
+failure this cutover exists to remove.
+
+## ⚠️ Note for teardown
+
+Teardown now has a fourth item, and the script prints it on success:
+
+```
+launchctl bootout gui/$(id -u)/com.yuval.adr109-h3 && rm ~/Library/LaunchAgents/com.yuval.adr109-h3.plist
+```
+
+Left loaded it would re-fire 2027-08-04. The `adr109-h3-soak-verdict` **desktop** task no longer
+needs removing — the app already deleted it.

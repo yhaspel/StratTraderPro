@@ -121,3 +121,6 @@ frontend/osv.json
 
 # ADR-109 cutover backups (rollback artifacts — local safety net, not source)
 stp-adr109-backup-2026-08-01/
+
+# ADR-109 H.3 checker output (regenerated each run)
+project-plan/ADR-109-H3-VERDICT.txt
