@@ -1146,5 +1146,59 @@
     },
     "back": "All guides",
     "nav": "Guide navigation"
+  },
+  "screener": {
+    "title": "Screening",
+    "guide": "How screening works",
+    "run": "Run screen",
+    "configure_link": "Configure data providers",
+    "history": "Recent runs",
+    "no_matches": "No candidates matched these criteria.",
+    "empty": {
+      "heading": "No screening block in this description",
+      "description": "This strategy's description has no [screen] block, so there are no screening recommendations to run. Add one to the description to turn its universe rules into a runnable screen.",
+      "cta": "How to write a [screen] block"
+    },
+    "invalid": {
+      "intro": "This strategy's [screen] block could not be parsed. Fix these lines in the description and re-upload it:",
+      "line": "Line",
+      "how_to_fix": "See the [screen] key reference"
+    },
+    "status": {
+      "QUEUED": "Queued…",
+      "RUNNING": "Screening…",
+      "DONE": "Done",
+      "FAILED": "Failed"
+    },
+    "degraded": {
+      "chip": "Partial results"
+    },
+    "counts": {
+      "returned": "matches"
+    },
+    "table": {
+      "caption": "Screening results: candidates matching this strategy's criteria.",
+      "symbol": "Symbol",
+      "name": "Name",
+      "exchange": "Exchange",
+      "sector": "Sector",
+      "market_cap": "Market cap",
+      "price": "Price",
+      "volume": "Volume",
+      "from_high": "From 52w high",
+      "trend": "Trend"
+    },
+    "error": {
+      "FMP_NOT_CONFIGURED": "Screening needs an FMP API key for this instance.",
+      "NO_SCREEN_CRITERIA": "This strategy's description has no [screen] block.",
+      "SCREEN_CRITERIA_INVALID": "The [screen] block in this description could not be parsed.",
+      "SCREEN_RUN_ACTIVE": "A screen is already running for this strategy.",
+      "RATE_LIMITED": "You've run 10 screens this hour. Try again shortly.",
+      "FMP_RATE_LIMITED": "The market-data provider is rate-limiting this instance. Try again shortly.",
+      "FMP_UNAVAILABLE": "The market-data provider is unavailable right now.",
+      "SCREEN_TIME_CAP": "The screen took too long and was stopped.",
+      "SCREEN_FAILED": "The screen failed unexpectedly.",
+      "generic": "The screen did not complete."
+    }
   }
 }
