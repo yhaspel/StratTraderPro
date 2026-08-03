@@ -34,7 +34,8 @@ pins, do not weaken gates, do not merge red) neither PR was merged. No tag was c
   the PR diff is M16 only). **PR #54** — https://github.com/yhaspel/StratTraderPro/pull/54
 - **Merge status:** open, not merged. Finishing command in Section B.
 - **Tag:** none — the prompt creates the tag only if the squash lands.
-- 4 commits, 48 files, +4844 / −23.
+- 8 commits, 50 files. Includes an independent adversarial review and its remediation
+  (see **Independent review** below).
 
 #### AC coverage
 
@@ -46,8 +47,8 @@ pins, do not weaken gates, do not merge red) neither PR was merged. No tag was c
 | AC-16-4 | Met | `test_no_block_is_409_no_screen_criteria` · karma empty-state spec |
 | AC-16-5 | Met | `test_exactly_one_screener_call_and_enrichment_capped_at_limit`, `test_limit_caps_enrichment_below_vendor_match_count` |
 | AC-16-6 | Met | `test_provenance_sha_recorded_and_frozen_against_later_edits` |
-| AC-16-7 | Met | `DegradationTests` (8) |
-| AC-16-8 | Met | `test_active_run_precheck_returns_409`, `test_db_constraint_rejects_a_second_active_run`, `test_integrity_error_on_create_is_mapped_to_the_same_409`, `test_eleventh_run_in_an_hour_is_429` |
+| AC-16-7 | Met | `DegradationTests` (10, incl. both counting boundaries) |
+| AC-16-8 | Met | `test_active_run_precheck_returns_409`, `test_db_constraint_rejects_a_second_active_run`, `test_integrity_error_on_create_is_mapped_to_the_same_409`, `test_eleventh_run_in_an_hour_is_429`, `test_the_throttle_is_per_user_not_one_global_bucket`, `test_unauthenticated_posts_do_not_consume_a_users_quota` |
 | AC-16-9 | Met | `PermissionTests` (5) · `test_all_protected_prefixes_have_mfa_gate` (A1 row) |
 | AC-16-10 | Met | `tradingview-description.spec.ts` `[screen] block` (8) · karma chips spec |
 | AC-16-11 | Met | `FlagOffTests` (2, all four endpoints) · karma flag-off spec |
@@ -104,20 +105,44 @@ pins, do not weaken gates, do not merge red) neither PR was merged. No tag was c
 |---|---|
 | `ruff check .` | All checks passed |
 | `bandit … --severity-level medium` | no issues |
-| `pytest` (SQLite) | **869 passed, 9 skipped, 62 subtests passed** |
-| `pytest -m pg` | **9 passed**, 869 deselected — **ran locally** (Docker available, host port 5434) |
+| `pytest` (SQLite) | **885 passed, 9 skipped, 74 subtests passed** |
+| `pytest -m pg` | **9 passed**, 885 deselected — **ran locally** (Docker available, host port 5434) |
 | `makemigrations --check --dry-run` | No changes detected |
 | prod-settings import smoke | OK (flag present in settings *and* registry) |
 | `pnpm install --frozen-lockfile` | lockfile no-op |
 | `pnpm run schema:types` | +147 lines, 14 screener |
 | `ngc --noEmit` | clean |
-| `pnpm test:ci` | **244 SUCCESS** |
+| `pnpm test:ci` | **264 SUCCESS** |
 | `pnpm build` | complete |
 | `playwright test e2e/a11y` | **9 passed** incl. the new panel spec |
 | `check_guides_catalog.py` | in sync (19 articles, 7 images) |
 | `check_envsubst_filter.py` | in sync (6 vars) |
 
 No new dependencies: `requirements/*.txt` and `pnpm-lock.yaml` are untouched.
+
+### Independent review
+
+A reviewer was run against the full diff with a fixed focus list; findings were **reproduced, not
+inferred**. It found **2 HIGH + 4 MEDIUM + 1 LOW + 1 NIT**, all fixed in `18e8339` (+ `60fc74c`
+for the docs), with the gauntlet re-run green afterwards. The full narrative is a comment on PR #54.
+
+The two HIGH findings were genuine defects and worth naming here:
+
+- **H1 — the 10/h throttle was one global bucket, drainable anonymously.** `ratelimit(key="user")`
+  wrapped `as_view()`, so it ran at the Django layer where — this project being JWT-only —
+  `request.user` is still `AnonymousUser`, making the key a constant for every caller. Ten
+  unauthenticated POSTs disabled screening instance-wide for an hour. Moved inside the view, after
+  DRF auth. Worth remembering: the house pattern (wrap `as_view()`) is correct for the IP/email
+  throttles it was copied from and silently wrong for a per-user one.
+- **H2 — a long numeric literal 500'd the API.** `float("9"*400)` returns `inf` without raising and
+  `int(inf)` raises `OverflowError`, which is not a `ValueError` — so it escaped the parser, the
+  view and DRF, breaking AC-16-1's "never a 500" on every numeric key.
+
+MEDIUM: root-singleton facade leaking another strategy's criteria/history (M3); a stuck `QUEUED`
+run locking the pair permanently with no cancel endpoint (M4); one transient poll failure stranding
+the panel on "Queued…" forever (M5); and a `[screen]` **mention in prose** — which the shipped guide
+teaches authors to write — failing their real block as `duplicate_block` (M6, fixed by
+line-anchoring the opening tag on both server and renderer).
 
 ### The blocking CI failure (not in either diff)
 
