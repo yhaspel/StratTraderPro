@@ -73,7 +73,7 @@ outage still pages by email.
   `observability-liveness`) land in a **subfolder of `StratTraderPro` named after
   the file you upload** (live today: `StratTraderPro/stp-alert-rules.prom.yaml`) —
   the converter names the folder after the uploaded filename, and
-  `GET /api/folders` does **not** list subfolders, so resolve a rule’s
+  `GET /api/folders` does **not** list subfolders, so resolve a rule's
   `folderUID` via `GET /api/folders/{uid}` before asserting on it.
   ⚠️ Re-importing under a different filename creates a *second* subfolder and
   leaves the old rules standing — an import **duplicates, it does not
@@ -177,7 +177,7 @@ signal without a fabricated Prometheus series. Point it at the same operator inb
   `worker-metrics-scrape.md` is done).
 - Alerting UI shows the five rule groups (four safety-core groups from
   `alert-rules.yaml` + `grafana-cloud-usage`) under `StratTraderPro/` — inside the
-  converter’s filename-derived subfolder, not the parent — all `Normal`.
+  converter's filename-derived subfolder, not the parent — all `Normal`.
 - A forced sample alert reached email (+ Telegram for critical).
 - A Sentry test error links to its Tempo trace.
 - A Railway deploy produced a notification.
