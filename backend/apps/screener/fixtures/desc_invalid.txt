@@ -1,0 +1,10 @@
+© author
+
+[screen]
+market_cap: >= 2B
+markt_cap: >= 1B
+price: 1000..10
+above_sma: 100
+near_52w_high: 250%
+sector: Technology|Healthcare
+[/screen]

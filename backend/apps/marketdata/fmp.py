@@ -187,6 +187,17 @@ class FMPClient:
     def sector_performance(self) -> list[dict]:
         return self.get("/historical-sector-performance", {}, cache_ttl=3600) or []
 
+    def company_screener(self, params: dict) -> list[dict]:
+        """Stock screener (M16 §6.2, adopted in ADR-063 under the ADR-061 §4
+        vendor-change gate). ONE call per screen run — the derived criteria are
+        computed locally from daily bars, never per-candidate vendor calls.
+
+        Params are built exclusively from the §6.1 mapping table, so an
+        unknown-param 4xx fails loud as ``FMPError`` rather than silently
+        widening a screen. Rides the shared token-bucket → retry → breaker →
+        cache-FALLBACK stack for AC-06-9 semantics."""
+        return self.get("/company-screener", params, cache_ttl=300) or []
+
 
 def _normalize_bars(data) -> list[dict]:
     rows = data.get("historical", data) if isinstance(data, dict) else data

@@ -1,0 +1,38 @@
+﻿This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+© yuvalhaspel
+
+[b]Minervini Trend Template[/b]
+
+A long-only trend-following system for [i]liquid large caps[/i]. It wants names
+already in a confirmed uptrend, trading near their highs.
+
+[list]
+[*]Entry on a breakout above the pivot
+[*]Exit on a close below the 50-day
+[/list]
+
+[screen]
+# Minervini-style trend template, large caps
+market_cap: >= 2B
+price: 10..1000
+volume: >= 1M
+sector: Technology
+exchange: NASDAQ
+above_sma: 50
+above_sma: 200
+sma_rising: 200
+near_52w_high: 25%
+limit: 50
+[/screen]
+
+[b]Risk[/b]
+Position size is fixed at 1R. See [url=https://example.com/risk]the risk notes[/url].
+
+[pine]
+//@version=5
+strategy("Minervini", overlay=true)
+sma200 = ta.sma(close, 200)
+plot(sma200)
+if close > sma200 and close[1] <= sma200
+    strategy.entry("L", strategy.long)
+[/pine]
