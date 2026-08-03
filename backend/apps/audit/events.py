@@ -82,6 +82,9 @@ class AuditEventType(models.TextChoices):
     # NEVER written to the audit row; only provider + last-4 hint.
     DATA_PROVIDER_KEY_SET = "marketdata.provider_key_set", "Data-provider key set"
     DATA_PROVIDER_KEY_REMOVED = "marketdata.provider_key_removed", "Data-provider key removed"
+    # screener.* — M16. Entity is the strategy; the criteria snapshot lives on
+    # the run row, so the audit row stays payload-light (AC-04-12 spirit).
+    SCREEN_RUN_REQUESTED = "screener.run_requested", "Screen run requested"
     # audit.*
     AUDIT_INTEGRITY_FAILURE = "audit.integrity_failure", "Audit integrity failure"
     AUDIT_VERIFIER_COMPLETED = "audit.verifier_completed", "Audit verifier completed"
