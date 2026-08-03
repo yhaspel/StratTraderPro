@@ -53,5 +53,7 @@ An attacker is repeatedly requesting password resets for a target email, either 
 
 ## Monitoring
 
-- Grafana: Auth Health dashboard → password reset rate panel.
+- Grafana: the Auth Health dashboard was retired by ADR-109. In Explore, run
+  `sum(rate(auth_password_reset_total[1h])) * 3600` — the emitter in
+  `backend/apps/users/metrics.py` is unchanged.
 - Alert if reset requests exceed 10/hour for a single email.
