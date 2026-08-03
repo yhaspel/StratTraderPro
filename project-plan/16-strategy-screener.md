@@ -369,6 +369,10 @@ the 10/h/user throttle and the ≤100 enrichment cap;
   (AlterField migration, no data change).
 - No changes to `Strategy` / `StrategyFile` — the DESC file IS the criteria
   store; `StrategyFile.sha256` (already maintained) provides run provenance.
+- **A2 — export surface.** `apps/users/gdpr.py` enumerates per-user tables by
+  hand, so a new user-owned table is silently omitted from the GDPR export until
+  it is listed. `screen_runs.json` (+ a README manifest line) must be added
+  alongside the `backtests.json` precedent.
 
 ## 9. API Contract Changes
 
@@ -383,17 +387,20 @@ New tag `screener` (§6.5 table). Representative payloads:
                "near_52w_high": 25, "limit": 50},
   "fmp_params": {"marketCapMoreThan": 2000000000, "priceMoreThan": 10,
                  "priceLowerThan": 1000, "volumeMoreThan": 1000000,
-                 "sector": "Technology", "isActivelyTrading": true, "limit": 50},
+                 "sector": "Technology", "isActivelyTrading": true,
+                 "isEtf": false, "limit": 50},
   "derived": {"above_sma": [200], "sma_rising": [200], "near_52w_high": 25,
               "min_history": 260}}}
 ```
 
 `GET …/screen/runs/{id}/` (terminal) →
 ```json
-{"data": {"id": "…", "status": "DONE", "degraded": false,
-  "criteria_sha256": "…", "created_at": "…", "finished_at": "…",
+{"data": {"id": "…", "status": "DONE", "degraded": false, "error_code": "",
+  "desc_sha256": "…", "created_at": "…", "started_at": "…", "finished_at": "…",
+  "criteria": {"criteria": {…}, "fmp_params": {…}, "derived": {…}, "limit": 50},
   "counts": {"vendor_matches": 312, "enriched": 50, "returned": 17,
-             "insufficient_history": 3, "skipped_rate_limited": 0},
+             "insufficient_history": 3, "skipped_rate_limited": 0,
+             "skipped_unavailable": 0},
   "results": [{"symbol": "NVDA", "name": "NVIDIA Corp", "exchange": "NASDAQ",
                "sector": "Technology", "market_cap": 3200000000000,
                "price": 182.11, "volume": 41000000, "beta": 1.7,
@@ -402,9 +409,13 @@ New tag `screener` (§6.5 table). Representative payloads:
 ```
 
 Error codes introduced: `FMP_NOT_CONFIGURED`, `NO_SCREEN_CRITERIA`,
-`SCREEN_CRITERIA_INVALID`, `SCREEN_RUN_ACTIVE`, `SCREENER_DISABLED`,
+`SCREEN_CRITERIA_INVALID`, `SCREEN_RUN_ACTIVE`, `SCREEN_RUN_NOT_FOUND`,
 `FMP_RATE_LIMITED`, `FMP_UNAVAILABLE` (all through the `{"error": {code,
-message, details?}}` envelope).
+message, details?}}` envelope). **A3: `SCREENER_DISABLED` is removed** — the
+flag-off response is the house-wide 503 `FEATURE_DISABLED`. Run-level
+`error_code` values additionally include `SCREEN_TIME_CAP` (soft-limit breach)
+and `SCREEN_FAILED` (unexpected), both with panel copy so no failure ever
+renders as a raw code.
 
 ## 10. Test Plan
 
@@ -430,8 +441,13 @@ message, details?}}` envelope).
   409; ratelimit 429 (`override_settings(RATELIMIT_ENABLE=True)`).
 - Degradation: FakeHttp raising 429 mid-enrichment → DONE + degraded +
   `skipped_rate_limited` count; screener-call 500 with empty cache → FAILED.
-- Permissions: non-owner private strategy → 404; system strategy visible;
-  non-MFA user → 403 `MFA_REQUIRED` (sweep already covers the prefix).
+- Permissions: non-owner private strategy → 404; soft-deleted strategy → 404;
+  system strategy visible; non-MFA user → 403 `MFA_REQUIRED`. **A1: the sweep
+  does NOT already cover the prefix** — add the `…/screen/criteria/` row to
+  `scaffold_paths` in `apps/users/test_mfa.py` (it walks one representative URL
+  per prefix, so the bare `strategies` row never reaches these paths).
+- **A2:** `test_gdpr.py` asserts `screen_runs.json` appears in the export ZIP,
+  contains a seeded run, and is scoped to the requesting user.
 - Key-gate integration with ADR-062: UI-stored key only (no env) → POST
   accepted (uses `resolve_key`).
 
@@ -476,8 +492,9 @@ message, details?}}` envelope).
 
 §6.8 metrics; log lines `screener.run_started/finished/failed` with run id,
 counts and duration (no symbols spam, no keys). Failures surface in Sentry via
-the normal task error path. Dashboard row: Data Pipelines (placeholder-first
-pattern).
+the normal task error path. **A6 — no dashboard row.** ADR-109 deleted the Data
+Pipelines dashboard; the series stay queryable in Explore and a panel is a
+future ADR-109-scope decision (recorded in ADR-063).
 
 ## 13. Translation & Localization
 
@@ -508,7 +525,7 @@ Past runs are self-contained JSON — safe to drop.
 |---|---|---|
 | FMP screener params/fields differ from the documented contract (docs are JS-rendered; table unverifiable statically) | Med × Med | ADR-063 + fixtures as tripwire; AC-16-12 live re-validation at key-land; params built from the mapping table only — an unknown-param 4xx fails loud as `FMP_UNAVAILABLE`. |
 | Screener endpoint tier-gated on some FMP plans | Med × Low | Same 4xx path → run FAILED with honest error; guide names the tier assumption (ADR-061: premium). |
-| Free-tier quota burn (250/day) from derived screens | Med × Med | `limit` ≤ 100 hard cap; 10/h/user throttle; 24h bar cache + `Bar` store reuse; degraded-not-dead behavior on 429; runbook guidance. |
+| Free-tier quota burn (250/day) from derived screens | Med × Med | `limit` ≤ 100 hard cap; 10/h/user throttle; degraded-not-dead behavior on 429; runbook guidance. **A5: there is no 24h read-through cache to lean on** — `FMPClient.get()` is fetch-always and consults its cache only in the failure path, so a re-run re-spends ~1+limit calls. The cap and the throttle ARE the quota control. |
 | Authors write prose-y blocks that fail parsing and conclude "screener is broken" | Med × Med | Line-numbered errors surfaced verbatim in the panel + criteria endpoint as a lint loop + authoring guide with copy-paste templates. |
 | `[screen]` in descriptions of strategies imported before M16 (none exist — descriptions are operator-authored) breaking render | Low × Low | Renderer swallow-rule is additive; unclosed-tag fallback keeps prose intact (spec'd + tested). |
 | Task pile-up from spammed runs | Low × Low | Active-run 409 + throttle; 240s soft limit; default queue keeps beat isolation intact (no route glob — M09 lesson). |
