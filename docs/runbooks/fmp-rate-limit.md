@@ -58,6 +58,37 @@ a path we've never fetched, which is the only case that surfaces an error.
 - The nightly HMM retrain is `skipped_insufficient_data` because the feature
   pipeline couldn't fetch fresh bars/macro (cross-link:
   `docs/runbooks/hmm-retrain-failure.md`).
+- **Users report "Partial results" on the Screening panel** — see below.
+
+## Strategy screener: a new burst source (M16)
+
+Before M16 the FMP traffic profile was a steady nightly trickle. The screener
+adds **user-triggered bursts**: one `/company-screener` call plus up to `limit`
+(≤ 100, default 50) `daily_bars` calls, back to back, per run. A single user can
+fire 10 runs an hour (the per-user throttle), so a busy hour is a realistically
+four-figure call count from screening alone. This is usually what is different
+when FMP starts throttling an instance that was fine for months.
+
+The screener is designed to **degrade rather than fail**, so a throttled vendor
+shows up as a finished run with a warn chip, not an error:
+
+| What the run shows | What it means for you |
+|---|---|
+| `degraded: true` + `skipped_rate_limited: N` | FMP 429'd (or our own breaker opened) part-way through enrichment. The run **stopped fetching** and counted the raising symbol plus every candidate it never reached. The results shown are real but incomplete. This is the counter to watch here. |
+| `degraded: true` + `skipped_unavailable: N` | Either an FMP **outage** mid-enrichment (same stop-and-count behavior), or individual bad/delisted tickers that 4xx'd (those skip one symbol and continue). Not a quota problem — check FMP status before touching `FMP_RATE_LIMIT_PER_MIN`. |
+| `insufficient_history: N` | Not a vendor problem at all: those symbols simply have fewer daily bars than the block's `min_history`. Never sets `degraded`. |
+| Run `FAILED` with `FMP_RATE_LIMITED` / `FMP_UNAVAILABLE` | The **screener call itself** failed with a cold cache, so there was nothing to enrich. |
+
+Operator notes:
+
+- A re-run **re-spends the calls**. `FMPClient.get()` is fetch-always; its cache
+  is consulted only in the failure path, so it is a failure fallback, not a 24h
+  dedupe. Telling a user to "just run it again" doubles the spend.
+- The cheap lever is the strategy's own `limit:` key — halving it halves the
+  per-run call count. Reach for that before `FMP_RATE_LIMIT_PER_MIN`.
+- The blunt lever is the feature flag: set `SCREENER_ENABLED=false` (or flip it
+  in Admin → Flags — it is mutable, no deploy) and screening spend goes to zero
+  immediately while the rest of the market-data plane keeps working.
 
 ## Step 1 — Check the metrics to size the problem
 
