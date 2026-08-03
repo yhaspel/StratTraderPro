@@ -95,6 +95,13 @@ urlpatterns = [
     path("api/v1/reconciliation/events/", ReconEventListView.as_view(), name="reconciliation-events"),
     path("api/v1/risk/", include("apps.risk.urls")),
     path("api/v1/marketdata/", include("apps.marketdata.urls")),
+    # M16 — screener routes live INSIDE the MFA-swept `strategies` prefix.
+    # Mounted ABOVE the strategies include on purpose: the literal `screen/`
+    # segment must never be shadowed by a future `<uuid:pk>/<something>/` route.
+    path(
+        "api/v1/strategies/<uuid:strategy_id>/screen/",
+        include("apps.screener.urls"),
+    ),
     path("api/v1/strategies/", include("apps.strategies.urls")),
     path("api/v1/regime/", include("apps.regime.urls")),
     path("api/v1/sentiment/", include("apps.sentiment.urls")),

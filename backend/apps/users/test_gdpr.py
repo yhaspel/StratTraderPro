@@ -78,6 +78,54 @@ class GDPRExportTests(_ExportBase):
         self.assertIn("audit_log.json", names)
         self.assertIn("README.txt", names)
 
+    def test_export_includes_screener_runs_with_their_data(self):
+        """M16/A2 — the export allowlist is hand-enumerated, so a new per-user
+        table is silently omitted until it is added. Seed a run and prove both
+        the file and its contents land in the ZIP."""
+        import json as _json
+
+        from apps.screener.models import ScreenRun
+        from apps.strategies.models import Strategy
+
+        user = create_user(email="screenexp@example.com")
+        strategy = Strategy.objects.create(
+            owner=user, name="S", slug="s-export", is_system=False,
+        )
+        run = ScreenRun.objects.create(
+            user=user, strategy=strategy, desc_sha256="abc123",
+            criteria={"fmp_params": {"sector": "Technology"}},
+            status=ScreenRun.Status.DONE,
+        )
+        resp = self.client.get(EXPORT_URL, **auth_headers(user))
+        job = DataExportJob.objects.get(id=resp.json()["data"]["job_id"])
+        zf = self._read_zip(job)
+        self.assertIn("screen_runs.json", zf.namelist())
+        rows = _json.loads(zf.read("screen_runs.json"))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], str(run.id))
+        self.assertEqual(rows[0]["desc_sha256"], "abc123")
+        # The README manifest must name it too, or the file is undiscoverable.
+        self.assertIn("screen_runs.json", zf.read("README.txt").decode())
+
+    def test_export_excludes_another_users_screener_runs(self):
+        import json as _json
+
+        from apps.screener.models import ScreenRun
+        from apps.strategies.models import Strategy
+
+        user = create_user(email="mine@example.com")
+        other = create_user(email="theirs@example.com")
+        strategy = Strategy.objects.create(
+            owner=other, name="S", slug="s-other", is_system=False,
+        )
+        ScreenRun.objects.create(
+            user=other, strategy=strategy, desc_sha256="zzz", criteria={},
+        )
+        resp = self.client.get(EXPORT_URL, **auth_headers(user))
+        job = DataExportJob.objects.get(id=resp.json()["data"]["job_id"])
+        rows = _json.loads(self._read_zip(job).read("screen_runs.json"))
+        self.assertEqual(rows, [])
+
     def test_export_redacts_broker_and_mfa_secrets(self):
         """AC-11-8 gate: no broker creds / MFA secrets / webhook secret in the ZIP."""
         user = create_user(email="redact@example.com", mfa=True)

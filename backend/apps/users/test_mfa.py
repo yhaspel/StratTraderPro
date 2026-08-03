@@ -459,6 +459,11 @@ class IsAuthenticatedAndMFAEnforcedTests(TestCase):
             ("risk", "ping/"),
             ("strategies", ""),  # M03 — real viewset, list at the prefix
             ("marketdata", "keys/"),  # ADR-062 — data-provider key status
+            # M16/A1 — the sweep walks ONE representative URL per prefix, so the
+            # `strategies` row above never touched `…/screen/…`. DRF runs
+            # permissions before object lookup, so the nil UUID cleanly yields
+            # 403 MFA_REQUIRED without needing a seeded strategy.
+            ("strategies", "00000000-0000-0000-0000-000000000000/screen/criteria/"),
         )
         for prefix, suffix in scaffold_paths:
             with self.subTest(path=prefix):

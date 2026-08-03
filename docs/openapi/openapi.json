@@ -1332,6 +1332,74 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/strategies/{strategy_id}/screen/:
+    post:
+      operationId: screener_run_create
+      summary: Queue a screen for this strategy.
+      parameters:
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/criteria/:
+    get:
+      operationId: screener_criteria
+      summary: Parse the strategy description's [screen] block.
+      parameters:
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/runs/:
+    get:
+      operationId: screener_run_list
+      parameters:
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/runs/{run_id}/:
+    get:
+      operationId: screener_run_detail
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
   /api/v1/terms/accept/:
     post:
       operationId: v1_terms_accept_create
