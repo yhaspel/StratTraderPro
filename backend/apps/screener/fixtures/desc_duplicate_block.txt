@@ -1,0 +1,7 @@
+[screen]
+limit: 10
+[/screen]
+prose
+[screen]
+limit: 20
+[/screen]
