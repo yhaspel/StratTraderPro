@@ -64,7 +64,7 @@ Once you give me items **1–5**, I can hand you a ready-to-import dashboard JSO
 
 1. Go to https://grafana.com/auth/sign-up/create-user.
 2. Sign up with `you@example.com`. Pick the **Free** tier (10k active series, 50 GB logs — plenty for staging).
-3. Choose a stack name, e.g. `strattraderpro`. Your stack URL becomes `https://strattraderpro.grafana.net`.
+3. Choose a stack name. Your stack URL becomes `https://<your-stack-name>.grafana.net`. Stack names are globally unique, so pick your own — every hostname in this guide is a placeholder, not a live host.
 4. From *Home → Connections → Add new connection → Hosted Prometheus metrics*, copy:
    - **Remote write endpoint** (`https://prometheus-prod-XX-prod-XX-XXXXX.grafana.net/api/prom/push`)
    - **Username** (a numeric instance ID)
