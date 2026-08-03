@@ -89,6 +89,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         title: 'Configure your TradingView alert',
         summary: 'Create the alert, paste the URL and the message body, and confirm the first delivery.',
       },
+      {
+        slug: 'strategy-screening',
+        title: 'Screening for candidates',
+        summary: 'Write a [screen] block into a strategy description, run it, and read the ranked candidates it returns.',
+      },
     ],
   },
   {

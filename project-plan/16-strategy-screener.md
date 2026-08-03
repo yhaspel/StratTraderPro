@@ -33,7 +33,9 @@ honestly unavailable otherwise.
   `/api/v1/strategies/{id}/screen/…` (keeps the MFA-swept `strategies` prefix).
 - Two-stage pipeline: vendor-side filters in ONE screener call → local derived
   filters (SMA 50/200, SMA-200 slope, 52-week-high proximity) computed from
-  `daily_bars` (cached 24h + upserted into the `Bar` store for reuse).
+  `daily_bars` (upserted into the `Bar` store for reuse by M06A). **A5:** the
+  FMP response cache is a *failure fallback*, not a read-through cache — a
+  re-run re-spends the vendor calls on a healthy day.
 - Frontend Screening panel on `/strategies/:id`: criteria chips, run + poll,
   results table, honest gated/empty states; `[screen]` hidden from the rendered
   description prose.
@@ -64,13 +66,13 @@ honestly unavailable otherwise.
 | AC-16-2 | `POST /api/v1/strategies/{id}/screen/` with a resolved instance FMP key creates a `ScreenRun` (QUEUED) and returns **202** `{run_id}`; the run completes via Celery and `GET …/screen/runs/{run_id}/` serves status → results. |
 | AC-16-3 | Without a resolved FMP key (no UI-stored key AND no `FMP_API_KEY` env), POST returns **409 `FMP_NOT_CONFIGURED`**; the UI disables Run and links staff to `/settings/data-providers`, non-staff get ask-your-administrator copy. FRED's absence has no effect. |
 | AC-16-4 | Without a `[screen]` block, POST returns **409 `NO_SCREEN_CRITERIA`** and the panel shows an honest empty state linking the authoring guide — not a disabled button with no explanation. |
-| AC-16-5 | Vendor-side criteria are applied in **one** `/company-screener` call; derived criteria (`above_sma`, `sma_rising`, `near_52w_high`) are computed locally from `daily_bars` — no vendor calls per candidate beyond the (24h-cached, `Bar`-upserted) daily bars. Hard cap ≤ 100 candidates enriched. |
+| AC-16-5 | Vendor-side criteria are applied in **one** `/company-screener` call; derived criteria (`above_sma`, `sma_rising`, `near_52w_high`) are computed locally from `daily_bars` — no vendor calls per candidate beyond the (`Bar`-upserted) daily bars. Hard cap ≤ 100 candidates enriched. **A5:** `FMPClient.get()` is fetch-always and consults its cache only in the failure path, so this is a *failure-fallback* cache, not a 24h dedupe; the real quota bounds are the 10/h/user throttle and the ≤100 cap. |
 | AC-16-6 | Runs are reproducible + attributable: each `ScreenRun` stores the parsed criteria snapshot and the DESC file's `sha256`; editing the description does not mutate past runs. |
-| AC-16-7 | An FMP rate-limit/outage mid-enrichment degrades, never 5xxes and never silently truncates: the run finishes `DONE` with `degraded=true` and per-cause counts (`insufficient_history`, `skipped_rate_limited`); a screener-call failure with no cache fails the run with `error_code`. |
+| AC-16-7 | An FMP rate-limit/outage mid-enrichment degrades, never 5xxes and never silently truncates: the run finishes `DONE` with `degraded=true` and per-cause counts (`insufficient_history`, `skipped_rate_limited`, **`skipped_unavailable`** — A4); a screener-call failure with no cache fails the run with `error_code`. |
 | AC-16-8 | Concurrency + quota safety: a second POST while a run is active for the same (user, strategy) → **409 `SCREEN_RUN_ACTIVE`**; more than 10 run-creates/user/hour → **429 `RATE_LIMITED`**. |
-| AC-16-9 | Permissions: every screen endpoint requires `can_user_view(strategy)` + MFA (the `strategies` prefix sweep in `apps/users/test_mfa.py` covers the new paths unchanged); users only ever see their own runs. |
+| AC-16-9 | Permissions: every screen endpoint requires `can_user_view(strategy)` + MFA; users only ever see their own runs. **A1:** the `strategies` prefix sweep in `apps/users/test_mfa.py` does **not** cover the new paths for free — it walks a hardcoded `scaffold_paths` list of one representative URL per prefix, so a `("strategies", "00000000-0000-0000-0000-000000000000/screen/criteria/")` row must be added (DRF runs permissions before object lookup, so the nil UUID cleanly yields 403 `MFA_REQUIRED`). |
 | AC-16-10 | The `[screen]` block never renders as raw text in the description prose (BBCode renderer swallows it); the Screening panel renders criteria as structured chips fed by the criteria endpoint (server parse only — no second parser in TS). |
-| AC-16-11 | `SCREENER_ENABLED=false` → API **503 `SCREENER_DISABLED`**, panel hidden; flag registered in `FEATURE_FLAGS_REGISTRY` (mutable). |
+| AC-16-11 | `SCREENER_ENABLED=false` → **every** screener endpoint (the criteria GET and the run GETs included, not just POST) returns **503 `FEATURE_DISABLED`** — the house code, per **A3**; panel hidden; flag registered in `FEATURE_FLAGS_REGISTRY` (mutable). |
 | AC-16-12 | The FMP screener wire shape is pinned by fixtures in CI and re-validated live when a real key is present, recorded in ADR-063 (the ADR-061 §4 vendor-change gate). |
 
 ## 5. Definition of Done
@@ -133,7 +135,10 @@ warnings; typos must not silently widen a screen):
 | `min_history` | integer days (default 260 iff any derived key present) | derived | require ≥ N daily bars |
 | `limit` | 1–100 (default 50) | both | `limit` (vendor) + enrichment cap |
 
-`isActivelyTrading=true` is always sent. Parser returns
+`isActivelyTrading=true` is always sent. **A9: `isEtf` is always sent too** —
+`isEtf=false` unless `etf: true`. Mirroring `isActivelyTrading` is the
+deterministic-narrowing reading of the table's "default `false`" and removes the
+ambiguity where §9's example omitted the param. Parser returns
 `ScreenCriteria` (dataclass: `vendor_params: dict`, `derived: dict`,
 `limit: int`) or a list of `{line, error}` dicts. Pure module — no Django
 imports; linear scan, no backtracking-prone regexes (the block is
@@ -171,12 +176,15 @@ class ScreenRun(models.Model):
     status = models.CharField(max_length=8, choices=Status.choices,
                               default=Status.QUEUED, db_index=True)
     criteria = models.JSONField()            # parsed snapshot (reproducibility)
-    criteria_sha256 = models.CharField(max_length=64)   # DESC StrategyFile.sha256 at run time
+    desc_sha256 = models.CharField(max_length=64)   # DESC StrategyFile.sha256 at run time
+                                                   # (A7: renamed from criteria_sha256 —
+                                                   #  nothing hashes the criteria)
     results = models.JSONField(default=list) # [{symbol, name, exchange, sector, market_cap,
                                              #   price, volume, beta, pct_from_52w_high,
                                              #   above_sma_50, above_sma_200, sma200_rising}]
     counts = models.JSONField(default=dict)  # {vendor_matches, enriched, returned,
-                                             #   insufficient_history, skipped_rate_limited}
+                                             #   insufficient_history, skipped_rate_limited,
+                                             #   skipped_unavailable}   <- A4
     degraded = models.BooleanField(default=False)
     error_code = models.CharField(max_length=48, blank=True, default="")
     celery_task_id = models.CharField(max_length=64, blank=True, default="")
@@ -186,7 +194,20 @@ class ScreenRun(models.Model):
     class Meta:
         db_table = "screener_run"
         indexes = [models.Index(fields=["user", "strategy", "-created_at"])]
+        constraints = [                      # race hardening beyond the 409 pre-check
+            models.UniqueConstraint(
+                fields=["user", "strategy"],
+                condition=Q(status__in=["QUEUED", "RUNNING"]),
+                name="uniq_active_screen_run_per_user_strategy",
+            ),
+        ]
 ```
+
+The partial unique index is **required**, not optional: the view's "is a run
+active?" pre-check loses the race between two interleaved POSTs, and both would
+insert. Run creation is wrapped so the resulting `IntegrityError` returns the
+same 409 `SCREEN_RUN_ACTIVE`. Partial unique indexes work on SQLite and
+Postgres, so the SQLite lane proves it.
 
 Results live as JSON on the run (≤ 100 rows) — no per-row table; the backtest
 precedent for small terminal payloads. Retention: after a run finishes, prune
@@ -207,12 +228,25 @@ route-glob dangers applies).
    `vendor_matches`. Uncached failure → FAILED with the mapped error code
    (`FMP_RATE_LIMITED` / `FMP_UNAVAILABLE`).
 3. Derived stage (only if derived keys present): for each candidate up to
-   `limit`: `daily_bars(symbol)` (24h cache; also `upsert_bars(sym, "1d", …)`
-   into the `Bar` store — free reuse for M06A); compute SMA50/200, SMA200
+   `limit`: `daily_bars(symbol)` (also `upsert_bars(sym, "1d", …)`
+   into the `Bar` store — free reuse for M06A; **A5:** no read-through cache,
+   so a re-run re-spends the call on a healthy day); compute SMA50/200, SMA200
    20-session slope, 252-day high distance; drop + count
-   `insufficient_history` when bars < `min_history`; on `FMPRateLimited` /
-   `FMPCircuitOpen` mid-loop, stop fetching, count the remainder as
-   `skipped_rate_limited`, set `degraded=True` (AC-16-7 — degrade, don't lie).
+   `insufficient_history` when bars < `min_history`.
+
+   **A4 — the degrade ladder has three rungs, not one** (the spec previously
+   named only rate limits, while AC-16-7 promised outages too):
+   * `FMPRateLimited` / `FMPCircuitOpen` → stop fetching; the raising symbol
+     **plus the unfetched remainder** count as `skipped_rate_limited`;
+     `degraded=True`.
+   * `FMPServerError` (outage with a cold cache) → stop fetching; raiser +
+     remainder count as `skipped_unavailable`; `degraded=True`.
+   * bare `FMPError` (a 4xx for ONE symbol — bad/delisted ticker) → skip that
+     symbol only, count it in `skipped_unavailable`, **continue**;
+     `degraded=True`.
+
+   The vendor *screener call* failing with no cache still FAILs the run
+   (step 2, unchanged).
 4. Rank: `pct_from_52w_high` ascending when `near_52w_high` present, else
    vendor `marketCap` descending. Persist results/counts/status/finished_at;
    prune history (§6.3); metrics (§12).
@@ -229,9 +263,15 @@ strategies convention); runs are filtered `user=request.user`.
 | Method + path | Behavior |
 |---|---|
 | `GET …/screen/criteria/` | Parse DESC now (no cache): `{"data": {criteria, fmp_params, derived, block_present: true}}`, or `block_present: false`, or 400 `SCREEN_CRITERIA_INVALID` + `details: [{line, error}]`. |
-| `POST …/screen/` | Gate order: flag off → 503 `SCREENER_DISABLED`; `@ratelimit(key="user", rate="10/h")` → 429 `RATE_LIMITED`; no resolved FMP key → 409 `FMP_NOT_CONFIGURED`; no block → 409 `NO_SCREEN_CRITERIA`; invalid block → 400 `SCREEN_CRITERIA_INVALID`; active run exists → 409 `SCREEN_RUN_ACTIVE`. Else create run, enqueue, **202** `{"data": {"run_id": …}}`, audit `screener.run_requested` (add to `AuditEventType`; entity = strategy id — no criteria payload needed, the run row has it). |
+| `POST …/screen/` | Gate order: flag off → 503 `FEATURE_DISABLED` (A3); `@ratelimit(key="user", rate="10/h")` → 429 `RATE_LIMITED`; no resolved FMP key → 409 `FMP_NOT_CONFIGURED`; no block → 409 `NO_SCREEN_CRITERIA`; invalid block → 400 `SCREEN_CRITERIA_INVALID`; active run exists → 409 `SCREEN_RUN_ACTIVE`. Else create run, enqueue, **202** `{"data": {"run_id": …}}`, audit `screener.run_requested` (add to `AuditEventType`; entity = strategy id — no criteria payload needed, the run row has it). |
 | `GET …/screen/runs/` | Newest-first, `?limit=` ≤ 20 default 5. Envelope list of run summaries (no `results` — keep list light). |
 | `GET …/screen/runs/{run_id}/` | Full run incl. `results`, `counts`, `degraded`, `error_code`. 404 unless owner. |
+
+**A3 — the flag gates EVERY row above, not just the POST.** The criteria GET
+and both run GETs return 503 `FEATURE_DISABLED` when `SCREENER_ENABLED` is off;
+§6.6 state 1 ("panel hidden") is only observable if the GETs 503 too. The gate
+reads `apps.admin_portal.flags.is_enabled("SCREENER_ENABLED")` so a mutable
+registry override is honored (matching `apps/strategies/views.py::_enabled`).
 
 `@extend_schema(operation_id=…, tags=["screener"])` on every method; regen
 OpenAPI snapshot + `pnpm schema:types` (the ADR-062 flow).
@@ -254,10 +294,13 @@ New standalone `screening-panel.component.ts` embedded in
    `/settings/data-providers` / non-staff ask-admin copy (reuse
    `data_providers.staff_only`).
 5. Ready → criteria chips (from the criteria endpoint — server parse only),
-   **Run screen** button, poll active run every 2s (the backtest detail-page
-   cadence) until terminal, then results table: symbol (mono), name, exchange,
+   **Run screen** button, poll the active run every 2s until terminal **and on
+   component destroy** (A8: a deliberate 2s — runs are seconds-to-a-minute and
+   the run GET is cheap. This is NOT the backtest detail page's cadence, which
+   is 5000ms and exists as a WS-down fallback), then results table: symbol (mono), name, exchange,
    sector, market cap (compact `Intl.NumberFormat`), price, volume, % from 52w
-   high, SMA badges. `degraded=true` → warn chip + per-cause counts line.
+   high, SMA badges. `degraded=true` → warn chip + per-cause counts line
+   (`skipped_rate_limited`, `skipped_unavailable` (A4), `insufficient_history`).
    History: last 5 runs collapsible list.
 
 BBCode renderer (`core/util/tradingview-description.ts`): add `[screen]…[/screen]`
@@ -281,9 +324,14 @@ of the description).
 `SCREEN_RUNS_TOTAL = Counter("screen_runs_total", …, ["result"])` with
 `result ∈ {done, degraded, failed}`; `SCREEN_RUN_DURATION_SECONDS = Histogram`
 (buckets 1–300s). Vendor traffic is already visible as
-`marketdata_requests_total{endpoint="company-screener"}` for free. Wire both
-into the System Health dashboard's Data Pipelines row in a follow-up pass (the
-M04-placeholder-rows pattern — panels can pre-exist the series).
+`marketdata_requests_total{endpoint="company-screener"}` for free.
+
+**A6 — metrics only; no Grafana wiring.** ADR-109 (PR #50) deleted the Data
+Pipelines dashboard and reduced Grafana to the 3-dashboard safety core, so the
+"System Health dashboard's Data Pipelines row" this sentence used to name no
+longer exists (and was never a System-Health row). Ship the counter and the
+histogram and stop there; the series stay queryable in Explore, and whether they
+earn a panel is a future ADR-109-scope decision, recorded in ADR-063.
 
 ### 6.9 Guide + docs
 
@@ -291,8 +339,10 @@ M04-placeholder-rows pattern — panels can pre-exist the series).
 enforces the pair): what the panel does, the full key reference table from
 §6.1, a worked Minervini example, the FMP-key prerequisite with a link to
 `market-regime-setup`'s key section, quota notes (free-tier 250 req/day ⇒ a
-50-candidate derived screen ≈ 51 calls; `docs/runbooks/fmp-rate-limit.md` for
-sustained limits).
+50-candidate derived screen ≈ 51 calls; **A5:** a re-run re-spends them — the
+response cache is a failure fallback, not a 24h dedupe — so the real bounds are
+the 10/h/user throttle and the ≤100 enrichment cap;
+`docs/runbooks/fmp-rate-limit.md` for sustained limits).
 
 ## 7. Tech Stack Notes
 
