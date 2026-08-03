@@ -23,6 +23,9 @@
  *   [quote]…[/quote]          → <blockquote>   block quote
  *   [pine]…[/pine]            → <pre><code>    code block (literal, keeps `close[1]`)
  *   [image]https://x[/image]  → <img>          embedded image (http/https only)
+ *   [screen]…[/screen]        → (nothing)      M16 screening criteria — swallowed
+ *                                              ENTIRELY (tag + inner text); the
+ *                                              Screening panel renders them.
  *
  * Unknown / unsupported BBCode ([u], [color], [size], [font], [h1]-[h6], generic
  * [code], [img], [table], [center], …) is stripped while keeping its inner text —
@@ -152,6 +155,21 @@ export function renderTradingViewDescription(raw: string): string {
     if (pineOpen) {
       emit(`<pre><code>${src.slice(i + pineOpen[0].length)}</code></pre>`);
       i = n;
+      continue;
+    }
+
+    // [screen] … [/screen] — machine-readable screening criteria (M16 §6.1).
+    // SWALLOWED ENTIRELY: the tag *and* its inner text are dropped, unlike the
+    // strip-keep-text default, so the criteria the server parses do not also
+    // double-render as prose (AC-16-10). The panel renders them as chips.
+    //
+    // Note the deliberate difference from [pine] above: an UNCLOSED [screen]
+    // does NOT swallow to end-of-input. It falls through to the generic
+    // tokenizer, which strips the marker and keeps the following text — a
+    // typo'd tag must never make the rest of someone's description vanish.
+    const screen = /^\[screen\]([\s\S]*?)\[\/screen\]/i.exec(rest);
+    if (screen) {
+      i += screen[0].length;
       continue;
     }
 

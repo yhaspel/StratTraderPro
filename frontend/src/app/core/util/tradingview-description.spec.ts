@@ -184,6 +184,63 @@ describe('renderTradingViewDescription', () => {
     });
   });
 
+  describe('[screen] block (M16 §6.6 — swallow entirely)', () => {
+    it('drops the tag AND its inner text, unlike the strip-keep-text default', () => {
+      const out = render('before\n[screen]\nmarket_cap: >= 2B\nlimit: 50\n[/screen]\nafter');
+      expect(out).toContain('before');
+      expect(out).toContain('after');
+      expect(out).not.toContain('market_cap');
+      expect(out).not.toContain('limit');
+      expect(out).not.toContain('screen');
+    });
+
+    it('is case-insensitive like every other tag', () => {
+      expect(render('a[SCREEN]x: 1[/Screen]b')).toBe('ab');
+    });
+
+    it('swallows a block sitting mid-prose without touching the surrounding markup', () => {
+      const out = render('[b]Rules[/b]\n[screen]\nsector: Technology\n[/screen]\n[i]done[/i]');
+      expect(out).toContain('<strong>Rules</strong>');
+      expect(out).toContain('<em>done</em>');
+      expect(out).not.toContain('Technology');
+    });
+
+    it('an UNCLOSED [screen] falls back to strip-keep-text and never eats the rest', () => {
+      // The critical difference from [pine], whose unclosed form swallows to
+      // end-of-input. A typo must not make the rest of a description vanish.
+      const out = render('intro\n[screen]\nmarket_cap: >= 2B\n\nThe rest of the description.');
+      expect(out).toContain('intro');
+      expect(out).toContain('The rest of the description.');
+      expect(out).toContain('market_cap: &gt;= 2B');
+      expect(out).not.toContain('[screen]');
+    });
+
+    it('an orphan [/screen] is stripped without eating anything', () => {
+      const out = render('alpha [/screen] beta');
+      expect(out).toContain('alpha');
+      expect(out).toContain('beta');
+      expect(out).not.toContain('screen');
+    });
+
+    it('only the first block is swallowed; a second one is swallowed too', () => {
+      const out = render('a[screen]x: 1[/screen]b[screen]y: 2[/screen]c');
+      expect(out).toBe('abc');
+    });
+
+    it('does not disturb descriptions that contain no block at all', () => {
+      const src = 'A [b]momentum[/b] strategy with array[0] and the word screening.';
+      expect(render(src)).toBe(
+        'A <strong>momentum</strong> strategy with array[0] and the word screening.',
+      );
+    });
+
+    it('escapes inner content it keeps when the tag is unclosed (no XSS bypass)', () => {
+      const out = render('[screen]\n<script>alert(1)</script>');
+      expect(out).not.toContain('<script>');
+      expect(out).toContain('&lt;script&gt;');
+    });
+  });
+
   describe('realistic combined description', () => {
     it('renders a mixed document correctly', () => {
       const src =
