@@ -212,8 +212,9 @@ staging instance — captured as a follow-up, not a code change.
 | `backtest_failed_total{reason}` | Failures by `error_code`. `BACKTEST_TIME_CAP` dominating ⇒ jobs too big; `BACKTEST_INSUFFICIENT_DATA` ⇒ backfill gaps (§6). |
 | `backtest_artifact_bytes` (gauge) | Total stored artifact bytes. Trending toward the ~5 GB R2 revisit trigger ⇒ ADR follow-up. |
 
-The **Backtest Ops** Grafana dashboard (`infra/grafana/backtest-ops-dashboard.json`)
-charts all six; "live on staging" is operator-deferred (M10 §6.5 wires the alerts).
+The Backtest Ops dashboard and the three backtest alert rules were retired by
+ADR-109 — all six `backtest_*` series above remain exported and are queryable
+ad hoc in Grafana Cloud → Explore when debugging with this runbook.
 
 ## §10 — Verify recovery
 

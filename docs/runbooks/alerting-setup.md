@@ -15,10 +15,10 @@ scraped so the alerts have data), `infra/grafana-agent/README.md`,
 
 ## What ships in the repo
 
-- **Six dashboards** — `infra/grafana/`:
+- **Three dashboards** — `infra/grafana/`:
   `trading-ops-dashboard.json`, `risk-ops-dashboard.json`,
-  `data-pipelines-dashboard.json`, `backtest-ops-dashboard.json`,
-  `auth-health-dashboard.json`, `system-health-dashboard.json`.
+  `system-health-dashboard.json`. (Auth Health, Data Pipelines and Backtest Ops
+  were retired by ADR-109.)
 - **Alert rules** — `infra/grafana/alerts/alert-rules.yaml` (the rules triaged in
   `incident-triage.md`).
 - **Contact points** — `infra/grafana/alerts/contact-points.yaml` (email +
@@ -30,7 +30,7 @@ A pytest (`config/test_alert_rules.py`) already guarantees every series referenc
 in `alert-rules.yaml` is a real exported metric — so import failures here are about
 credentials/wiring, not typos.
 
-## Step 1 — Import the six dashboards
+## Step 1 — Import the three dashboards
 
 For each JSON in `infra/grafana/`: Grafana Cloud → Dashboards → New → Import →
 "Upload JSON file" (or paste). Point the `Prometheus` datasource variable at your
@@ -69,7 +69,7 @@ outage still pages by email.
   `severity =~ "critical|warning"` to email. Net effect: **critical → email +
   Telegram, warning → email**.
 - **Alert rules** (`alert-rules.yaml`): Grafana Cloud → Alerting → import / provision.
-  The groups (`trading-ops`, `risk-and-queues`, `platform-and-audit`, `backtest-ops`,
+  The groups (`trading-ops`, `risk-and-queues`, `platform-and-audit`,
   `observability-liveness`) land in the `StratTraderPro` folder. `usage-alerts.yaml`
   is a separate file that must be imported against the **`grafanacloud-usage`**
   datasource, not `grafanacloud-prom`.
@@ -166,9 +166,10 @@ signal without a fabricated Prometheus series. Point it at the same operator inb
 ## Verify the whole thing is live
 
 - `up{service="backend"}` = 1 in Explore (agent scraping — `grafana-agent/README.md`).
-- The six dashboards render with data (task-process/exporter panels populate once
+- The three dashboards render with data (task-process panels populate once
   `worker-metrics-scrape.md` is done).
-- Alerting UI shows the four rule groups in the `StratTraderPro` folder, `Normal`.
+- Alerting UI shows the five rule groups (four safety-core groups from
+  `alert-rules.yaml` + `grafana-cloud-usage`) in the `StratTraderPro` folder, `Normal`.
 - A forced sample alert reached email (+ Telegram for critical).
 - A Sentry test error links to its Tempo trace.
 - A Railway deploy produced a notification.

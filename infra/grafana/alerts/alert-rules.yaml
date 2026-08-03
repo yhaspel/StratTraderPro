@@ -1,9 +1,11 @@
-# StratTraderPro alert rules (M10 §6.5g, AC-10-9).
+# StratTraderPro alert rules (M10 §6.5g, AC-10-9 — reduced to the safety core
+# by ADR-109, 2026-08).
 #
-# These are the reconciled master-plan §9 rules + the three M09 backtest rules
-# + the M10 additions, expressed as PromQL. A pytest cross-check
-# (apps/audit ... test_alert_rules) verifies every referenced series against the
-# metric names exported by the codebase, so a renamed/removed metric fails CI.
+# Post-OSS-pivot safety core: money-in-flight, instance-integrity, and
+# pipeline-liveness rules only (ADR-109 records what was retired and why).
+# A pytest cross-check (config/test_alert_rules.py) verifies every referenced
+# series against the metric names exported by the codebase, so a
+# renamed/removed metric fails CI.
 #
 # The exact Grafana unified-alerting provisioning payload (uid/condition/data)
 # is generated on import; contact points + notification policy live alongside
@@ -34,11 +36,6 @@ groups:
         for: 2m
         labels: {severity: critical}
         annotations: {summary: "Broker trade-updates stream silent > 2 min"}
-      - alert: OrderSubmitLatencyHigh
-        expr: histogram_quantile(0.95, sum(rate(order_submit_latency_seconds_bucket[10m])) by (le)) > 2
-        for: 10m
-        labels: {severity: warning}
-        annotations: {summary: "Order submit p95 > 2s (10m)"}
       - alert: KillSwitchFlattenSlow
         expr: histogram_quantile(0.99, sum(rate(killswitch_flatten_latency_seconds_bucket[10m])) by (le)) > 5
         for: 5m
@@ -59,16 +56,6 @@ groups:
         for: 0m
         labels: {severity: critical}
         annotations: {summary: "Kill switch triggered"}
-      - alert: SentimentLag
-        expr: sentiment_queue_oldest_age_minutes > 30
-        for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "Sentiment scoring lag > 30 min"}
-      - alert: HMMModelStale
-        expr: regime_model_age_seconds > 172800
-        for: 30m
-        labels: {severity: warning}
-        annotations: {summary: "HMM model age > 48h (weekend mute documented)"}
 
   - name: platform-and-audit
     folder: StratTraderPro
@@ -79,73 +66,6 @@ groups:
         for: 0m
         labels: {severity: critical}
         annotations: {summary: "Audit-log integrity check FAILED (page — freeze audit trust)"}
-      - alert: DBConnectionSaturation
-        # Railway managed Postgres does not expose CPU via the exporter; alert on
-        # a connection-count saturation proxy. Actual CPU alert = Railway dashboard.
-        #
-        # ---------------------------------------------------------------------
-        # FIXED 2026-07-13 — this rule COULD NEVER FIRE. It was inert from the day
-        # it was written, and it reported itself healthy the entire time.
-        #
-        # The old expression divided the two series directly:
-        #
-        #     pg_stat_activity_count / pg_settings_max_connections > 0.8
-        #
-        # PromQL vector-to-vector binary ops match on the FULL label set. But:
-        #
-        #     pg_stat_activity_count      {env, job, instance, service, cluster,
-        #                                  datname, state, usename, backend_type,
-        #                                  wait_event, wait_event_type}
-        #     pg_settings_max_connections {env, job, instance, service, cluster}
-        #
-        # The left side carries six labels the right side does not, so NOTHING ever
-        # matched and the expression returned an empty vector — every evaluation,
-        # forever. Verified against live data: the expression returns 0 series both
-        # today and 2h before the exporter keep-list landed, while both inputs are
-        # present (48 and 2 series). So this is NOT fallout from the keep-list; it
-        # is original.
-        #
-        # And of course the rule is self-filtering (the `> 0.8` lives inside the
-        # PromQL), so empty -> NoData -> noDataState=OK -> "Normal". A dead alert,
-        # permanently green. Same family as BUG-008/BUG-009/BUG-011: the failure
-        # disabled its own detector.
-        #
-        # Fix: aggregate BOTH sides down to a common label set (env) before
-        # dividing, so the match can actually succeed. Verified live:
-        # production 2/100 = 0.02, staging 2/100 = 0.02.
-        # ---------------------------------------------------------------------
-        expr: |
-          sum by (env) (pg_stat_activity_count)
-          / max by (env) (pg_settings_max_connections) > 0.8
-        for: 5m
-        labels: {severity: warning}
-        annotations:
-          summary: "Postgres connections > 80% of max ({{ $labels.env }})"
-          description: >-
-            Connection-count saturation proxy. Both sides are aggregated to `env`
-            before dividing — dividing the raw series never matches (see the
-            comment above; it left this rule unable to fire for its whole life).
-
-  - name: backtest-ops
-    folder: StratTraderPro
-    interval: 1m
-    rules:
-      - alert: BacktestQueueWaitHigh
-        expr: histogram_quantile(0.95, sum(rate(backtest_queue_wait_seconds_bucket[15m])) by (le)) > 600
-        for: 15m
-        labels: {severity: warning}
-        annotations: {summary: "Backtest queue wait p95 > 10 min (worker-backtest missing?)"}
-      - alert: BacktestFailureRate
-        expr: increase(backtest_failed_total[1h]) > 3
-        for: 0m
-        labels: {severity: warning}
-        annotations: {summary: "Backtest failures > 3 in 1h"}
-      - alert: BacktestArtifactBloat
-        expr: backtest_artifact_bytes > 5e9
-        for: 30m
-        labels: {severity: warning}
-        annotations: {summary: "Backtest artifact storage > 5 GB"}
-
   # ---------------------------------------------------------------------------
   # BUG-008 — dead-man's switch. DO NOT DELETE.
   #
@@ -158,8 +78,8 @@ groups:
   #     "no series because nothing is being scraped" (BLIND)
   #
   # are indistinguishable. Before these rules existed, killing the agent — or
-  # breaking /metrics basic auth, or an exporter dying, or hitting the ingestion
-  # cap — would have turned all 17 rules green and paged nobody. For a trading
+  # breaking /metrics basic auth, or hitting the ingestion cap — would have
+  # turned all rules green and paged nobody. For a trading
   # bot, KillSwitchTriggered and AuditIntegrityFailure failing *silently open* is
   # the worst available failure mode.
   #
@@ -207,61 +127,3 @@ groups:
           description: >-
             The agent reached this target but the scrape failed. Any alert rule that
             depends on this service's metrics is now blind.
-
-  # -------------------------------------------------------------------------
-  # SLO error-budget burn-rate alerts (M11 §13). Multi-window multi-burn-rate
-  # (Google SRE workbook) on the webhook/API availability SLO (target 99.9%,
-  # error budget = 0.001). Fast burn pages within minutes on an acute outage;
-  # slow burn warns on a sustained low-grade error rate that will exhaust the
-  # 30-day budget. Both use django_http_responses_total_by_status_total (the
-  # django-prometheus series, already in the test-cross-check external set).
-  #
-  # BUG-009: these rules — like every rule — import into Grafana Cloud PAUSED by
-  # default. After import the operator MUST assert `isPaused == false` via the
-  # Grafana API (docs/runbooks/alerting-setup.md). A paused rule reports health:ok
-  # forever; its self-report is worthless.
-  - name: slo-burn-rate
-    folder: StratTraderPro
-    interval: 1m
-    rules:
-      - alert: ApiErrorBudgetFastBurn
-        # 14.4x burn over 1h AND 5m (both windows must agree — kills flapping).
-        # 14.4x consumes 2% of a 30-day budget in 1h.
-        expr: |
-          (
-            sum(rate(django_http_responses_total_by_status_total{status=~"5.."}[1h]))
-            / sum(rate(django_http_responses_total_by_status_total[1h]))
-          ) > (14.4 * 0.001)
-          and
-          (
-            sum(rate(django_http_responses_total_by_status_total{status=~"5.."}[5m]))
-            / sum(rate(django_http_responses_total_by_status_total[5m]))
-          ) > (14.4 * 0.001)
-        for: 2m
-        labels: {severity: critical}
-        annotations:
-          summary: "API error-budget FAST burn (14.4x, 1h+5m) — 99.9% availability SLO"
-          description: >-
-            The 5xx rate is burning the 30-day error budget 14.4x too fast over both
-            the 1h and 5m windows. At this rate the month's budget is gone in ~2 days.
-            Runbook: docs/runbooks/incident-triage.md, docs/slo.md.
-      - alert: ApiErrorBudgetSlowBurn
-        # 6x burn over 6h AND 30m. Warns (not pages) on a sustained low-grade leak.
-        expr: |
-          (
-            sum(rate(django_http_responses_total_by_status_total{status=~"5.."}[6h]))
-            / sum(rate(django_http_responses_total_by_status_total[6h]))
-          ) > (6 * 0.001)
-          and
-          (
-            sum(rate(django_http_responses_total_by_status_total{status=~"5.."}[30m]))
-            / sum(rate(django_http_responses_total_by_status_total[30m]))
-          ) > (6 * 0.001)
-        for: 15m
-        labels: {severity: warning}
-        annotations:
-          summary: "API error-budget SLOW burn (6x, 6h+30m) — 99.9% availability SLO"
-          description: >-
-            A sustained low-grade 5xx rate is burning the error budget 6x too fast.
-            Not an outage, but the month's budget will be exhausted if it persists.
-            Runbook: docs/runbooks/incident-triage.md, docs/slo.md.

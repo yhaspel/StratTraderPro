@@ -2,6 +2,9 @@
 
 **Date:** 2026-07-10
 **Status:** Accepted
+**Amended by:** ADR-109 (2026-08) — exporters removed, rule set reduced to the
+safety core, dashboards 6 → 3. The topology below (§1, §2, §4, §5, §6) stands;
+§3's exporter half is retired.
 **Milestone:** M10 — Admin Portal, Audit Log & Observability
 **Reference:** `project-plan/10-admin-audit-observability.md` §6.5, §6.6; AC-10-8…AC-10-12;
 `config/metrics_endpoint.py`, `config/otel.py`, `config/celery.py`,

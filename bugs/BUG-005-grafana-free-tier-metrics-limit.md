@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | S3 — misleading, with a real degradation path into S1 |
-| **Status** | **FIXED** in code (`scrape_interval: 60s`) — awaiting agent deploy |
+| **Status** | **FIXED + deployed** (`scrape_interval: 60s` live; verified in the M10/M11 operator passes — DPM fell 1.98 → 0.96). The interval is CI-guarded (`ScrapeIntervalBudgetTests`) and triaged via `MetricsBudgetHigh/Exhausted` |
 | **Area** | Observability / Ops / cost |
 | **Found** | 2026-07-11, visible as a banner across the Grafana Cloud UI |
 

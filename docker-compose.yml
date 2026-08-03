@@ -148,25 +148,6 @@ services:
       redis:
         condition: service_healthy
 
-  # ---------- Prometheus exporters (M10 §6.5d) ----------
-  # Local parity for the DB/Redis saturation alerts. On Railway these are
-  # separate operator-provisioned services (docs/runbooks/worker-metrics-scrape.md).
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter
-    environment:
-      DATA_SOURCE_NAME: "postgresql://stp_user:stp_local_pw@postgres:5432/strattraderpro?sslmode=disable"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  redis-exporter:
-    image: oliver006/redis_exporter
-    environment:
-      REDIS_ADDR: "redis://redis:6379"
-    depends_on:
-      redis:
-        condition: service_healthy
-
   # ---------- Websocket ASGI server (M04 §6.6) ----------
   # Serves /ws/dashboard/ via daphne (the HTTP backend stays WSGI/gunicorn).
   ws:
