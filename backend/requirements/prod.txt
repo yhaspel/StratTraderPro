@@ -5,7 +5,7 @@
 # smuggling via improper Transfer-Encoding header validation). Trivy fails CI
 # on HIGH with a fixed version available.
 gunicorn>=22.0.0,<23.0
-uvicorn[standard]>=0.27,<0.28
+uvicorn[standard]>=0.27,<0.47
 
 # Static files
 whitenoise>=6.6,<6.7

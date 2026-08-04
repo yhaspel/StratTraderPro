@@ -10,7 +10,7 @@ COPY frontend/ .
 RUN npm run build -- --configuration production
 
 # ---------- Stage 2: Serve with nginx ----------
-FROM nginx:1.27-alpine
+FROM nginx:1.29-alpine
 
 # Drop the stock default site so our template wins
 RUN rm /etc/nginx/conf.d/default.conf

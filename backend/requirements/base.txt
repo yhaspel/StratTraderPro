@@ -36,7 +36,7 @@ opentelemetry-instrumentation-celery==0.64b0
 opentelemetry-instrumentation-redis==0.64b0
 opentelemetry-instrumentation-psycopg2==0.64b0
 opentelemetry-instrumentation-httpx==0.64b0
-python-json-logger>=2.0,<2.1
+python-json-logger>=2.0,<4.2
 # M10 §6.6 — request-id correlation (ULID) across web → Celery → logs → Sentry.
 python-ulid>=3.0,<4.0
 
