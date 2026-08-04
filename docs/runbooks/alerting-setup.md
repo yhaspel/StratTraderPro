@@ -70,7 +70,14 @@ outage still pages by email.
   Telegram, warning → email**.
 - **Alert rules** (`alert-rules.yaml`): Grafana Cloud → Alerting → import / provision.
   The groups (`trading-ops`, `risk-and-queues`, `platform-and-audit`,
-  `observability-liveness`) land in the `StratTraderPro` folder. `usage-alerts.yaml`
+  `observability-liveness`) land in a **subfolder of `StratTraderPro` named after
+  the file you upload** (live today: `StratTraderPro/stp-alert-rules.prom.yaml`) —
+  the converter names the folder after the uploaded filename, and
+  `GET /api/folders` does **not** list subfolders, so resolve a rule's
+  `folderUID` via `GET /api/folders/{uid}` before asserting on it.
+  ⚠️ Re-importing under a different filename creates a *second* subfolder and
+  leaves the old rules standing — an import **duplicates, it does not
+  reconcile**. To retire rules, delete them in place. `usage-alerts.yaml`
   is a separate file that must be imported against the **`grafanacloud-usage`**
   datasource, not `grafanacloud-prom`.
 
@@ -169,7 +176,8 @@ signal without a fabricated Prometheus series. Point it at the same operator inb
 - The three dashboards render with data (task-process panels populate once
   `worker-metrics-scrape.md` is done).
 - Alerting UI shows the five rule groups (four safety-core groups from
-  `alert-rules.yaml` + `grafana-cloud-usage`) in the `StratTraderPro` folder, `Normal`.
+  `alert-rules.yaml` + `grafana-cloud-usage`) under `StratTraderPro/` — inside the
+  converter's filename-derived subfolder, not the parent — all `Normal`.
 - A forced sample alert reached email (+ Telegram for critical).
 - A Sentry test error links to its Tempo trace.
 - A Railway deploy produced a notification.
