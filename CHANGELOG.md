@@ -69,6 +69,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   UI-stored keys alone, validate-before-persist, never-echo, staff/MFA gates, audit rows) +
   7 karma specs for the Settings page. MFA sweep test now covers `/marketdata/keys/`.
 
+### Fixed — ADR-109 follow-ups: the alert-rule folder is a *subfolder*, and re-import duplicates
+
+- **A rule import creates a folder named after the file you upload**, not `StratTraderPro` itself
+  (live today: `StratTraderPro/stp-alert-rules.prom.yaml`). `GET /api/folders` does **not** list
+  subfolders, so any check that resolves a rule's `folderUID` has to go through
+  `GET /api/folders/{uid}` — otherwise it concludes the rules are missing when they are fine.
+- **Re-importing duplicates rather than reconciles.** Uploading under a different filename creates a
+  *second* subfolder and leaves the original rules standing — which would silently double the live
+  alert-rule set of the system that pages on money in flight. Rules are retired by deleting them in
+  place. Recorded in `docs/adr/109-observability-reduced-scope.md` and both places in
+  `docs/runbooks/alerting-setup.md` that told an operator to expect a flat `StratTraderPro` folder.
+- **AC-R5 was unsatisfiable as written** — it asserted `StratTraderPro` folder only, which the
+  converter's layout can never satisfy. Reworded to match reality and to say how to verify it.
+
 ### Changed — Observability reduced to the safety core (ADR-109)
 - **Alert rules 18 → 9 in `alert-rules.yaml`** (+2 unchanged usage-budget rules = 11
   as code). Retired: `OrderSubmitLatencyHigh`, `SentimentLag`, `HMMModelStale`,
