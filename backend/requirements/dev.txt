@@ -9,7 +9,7 @@ ipython>=8.0
 
 # Linting / Formatting
 ruff>=0.2
-bandit>=1.7,<1.8
+bandit>=1.7,<1.10
 
 # Testing
 pytest>=7.4
