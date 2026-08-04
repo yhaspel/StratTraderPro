@@ -118,6 +118,7 @@ LOCAL_APPS = [
     "apps.marketdata",
     "apps.audit",
     "apps.admin_portal",
+    "apps.screener",
 ]
 
 # M04 — Django Channels. ``daphne`` MUST precede django.contrib.staticfiles so
@@ -540,6 +541,14 @@ BACKTEST_ENABLED = env.bool("BACKTEST_ENABLED", default=True)
 # ADMIN_PORTAL_DISABLED and the frontend hides /admin. Audit emission is never
 # gated by this (writes continue). Rollback without redeploy (§15).
 ADMIN_PORTAL_ENABLED = env.bool("ADMIN_PORTAL_ENABLED", default=True)
+
+# ---------------------------------------------------------------------------
+# Strategy screener (M16)
+# ---------------------------------------------------------------------------
+# Rollback flag (plan §15): off -> every /api/v1/strategies/{id}/screen/*
+# endpoint returns 503 FEATURE_DISABLED and the panel hides itself, with zero
+# vendor spend. No deploy needed — it is a mutable flag.
+SCREENER_ENABLED = env.bool("SCREENER_ENABLED", default=True)
 # Operator address the nightly integrity verifier pages on a failure (AC-10-2).
 AUDIT_ALERT_EMAIL = env("AUDIT_ALERT_EMAIL", default="")
 # Read-only impersonation token/session TTL (AC-10-7).
@@ -573,6 +582,7 @@ FEATURE_FLAGS_REGISTRY = {
     "KILL_SWITCHES_ENABLED": _flag(KILL_SWITCHES_ENABLED, "Kill-switch engine.", mutable=False),
     "BACKTEST_ENABLED": _flag(BACKTEST_ENABLED, "Walk-forward backtester."),
     "ADMIN_PORTAL_ENABLED": _flag(ADMIN_PORTAL_ENABLED, "Admin portal API.", mutable=False),
+    "SCREENER_ENABLED": _flag(SCREENER_ENABLED, "Strategy screener (FMP)."),
 }
 
 # ---------------------------------------------------------------------------

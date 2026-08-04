@@ -23,6 +23,9 @@
  *   [quote]…[/quote]          → <blockquote>   block quote
  *   [pine]…[/pine]            → <pre><code>    code block (literal, keeps `close[1]`)
  *   [image]https://x[/image]  → <img>          embedded image (http/https only)
+ *   [screen]…[/screen]        → (nothing)      M16 screening criteria — swallowed
+ *                                              ENTIRELY (tag + inner text); the
+ *                                              Screening panel renders them.
  *
  * Unknown / unsupported BBCode ([u], [color], [size], [font], [h1]-[h6], generic
  * [code], [img], [table], [center], …) is stripped while keeping its inner text —
@@ -89,6 +92,18 @@ function cleanupBlockBreaks(html: string): string {
     .replace(new RegExp(`(<(?:${BLOCK})>)(?:[ \\t]*<br>)+`, 'g'), '$1');
 }
 
+/**
+ * Is `idx` the first non-blank position on its line? Walks back over spaces and
+ * tabs only, so it is O(indent) per call, not O(n).
+ */
+function atLineStart(src: string, idx: number): boolean {
+  let k = idx - 1;
+  while (k >= 0 && (src[k] === ' ' || src[k] === '\t')) {
+    k--;
+  }
+  return k < 0 || src[k] === '\n';
+}
+
 export function renderTradingViewDescription(raw: string): string {
   if (!raw) {
     return '';
@@ -152,6 +167,28 @@ export function renderTradingViewDescription(raw: string): string {
     if (pineOpen) {
       emit(`<pre><code>${src.slice(i + pineOpen[0].length)}</code></pre>`);
       i = n;
+      continue;
+    }
+
+    // [screen] … [/screen] — machine-readable screening criteria (M16 §6.1).
+    // SWALLOWED ENTIRELY: the tag *and* its inner text are dropped, unlike the
+    // strip-keep-text default, so the criteria the server parses do not also
+    // double-render as prose (AC-16-10). The panel renders them as chips.
+    //
+    // The opening tag must START ITS OWN LINE, matching the server parser
+    // exactly (`_OPEN_RE` in apps/screener/criteria.py). A `[screen]` inside a
+    // sentence is a mention, not a block — the authoring guide tells people to
+    // "add a [screen] block", and if the two layers disagreed about that, an
+    // inline mention would be swallowed from the prose while the server
+    // reported no block, silently eating the author's text.
+    //
+    // Note the deliberate difference from [pine] above: an UNCLOSED [screen]
+    // does NOT swallow to end-of-input. It falls through to the generic
+    // tokenizer, which strips the marker and keeps the following text — a
+    // typo'd tag must never make the rest of someone's description vanish.
+    const screen = /^\[screen\]([\s\S]*?)\[\/screen\]/i.exec(rest);
+    if (screen && atLineStart(src, i)) {
+      i += screen[0].length;
       continue;
     }
 

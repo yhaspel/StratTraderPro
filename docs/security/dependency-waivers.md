@@ -102,6 +102,36 @@ bundle), so `main` too would fail this gate until they are listed:
 None appear in the shipped SPA; the real fix remains the deferred Angular 21 toolchain
 upgrade (Dependabot #9).
 
+*Addendum — 2026-08-04 (M16 integration):* six more IDs, again with **no dependency change**
+(`pnpm-lock.yaml` and `package.json` dependency sets are byte-identical to the ones `main` was
+green on).  The gate had been green on this exact lockfile at 05:37Z on 2026-08-03 and was red
+by ~23:00Z the same day, so `main`, PR #52 and every open branch failed it simultaneously — the
+advisory database moved, the repository did not.  One of the six (`ip-address`) appeared during
+the ~2h of this integration alone, which is the reason this list is re-checked at each merge
+rather than trusted.
+
+Four are the familiar **Category 2** (build/test-time transitive, absent from the `ng build`
+bundle), and the dependency path was traced with `pnpm why` in each case rather than assumed:
+
+| GHSA | Package | Path (`pnpm why`) | Why N/A |
+|---|---|---|---|
+| GHSA-rgw5-rvv9-x895 | `brace-expansion` 1.1.14 / 2.1.0 | `minimatch` → `glob` → `karma`/`rimraf`; `minimatch` → `@redocly/openapi-core` → `openapi-typescript` | Test runner + the OpenAPI type generator. Explicitly supersedes the already-waived GHSA-3jxr-9vmj-r5cp / GHSA-mh99-v99m-4gvg (it bypasses their mitigation), same package, same reasoning. |
+| GHSA-7p8r-x3mc-p8w7 | `fast-uri` 3.1.0 | `ajv` → `@angular-devkit/core` / `schema-utils` | Build-time JSON-schema validation of `angular.json`. Third sibling on this package after GHSA-4c8g-83qw-93j6 / GHSA-v2hh-gcrm-f6hx. |
+| GHSA-mwp4-54f8-5fhr | `ip-address` 10.2.0 | `socks` → `socks-proxy-agent` → `@npmcli/agent` | npm's own network agent — only reachable while *installing* packages, never in the SPA. |
+| GHSA-2m8v-j782-fhvr | `socket.io-parser` 4.2.6 | `socket.io` → `karma` | The karma dev server's browser channel; test-time only. |
+
+Two touch packages that **are** shipped (`@angular/common`, `@angular/core`,
+`@angular/compiler`), so they get feature-level justification rather than a
+not-in-the-bundle argument:
+
+| GHSA | What | Why N/A here (verified, not assumed) |
+|---|---|---|
+| GHSA-jhpw-976m-542j | Cache-key ambiguity in `HttpTransferCache` → cross-request response reuse | Third advisory on the **SSR-only** transfer cache after the already-waived GHSA-39pv-4j6c-2g6v / GHSA-rgjc-h3x7-9mwg. Re-verified on this tree: `provideClientHydration`, `@angular/ssr`, `platform-server`, `TransferCache` and `TransferState` return **0 hits** across `src/`, `package.json` and `angular.json`. The feature cannot be switched on. |
+| GHSA-jj27-h5hq-8x99 | Angular **i18n**: XSS via event-handler attributes in translated messages | The app localises with **ngx-translate**, not Angular's built-in i18n. `@angular/localize` is **not a dependency at all** (`pnpm why` finds nothing; no `localize`/`ssr` entry in `package.json`). Decisively: the i18n runtime marker `ɵɵi18n` appears in **0 of the 72 built bundle files**, so no i18n instruction is compiled into the app and the vulnerable path is unreachable. The single `$localize` occurrence in the bundle is Angular's defensive `typeof $localize < "u" && $localize.locale` guard in the `LOCALE_ID` factory, which resolves to the default locale precisely because the runtime is absent. |
+
+The two Angular entries are fixed only in 20.3.27+ / 21.2.19+ — the same two-major upgrade
+already deferred as Dependabot **#9**, and still the real fix. Revisit at that upgrade.
+
 ## Dependabot triage (13 open PRs, counted 2026-07-12)
 
 The freeze-time estimate of "~5" was low. Disposition of each:

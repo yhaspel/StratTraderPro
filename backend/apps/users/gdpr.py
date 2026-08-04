@@ -70,6 +70,7 @@ def _export_sections(user) -> dict[str, Any]:
     from apps.brokers.models import BrokerAccount, TradingHalt
     from apps.orders.models import Fill, Order, Position, ReconEvent
     from apps.risk.models import RiskEvent, SizingDecision
+    from apps.screener.models import ScreenRun
     from apps.strategies.models import Strategy, WebhookConfig
     from apps.webhooks.models import AlertMessage
 
@@ -109,6 +110,10 @@ def _export_sections(user) -> dict[str, Any]:
         "sizing_decisions.json": _serialize_qs(SizingDecision.objects.filter(user=user)),
         "risk_events.json": _serialize_qs(RiskEvent.objects.filter(user=user)),
         "backtests.json": _serialize_qs(BacktestRun.objects.filter(user=user)),
+        # M16/A2 — screener runs are per-user personal data; this allowlist is
+        # hand-enumerated, so a new user-owned table is invisible to the export
+        # until it is added here.
+        "screen_runs.json": _serialize_qs(ScreenRun.objects.filter(user=user)),
         "audit_log.json": _audit_rows(user),
     }
     return sections
@@ -140,6 +145,7 @@ _README = (
     "  alerts.json            Inbound webhook alerts\n"
     "  sizing_decisions.json / risk_events.json / trading_halts.json   Risk records\n"
     "  backtests.json         Backtest runs\n"
+    "  screen_runs.json       Strategy screener runs\n"
     "  audit_log.json         Your entries in the tamper-evident audit log\n"
 )
 

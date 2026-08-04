@@ -11,12 +11,19 @@ import { firstValueFrom } from 'rxjs';
 import { StrategiesApi } from '../../../core/services/strategies.api';
 import { Strategy } from '../../../core/models/strategies.models';
 import { StatusChipComponent } from '../../shared/ui/status-chip.component';
+import { ScreeningPanelComponent } from './screening-panel.component';
 import { renderTradingViewDescription } from '../../../core/util/tradingview-description';
 
 @Component({
   selector: 'app-strategies-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, TranslateModule, StatusChipComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    TranslateModule,
+    StatusChipComponent,
+    ScreeningPanelComponent,
+  ],
   template: `
     <div class="mx-auto max-w-4xl p-6">
       <a routerLink="/strategies"
@@ -69,6 +76,10 @@ import { renderTradingViewDescription } from '../../../core/util/tradingview-des
         } @else {
           <p class="text-sm text-neutral-700">{{ 'strategies.detail.description_empty' | translate }}</p>
         }
+
+        <!-- M16 — Screening panel sits directly under the description it is
+             driven by (the [screen] block lives in that description). -->
+        <app-screening-panel [strategyId]="s.id" />
 
         <h2 class="mt-6 mb-2 font-heading text-lg font-semibold text-ink" id="tmpl-heading">{{ 'strategies.detail.webhook_template' | translate }}</h2>
         <p class="mb-2 text-[13px] text-neutral-700">{{ 'strategies.detail.webhook_template_hint' | translate }}</p>

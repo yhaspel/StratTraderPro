@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Strategy Screener: turn a description's universe rules into a runnable screen (M16)
+
+- **A `[screen]` block in a strategy description is now executable.** Authors already
+  described the universe they wanted in prose ("liquid large caps above the 200-day, near
+  52-week highs"); M16 makes that machine-readable. Add a small `[screen]` block to the
+  description and `/strategies/:id` grows a **Screening** panel: parsed criteria as chips, a
+  **Run screen** button, and a ranked candidate table.
+- **Deterministic, not clever.** Criteria come from a strict `key: value` grammar parsed
+  server-side — no LLM, no second parser in TypeScript, no separate criteria editor to drift
+  out of sync with the description. Unknown keys are line-numbered errors rather than
+  warnings, because a typo that silently widens a screen is worse than one that fails.
+  15 keys: `market_cap`, `price`, `volume`, `beta`, `dividend` (with `>=`/`<=`/`A..B` and
+  K/M/B/T suffixes), `sector`, `industry`, `exchange`, `country`, `etf`, `above_sma`,
+  `sma_rising`, `near_52w_high`, `min_history`, `limit`.
+- **Two stages, one vendor call.** Vendor-side filters go out in a single new
+  `/company-screener` request (ADR-063, adopted under the ADR-061 vendor-change gate); the
+  derived filters (SMA 50/200, SMA-200 slope, 52-week-high proximity) are computed locally
+  from daily bars, which are also upserted into the shared `Bar` store. Enrichment is hard-
+  capped at 100 candidates and ranking is fully deterministic — identical inputs produce a
+  byte-identical result set, ties broken on symbol.
+- **Degrades instead of lying.** A rate limit or an outage part-way through enrichment
+  finishes the run `DONE` with `degraded=true` and per-cause counts
+  (`skipped_rate_limited`, `skipped_unavailable`, `insufficient_history`) rather than
+  truncating silently or 5xx-ing. A single bad ticker skips that symbol and keeps going; only
+  a screener call that fails with a cold cache fails the run.
+- **Bounded by design.** 10 runs/user/hour, one active run per (user, strategy) enforced by a
+  partial unique index as well as a pre-check, `limit ≤ 100`, and a 240s task soft limit.
+  Rollback is the mutable `SCREENER_ENABLED` flag: off means every screener endpoint 503s,
+  the panel hides itself, and vendor spend goes to zero with no deploy.
+- Screening activates only once an FMP key is configured (Settings → Data Providers or
+  `FMP_API_KEY`, ADR-062); without one the panel says so and links staff straight to the
+  settings page instead of failing on click.
+- New authoring guide `strategy-screening` (full key reference, a worked Minervini example,
+  quota maths); `docs/runbooks/fmp-rate-limit.md` gains a section on screening as a new burst
+  source; screener runs are included in the GDPR personal-data export.
+- Honest note on quota: the FMP response cache is a **failure fallback**, not a read-through
+  cache, so re-running a screen re-spends its calls. The real bounds are the throttle and the
+  enrichment cap, and the guide/runbook say so.
+
 ### Added — FMP/FRED keys are now settable in the UI (Settings → Data Providers, ADR-062)
 - **New page `/settings/data-providers`** (user menu → *Data providers*): one instance-wide
   set of FMP + FRED API keys, staff-editable, stored Fernet-wrapped with the platform KEK

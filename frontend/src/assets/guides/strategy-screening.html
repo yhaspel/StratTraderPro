@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Guide — Screening for candidates</title>
+</head>
+<body>
+
+<h1>Screening for candidates</h1>
+
+<p>A strategy description usually says, in prose, what kind of instrument the
+strategy wants — "liquid large caps above the 200-day, near their 52-week highs".
+The <em>Screening</em> panel on a strategy's page makes that executable. You add a
+small <code>[screen]</code> block to the description; the panel shows the parsed
+criteria and a <strong>Run screen</strong> button; pressing it runs one screening
+call against Financial Modeling Prep (FMP) plus a local pass over daily bars, and
+returns a ranked candidate list.</p>
+
+<p>Candidates are <strong>information only</strong>. Nothing is ordered, enabled,
+watch-listed or backtested as a result of a screen.</p>
+
+<h2>Before you start: the instance needs an FMP key</h2>
+
+<p>Screening spends the instance's FMP key — there are no per-user keys. If none
+is configured, the panel says so and the Run button is disabled.</p>
+
+<ul>
+  <li><strong>Staff users:</strong> paste a key at
+  <a href="/settings/data-providers">Settings &rarr; Data Providers</a>. It is
+  validated against the vendor before it is saved, stored encrypted, and takes
+  effect on every service immediately — no redeploy. The same page's FMP entry is
+  described step by step under <em>Fixing it</em> in
+  <a href="/guides/market-regime-setup">Why Market Regime says "no data"</a>.</li>
+  <li><strong>Everyone else:</strong> ask whoever runs your instance. The panel
+  shows the same message without the link.</li>
+  <li><strong>FRED is irrelevant here.</strong> A missing FRED key blocks the
+  market-regime pipeline, never a screen.</li>
+</ul>
+
+<p>One more prerequisite belongs to the operator, not to you: the screener endpoint
+is not on every FMP plan. This app assumes the premium tier. A key on a plan that
+excludes the screener produces a failed run with <code>FMP_UNAVAILABLE</code> —
+see the error table below.</p>
+
+<h2>Where the block goes</h2>
+
+<p>Inside the strategy's <strong>description</strong> file — the same DESC file you
+upload with the Pine script and the webhook template. Anywhere in it: before the
+prose, after it, or in the middle. Rules:</p>
+
+<ul>
+  <li><strong>The opening <code>[screen]</code> must start its own line</strong>
+  (indenting it is fine). This is what lets you talk <em>about</em> the block in
+  your prose — a sentence like "add a <code>[screen]</code> block here" is a
+  mention, not a second block, and so is a <code>#</code> comment inside the
+  block or a <code>[screen]</code> quoted in a <code>[pine]</code> sample. A
+  block written inline in the middle of a sentence is treated as prose, by both
+  the parser and the description renderer.</li>
+  <li><strong>One block per description.</strong> A second one is an error, not a
+  merge.</li>
+  <li>Tags are case-insensitive: <code>[screen]</code>, <code>[SCREEN]</code> and
+  <code>[/Screen]</code> all work.</li>
+  <li>At most <strong>4096 bytes</strong> and <strong>40 lines</strong> between the
+  tags.</li>
+  <li>One <code>key: value</code> per line. Blank lines and lines starting with
+  <code>#</code> are ignored, so you can comment your intent.</li>
+  <li>The block <strong>never renders as prose</strong> — the description page
+  swallows it entirely, tags and contents.</li>
+  <li>The parse happens on the server only, and errors come back with the line
+  number they occurred on, counted in the whole description.</li>
+</ul>
+
+<h2>A worked example</h2>
+
+<p>A Minervini-style trend template over liquid US large caps. Copy it into a
+description as-is and adjust:</p>
+
+<pre><code>[screen]
+# Minervini-style trend template, large caps
+market_cap: &gt;= 2B
+price: 10..1000
+volume: &gt;= 1M
+sector: Technology
+exchange: NASDAQ
+above_sma: 50
+above_sma: 200
+sma_rising: 200
+near_52w_high: 25%
+limit: 50
+[/screen]</code></pre>
+
+<p>Read out loud: companies worth at least $2B, trading between $10 and $1000, with
+at least a million shares changing hands today, in Technology, listed on NASDAQ —
+then, of those, the ones trading above both their 50- and 200-day averages, whose
+200-day average is rising, and which sit within 25% of their 52-week high. Take at
+most 50.</p>
+
+<h2>Every key</h2>
+
+<p>Unknown keys are <strong>errors, not warnings</strong>: a typo must not silently
+widen a screen. The <em>Where</em> column matters for quota — "vendor" keys are
+free (they ride the single screening call), "local" keys cost one daily-bar
+request per candidate.</p>
+
+<table>
+  <tr><th>Key</th><th>Accepts</th><th>Where</th><th>What it means</th></tr>
+  <tr><td><code>market_cap</code></td><td><code>&gt;= N</code>, <code>&lt;= N</code>, <code>A..B</code></td><td>vendor</td><td>Market capitalisation, in dollars.</td></tr>
+  <tr><td><code>price</code></td><td>same</td><td>vendor</td><td>Last price.</td></tr>
+  <tr><td><code>volume</code></td><td>same</td><td>vendor</td><td><strong>Current</strong> session volume, not average volume — the vendor screens on the live figure and there is deliberately no <code>avg_volume</code> key.</td></tr>
+  <tr><td><code>beta</code></td><td>same</td><td>vendor</td><td>Beta.</td></tr>
+  <tr><td><code>dividend</code></td><td>same</td><td>vendor</td><td>Last annual dividend, in dollars per share.</td></tr>
+  <tr><td><code>sector</code></td><td>one value, up to 64 characters</td><td>vendor</td><td>e.g. <code>Technology</code>. Vendor spelling; a list (<code>A|B</code> or <code>A,B</code>) is rejected.</td></tr>
+  <tr><td><code>industry</code></td><td>one value</td><td>vendor</td><td>e.g. <code>Semiconductors</code>.</td></tr>
+  <tr><td><code>exchange</code></td><td>one value</td><td>vendor</td><td>e.g. <code>NASDAQ</code>.</td></tr>
+  <tr><td><code>country</code></td><td>2-letter ISO code</td><td>vendor</td><td><code>US</code>, <code>DE</code>, <code>JP</code>. Case is normalised; anything that is not exactly two letters is an error.</td></tr>
+  <tr><td><code>etf</code></td><td><code>true</code> / <code>false</code></td><td>vendor</td><td>Whether to screen ETFs instead of companies. Defaults to <code>false</code>, and is sent on every screen either way.</td></tr>
+  <tr><td><code>above_sma</code></td><td><code>50</code> or <code>200</code></td><td>local</td><td>Last close above the simple moving average of that many sessions. May appear once for <code>50</code> and once for <code>200</code>; repeating the same window is an error.</td></tr>
+  <tr><td><code>sma_rising</code></td><td><code>50</code> or <code>200</code></td><td>local</td><td>That average today is higher than it was 20 sessions ago. Same once-per-window rule.</td></tr>
+  <tr><td><code>near_52w_high</code></td><td><code>1</code>–<code>100</code>, <code>%</code> optional</td><td>local</td><td>Close is at least <code>(1 &minus; N/100)</code> of the highest high in the last 252 sessions. <code>25%</code> means "within 25% of the 52-week high".</td></tr>
+  <tr><td><code>min_history</code></td><td>whole days, <code>1</code>–<code>2000</code></td><td>local</td><td>Require at least this many daily bars before judging a candidate. It defaults to <code>260</code> as soon as the block uses any other local key; setting it on its own is what turns the local pass on for a block that has none.</td></tr>
+  <tr><td><code>limit</code></td><td><code>1</code>–<code>100</code></td><td>both</td><td>How many candidates the vendor returns <em>and</em> how many get the local pass. Defaults to <code>50</code>. A value outside the range is <strong>clamped</strong>, not rejected — <code>limit: 5000</code> becomes 100.</td></tr>
+</table>
+
+<p>Notes that catch most authoring mistakes:</p>
+
+<ul>
+  <li><strong>Numbers take <code>K</code>, <code>M</code>, <code>B</code>,
+  <code>T</code> suffixes</strong> (case-insensitive): <code>2B</code> is
+  <code>2000000000</code>.</li>
+  <li><strong>Ranges are inclusive only.</strong> <code>&gt;=</code>,
+  <code>&lt;=</code> and <code>A..B</code>. A bare <code>&gt;</code> or
+  <code>&lt;</code> is rejected with a message telling you to use the inclusive
+  form, and <code>5..2</code> is rejected as inverted.</li>
+  <li><strong>Every key except <code>above_sma</code> and <code>sma_rising</code>
+  may appear once.</strong> A repeat is a duplicate-key error.</li>
+  <li>Screens always ask the vendor for actively-traded instruments only; that is
+  not something you can turn off.</li>
+</ul>
+
+<h2>What happens when you press Run screen</h2>
+
+<ol>
+  <li>The vendor keys go out as <strong>one</strong> screening call and come back
+  as up to <code>limit</code> candidates.</li>
+  <li>If the block has any local key, each candidate's daily bars are fetched and
+  the SMA, slope and 52-week-high numbers are computed here, not by the vendor.
+  Candidates that fail any local criterion are dropped. A candidate whose history
+  is too short for a window <strong>fails</strong> that check — it is never passed
+  by default.</li>
+  <li>Results are ranked deterministically: by distance from the 52-week high
+  (closest first) when <code>near_52w_high</code> is in play, otherwise by market
+  cap, largest first. Ties always break on symbol, so the same inputs give the
+  same order every time.</li>
+</ol>
+
+<p>Runs are snapshots. Each one stores the criteria it parsed and the SHA-256 of
+the description file at that moment, so editing the description later does not
+rewrite history — it just means your next run differs from the last. The last 20
+of your runs on a strategy are kept; older ones are pruned automatically.</p>
+
+<h2>What a screen costs</h2>
+
+<p>Be deliberate here — the whole instance shares one key and one quota.</p>
+
+<ul>
+  <li>A <strong>vendor-only</strong> block (no <code>above_sma</code>,
+  <code>sma_rising</code>, <code>near_52w_high</code> or <code>min_history</code>)
+  costs exactly <strong>one</strong> request.</li>
+  <li>A block with any local key costs <strong>one request per candidate on top</strong>:
+  a 50-candidate derived screen is about <strong>51 requests</strong>, and the
+  hard cap of 100 candidates makes 101 the worst case for a single run.</li>
+  <li>FMP's free tier allows roughly <strong>250 requests per day</strong> across
+  everything, including the nightly market-regime pipeline. That is about
+  <strong>four</strong> 50-candidate derived screens in a day, shared by all users.</li>
+  <li><strong>Re-running the same screen re-spends the same requests.</strong> The
+  app caches vendor responses, but that cache is a <em>failure fallback</em> — it
+  is read only when the vendor rate-limits us or goes down, so it can serve the
+  last good answer instead of erroring. It is not a 24-hour deduplicator, and
+  pressing <em>Run screen</em> twice in a row costs twice.</li>
+  <li>Two limits keep this bounded: <strong>10 runs per user per hour</strong>, and
+  one active run per user per strategy.</li>
+</ul>
+
+<p>Operators: sustained rate-limit and outage behaviour, the metrics to look at,
+and the client-side cap are all in
+<code>docs/runbooks/fmp-rate-limit.md</code>. Screener runs are a new burst source
+on top of the nightly pipeline.</p>
+
+<h2>What the errors mean</h2>
+
+<p>The first five appear when you press <em>Run screen</em>; nothing is queued. The
+last two are terminal states of a run that did start.</p>
+
+<table>
+  <tr><th>Code</th><th>Meaning</th><th>What to do</th></tr>
+  <tr><td><code>FMP_NOT_CONFIGURED</code></td><td>No FMP key is configured for this instance.</td><td>Staff: paste one at <a href="/settings/data-providers">Settings &rarr; Data Providers</a>. Otherwise ask your administrator.</td></tr>
+  <tr><td><code>NO_SCREEN_CRITERIA</code></td><td>The description has no <code>[screen]</code> block.</td><td>Add one — start from the worked example above and re-upload the description.</td></tr>
+  <tr><td><code>SCREEN_CRITERIA_INVALID</code></td><td>The block exists but did not parse.</td><td>The panel lists each problem with its line number. Fix them and re-upload; the criteria endpoint re-parses on every load, so it doubles as a lint loop.</td></tr>
+  <tr><td><code>SCREEN_RUN_ACTIVE</code></td><td>A screen for this strategy is already queued or running for you.</td><td>Wait for it to finish. Runs take seconds to a minute.</td></tr>
+  <tr><td><code>RATE_LIMITED</code></td><td><em>Our</em> limit: more than 10 run-creates in the last hour, by you.</td><td>Wait. This exists to bound vendor spend, not to punish — screens are cheap to ask for and expensive to serve.</td></tr>
+  <tr><td><code>FMP_RATE_LIMITED</code></td><td>The run started, and the vendor screening call was rate-limited with nothing cached to fall back to.</td><td>Retry in a few minutes. If it persists, the instance is over its plan's quota — an operator question.</td></tr>
+  <tr><td><code>FMP_UNAVAILABLE</code></td><td>The vendor screening call failed and could not be served from cache: an outage, a bad key, or <strong>a plan that does not include the screener</strong>.</td><td>Retry once. If it repeats, the operator should confirm the key is valid and on a tier that includes the company screener.</td></tr>
+</table>
+
+<h2>When a result says "degraded"</h2>
+
+<p>A degraded run is a <strong>finished, honest, incomplete</strong> run — not a
+failure and not a silent truncation. It happens when the vendor rate-limits us or
+falters partway through the per-candidate bar fetches: rather than pretending the
+remaining candidates simply did not match, the run stops fetching, finishes with
+what it has, and tells you exactly what it did not look at.</p>
+
+<p>The counts line spells it out:</p>
+
+<table>
+  <tr><th>Count</th><th>Meaning</th></tr>
+  <tr><td><code>vendor_matches</code></td><td>How many instruments matched the vendor-side criteria before <code>limit</code> was applied. A big number here with few results means your local criteria are doing the filtering.</td></tr>
+  <tr><td><code>enriched</code></td><td>How many candidates got a full local pass over their daily bars. Zero for a vendor-only block, because none was needed.</td></tr>
+  <tr><td><code>returned</code></td><td>How many rows the table is showing — candidates that passed everything.</td></tr>
+  <tr><td><code>insufficient_history</code></td><td>Dropped for having fewer daily bars than <code>min_history</code> (260 by default). Recent listings live here. Lower <code>min_history</code> if you want them judged on a shorter series.</td></tr>
+  <tr><td><code>skipped_rate_limited</code></td><td>Never examined, because the vendor rate-limited us mid-pass. Re-run later — ideally with a smaller <code>limit</code>.</td></tr>
+  <tr><td><code>skipped_unavailable</code></td><td>Never examined because of a vendor outage, or skipped individually because that one symbol returned an error (a delisted or unrecognised ticker does this).</td></tr>
+</table>
+
+<p>The practical reading: if <code>returned</code> looks thin and
+<code>skipped_rate_limited</code> is large, you did not screen a narrow universe —
+you screened a partial one. Run it again when the quota recovers before drawing
+conclusions.</p>
+
+<h2>Related</h2>
+
+<ul>
+  <li><a href="/guides/market-regime-setup">Why Market Regime says "no data"</a> —
+  where the FMP key is set, and what else it powers.</li>
+  <li><a href="/guides/strategy-upload">Upload your first strategy</a> — the
+  three-file bundle the description belongs to.</li>
+  <li><a href="/guides/using-a-strategy">Run a strategy end to end</a> — what to do
+  with a candidate once you have one.</li>
+</ul>
+
+</body>
+</html>

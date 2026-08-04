@@ -184,6 +184,82 @@ describe('renderTradingViewDescription', () => {
     });
   });
 
+  describe('[screen] block (M16 §6.6 — swallow entirely)', () => {
+    it('drops the tag AND its inner text, unlike the strip-keep-text default', () => {
+      const out = render('before\n[screen]\nmarket_cap: >= 2B\nlimit: 50\n[/screen]\nafter');
+      expect(out).toContain('before');
+      expect(out).toContain('after');
+      expect(out).not.toContain('market_cap');
+      expect(out).not.toContain('limit');
+      expect(out).not.toContain('screen');
+    });
+
+    it('is case-insensitive like every other tag', () => {
+      expect(render('a\n[SCREEN]\nx: 1\n[/Screen]\nb')).toBe('a<br><br>b');
+    });
+
+    it('allows the opening tag to be indented', () => {
+      expect(render('a\n   [screen]\nx: 1\n[/screen]\nb')).toBe('a<br>   <br>b');
+    });
+
+    it('swallows a block sitting mid-prose without touching the surrounding markup', () => {
+      const out = render('[b]Rules[/b]\n[screen]\nsector: Technology\n[/screen]\n[i]done[/i]');
+      expect(out).toContain('<strong>Rules</strong>');
+      expect(out).toContain('<em>done</em>');
+      expect(out).not.toContain('Technology');
+    });
+
+    it('an UNCLOSED [screen] falls back to strip-keep-text and never eats the rest', () => {
+      // The critical difference from [pine], whose unclosed form swallows to
+      // end-of-input. A typo must not make the rest of a description vanish.
+      const out = render('intro\n[screen]\nmarket_cap: >= 2B\n\nThe rest of the description.');
+      expect(out).toContain('intro');
+      expect(out).toContain('The rest of the description.');
+      expect(out).toContain('market_cap: &gt;= 2B');
+      expect(out).not.toContain('[screen]');
+    });
+
+    it('an orphan [/screen] is stripped without eating anything', () => {
+      const out = render('alpha [/screen] beta');
+      expect(out).toContain('alpha');
+      expect(out).toContain('beta');
+      expect(out).not.toContain('screen');
+    });
+
+    it('swallows every block, not just the first', () => {
+      const out = render('a\n[screen]\nx: 1\n[/screen]\nb\n[screen]\ny: 2\n[/screen]\nc');
+      expect(out).not.toContain('x: 1');
+      expect(out).not.toContain('y: 2');
+      expect(out).toContain('a');
+      expect(out).toContain('b');
+      expect(out).toContain('c');
+    });
+
+    it('an INLINE [screen] is a prose mention, not a block — matching the server', () => {
+      // The server's opener is line-anchored (apps/screener/criteria.py
+      // _OPEN_RE). If the renderer swallowed inline ones anyway, an author who
+      // wrote "add a [screen] block" mid-sentence would watch their text vanish
+      // while the API reported no block at all.
+      const out = render('Add a [screen] block to your description.');
+      expect(out).toContain('Add a');
+      expect(out).toContain('block to your description.');
+      expect(out).not.toContain('[screen]');
+    });
+
+    it('does not disturb descriptions that contain no block at all', () => {
+      const src = 'A [b]momentum[/b] strategy with array[0] and the word screening.';
+      expect(render(src)).toBe(
+        'A <strong>momentum</strong> strategy with array[0] and the word screening.',
+      );
+    });
+
+    it('escapes inner content it keeps when the tag is unclosed (no XSS bypass)', () => {
+      const out = render('[screen]\n<script>alert(1)</script>');
+      expect(out).not.toContain('<script>');
+      expect(out).toContain('&lt;script&gt;');
+    });
+  });
+
   describe('realistic combined description', () => {
     it('renders a mixed document correctly', () => {
       const src =

@@ -1,0 +1,6 @@
+This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+© someone
+
+[b]Simple MA cross[/b]
+Nothing machine-readable in here. Mentions [screening] and array[0] and a
+stray bracket [ that must not confuse anything.
