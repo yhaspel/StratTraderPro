@@ -64,11 +64,27 @@ django-ratelimit>=4.1,<4.2
 # Auth (M02 — MFA)
 pyotp>=2.9,<3.0
 qrcode[pil]>=7.4,<8.0
-# cryptography 48.0.1+ clears GHSA-537c-gmf6-5ccf (HIGH — vulnerable OpenSSL
+# cryptography 48.0.1+ cleared GHSA-537c-gmf6-5ccf (HIGH — vulnerable OpenSSL
 # bundled in the cryptography wheels) on top of the earlier CVE-2026-26007
 # (SECT-curve subgroup validation). Trivy in CI fails on HIGH/CRITICAL when a
 # fixed version exists.
-cryptography>=48.0.1,<49.0
+#
+# 2026-08-04: bumped 48.0.1 -> 50.0.0. pip-audit (which has NO severity
+# threshold — it fails on ANY advisory in the shipping closure) flagged three
+# new CVEs against 48.0.1:
+#   CVE-2026-69247 HIGH   PKCS#7 EnvelopedData Bleichenbacher oracle   (fix 50.0.0)
+#   CVE-2026-69249 HIGH   exponential X.509 path-building DoS          (fix 49.0.0)
+#   CVE-2026-69248 MEDIUM X.509 wildcard escape from permittedSubtrees (fix 49.0.0)
+# All three live in X.509 path validation / PKCS#7, and this codebase imports
+# ONLY `Fernet` and `InvalidToken` (apps/users/mfa.py + the brokers, strategies
+# and marketdata services that reuse the platform KEK) — zero x509/pkcs7/pkcs12
+# usage anywhere. They were still UPGRADED rather than waived: fixes exist, this
+# is the library that encrypts every secret at rest, and waiving HIGH CVEs on it
+# would be the wrong default even when the vulnerable paths are unreachable.
+# 50.0.0 is required because only it fixes CVE-2026-69247. Verified: full backend
+# suite green (885 passed), incl. every Fernet round-trip / MFA / broker-credential
+# test. The Fernet API is unchanged across 48 -> 50.
+cryptography>=50.0.0,<51.0
 
 # Auth (M2.5 — Google OAuth via django-allauth)
 django-allauth>=0.61,<0.62
