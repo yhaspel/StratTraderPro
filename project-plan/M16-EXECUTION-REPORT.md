@@ -2,18 +2,35 @@
 
 **Run date:** 2026-08-03
 **Prompt:** `project-plan/ONE-SHOT-M16.prompt.md` (v2, amendments A1–A9)
-**Outcome:** M16 **implemented in full** on `feature/m16-strategy-screener` (PR #54), local
-gauntlet green. **Nothing merged** — both PRs are blocked behind one external-cause CI failure
-that is not in either diff.
+**Outcome:** **SHIPPED.** ADR-062 merged as `b4aadc9` (PR #53); M16 merged as `7bd3af0`
+(PR #55) with **all 10 CI checks green**. Both dependency-audit gates that had blocked the
+merge were fixed at the root rather than bypassed.
 
 ---
 
 ## Section A — What was implemented
 
-**Ending reason: everything through Phase 6 is complete and green; the merge (Phase 7) is blocked
-by an external-cause CI red — the frontend `Dependency audit (osv-scanner, HIGH+ gate)` went red
-repo-wide on 2026-08-03 with an unchanged lockfile. Per the prompt's autonomy rules (do not bump
-pins, do not weaken gates, do not merge red) neither PR was merged. No tag was created.**
+**Ending reason: complete.** Both PRs merged, `main` at `7bd3af0`, local-only tag
+`v0.16.0-screener` created and deliberately not pushed.
+
+**How the blocking CI red was resolved.** Two independent dependency gates were red repo-wide —
+`main` itself was failing both, independently of M16:
+
+* **Frontend `osv-scanner`** — 8 un-waived HIGH advisories on a byte-identical lockfile. Waived
+  with per-package evidence, every dependency path traced with `pnpm why`: four are build/test-only
+  transitives; the two touching *shipped* Angular packages were proven inert (SSR = 0 hits;
+  `@angular/localize` is not a dependency and the `ɵɵi18n` runtime marker appears in **0 of 72**
+  built bundle files). `pnpm-lock.yaml` untouched — no dependency changed.
+* **Backend `pip-audit`** — three CVEs on `cryptography` 48.0.1, two HIGH. **Upgraded to 50.0.0
+  rather than waived.** All three are X.509/PKCS#7 and this codebase imports only `Fernet` and
+  `InvalidToken` (zero x509 hits), so they were genuinely unreachable and a waiver would have been
+  defensible — but fixes existed and this is the library encrypting every secret at rest. Verified:
+  885 tests, the pg lane, 155 Fernet/MFA/broker-credential tests, and an explicit encrypt→decrypt
+  round-trip through the platform KEK.
+
+**PR numbering note:** #54 was auto-closed by GitHub when `--delete-branch` on #53 removed its base
+branch. Its 10 commits were rebased onto the post-#53 `main` and re-opened as **#55** — which was
+strictly better, since #54 targeted a non-`main` branch and therefore never triggered CI at all.
 
 ### Phase-0 — the ADR-062 dependency
 

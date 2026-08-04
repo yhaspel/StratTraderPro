@@ -4,7 +4,27 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change).
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
-**Last verified:** 2026-08-01 (**ADR-062 shipped** on branch `feat/data-provider-keys-ui`: instance FMP/FRED keys are now settable in the UI — Settings → Data Providers, encrypted `DataProviderKey` rows, staff-set, validated-before-persist; `resolve_key` = UI key → env var → unconfigured, consumed by `FMPClient`/`FREDClient`/regime gate/`backfill_bars`. **The regime plane's missing-keys blocker is now a two-paste fix with no Railway edits and no redeploy** — the plane stays INERT until an operator actually pastes keys (ledger item 1 updated). Local gauntlet at `6b7059c`+2: backend `pytest` full green (SQLite; container), 29 new key tests, `ruff` clean, `bandit` clean (medium+); frontend `ngc` clean, karma **219 passed** (7 new), `pnpm build` OK, guides+envsubst guards green; OpenAPI snapshot + generated types regenerated. **M16 Strategy Screener spec written** (`16-strategy-screener.md`, status Spec): description-driven `[screen]` block → one FMP company-screener call + local SMA/52w-high enrichment, gated on the ADR-062 key. Note: PRs #45–#49 landed after the 2026-07-12 verification below — their record is `CHANGELOG.md [Unreleased]`.)
+**Last verified:** 2026-08-04 (**M16 Strategy Screener SHIPPED** — PR #55, squashed as `7bd3af0`;
+the ADR-062 key gate it depends on landed the same day as PR #53. A strategy description can now
+carry a machine-readable `[screen]` block: `/strategies/:id` grows a Screening panel that shows the
+parsed criteria as chips and runs them — ONE FMP `/company-screener` call for the vendor-side
+filters, then local enrichment over daily bars for the derived ones (SMA 50/200, SMA-200 slope,
+52-week-high proximity), returning a deterministically ranked candidate list. Degrades rather than
+lies: a rate limit or outage mid-enrichment finishes `DONE` with `degraded=true` and per-cause
+counts. Bounded by a 10/h/user throttle, one active run per (user, strategy) enforced by a partial
+unique index, `limit <= 100`, and a 240s task soft limit; rollback is the mutable `SCREENER_ENABLED`
+flag. **Activation still requires an FMP key** (Settings -> Data Providers, or `FMP_API_KEY`) — until
+one is set the panel says so honestly. Gauntlet at merge: backend `pytest` **885 passed, 9 skipped,
+74 subtests** + `-m pg` **9 passed**, `ruff`/`bandit` clean, `makemigrations --check` clean,
+prod-import smoke OK; frontend `ngc` clean, karma **264 SUCCESS**, `pnpm build` OK, Playwright a11y
+**9 passed**, both repo guards green; OpenAPI snapshot + generated types regenerated. An independent
+adversarial review of the diff found 2 HIGH + 4 MEDIUM + 1 LOW + 1 NIT — all fixed before merge (see
+`M16-EXECUTION-REPORT.md` and the PR #54 review comment). **Deferred:** AC-16-12's live
+re-validation of the FMP screener wire shape needs a real key — steps are in ADR-063 §4. Note also
+that the frontend osv-scanner HIGH+ gate went red repo-wide this day on an unchanged lockfile; six
+new advisory IDs were waived with per-package evidence in `docs/security/dependency-waivers.md`.)
+
+**Previously verified:** 2026-08-01 (**ADR-062 shipped** on branch `feat/data-provider-keys-ui`: instance FMP/FRED keys are now settable in the UI — Settings → Data Providers, encrypted `DataProviderKey` rows, staff-set, validated-before-persist; `resolve_key` = UI key → env var → unconfigured, consumed by `FMPClient`/`FREDClient`/regime gate/`backfill_bars`. **The regime plane's missing-keys blocker is now a two-paste fix with no Railway edits and no redeploy** — the plane stays INERT until an operator actually pastes keys (ledger item 1 updated). Local gauntlet at `6b7059c`+2: backend `pytest` full green (SQLite; container), 29 new key tests, `ruff` clean, `bandit` clean (medium+); frontend `ngc` clean, karma **219 passed** (7 new), `pnpm build` OK, guides+envsubst guards green; OpenAPI snapshot + generated types regenerated. **M16 Strategy Screener spec written** (`16-strategy-screener.md`, status Spec): description-driven `[screen]` block → one FMP company-screener call + local SMA/52w-high enrichment, gated on the ADR-062 key. Note: PRs #45–#49 landed after the 2026-07-12 verification below — their record is `CHANGELOG.md [Unreleased]`.)
 **Prior:** 2026-07-12 (**M10.5 CLOSED** — merged to `main` via **PR #31** (squash `e29cb12`), CI green, tagged **`v0.10.5-app-shell`**). Post-merge follow-ups also in: register validation feedback + hide-unconfigured-Google-button; C2 prod-settings test made hermetic (CI had no `backend/.env`); stale branch-protection required-check `Frontend — Lint & Test` reconciled to `Frontend — Build & Test`. Backend: `pytest` green (SQLite, `config.settings.test`) + `-m pg` **8**, `ruff`/`bandit` clean, `makemigrations --check` clean, prod-import smoke clean. Frontend: `ngc` clean, `ng build` OK, karma **111 passed**. Live E2E (Chrome): landing→login, shell + nav + logout, getting-started checklist, authed 404, help viewer, register validation, Google-button honesty — all pass. AC-by-AC + gauntlet output: `M10.5-EXECUTION-REPORT.md`. (Earlier prior: 2026-07-11, M10 closed — see the M10 close-out below.)
 **Verification at HEAD (`d574057`):** backend `pytest` **587 passed** (SQLite) + **8 `-m pg`** (Postgres lane), `ruff` clean, `bandit` clean (medium+), `makemigrations --check` clean, prod-import smoke clean; frontend `ngc --noEmit` clean, `pnpm build` (449.56 kB), `pnpm run test:ci` **61 karma**; Docker image builds + Trivy HIGH/CRITICAL clean. GitHub CI: all 5 checks green.
 
@@ -40,7 +60,7 @@
 | M13 | Live-trading switch (`ENABLE_LIVE_TRADING` + admin gate) | ✅ **Merged, inert** (`87240a3`) — ships disabled-by-default (D6); enabling it is each self-hoster's deliberate act. Hosted-service enablement gates void (OSS pivot). | on `main` |
 | M14 | Frontend first paint (prerender public routes) | 📋 **Spec** — Option A locked 2026-07-14; FCP ≤ 1.2 s target held (first-run polish). Ships on its own. | — |
 | M15 | Dashboard responsiveness (authed-dashboard speed levers) | 📋 **Spec** — deferred from the M14 review (in-app skeletons, service-worker/PWA); post-OSS-release polish. | — |
-| M16 | Strategy Screener (FMP, description-driven `[screen]` block) | 📋 **Spec** (2026-08-01, `16-strategy-screener.md`) — one company-screener call + local SMA/52w-high enrichment; gated on the ADR-062 instance FMP key; deterministic parser, no LLM (decision 2026-08-01). | — |
+| M16 | Strategy Screener (FMP, description-driven `[screen]` block) | ✅ **Shipped** (2026-08-04, PR #55 `7bd3af0`) — one company-screener call + local SMA/52w-high enrichment; gated on the ADR-062 instance FMP key; deterministic parser, no LLM. Degrade-not-lie on vendor failure; 10/h/user throttle; `SCREENER_ENABLED` rollback flag. Live wire-shape re-validation deferred until an FMP key exists (ADR-063 §4). | ADR-063 |
 
 ### INERT features (M10.5 audit, 2026-07-12)
 
@@ -147,7 +167,7 @@ users.**
 6. ~~**Before M09 starts:** resolve vectorbt AGPL licensing~~ ✅ **RESOLVED 2026-07-08** — premise was wrong: vectorbt OSS is fair-code (Apache-2.0 + Commons Clause), not AGPL. Adopted `vectorbt==1.0.0` behind a `SweepEngine` seam; backtrader dropped for a custom in-repo replay engine (ADR-090). M09 implemented + merged (PR #28).
 7. **Alpaca live eligibility:** live trading is each self-hoster's choice (D6, M13 shipped disabled-by-default); confirm your own jurisdiction's eligibility with Alpaca before you enable it (paper is unaffected).
 8. **Bring the regime plane live (now a UI act, ADR-062):** promote the owner account to staff (`make promote-owner EMAIL=…`), paste FMP + FRED keys in **Settings → Data Providers**, confirm *Admin → Health → Regime data source: Configured*, then trigger one run (`python manage.py shell -c "from apps.regime.tasks import run_daily_feature_pipeline; print(run_daily_feature_pipeline())"`). Closes INERT item 1's key half; the intraday task (AC-06-2) and 10-yr backfill remain.
-9. **M16 — Strategy Screener:** spec ready (`16-strategy-screener.md`); depends only on the ADR-062 key gate (done) and an FMP key being set (step 8).
+9. **M16 — Strategy Screener:** ✅ shipped (PR #55). Dormant until an FMP key is set (step 8) — the panel states that honestly rather than failing on click.
 
 ## Open items & known debt (carried from review, 2026-07-05)
 

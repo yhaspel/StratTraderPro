@@ -156,3 +156,47 @@ The freeze-time estimate of "~5" was low. Disposition of each:
 daphne bumps above) rather than via the Dependabot PRs. The **safe-to-merge** Action/image PRs
 (#1–#4, #15, #21) can be merged by the operator; the **deferred** ones (#5, #6, #9, #12, #13,
 #14, #16) each carry a reason above and are tracked. None blocks the M11 gates.
+
+### Re-triage 2026-08-04 — ⚠️ the table above is partly WRONG, do not act on it
+
+Every one of the 15 open PRs was re-checked against `main` at `b4aadc9`. Two findings invalidate
+the "safe to merge" column wholesale:
+
+1. **None of these PRs has a green CI run.** They are stale-**red**, from 2026-04-18, ~119 commits
+   behind, and their logs have expired (HTTP 410), so the failure cause is unrecoverable. The
+   2026-07-12 dispositions were judgements about the *diff*, never evidence that CI passed.
+2. **Nothing can land until `main`'s two dependency-audit gates are green.** Branch protection is
+   `strict: true` and requires `Backend — Lint & Test` + `Frontend — Build & Test`; both were red
+   on `main` (osv-scanner HIGH+ and pip-audit). Because `strict: true` forces an update-to-main
+   first, re-running any of these PRs makes it *inherit* those red gates — so a re-run proves
+   nothing about the bump itself. Dependabot's auto-rebase is also off for PRs open >30 days, so
+   they will not self-update.
+
+Corrections to specific rows, each verified in the tree rather than inferred:
+
+| PR | 2026-07-12 said | Actually |
+|---|---|---|
+| #3 | Safe to merge | **Cannot merge.** It edits `.github/workflows/deploy-staging.yml`, deleted by the OSS pivot (`d52ab7c`, PR #34, 2026-07-15) — *three days after* this table was written. Modify/delete conflict. It also bumps only 4 of the 10 `actions/checkout@v4` sites now on `main`, so it would half-migrate the tree. |
+| #4 | "Patch stream" | **Wrong.** 1.27 → 1.29 crosses two nginx mainline minors and skips the 1.28 stable branch. The PR's target is itself now stale. |
+| #1, #2 | Safe to merge | Substance still fine (v6/v5's only breaking change is the Node 24 runtime; every job is GitHub-hosted `ubuntu-latest`, no `container:` jobs). But coverage drifted — `loadtest-canary.yml` (added by PR #32, after this table) also pins `setup-python@v5`, so #1 no longer covers the tree. Land #1+#2 as one Actions PR that includes it. Note `actions/cache` v4→v5 moves to a new cache service: the first run after merge is a cold cache, slower but not a failure. |
+| #21 | "Merge once CI is green on it" | **Its own precondition has failed** — its green is a snapshot of the last minute before the OSV database moved. It also touches `pnpm-lock.yaml`, which interacts with the `ignoreGhsas` list above: a lockfile change can make waived IDs stop matching or surface new ones, so it needs a fresh osv run, not its old one. |
+| #15 | "Dev-only linter" | Conclusion right, **reasoning wrong**: CI runs `bandit … --severity-level medium` as a hard gate in the Backend job, so a newly-added detector in a wider range can fail the build. Still the one genuine merge candidate. |
+
+Rows that were verified and **still hold**, with the reason now confirmed rather than assumed:
+**#5** (CI pins Node 20 in two jobs *and* `docker-compose.yml` runs `node:20-alpine`),
+**#6** (CI pins Python 3.12 — the image would run a different interpreter than CI tests),
+**#9** (`CONFLICTING`/`DIRTY`, 79 commits behind),
+**#12** (`config/settings/base.py:815` still references `pythonjsonlogger.jsonlogger`),
+**#13** (the only non-requirements mention of uvicorn in the repo is a *commented-out* line in
+`docker/backend.Dockerfile:84`),
+**#14** (`CELERY_BEAT_SCHEDULER = "redbeat.RedBeatScheduler"` is live and byte-pinned in
+`docker/entrypoint.sh`),
+**#16** (the WSGI-hotfix comment in `docker/backend.Dockerfile:70-86` is still in force).
+
+**Nothing was closed.** All 15 remain wanted upgrades blocked on sequencing, not irrelevant —
+and closing a Dependabot PR suppresses future re-offers of that version, which would lose the
+Angular 21 signal (#9) we actually want.
+
+**Operational note:** `.github/dependabot.yml` caps the `github-actions` ecosystem at
+`open-pull-requests-limit: 3`, and #1/#2/#3 consume all three — so no new Action bump, *including
+a security-driven one*, can be opened until those are resolved.

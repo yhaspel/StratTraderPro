@@ -3,7 +3,7 @@
 > **Duration:** 4 working days
 > **Depends on:** ADR-062 instance data-provider keys (shipped 2026-08-01 — the FMP key gate + Settings page), M06 marketdata plane (`FMPClient`, `Bar` store, resilience stack), M03 strategies (`StrategyFile` DESC contract)
 > **Unlocks:** watchlist/auto-candidate features, M06A per-symbol regime (shares the candidate-universe idea)
-> **Status:** Spec — not started
+> **Status:** **Implemented** (PR #55, 2026-08-04)
 
 > **Decision provenance (2026-08-01, Yuval):** screening criteria come from a
 > **machine-readable `[screen]` block authored inside the strategy description**
@@ -547,8 +547,18 @@ Past runs are self-contained JSON — safe to drop.
 
 ## 17. Exit Gate Checklist
 
-- [ ] AC-16-1 … AC-16-12 pass (each with a named test or live-verification note)
-- [ ] Full local gauntlet green: `ruff`, `bandit`, `pytest` (SQLite + `-m pg`), `ngc --noEmit`, karma, `pnpm build`, guards (`check_guides_catalog.py`, `check_envsubst_filter.py`), `makemigrations --check`, prod-import smoke
-- [ ] OpenAPI snapshot + generated types regenerated and committed
-- [ ] ADR-063 merged; guide live; CHANGELOG + PROGRESS updated
-- [ ] Live re-validation with a real FMP key recorded (or explicitly deferred with the deferred-external banner, M06-style)
+- [x] AC-16-1 … AC-16-12 pass (each with a named test or live-verification note) — AC-16-12's
+      live half is the one deferral, recorded in ADR-063 §4
+- [x] Full local gauntlet green: `ruff`, `bandit`, `pytest` (SQLite **885 passed, 9 skipped,
+      74 subtests** + `-m pg` **9 passed**), `ngc --noEmit`, karma **264 SUCCESS**, `pnpm build`,
+      guards (`check_guides_catalog.py`, `check_envsubst_filter.py`), `makemigrations --check`,
+      prod-import smoke. CI green on PR #55 as well.
+- [x] OpenAPI snapshot + generated types regenerated and committed
+- [x] ADR-063 merged; guide live; CHANGELOG + PROGRESS updated
+- [ ] **Live re-validation with a real FMP key recorded** — explicitly DEFERRED (M06-style
+      deferred-external): `resolve_key("FMP")` is empty on this instance, so the vendor wire shape
+      is pinned by fixtures only. Closing steps: ADR-063 §4.
+
+> **Shipped:** PR #55, squashed as `7bd3af0` (2026-08-04). An independent adversarial review of the diff
+> found 2 HIGH + 4 MEDIUM + 1 LOW + 1 NIT, all fixed before merge — see
+> `M16-EXECUTION-REPORT.md`.

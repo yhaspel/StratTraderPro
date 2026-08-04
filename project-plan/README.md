@@ -40,7 +40,7 @@
 | M13 | [13-live-trading-switch.md](./13-live-trading-switch.md) | 13 | Live-Trading Switch | **Merged (inert):** `ENABLE_LIVE_TRADING` + admin gate; ships disabled-by-default (D6). |
 | M14 | [14-frontend-first-paint.md](./14-frontend-first-paint.md) | 14 | Frontend First Paint | **Spec** — prerender public routes (Option A locked), FCP ≤ 1.2 s. |
 | M15 | [15-dashboard-responsiveness.md](./15-dashboard-responsiveness.md) | 15 | Dashboard Responsiveness | **Spec** — deferred authenticated-dashboard speed levers (skeletons, PWA). |
-| M16 | [16-strategy-screener.md](./16-strategy-screener.md) | 16 | Strategy Screener | **Spec** — `[screen]` block in strategy descriptions → FMP company-screener + local SMA/52w-high enrichment; gated on the ADR-062 instance FMP key. |
+| M16 | [16-strategy-screener.md](./16-strategy-screener.md) | 16 | Strategy Screener | **Shipped** (2026-08-04, PR #55) — `[screen]` block in strategy descriptions → FMP company-screener + local SMA/52w-high enrichment; gated on the ADR-062 instance FMP key. |
 
 
 ## Cross-cutting conventions
