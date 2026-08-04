@@ -132,7 +132,7 @@ jobs:
       - name: Set up Node 20
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Enable pnpm
         run: corepack enable
@@ -204,7 +204,7 @@ jobs:
       - name: Set up Node 20
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Enable pnpm
         run: corepack enable
@@ -245,7 +245,7 @@ jobs:
 
       - name: Wait for frontend
         # The compose `frontend` service runs `pnpm install && ng serve` from
-        # scratch on a fresh node:20-alpine container, which can take 60–90s
+        # scratch on a fresh node:24-alpine container, which can take 60–90s
         # before the dev server starts answering on :4444. Mirror the backend
         # retry loop here so the smoke step doesn't race the dev server.
         run: |
