@@ -22,7 +22,56 @@ adversarial review of the diff found 2 HIGH + 4 MEDIUM + 1 LOW + 1 NIT — all f
 `M16-EXECUTION-REPORT.md` and the PR #54 review comment). **Deferred:** AC-16-12's live
 re-validation of the FMP screener wire shape needs a real key — steps are in ADR-063 §4. Note also
 that the frontend osv-scanner HIGH+ gate went red repo-wide this day on an unchanged lockfile; six
-new advisory IDs were waived with per-package evidence in `docs/security/dependency-waivers.md`.)
+new advisory IDs were waived with per-package evidence in `docs/security/dependency-waivers.md`.
+Tag `v0.16.0-screener` created on `7bd3af0` and **pushed** at the operator's instruction — note the
+one-shot's convention is operator-gated no-push, so this is a deliberate, recorded deviation.)
+
+**Also 2026-08-04 — dependency/security sweep and PR-queue clearance (same day, after M16).**
+`main` went `b4aadc9` → `51614b0`. Two CI gates were red **repo-wide before any of this work** and
+are now fixed at the root rather than bypassed:
+
+- **`pip-audit`** — three CVEs on `cryptography` 48.0.1, two HIGH (CVE-2026-69247 PKCS#7
+  Bleichenbacher oracle, CVE-2026-69249 X.509 path-building DoS, CVE-2026-69248 wildcard escape).
+  All three live in X.509/PKCS#7 and this codebase imports only `Fernet`/`InvalidToken` (zero x509
+  hits), so they were unreachable and a waiver would have been defensible — **upgraded to 50.0.0
+  anyway**, because fixes existed and this is the library encrypting every secret at rest. Verified
+  with the full suite, the pg lane, 155 Fernet/MFA/broker-credential tests and an explicit
+  encrypt→decrypt round-trip through the platform KEK.
+- **`osv-scanner`** — 8 un-waived HIGH on a byte-identical lockfile. Waived with per-package
+  evidence (`pnpm why` traced each path); the two touching *shipped* Angular packages were proven
+  inert (SSR = 0 hits; `@angular/localize` absent and the `ɵɵi18n` marker in **0 of 72** bundle
+  files). `pnpm-lock.yaml` untouched.
+
+**PR queue 15 → 0.** `67a354b` (#57) consolidated and superseded #1/#2/#3/#4/#12/#13 — every one of
+those targeted an *already-superseded* version (#3 wanted checkout@v6, latest is v7.0.1) and covered
+only part of the tree (#3 hit 4 of 10 `checkout` sites and edited a workflow file deleted a month
+earlier). `d8f9324` (#58) superseded #14/#16/#21. `878ec98` merged #15. Closed with recorded reasons:
+**#5** (node:25-alpine ships **no corepack** — unbuildable), **#6** (no cp314 wheel for hmmlearn),
+**#9** (CLI-only bump clears zero waived advisories), **#56** (superseded downgrade).
+
+Three of those PRs had been parked on reasoning that **did not survive checking**: #12's "3.x moved
+the import path, needs a code change" was false (the shim still works, verified), #14 was deferred on
+process not defect, and **#16's justification inverted** — sentry 1.x is the *cause* of the WSGI
+revert cited as the reason to stay on 1.x, so `<2.0` perpetuated the very constraint. The Dependabot
+triage table in `docs/security/dependency-waivers.md` is corrected accordingly.
+
+**`779b2b1` (#59)** replaced PR #52 with the half of it that was still true. The other half would
+have **regressed `main`**: its replacement PromQL dropped the `step="requested"` selector (a
+completed password reset would double-count against the runbook's own >10/hour threshold), traded an
+exact `result="locked"` selector for "a burst of non-`ok` results", and deleted the verified
+statement that no MFA-reset metric exists. Kept: a Grafana rule re-import **duplicates rather than
+reconciles**, which could silently double the live alert-rule set.
+
+**`51614b0` (#60) — security:** off **EOL `node:20-alpine`** (not rebuilt since 2026-04-15) to
+**`node:24-alpine` (LTS)** across all four sites (`frontend.Dockerfile`, `docker-compose.yml`, both
+`node-version` pins in `ci.yml`). Chose 24 not 25 because corepack was **unbundled at v25** and three
+sites run `corepack enable` — verified empirically (20→corepack 0.34.6, 24→0.35.0, 25→**absent**).
+Validated by building the real production image end to end and confirming it serves HTTP 200.
+
+Two deliberate deviations from what Dependabot proposed, both toward caution on a live trading app:
+`sentry-sdk` pinned to **one minor** (`>=2.66,<2.67`) rather than an open `<3.0`, and **`zone.js`
+held at `^0.15.1`** because `^0.16.2` violates `@angular/core@19.2.25`'s declared peer `~0.15.0` on a
+zone-based app (pnpm does not hard-fail on it, so it would have slipped through silently).
 
 **Previously verified:** 2026-08-01 (**ADR-062 shipped** on branch `feat/data-provider-keys-ui`: instance FMP/FRED keys are now settable in the UI — Settings → Data Providers, encrypted `DataProviderKey` rows, staff-set, validated-before-persist; `resolve_key` = UI key → env var → unconfigured, consumed by `FMPClient`/`FREDClient`/regime gate/`backfill_bars`. **The regime plane's missing-keys blocker is now a two-paste fix with no Railway edits and no redeploy** — the plane stays INERT until an operator actually pastes keys (ledger item 1 updated). Local gauntlet at `6b7059c`+2: backend `pytest` full green (SQLite; container), 29 new key tests, `ruff` clean, `bandit` clean (medium+); frontend `ngc` clean, karma **219 passed** (7 new), `pnpm build` OK, guides+envsubst guards green; OpenAPI snapshot + generated types regenerated. **M16 Strategy Screener spec written** (`16-strategy-screener.md`, status Spec): description-driven `[screen]` block → one FMP company-screener call + local SMA/52w-high enrichment, gated on the ADR-062 key. Note: PRs #45–#49 landed after the 2026-07-12 verification below — their record is `CHANGELOG.md [Unreleased]`.)
 **Prior:** 2026-07-12 (**M10.5 CLOSED** — merged to `main` via **PR #31** (squash `e29cb12`), CI green, tagged **`v0.10.5-app-shell`**). Post-merge follow-ups also in: register validation feedback + hide-unconfigured-Google-button; C2 prod-settings test made hermetic (CI had no `backend/.env`); stale branch-protection required-check `Frontend — Lint & Test` reconciled to `Frontend — Build & Test`. Backend: `pytest` green (SQLite, `config.settings.test`) + `-m pg` **8**, `ruff`/`bandit` clean, `makemigrations --check` clean, prod-import smoke clean. Frontend: `ngc` clean, `ng build` OK, karma **111 passed**. Live E2E (Chrome): landing→login, shell + nav + logout, getting-started checklist, authed 404, help viewer, register validation, Google-button honesty — all pass. AC-by-AC + gauntlet output: `M10.5-EXECUTION-REPORT.md`. (Earlier prior: 2026-07-11, M10 closed — see the M10 close-out below.)
