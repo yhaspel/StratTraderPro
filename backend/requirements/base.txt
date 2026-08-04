@@ -21,11 +21,11 @@ drf-spectacular>=0.27,<0.28
 
 # Async / Task queue
 celery>=5.3,<5.4
-celery-redbeat>=2.1,<2.2
+celery-redbeat>=2.3,<2.4
 redis>=5.0,<5.1
 
 # Observability
-sentry-sdk[django,celery]>=1.40,<2.0
+sentry-sdk[django,celery]>=2.66,<2.67
 django-prometheus>=2.3,<2.4
 opentelemetry-distro[otlp]>=0.43b0
 # M10 §6.6 — OTel instrumentation for the traced stack. Pinned to the 0.64b0
