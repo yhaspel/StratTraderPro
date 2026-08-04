@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Guide — Why Market Regime says "no data"</title>
+</head>
+<body>
+
+<h1>Why Market Regime says "no data"</h1>
+
+<p>The <em>Market Regime</em> card on the dashboard classifies the market as BULL,
+CHOP, BEAR or CRISIS from a daily feature vector. On a working deployment it looks
+like this:</p>
+
+<figure>
+  <img src="assets/guides/img/dashboard-regime.png"
+       alt="The Market Regime card showing a Bull chip, a Risk-on label, and a 90-day history band of green, amber and red segments with a legend." />
+  <figcaption>The card with data: current label, rule bucket, and the ~90-day history band.</figcaption>
+</figure>
+
+<p>If yours is empty, this guide explains why and what to do. Fixing it takes a
+staff account (<em>Settings &rarr; Data Providers</em>) or access to the
+deployment's environment — if you have neither, send this to whoever runs your
+instance.</p>
+
+<h2>Where the data comes from</h2>
+
+<p>Nothing about the regime is computed in the browser. A nightly Celery task,
+<code>apps.regime.tasks.compute_features_daily</code>, fetches the day's inputs,
+standardizes them into a feature vector, stores a snapshot, and writes one
+<code>RegimeObservation</code>. The card renders the most recent observation; the
+band renders the last ~90.</p>
+
+<p>The inputs come from two external providers:</p>
+
+<table>
+  <tr><th>Provider</th><th>Key</th><th>Supplies</th></tr>
+  <tr><td>Financial Modeling Prep</td><td>Set in <em>Settings &rarr; Data Providers</em>, or the <code>FMP_API_KEY</code> env var</td><td>Daily equity bars (SPY and sector proxies)</td></tr>
+  <tr><td>FRED (St. Louis Fed)</td><td>Set in <em>Settings &rarr; Data Providers</em>, or the <code>FRED_API_KEY</code> env var</td><td>VIX, high-yield and investment-grade credit spreads, 2y/10y yields, dollar index</td></tr>
+</table>
+
+<p>There is one set of keys per instance. A key saved in Settings is validated
+against the provider, stored encrypted, and read from the shared database by
+every service — web, Celery worker and beat — so it takes effect immediately
+and <strong>overrides</strong> the corresponding environment variable. The env
+vars remain fully supported as a deploy-time fallback (local <code>.env</code>,
+Railway variables).</p>
+
+<h2>The actual failure mode</h2>
+
+<p>If <strong>either</strong> key is missing, the daily task returns immediately
+with <code>{"skipped": "no_market_data_source_configured"}</code>. It does not
+error, it does not retry, and it does not write a partial observation — it is a
+deliberate no-op, so that the history is not polluted with fabricated neutral
+values that would bias the model for months once real keys arrive.</p>
+
+<p>The visible consequence is that the table of observations stays empty forever,
+the HMM never has enough rows to train, and the card has nothing to show. From the
+dashboard alone that is indistinguishable from a broken pipeline, which is why the
+card now names the cause instead of just saying "no data yet".</p>
+
+<h2>Checking, without reading logs</h2>
+
+<p>Staff accounts can see the answer directly at
+<em>Admin &rarr; Health &rarr; Regime data source</em>. It reports
+<strong>Configured</strong> or <strong>Not configured</strong> from the same
+function the task uses, so it cannot drift from reality.</p>
+
+<figure>
+  <img src="assets/guides/img/admin-health.png"
+       alt="The admin platform health page with cards for database, Redis, HMM model age and sentiment backlog, plus a Regime data source card." />
+  <figcaption><em>Admin &rarr; Health</em>. The regime data source card is the direct answer.</figcaption>
+</figure>
+
+<p>Two nearby cards are worth reading at the same time:</p>
+
+<ul>
+  <li><strong>HMM model age</strong> — <code>—</code> means no model has ever been
+  activated, which is expected while there is no feature history.</li>
+  <li><strong>Sentiment backlog</strong> — unrelated pipeline. Sentiment can be
+  perfectly healthy while regime is empty; they use different providers.</li>
+</ul>
+
+<h2>Fixing it</h2>
+
+<ol>
+  <li>Get an API key from each provider. FRED keys are free; FMP has a free tier
+  that covers the daily bars this uses.</li>
+  <li><strong>Recommended:</strong> as a staff user, open
+  <em>Settings &rarr; Data Providers</em>, paste each key and hit
+  <em>Validate &amp; save</em>. The key is checked against the provider before it
+  is stored, and it reaches all services through the database — no env changes,
+  no redeploy.</li>
+  <li><em>Alternative (deploy-time):</em> set <code>FMP_API_KEY</code> and
+  <code>FRED_API_KEY</code> in the environment instead. If you go this route, set
+  them on <strong>every</strong> service that runs Django code — the web service,
+  the Celery worker <em>and</em> Celery beat — then redeploy. Setting them on the
+  web service alone is the classic mistake: the task runs on the worker, so the
+  web tier reporting "configured" while the worker is not means nothing ever gets
+  written.</li>
+  <li>Re-check <em>Admin &rarr; Health</em>. It should now read
+  <strong>Configured</strong>.</li>
+</ol>
+
+<p>To get a first observation without waiting for the nightly run, an operator
+with shell access can trigger one immediately:</p>
+
+<pre><code>python manage.py shell -c "from apps.regime.tasks import run_daily_feature_pipeline; print(run_daily_feature_pipeline())"</code></pre>
+
+<h2>What to expect afterwards</h2>
+
+<p>The pipeline is <em>daily</em>, not on-demand. After the keys are set:</p>
+
+<ul>
+  <li>The first observation appears after the next scheduled run (22:30 UTC), so
+  the card can stay empty for up to a day. That is normal.</li>
+  <li>The card will show the rule-based classification straight away and mark
+  itself <strong>degraded</strong> until an HMM model is trained.</li>
+  <li>Training needs roughly 120 daily snapshots before the nightly retrain will
+  fit a model, so expect months of accumulation — or backfill the history from the
+  providers — before the card stops reporting degraded.</li>
+  <li>The history band fills in one segment per day as observations accumulate.</li>
+</ul>
+
+<div class="warn">
+  <strong>Degraded is not broken.</strong> A degraded regime is rule-based only:
+  it still classifies, it just does not have the trained model's state
+  probabilities behind it. Treat the label as directional, not precise.
+</div>
+
+<h2>Related</h2>
+
+<ul>
+  <li><a href="/guides/regime-badge">The market-regime badge</a> — what the labels
+  mean and which features drive them.</li>
+  <li><a href="/guides/sentiment">Market sentiment</a> — the other market-context
+  panel, with its own data source.</li>
+</ul>
+
+</body>
+</html>

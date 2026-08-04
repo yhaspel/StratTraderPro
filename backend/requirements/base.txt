@@ -1,8 +1,18 @@
 # Core
-Django>=5.0,<5.1
-djangorestframework>=3.14,<3.15
+# Django 5.1.x — bumped from 5.0.x to clear three CVEs flagged by Trivy in CI:
+#   - CVE-2025-64459 (CRITICAL, SQL injection)
+#   - CVE-2025-57833 (HIGH, SQL injection in FilteredRelation column aliases)
+#   - CVE-2025-64458 (HIGH, DoS on Windows)
+# All three are fixed in Django 5.1.14.
+Django>=5.1.14,<5.2
+# DRF 3.15.2 clears PYSEC-2026-1304 (XSS in the break_long_headers template
+# filter) flagged by pip-audit (M11 §7.2).
+djangorestframework>=3.15.2,<3.16
 django-cors-headers>=4.3,<4.4
-djangorestframework-simplejwt>=5.3,<5.4
+# SimpleJWT 5.5.1 clears PYSEC-2026-1305 (a disabled user could still use a live
+# access token — missing user validation in for_user). Directly relevant to the
+# M11 GDPR delete/anonymize flow (M11 §7.2).
+djangorestframework-simplejwt>=5.5.1,<5.6
 django-filter>=23.5,<24.0
 django-environ>=0.11,<0.12
 
@@ -18,13 +28,30 @@ redis>=5.0,<5.1
 sentry-sdk[django,celery]>=1.40,<2.0
 django-prometheus>=2.3,<2.4
 opentelemetry-distro[otlp]>=0.43b0
+# M10 §6.6 — OTel instrumentation for the traced stack. Pinned to the 0.64b0
+# series that matches the resolved `opentelemetry-distro` (api/sdk 1.43.0); the
+# instrumentations must move in lockstep with the distro's semantic-conventions.
+opentelemetry-instrumentation-django==0.64b0
+opentelemetry-instrumentation-celery==0.64b0
+opentelemetry-instrumentation-redis==0.64b0
+opentelemetry-instrumentation-psycopg2==0.64b0
+opentelemetry-instrumentation-httpx==0.64b0
 python-json-logger>=2.0,<2.1
+# M10 §6.6 — request-id correlation (ULID) across web → Celery → logs → Sentry.
+python-ulid>=3.0,<4.0
 
 # Logging
-structlog>=23.2,<24.0
+# NOTE (M10 §6.6): `structlog` was pinned in M00 but never wired (only comments
+# referenced it; the scrubber uses the python-json-logger LOGGING config). Dropped
+# to remove a dead dependency — the logging stack stays python-json-logger.
 
 # Database
 psycopg2-binary>=2.9,<2.10
+
+# Object storage (M11 §7.7) — S3-compatible abstraction for GDPR data export +
+# the weekly pg_dump offload. Cloudflare R2 in prod; FileSystemStorage in dev;
+# moto in tests. django-storages[s3] pulls boto3. Signed-URL TTL is 24h.
+django-storages[s3]>=1.14,<1.15
 
 # HTTP
 httpx>=0.26,<0.27
@@ -33,3 +60,96 @@ httpx>=0.26,<0.27
 argon2-cffi>=23.1,<24.0
 django-anymail[resend]>=10.2,<11.0
 django-ratelimit>=4.1,<4.2
+
+# Auth (M02 — MFA)
+pyotp>=2.9,<3.0
+qrcode[pil]>=7.4,<8.0
+# cryptography 48.0.1+ cleared GHSA-537c-gmf6-5ccf (HIGH — vulnerable OpenSSL
+# bundled in the cryptography wheels) on top of the earlier CVE-2026-26007
+# (SECT-curve subgroup validation). Trivy in CI fails on HIGH/CRITICAL when a
+# fixed version exists.
+#
+# 2026-08-04: bumped 48.0.1 -> 50.0.0. pip-audit (which has NO severity
+# threshold — it fails on ANY advisory in the shipping closure) flagged three
+# new CVEs against 48.0.1:
+#   CVE-2026-69247 HIGH   PKCS#7 EnvelopedData Bleichenbacher oracle   (fix 50.0.0)
+#   CVE-2026-69249 HIGH   exponential X.509 path-building DoS          (fix 49.0.0)
+#   CVE-2026-69248 MEDIUM X.509 wildcard escape from permittedSubtrees (fix 49.0.0)
+# All three live in X.509 path validation / PKCS#7, and this codebase imports
+# ONLY `Fernet` and `InvalidToken` (apps/users/mfa.py + the brokers, strategies
+# and marketdata services that reuse the platform KEK) — zero x509/pkcs7/pkcs12
+# usage anywhere. They were still UPGRADED rather than waived: fixes exist, this
+# is the library that encrypts every secret at rest, and waiving HIGH CVEs on it
+# would be the wrong default even when the vulnerable paths are unreachable.
+# 50.0.0 is required because only it fixes CVE-2026-69247. Verified: full backend
+# suite green (885 passed), incl. every Fernet round-trip / MFA / broker-credential
+# test. The Fernet API is unchanged across 48 -> 50.
+cryptography>=50.0.0,<51.0
+
+# Auth (M2.5 — Google OAuth via django-allauth)
+django-allauth>=0.61,<0.62
+requests>=2.31,<3.0
+requests-oauthlib>=1.3,<2.0
+
+# Strategies (M03)
+# JSON Schema Draft 2020-12 validation for user-uploaded webhook payload
+# templates. Used in apps.strategies.validators.
+jsonschema>=4.21,<5.0
+
+# Broker execution (M04 — Alpaca paper trading)
+# Official Alpaca SDK (Apache-2.0). pydantic request models
+# (MarketOrderRequest/LimitOrderRequest) + TradingStream websocket for
+# trade_updates. Paper endpoint is hard-coded in AlpacaAdapter (plan §6.2);
+# the live URL is unreachable by construction in M04.
+alpaca-py>=0.43,<0.44
+
+# Realtime / WebSocket (M04 — Channels dashboard consumer)
+# Django Channels 4 powers the /ws/dashboard/ consumer. channels-redis is the
+# cross-process channel layer in dev/prod; tests use the in-memory layer. The
+# HTTP path is unchanged (gunicorn still serves config.wsgi); websockets are
+# served by a dedicated ASGI process (docker-compose `ws` service).
+channels>=4.1,<4.2
+channels-redis>=4.2,<4.3
+# daphne 4.2.2 clears PYSEC-2026-213 (unbounded WS frame/message size — DoS on
+# the public /ws/dashboard/) and PYSEC-2026-214 (header-separator smuggling),
+# both flagged by pip-audit (M11 §7.2).
+daphne>=4.2.2,<4.3
+
+# Market data + regime classifier (M06)
+# numpy/pandas for the feature pipeline; hmmlearn (GaussianHMM) for the nightly
+# regime model; tenacity for FMP retry/backoff. FRED credit spreads are fetched
+# over plain httpx (already pinned) to avoid the heavier fredapi/pandas-datareader
+# stack. All live calls are fixture-mocked in CI (no FMP/FRED keys required).
+numpy>=1.26,<2.2
+pandas>=2.1,<2.3
+hmmlearn>=0.3.2,<0.4
+tenacity>=8.2
+
+# Sentiment pipeline (M07)
+# feedparser is a tiny pure-Python RSS/Atom parser for the news fetchers. The
+# heavy model stacks (transformers[torch] + FinBERT, llama-cpp-python + GGUF,
+# spaCy en_core_web_sm) are DELIBERATELY NOT pinned here — they are volume-
+# mounted worker-only deps (plan §5), imported lazily behind LLM_WORKER_ENABLED /
+# FINBERT_ENABLED. CI scores with a canned FakeScorer + the regex tagger, so the
+# backend image stays lean and Trivy-clean; see requirements/ml-worker.txt.
+feedparser>=6.0,<7.0
+
+# Walk-forward backtester (M09)
+# vectorbt OSS 1.0.0 (fair-code: Apache-2.0 + Commons Clause) drives the
+# parameter-sweep stage, isolated behind our own SweepEngine seam so it stays
+# swappable (ADR-090). Exact pin — 1.0.0 is recent (2026-04) so we control the
+# bump deliberately. The base install pulls a fat transitive tree (scipy,
+# matplotlib, plotly, scikit-learn, numba, dill, ...). The replay stage is a
+# custom in-repo engine (ADR-090/091) — backtrader is NOT a dependency.
+vectorbt==1.0.0
+# WeasyPrint (BSD) renders the PDF tearsheet from a Django template + matplotlib
+# SVGs. Needs Pango/HarfBuzz/fontconfig + a font at the OS level (no Cairo for
+# WeasyPrint >= 53) — the apt list is installed in BOTH docker/backend.Dockerfile
+# AND the ci.yml backend job (CI runs pytest on the runner, not in Docker).
+weasyprint>=68,<69
+# matplotlib renders the PDF's vector (SVG) charts; plotly renders the single-file
+# offline HTML report (include_plotlyjs="inline", no CDN, no kaleido). Both arrive
+# transitively with vectorbt anyway — pinned explicitly so the versions we render
+# tearsheets with are deliberate (plan §7).
+matplotlib>=3.8,<4.0
+plotly>=5.18,<6.0

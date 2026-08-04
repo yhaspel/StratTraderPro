@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — How StratTraderPro reads the news</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>How StratTraderPro reads the news</h1>
+
+<p>StratTraderPro watches breaking financial news through the day, works out which
+stocks each story is about, and turns the tone of that coverage into a
+<strong>sentiment score</strong> — one number for the whole market, plus a read
+per stock. It's designed to answer "what's the mood of the tape right now, and on
+my names?" at a glance.</p>
+
+<div class="tip">
+  Sentiment is <strong>information, not an instruction</strong>. It doesn't place
+  or block trades on its own in this release — it's context to help you read the
+  day. Later releases use it as one input to position sizing.
+</div>
+
+<h2>How a story becomes a score</h2>
+
+<p>Every incoming article goes through the same four steps:</p>
+
+<ol>
+  <li><strong>Ingest.</strong> We pull headlines and filings from several news
+  sources (market news, SEC 8-K filings, trading-halt notices and more) every few
+  minutes, and drop exact duplicates so the same story counts once.</li>
+  <li><strong>Tag the tickers.</strong> We work out which stocks the story is
+  about — from tickers and <code>$CASHTAG</code> mentions in the text and from
+  company names (<em>"Apple Inc" → AAPL</em>) — so the story lands on the right
+  names.</li>
+  <li><strong>Score the tone.</strong> A fast financial language model reads every
+  article and rates it positive, negative or neutral. For the stories that matter
+  most — an 8-K, a trading halt, a guidance change — or ones the fast model is
+  unsure about, a second, deeper model takes a closer look and adds an
+  <strong>impact</strong> rating and a short summary.</li>
+  <li><strong>Blend over time.</strong> Each stock's recent articles are combined
+  into a running score that <strong>leans on the freshest news</strong> — a story
+  from an hour ago counts far more than one from this morning, and news older than
+  a day drops out of the window.</li>
+</ol>
+
+<h2>The market sentiment number</h2>
+
+<p>At the top of the dashboard, the <strong>market sentiment</strong> reading is a
+single number on a scale from <strong>&minus;1 to +1</strong>, blended across the
+stocks in the news (weighted toward the larger companies):</p>
+
+<table>
+  <tr><th>Reading</th><th>What it means</th></tr>
+  <tr><td><strong>near +1</strong></td><td>Coverage is broadly upbeat — positive stories outweigh negative ones.</td></tr>
+  <tr><td><strong>near&nbsp;0</strong></td><td>Mixed or quiet — good and bad news roughly balance, or there's little of note.</td></tr>
+  <tr><td><strong>near &minus;1</strong></td><td>Coverage is broadly negative — the flow is dominated by bad news.</td></tr>
+</table>
+
+<p>A history line next to it shows how the reading has moved over the last several
+days, so you can tell whether today's mood is a fresh shift or part of a longer
+stretch.</p>
+
+<div class="tip">
+  Because the score leans on recent news, it can move quickly when a big story
+  breaks and then <strong>ease back on its own</strong> as that story ages out of
+  the window — even with no new headlines. That's the recency weighting working,
+  not the number glitching.
+</div>
+
+<h2>The recent-news feed</h2>
+
+<p>Click a stock (or open the news feed) to see the <strong>recent articles</strong>
+behind its score — the most impactful stories first. Each item shows the headline,
+the source, whether we flagged it as <strong>material</strong> (an 8-K, a halt, a
+guidance change), its tone, and — for the deeper-scored stories — an
+<strong>impact</strong> rating and a one-line summary.</p>
+
+<div class="warn">
+  <strong>We show a summary and a link, never the full article.</strong> Out of
+  respect for the source's copyright, the feed gives you our short summary and a
+  link out to read the original at the publisher — we don't republish the article
+  body.
+</div>
+
+<h2>The "degraded" state</h2>
+
+<p>You may occasionally see a note that sentiment is running in a
+<strong>degraded</strong> state. That means the deeper second model is temporarily
+switched off, so scoring is running on the fast first model <strong>alone</strong>.</p>
+
+<p>This is a <strong>graceful fallback, not an outage</strong>. You still get a
+valid market and per-stock sentiment score and the recent-news feed — you're
+simply missing the extra <em>impact</em> detail the deeper model adds on the
+biggest stories, until it's back on. Nothing you do is affected.</p>
+
+<h2>Good to know</h2>
+
+<ul>
+  <li>Scores cover <strong>English-language</strong> news for US-listed stocks in
+  this release; social media and non-English coverage may come later.</li>
+  <li>It refreshes on its own through the trading day — you don't need to do
+  anything.</li>
+  <li>It's a <strong>context signal</strong>. Treat it as one more input to your
+  own judgement, not a buy/sell trigger.</li>
+</ul>
+
+</body>
+</html>

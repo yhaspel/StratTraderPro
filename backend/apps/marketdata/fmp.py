@@ -1,0 +1,214 @@
+"""FinancialModelingPrep client (M06 §6.1).
+
+Token-bucket rate limiting, jittered retry on 429/5xx (tenacity), a simple
+circuit breaker, and a response cache with cache-fallback so a rate-limit/outage
+never surfaces a 5xx on the dashboard (AC-06-9). HTTP is injectable for tests —
+no live FMP calls in CI (an API key is a deferred external).
+"""
+from __future__ import annotations
+
+import hashlib
+import logging
+import time
+
+from django.conf import settings
+from django.core.cache import cache
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
+
+from .metrics import MARKETDATA_RATELIMIT_WAITS, MARKETDATA_REQUESTS
+
+logger = logging.getLogger(__name__)
+
+_CB_FAILS_KEY = "fmp:cb:fails"
+_CB_OPEN_KEY = "fmp:cb:open"
+
+
+class FMPError(Exception):
+    """Base. A bare FMPError is a NON-retryable client error (4xx)."""
+
+
+class FMPRateLimited(FMPError):
+    """429 or the client-side per-minute cap. Retryable."""
+
+
+class FMPServerError(FMPError):
+    """5xx or a transport outage (connect/timeout/DNS). Retryable."""
+
+
+class FMPCircuitOpen(FMPError):
+    """Breaker is open — short-circuit without a network call."""
+
+
+class FMPClient:
+    def __init__(self, *, api_key=None, base_url=None, http=None,
+                 per_minute=None, cb_threshold=5, cb_cooldown=60):
+        if api_key is None:
+            # UI-stored instance key → FMP_API_KEY env fallback (ADR-062).
+            from .keys import resolve_key
+
+            api_key = resolve_key("FMP")
+        self.api_key = api_key
+        self.base = (base_url or getattr(settings, "FMP_BASE_URL", "https://financialmodelingprep.com/stable")).rstrip("/")
+        self._http = http
+        self._owned_http = None  # one reused client per instance (FIX-M10)
+        self.per_minute = per_minute or getattr(settings, "FMP_RATE_LIMIT_PER_MIN", 750)
+        self.cb_threshold = cb_threshold
+        self.cb_cooldown = cb_cooldown
+
+    def _client(self):
+        """One httpx.Client per FMPClient, created lazily and reused — a fresh
+        client per call (×retries) leaked a connection pool each time (FIX-M10)."""
+        if self._http is not None:
+            return self._http
+        if self._owned_http is None:
+            import httpx
+
+            self._owned_http = httpx.Client(timeout=15.0)
+        return self._owned_http
+
+    def close(self) -> None:
+        if self._owned_http is not None:
+            self._owned_http.close()
+            self._owned_http = None
+
+    # -- rate limit (token bucket, fixed window) ---------------------------
+    def _throttle(self) -> None:
+        bucket = int(time.time() // 60)
+        key = f"fmp:rl:{bucket}"
+        try:
+            cache.add(key, 0, timeout=90)
+            n = cache.incr(key)
+        except ValueError:  # pragma: no cover
+            cache.set(key, 1, timeout=90)
+            n = 1
+        if n > self.per_minute:
+            MARKETDATA_RATELIMIT_WAITS.inc()
+            raise FMPRateLimited("client-side per-minute cap reached")
+
+    # -- circuit breaker ----------------------------------------------------
+    def _check_circuit(self) -> None:
+        if cache.get(_CB_OPEN_KEY):
+            raise FMPCircuitOpen("circuit open")
+
+    def _record_failure(self) -> None:
+        try:
+            cache.add(_CB_FAILS_KEY, 0, timeout=self.cb_cooldown)
+            fails = cache.incr(_CB_FAILS_KEY)
+        except ValueError:  # pragma: no cover
+            cache.set(_CB_FAILS_KEY, 1, timeout=self.cb_cooldown)
+            fails = 1
+        if fails >= self.cb_threshold:
+            cache.set(_CB_OPEN_KEY, True, timeout=self.cb_cooldown)
+
+    def _record_success(self) -> None:
+        cache.delete(_CB_FAILS_KEY)
+
+    # -- request ------------------------------------------------------------
+    def _raw_get(self, path: str, params: dict):
+        import httpx
+
+        client = self._client()
+        q = {**params, "apikey": self.api_key}
+        try:
+            resp = client.get(f"{self.base}{path}", params=q)
+        except httpx.RequestError as exc:
+            # Transport outage (connect/timeout/DNS). Re-raise as a retryable
+            # server error WITHOUT the original (whose URL carries the apikey).
+            raise FMPServerError(f"transport: {type(exc).__name__}") from None
+        if resp.status_code == 429:
+            raise FMPRateLimited("429")
+        if resp.status_code >= 500:
+            raise FMPServerError(str(resp.status_code))
+        if resp.status_code >= 400:  # 4xx — bad key / symbol; do NOT retry
+            raise FMPError(f"HTTP {resp.status_code}")
+        try:
+            return resp.json()
+        except (ValueError, TypeError):
+            # 200 with a non-JSON body (proxy/CDN error page). Route through the
+            # resilience layer instead of escaping as an uncaught decode error
+            # (AC-06-9 "never 5xx" / FIX-M11).
+            raise FMPServerError("invalid JSON body") from None
+
+    @retry(
+        retry=retry_if_exception_type((FMPRateLimited, FMPServerError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=0.1, max=2.0),
+        reraise=True,
+    )
+    def _get_with_retry(self, path, params):
+        return self._raw_get(path, params)
+
+    def get(self, path: str, params: dict, *, cache_ttl: int = 30, cache_key: str | None = None):
+        """Rate-limited + retried GET with a cache-fallback. On rate-limit /
+        circuit-open / exhausted retries, return the last cached response if we
+        have one (never raise into a dashboard 5xx)."""
+        if cache_key is None:
+            digest = hashlib.sha256(f"{path}:{sorted(params.items())}".encode()).hexdigest()[:32]
+            cache_key = f"fmp:resp:{digest}"
+        ck = cache_key
+        try:
+            self._check_circuit()
+            self._throttle()
+            data = self._get_with_retry(path, params)
+            self._record_success()
+            MARKETDATA_REQUESTS.labels(endpoint=path.strip("/").split("/")[0] or "root", result="ok").inc()
+            cache.set(ck, data, timeout=max(cache_ttl, 30))
+            return data
+        except FMPError as exc:  # all FMP* errors (incl. transport) → cache-fallback
+            # Only genuine vendor failures trip the breaker — not our own throttle
+            # and not an already-open breaker (which would re-arm its cooldown).
+            if not isinstance(exc, (FMPCircuitOpen, FMPRateLimited)):
+                self._record_failure()
+            MARKETDATA_REQUESTS.labels(
+                endpoint=path.strip("/").split("/")[0] or "root", result="fail"
+            ).inc()
+            cached = cache.get(ck)
+            if cached is not None:
+                logger.warning("fmp.cache_fallback", extra={"path": path})
+                return cached
+            raise
+
+    # -- endpoints ----------------------------------------------------------
+    def daily_bars(self, symbol: str) -> list[dict]:
+        data = self.get("/historical-price-eod/full", {"symbol": symbol}, cache_ttl=86400)
+        return _normalize_bars(data)
+
+    def intraday_bars(self, symbol: str, tf: str = "5min", **kw) -> list[dict]:
+        data = self.get(f"/historical-chart/{tf}", {"symbol": symbol, **kw}, cache_ttl=30)
+        return _normalize_bars(data)
+
+    def quote(self, symbol: str) -> dict:
+        data = self.get("/quote", {"symbol": symbol}, cache_ttl=15)
+        return (data[0] if isinstance(data, list) and data else data) or {}
+
+    def treasury_yield_curve(self, **kw) -> list[dict]:
+        return self.get("/economics/treasury-yield-curve", kw, cache_ttl=3600) or []
+
+    def sector_performance(self) -> list[dict]:
+        return self.get("/historical-sector-performance", {}, cache_ttl=3600) or []
+
+    def company_screener(self, params: dict) -> list[dict]:
+        """Stock screener (M16 §6.2, adopted in ADR-063 under the ADR-061 §4
+        vendor-change gate). ONE call per screen run — the derived criteria are
+        computed locally from daily bars, never per-candidate vendor calls.
+
+        Params are built exclusively from the §6.1 mapping table, so an
+        unknown-param 4xx fails loud as ``FMPError`` rather than silently
+        widening a screen. Rides the shared token-bucket → retry → breaker →
+        cache-FALLBACK stack for AC-06-9 semantics."""
+        return self.get("/company-screener", params, cache_ttl=300) or []
+
+
+def _normalize_bars(data) -> list[dict]:
+    rows = data.get("historical", data) if isinstance(data, dict) else data
+    out = []
+    for r in rows or []:
+        ts = r.get("date") or r.get("datetime") or r.get("timestamp")
+        o, h, low, c = r.get("open"), r.get("high"), r.get("low"), r.get("close")
+        if ts is None or None in (o, h, low, c):  # skip partial rows
+            continue
+        out.append({
+            "ts": ts, "open": o, "high": h, "low": low, "close": c,
+            "volume": r.get("volume", 0),
+        })
+    return out

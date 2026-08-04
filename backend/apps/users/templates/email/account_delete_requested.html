@@ -1,0 +1,10 @@
+{% load i18n %}<!doctype html>
+<html>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #1f2937;">
+    <p>{% blocktrans %}Hi {{ display_name }},{% endblocktrans %}</p>
+    <p>{% blocktrans %}We received a request to delete your StratTraderPro account. It is scheduled for permanent anonymization on {{ pending_delete_at }}.{% endblocktrans %}</p>
+    <p>{% blocktrans %}If you change your mind, sign in and cancel the deletion any time before then — nothing is removed until that date.{% endblocktrans %}</p>
+    <p>{% blocktrans %}If you did not request this, cancel it and reset your password immediately.{% endblocktrans %}</p>
+    <p>— {% trans "The StratTraderPro team" %}</p>
+  </body>
+</html>

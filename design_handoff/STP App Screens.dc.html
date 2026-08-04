@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-1b09ac0e-0eae-4abd-8f4c-b9aba234f315/styles.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { -webkit-font-smoothing:antialiased; }
+</style>
+</helmet>
+<div style="min-height:100vh; display:flex; flex-direction:column;">
+
+  <!-- Platform halt banner (kill switch active — tweakable) -->
+  <sc-if value="{{ haltActive }}" hint-placeholder-val="{{ false }}">
+    <div role="alert" style="background:#A63D36; color:var(--color-bg); padding:9px 24px; font-size:14px; font-weight:600; font-family:var(--font-heading); letter-spacing:.03em; text-align:center;">TRADING IS HALTED — AN ACTIVE KILL SWITCH IS BLOCKING ALL ORDER FLOW. MANAGE IT UNDER RISK.</div>
+  </sc-if>
+
+  <!-- ============ Shell header ============ -->
+  <header data-screen-label="Shell" style="border-bottom:1px solid var(--color-divider); background:var(--color-bg);">
+    <div style="max-width:1280px; margin:0 auto; padding:0 24px; height:54px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+      <div style="display:flex; align-items:center; gap:24px;">
+        <div style="display:flex; align-items:center; gap:9px; cursor:pointer;" onClick="{{ goDashboard }}">
+          <span style="width:24px; height:24px; border:1px solid var(--color-text); display:inline-flex; align-items:flex-end; justify-content:center; gap:2px; padding:4px 4px 3px;"><span style="width:3px; height:7px; background:var(--color-accent);"></span><span style="width:3px; height:11px; background:var(--color-accent);"></span><span style="width:3px; height:5px; background:var(--color-accent-400);"></span></span>
+          <span style="font-family:var(--font-heading); font-weight:600; font-size:18px; white-space:nowrap;">StratTrader<span style="color:var(--color-accent);">Pro</span></span>
+        </div>
+        <nav aria-label="Primary" style="display:flex; gap:18px;">
+          <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="7">
+            <button onClick="{{ n.go }}" style="border:none; background:none; padding:16px 0 14px; font-size:14px; cursor:pointer; color:{{ n.color }}; font-weight:{{ n.weight }}; border-bottom:2px solid {{ n.border }};" style-hover="color:var(--color-accent);">{{ n.label }}</button>
+          </sc-for>
+        </nav>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap;" class="text-muted"><span style="width:7px; height:7px; background:#2E6B45;"></span>Live</span>
+        <button class="btn btn-ghost" style="color:var(--color-text); font-family:var(--font-body); font-weight:500; font-size:13px;">trader@self.host <span class="text-muted">▾</span></button>
+      </div>
+    </div>
+  </header>
+
+  <main style="flex:1; width:100%; max-width:1280px; margin:0 auto; padding:28px 24px 80px; box-sizing:border-box;">
+
+    <!-- ================================================== DASHBOARD -->
+    <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Dashboard" style="display:flex; flex-direction:column; gap:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <h2 style="margin:0;">Dashboard</h2>
+          <button onClick="{{ openHalt }}" class="btn" style="background:#A63D36; border-color:#A63D36; color:var(--color-bg);" style-hover="background:#8C3A34;">Halt my trading</button>
+        </div>
+
+        <sc-if value="{{ mfaNeeded }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="border:1px solid #C9A23E; background:#F3E9D4; color:#6E5220; padding:11px 16px; font-size:13px;">Enable two-factor authentication to unlock live data — every data panel requires MFA. <a href="#" style="color:#6E5220;">Set up MFA →</a></div>
+        </sc-if>
+
+        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:20px;">
+          <!-- Sentiment panel -->
+          <section class="card blueprint" style="padding:20px 24px; gap:14px;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <h6 style="margin:0; color:var(--color-neutral-700);">Market sentiment <a href="#" title="What is this?" style="font-size:11px;">?</a></h6>
+            <div style="display:flex; align-items:center; gap:20px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:28px; font-weight:600; color:#2E6B45;">+0.31</span>
+              <svg width="150" height="40" viewBox="0 0 150 40" aria-label="Sentiment history"><line x1="0" y1="20" x2="150" y2="20" stroke="#d4d4d7" stroke-width="1"></line><polyline points="0,27 15,25 30,29 45,22 60,25 75,17 90,20 105,13 120,15 135,9 150,11" fill="none" stroke="#2E6B45" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+            </div>
+            <div style="display:flex; flex-direction:column;">
+              <div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-accent); padding-bottom:6px; font-weight:500;">Recent impactful news</div>
+              <sc-for list="{{ news }}" as="a" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid color-mix(in srgb, var(--color-text) 8%, transparent); font-size:13px;">
+                  <span style="font-family:'IBM Plex Mono',monospace; color:{{ a.color }};">{{ a.arrow }}</span>
+                  <a href="#" style="flex:1; color:var(--color-text); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ a.title }}</a>
+                  <span style="font-size:11px; flex:none;" class="text-muted">{{ a.source }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; flex:none;" class="text-muted">imp {{ a.impact }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <!-- Regime panel -->
+          <section class="card blueprint" style="padding:20px 24px; gap:14px;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <h6 style="margin:0; color:var(--color-neutral-700);">Market regime <a href="#" title="What is this?" style="font-size:11px;">?</a></h6>
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <button class="tag" title="Top contributing features" style="border:none; cursor:pointer; font-size:13px; font-weight:700; padding:5px 14px; background:#DFEEE4; color:#2E5C40;">BULL</button>
+              <span style="font-size:13px;" class="text-muted">Risk-on</span>
+              <span class="tag" style="font-weight:700; background:#F3E9D4; color:#6E5220;">⚠ RULE-BASED ONLY</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-accent); font-weight:500;">90-day history</div>
+              <div style="display:flex; height:20px; gap:1px; border:1px solid var(--color-divider);" role="img" aria-label="90-day regime history">
+                <div style="flex:22; background:#4C8A62;"></div><div style="flex:9; background:#C9A23E;"></div><div style="flex:14; background:#4C8A62;"></div><div style="flex:11; background:#B06A3C;"></div><div style="flex:5; background:#B3564F;"></div><div style="flex:10; background:#B06A3C;"></div><div style="flex:8; background:#C9A23E;"></div><div style="flex:21; background:#4C8A62;"></div>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:11px;" class="text-muted">
+                <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#4C8A62;"></span>Bull</span>
+                <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#C9A23E;"></span>Chop</span>
+                <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#B06A3C;"></span>Bear</span>
+                <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:9px; height:9px; background:#B3564F;"></span>Crisis</span>
+              </div>
+            </div>
+            <div style="border-top:1px solid var(--color-divider); padding-top:12px; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-accent); font-weight:500;">Broker status</div>
+              <div><span class="tag" style="gap:6px; font-weight:700; background:#DFEEE4; color:#2E5C40;"><span style="width:6px; height:6px; background:#2E5C40;"></span>ALPACA PAPER · CONNECTED</span></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Positions -->
+        <section class="card blueprint" style="padding:0; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0; padding:14px 16px 8px; color:var(--color-neutral-700);">Open positions</h6>
+          <table class="table" style="font-size:13px;">
+            <thead><tr><th style="padding-left:16px;">Symbol</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Avg cost</th><th style="text-align:right;">Mark</th><th style="text-align:right; padding-right:16px;">Unrealized P&amp;L</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ positions }}" as="p" hint-placeholder-count="4">
+                <tr>
+                  <td style="font-weight:700; padding-left:16px;">{{ p.symbol }}</td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;">{{ p.qty }}</td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;" class="text-muted">{{ p.avg }}</td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;" class="text-muted">{{ p.mark }}</td>
+                  <td style="text-align:right; padding-right:16px; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; font-weight:500; color:{{ p.pnlColor }};">{{ p.pnl }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Fills -->
+        <section class="card blueprint" style="padding:14px 16px; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0 0 6px; color:var(--color-neutral-700);">Today's fills</h6>
+          <sc-for list="{{ fills }}" as="f" hint-placeholder-count="3">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid color-mix(in srgb, var(--color-text) 8%, transparent); font-size:13px;">
+              <span style="font-weight:700; width:60px;">{{ f.symbol }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; color:{{ f.sideColor }}; width:44px;">{{ f.side }}</span>
+              <span style="flex:1; font-family:'IBM Plex Mono',monospace;" class="text-muted">{{ f.detail }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px;" class="text-muted">{{ f.time }}</span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== ORDERS -->
+    <sc-if value="{{ isOrders }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Orders" style="display:flex; flex-direction:column; gap:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+          <div><h2 style="margin:0;">Orders</h2><p style="margin:2px 0 0; font-size:14px;" class="text-muted">Full lifecycle of every webhook-driven order.</p></div>
+          <button class="btn btn-secondary">Export CSV</button>
+        </div>
+
+        <!-- Filter toolbar -->
+        <div class="card blueprint" style="flex-direction:row; align-items:flex-end; gap:12px; flex-wrap:wrap; padding:14px 16px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="field" style="margin:0;"><label>Broker</label><select class="input" style="min-height:34px; width:auto;"><option>All</option><option>ALPACA</option><option>TRADESTATION</option></select></div>
+          <div class="field" style="margin:0;"><label>Status</label><select class="input" style="min-height:34px; width:auto;"><option>All</option><option>Pending submit</option><option>Submitted</option><option>Partially filled</option><option>Filled</option><option>Cancelled</option><option>Rejected</option></select></div>
+          <div class="field" style="margin:0;"><label>Strategy</label><input class="input" type="text" placeholder="orb_breakout_v2" style="min-height:34px; width:170px; font-family:'IBM Plex Mono',monospace; font-size:12px;"></div>
+          <div class="field" style="margin:0;"><label>From</label><input class="input" type="date" value="2026-06-19" style="min-height:34px; width:auto; font-family:'IBM Plex Mono',monospace; font-size:12px;"></div>
+          <div class="field" style="margin:0;"><label>To</label><input class="input" type="date" value="2026-07-19" style="min-height:34px; width:auto; font-family:'IBM Plex Mono',monospace; font-size:12px;"></div>
+          <button class="btn btn-primary" style="min-height:34px;">Apply</button>
+        </div>
+
+        <!-- Orders table -->
+        <section class="card blueprint" style="padding:0; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <table class="table" style="font-size:13px;">
+            <thead><tr><th style="padding-left:16px;">Time</th><th>Broker</th><th>Strategy</th><th>Symbol</th><th>Side</th><th style="text-align:right;">Qty</th><th>Type</th><th>Status</th><th style="text-align:right; padding-right:16px;">Filled</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ orders }}" as="o" hint-placeholder-count="7">
+                <tr onClick="{{ o.open }}" tabIndex="0" style="cursor:pointer;">
+                  <td style="white-space:nowrap; font-family:'IBM Plex Mono',monospace; font-size:12px; padding-left:16px;" class="text-muted">{{ o.time }}</td>
+                  <td class="text-muted">{{ o.broker }}</td>
+                  <td style="font-family:'IBM Plex Mono',monospace; font-size:12px;" class="text-muted">{{ o.strategy }}</td>
+                  <td style="font-weight:700;">{{ o.symbol }}</td>
+                  <td style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:{{ o.sideColor }};">{{ o.side }}</td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">{{ o.qty }}</td>
+                  <td class="text-muted">{{ o.type }}</td>
+                  <td><span class="tag" style="font-weight:700; background:{{ o.chipBg }}; color:{{ o.chipFg }};">{{ o.status }}</span></td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace; padding-right:16px;">{{ o.filled }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px;">
+            <span style="font-size:12px; font-family:'IBM Plex Mono',monospace;" class="text-muted">Page 1 / 12 · 288 orders</span>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-secondary" disabled style="font-size:12px; padding:4px 10px;">← Prev</button>
+              <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Next →</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Reconciliation events -->
+        <section class="card blueprint" style="padding:14px 16px; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0 0 6px; color:var(--color-neutral-700);">Reconciliation events</h6>
+          <sc-for list="{{ recon }}" as="e" hint-placeholder-count="2">
+            <div style="display:flex; align-items:center; gap:14px; padding:8px 0; border-top:1px solid color-mix(in srgb, var(--color-text) 8%, transparent); font-size:13px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; width:110px;" class="text-muted">{{ e.time }}</span>
+              <span style="font-weight:700; width:52px;">{{ e.symbol }}</span>
+              <span class="tag" style="font-weight:700; background:#F3E9D4; color:#6E5220;">{{ e.kind }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:12px;" class="text-muted">ours {{ e.ours }} · broker {{ e.broker }}</span>
+              <span style="flex:1; font-size:12px;" class="text-muted">{{ e.detail }}</span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== STRATEGIES -->
+    <sc-if value="{{ isStrategies }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Strategies" style="display:flex; flex-direction:column; gap:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+          <div><h2 style="margin:0;">Strategies</h2><p style="margin:2px 0 0; font-size:14px;" class="text-muted">System strategies and your uploads, with their TradingView webhooks.</p></div>
+          <span class="blueprint" style="display:inline-block;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><button class="btn btn-primary" style="margin:0;">Upload strategy</button></span>
+        </div>
+        <section class="card blueprint" style="padding:0; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <table class="table" style="font-size:13px;">
+            <thead><tr><th style="padding-left:16px;">Strategy</th><th>Type</th><th>Enabled</th><th>Webhook</th><th style="text-align:right; padding-right:16px;">Actions</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ strategies }}" as="s" hint-placeholder-count="3">
+                <tr>
+                  <td style="padding:12px 8px 12px 16px;">
+                    <div style="font-weight:700;">{{ s.name }}</div>
+                    <div style="font-size:12px; margin-top:2px;" class="text-muted">{{ s.desc }}</div>
+                    <sc-if value="{{ s.untested }}" hint-placeholder-val="{{ false }}">
+                      <div class="tag" style="margin-top:6px; font-weight:700; background:#F3E9D4; color:#6E5220;">⚠ UNTESTED USER UPLOAD</div>
+                    </sc-if>
+                  </td>
+                  <td><span class="tag" style="font-weight:700; background:{{ s.typeBg }}; color:{{ s.typeFg }};">{{ s.type }}</span></td>
+                  <td>
+                    <button onClick="{{ s.toggle }}" aria-label="Toggle strategy" style="width:40px; height:20px; border:1px solid {{ s.trackBorder }}; background:{{ s.trackBg }}; position:relative; cursor:pointer; padding:0;"><span style="position:absolute; top:2px; left:{{ s.knobLeft }}; width:15px; height:14px; background:{{ s.knobBg }}; transition:left .15s ease;"></span></button>
+                  </td>
+                  <td style="font-size:12px; color:{{ s.whColor }};">{{ s.webhook }}</td>
+                  <td style="text-align:right; white-space:nowrap; padding-right:16px;">
+                    <button onClick="{{ s.configure }}" class="btn btn-ghost" style="font-size:13px;">Configure webhook</button>
+                    <sc-if value="{{ s.untested }}" hint-placeholder-val="{{ false }}">
+                      <button class="btn btn-ghost" style="font-size:13px; color:#A63D36;" style-hover="background:color-mix(in srgb, #A63D36 10%, transparent);">Delete</button>
+                    </sc-if>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== BACKTEST LAUNCHER -->
+    <sc-if value="{{ isBacktest }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Backtest launcher" style="display:flex; flex-direction:column; gap:20px;">
+        <div><h2 style="margin:0;">Backtest</h2><p style="margin:2px 0 0; font-size:14px;" class="text-muted">Walk-forward validation with out-of-sample scoring and PBO.</p></div>
+        <div style="display:grid; grid-template-columns:420px 1fr; gap:20px; align-items:start;">
+          <!-- Launcher form -->
+          <section class="card blueprint" style="padding:20px; gap:14px;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <h6 style="margin:0; color:var(--color-neutral-700);">New run</h6>
+            <div class="field" style="margin:0;"><label>Strategy</label><select class="input"><option>ORB Breakout v2</option><option>Mean Reversion Daily</option><option disabled>my_custom_strat — no adapter</option></select><span style="font-size:11px;" class="text-muted">Only strategies with a Python adapter can be backtested.</span></div>
+            <div class="field" style="margin:0;"><label>Symbols</label><input class="input" type="text" value="SPY, QQQ" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"><span style="font-size:11px;" class="text-muted">Comma or space separated, max 10.</span></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="field" style="margin:0;"><label>Start</label><input class="input" type="date" value="2023-07-19" style="font-family:'IBM Plex Mono',monospace; font-size:12px;"></div>
+              <div class="field" style="margin:0;"><label>End</label><input class="input" type="date" value="2026-07-19" style="font-family:'IBM Plex Mono',monospace; font-size:12px;"></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+              <div class="field" style="margin:0;"><label>Train (days)</label><input class="input" type="number" value="252" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+              <div class="field" style="margin:0;"><label>Test (days)</label><input class="input" type="number" value="63" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+              <div class="field" style="margin:0;"><label>Step</label><input class="input" type="number" value="63" readOnly style="font-family:'IBM Plex Mono',monospace; font-size:13px; opacity:.6;"></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+              <div class="field" style="margin:0;"><label>Mode</label><select class="input"><option>Rolling</option><option>Anchored</option></select></div>
+              <div class="field" style="margin:0;"><label>Metric</label><select class="input"><option>Sharpe</option><option>Sortino</option><option>Total return</option><option>MAR</option></select></div>
+              <div class="field" style="margin:0;"><label>Cash</label><input class="input" type="number" value="100000" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+            </div>
+            <div class="field" style="margin:0;"><label>Sizing</label>
+              <div class="seg"><span class="seg-opt" style="background:var(--color-accent); color:var(--color-bg);">Production</span><span class="seg-opt">Fixed qty = 1</span></div>
+            </div>
+            <div class="field" style="margin:0;"><label>Param grid</label><textarea class="input" rows="3" spellcheck="false" style="min-height:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6;">{ "fast": [10, 20], "slow": [50, 100] }</textarea></div>
+            <details style="border:1px solid var(--color-divider); padding:10px 14px;">
+              <summary style="font-size:13px; font-weight:500; cursor:pointer;" class="text-muted">Advanced — costs &amp; retention</summary>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+                <div class="field" style="margin:0;"><label>Slippage (bps)</label><input class="input" type="number" value="5" style="min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+                <div class="field" style="margin:0;"><label>Per order ($)</label><input class="input" type="number" value="0" style="min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+                <div class="field" style="margin:0;"><label>Per share ($)</label><input class="input" type="number" value="0" style="min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+                <div class="field" style="margin:0;"><label>Retention (days)</label><input class="input" type="number" value="90" style="min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+              </div>
+            </details>
+            <span class="blueprint" style="display:block;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><button class="btn btn-primary btn-block" style="margin:0;">Run walk-forward backtest</button></span>
+          </section>
+
+          <!-- Runs list -->
+          <section class="card blueprint" style="padding:0; gap:0;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <h6 style="margin:0; padding:14px 16px 8px; color:var(--color-neutral-700);">Runs</h6>
+            <table class="table" style="font-size:13px;">
+              <thead><tr><th style="padding-left:16px;">Created</th><th>Strategy</th><th>Symbols</th><th>Status</th><th style="text-align:right;">PBO</th><th style="text-align:right;">Duration</th><th style="padding-right:16px;"></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ runs }}" as="r" hint-placeholder-count="4">
+                  <tr onClick="{{ r.open }}" style="cursor:pointer;">
+                    <td style="white-space:nowrap; font-family:'IBM Plex Mono',monospace; font-size:12px; padding-left:16px;" class="text-muted">{{ r.created }}</td>
+                    <td style="font-weight:700;">{{ r.strategy }}</td>
+                    <td style="font-family:'IBM Plex Mono',monospace; font-size:12px;" class="text-muted">{{ r.symbols }}</td>
+                    <td style="white-space:nowrap;"><span class="tag" style="font-weight:700; background:{{ r.chipBg }}; color:{{ r.chipFg }};">{{ r.status }}</span><sc-if value="{{ r.pct }}" hint-placeholder-val="{{ false }}"><span style="margin-left:6px; font-family:'IBM Plex Mono',monospace; font-size:11px;" class="text-muted">{{ r.pct }}</span></sc-if></td>
+                    <td style="text-align:right; font-family:'IBM Plex Mono',monospace; color:{{ r.pboColor }};">{{ r.pbo }}</td>
+                    <td style="text-align:right; font-family:'IBM Plex Mono',monospace;" class="text-muted">{{ r.duration }}</td>
+                    <td style="text-align:right; padding-right:16px;"><sc-if value="{{ r.active }}" hint-placeholder-val="{{ false }}"><button onClick="{{ r.cancel }}" class="btn btn-secondary" style="font-size:11px; padding:3px 10px;">Cancel</button></sc-if></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px;">
+              <span style="font-size:12px; font-family:'IBM Plex Mono',monospace;" class="text-muted">Page 1 / 3 · 54 runs</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-secondary" disabled style="font-size:12px; padding:4px 10px;">← Prev</button>
+                <button class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Next →</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== BACKTEST DETAIL -->
+    <sc-if value="{{ isBtDetail }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Backtest detail" style="display:flex; flex-direction:column; gap:20px;">
+        <button onClick="{{ goBacktest }}" class="btn btn-ghost" style="width:fit-content; font-size:13px;">← All runs</button>
+        <section class="card blueprint" style="padding:20px 24px; gap:14px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+            <div>
+              <h2 style="margin:0;">ORB Breakout v2</h2>
+              <p style="margin:4px 0 0; font-family:'IBM Plex Mono',monospace; font-size:13px;" class="text-muted">SPY, QQQ</p>
+              <p style="margin:2px 0 0; font-family:'IBM Plex Mono',monospace; font-size:12px;" class="text-muted">2023-07-19 → 2026-07-19 · rolling · sharpe · $100,000</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="tag" style="font-weight:700; background:#DFEEE4; color:#2E5C40;">COMPLETED</span>
+              <button class="btn btn-secondary" style="font-size:13px;">Rerun with same config</button>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; border-top:1px solid var(--color-divider); padding-top:12px;">
+            <span style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; font-weight:500; color:var(--color-accent);">Downloads</span>
+            <button class="btn btn-secondary" style="font-size:12px; padding:3px 12px;">JSON</button>
+            <button class="btn btn-secondary" style="font-size:12px; padding:3px 12px;">HTML report</button>
+            <button class="btn btn-secondary" style="font-size:12px; padding:3px 12px;">PDF</button>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px;" class="text-muted">hash: 8f4ac21b90d3…</span>
+          </div>
+        </section>
+
+        <section class="card blueprint" style="padding:20px 24px; gap:14px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="display:flex; gap:22px; border-bottom:1px solid var(--color-divider); flex:1;">
+              <sc-for list="{{ chartTabs }}" as="t" hint-placeholder-count="4">
+                <button onClick="{{ t.go }}" style="border:none; background:none; padding:0 0 10px; font-size:13px; font-weight:{{ t.weight }}; color:{{ t.color }}; border-bottom:2px solid {{ t.border }}; cursor:pointer;">{{ t.label }}</button>
+              </sc-for>
+            </div>
+            <select class="input" style="min-height:32px; width:auto;"><option>SPY</option><option>QQQ</option></select>
+          </div>
+          <sc-if value="{{ tabEquity }}" hint-placeholder-val="{{ true }}">
+            <svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Equity curve"><line x1="0" y1="200" x2="900" y2="200" stroke="#d4d4d7"></line><line x1="0" y1="140" x2="900" y2="140" stroke="#d4d4d7"></line><line x1="0" y1="80" x2="900" y2="80" stroke="#d4d4d7"></line><polyline points="0,210 60,204 120,208 180,190 240,178 300,184 360,160 420,166 480,140 540,120 600,128 660,96 720,84 780,90 840,58 900,44" fill="none" stroke="#416180" stroke-width="2"></polyline></svg>
+          </sc-if>
+          <sc-if value="{{ tabDrawdown }}" hint-placeholder-val="{{ false }}">
+            <svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Drawdown"><line x1="0" y1="20" x2="900" y2="20" stroke="#d4d4d7"></line><polygon points="0,20 60,44 120,30 180,66 240,50 300,90 360,60 420,110 480,74 540,124 600,88 660,60 720,96 780,50 840,70 900,30 900,20 0,20" fill="rgba(179,86,79,.18)" stroke="#B3564F" stroke-width="1.5"></polygon></svg>
+          </sc-if>
+          <sc-if value="{{ tabMonthly }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <sc-for list="{{ heatRows }}" as="row" hint-placeholder-count="3">
+                <div style="display:flex; gap:4px; align-items:center;">
+                  <span style="width:44px; font-family:'IBM Plex Mono',monospace; font-size:11px;" class="text-muted">{{ row.year }}</span>
+                  <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="12">
+                    <div title="{{ c.tip }}" style="flex:1; height:34px; background:{{ c.bg }}; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:10px; color:{{ c.fg }};">{{ c.v }}</div>
+                  </sc-for>
+                </div>
+              </sc-for>
+              <div style="display:flex; gap:4px; padding-left:48px;">
+                <sc-for list="{{ monthLabels }}" as="m" hint-placeholder-count="12"><span style="flex:1; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:10px;" class="text-muted">{{ m }}</span></sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ tabWindow }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:flex-end; gap:6px; height:240px; padding-top:20px;">
+              <sc-for list="{{ windowBars }}" as="b" hint-placeholder-count="12">
+                <div title="{{ b.tip }}" style="flex:1; height:{{ b.h }}; background:{{ b.bg }};"></div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </section>
+
+        <section class="card blueprint" style="padding:0; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0; padding:14px 16px 8px; color:var(--color-neutral-700);">Per-symbol metrics</h6>
+          <table class="table" style="font-size:13px;">
+            <thead><tr><th style="padding-left:16px;">Symbol</th><th style="text-align:right;">Total return</th><th style="text-align:right;">CAGR</th><th style="text-align:right;">Sharpe</th><th style="text-align:right;">Sortino</th><th style="text-align:right;">Max DD</th><th style="text-align:right;">Trades</th><th style="text-align:right; padding-right:16px;">PBO</th></tr></thead>
+            <tbody>
+              <tr>
+                <td style="font-weight:700; padding-left:16px;">SPY</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace; color:#2E6B45;">+38.42%</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">11.46%</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">1.310</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">1.874</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace; color:#A63D36;">−12.30%</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">214</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace; padding-right:16px;">0.31</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700; padding-left:16px;">QQQ</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace; color:#2E6B45;">+21.07%</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">6.58%</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">0.842</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">1.120</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace; color:#A63D36;">−18.91%</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">198</td>
+                <td style="text-align:right; font-family:'IBM Plex Mono',monospace; padding-right:16px; color:#A63D36;">0.62 <span style="font-size:11px;">⚠ high</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== RISK -->
+    <sc-if value="{{ isRisk }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Risk" style="display:flex; flex-direction:column; gap:20px;">
+        <div><h2 style="margin:0;">Risk</h2><p style="margin:2px 0 0; font-size:14px;" class="text-muted">Your risk envelope, kill switches and sizing decisions.</p></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+          <!-- Profile editor -->
+          <section class="card blueprint" style="padding:20px; gap:14px;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <h6 style="margin:0; color:var(--color-neutral-700);">Risk profile</h6>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <sc-for list="{{ riskFields }}" as="f" hint-placeholder-count="9">
+                <div class="field" style="margin:0;">
+                  <label>{{ f.label }}</label>
+                  <input class="input" type="number" value="{{ f.value }}" style="min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:13px;">
+                  <span style="font-size:11px;" class="text-muted">{{ f.help }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; cursor:pointer;"><span style="width:15px; height:15px; background:var(--color-accent); display:inline-flex; align-items:center; justify-content:center; color:var(--color-bg); font-size:10px;">✓</span>Strict mode — reject instead of downsizing</label>
+            <div class="field" style="margin:0;">
+              <label>Permitted asset classes</label>
+              <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                <span class="seg-opt" style="border:1px solid var(--color-accent); background:var(--color-accent-100); color:var(--color-accent-800); cursor:pointer;">✓ Stock</span>
+                <span class="seg-opt" style="border:1px solid var(--color-accent); background:var(--color-accent-100); color:var(--color-accent-800); cursor:pointer;">✓ ETF</span>
+                <span class="seg-opt" style="border:1px solid var(--color-divider); cursor:pointer;">Option</span>
+                <span class="seg-opt" style="border:1px solid var(--color-divider); cursor:pointer;">Future</span>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-primary">Save profile</button>
+              <button class="btn btn-secondary">Reset to defaults</button>
+            </div>
+          </section>
+
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <!-- Kill switches -->
+            <section class="card blueprint" style="padding:20px; gap:12px; border-color:{{ userHaltBorder }};">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <h6 style="margin:0; color:var(--color-neutral-700);">Kill switches</h6>
+              <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px;">
+                <div>
+                  <div style="font-size:14px; font-weight:700;">Personal halt <span style="font-family:'IBM Plex Mono',monospace; font-size:10px;" class="text-muted">L1 / USER</span></div>
+                  <div style="font-size:13px; margin-top:3px; color:{{ userHaltStatusColor }};">{{ userHaltStatus }}</div>
+                </div>
+                <sc-if value="{{ userHalted }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ releaseUserHalt }}" class="btn" style="font-size:13px; background:#2E6B45; border-color:#2E6B45; color:var(--color-bg);" style-hover="background:#2A5C3D;">Release</button>
+                </sc-if>
+                <sc-if value="{{ userNotHalted }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ openUserMfa }}" class="btn" style="font-size:13px; background:#A63D36; border-color:#A63D36; color:var(--color-bg);" style-hover="background:#8C3A34;">Halt</button>
+                </sc-if>
+              </div>
+              <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;" class="text-muted"><span style="width:15px; height:15px; border:1px solid var(--color-divider); background:var(--color-surface); display:inline-block;"></span>Also flatten open positions at market</label>
+              <sc-if value="{{ userMfaOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:8px; border-top:1px solid var(--color-divider); padding-top:12px;">
+                  <input class="input" type="text" placeholder="MFA code" style="width:110px; min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+                  <button onClick="{{ confirmUserHalt }}" class="btn" style="font-size:12px; padding:4px 12px; background:#A63D36; border-color:#A63D36; color:var(--color-bg);">Confirm halt</button>
+                  <button onClick="{{ cancelUserMfa }}" class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Cancel</button>
+                </div>
+              </sc-if>
+              <div style="border-top:1px solid var(--color-divider); padding-top:12px; display:flex; align-items:flex-start; justify-content:space-between; gap:14px;">
+                <div>
+                  <div style="font-size:14px; font-weight:700;">Strategy halt <span style="font-family:'IBM Plex Mono',monospace; font-size:10px;" class="text-muted">L2 / AUTO</span> <span class="tag" style="font-weight:700; background:#F3E9D4; color:#6E5220;">AUTO</span></div>
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; margin-top:3px;" class="text-muted">orb_breakout_v2 · daily loss limit · Jul 18, 14:02</div>
+                </div>
+                <button class="btn btn-secondary" style="font-size:12px; padding:4px 12px;">Release</button>
+              </div>
+            </section>
+
+            <!-- Risk events -->
+            <section class="card blueprint" style="padding:14px 16px; gap:0;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <h6 style="margin:0 0 6px; color:var(--color-neutral-700);">Risk events</h6>
+              <sc-for list="{{ riskEvents }}" as="e" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-top:1px solid color-mix(in srgb, var(--color-text) 8%, transparent); font-size:12px;">
+                  <span class="tag" style="font-weight:700; flex:none; background:{{ e.bg }}; color:{{ e.fg }};">{{ e.type }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; flex:none;" class="text-muted">{{ e.time }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" class="text-muted">{{ e.detail }}</span>
+                </div>
+              </sc-for>
+            </section>
+          </div>
+        </div>
+
+        <!-- Sizing decisions -->
+        <section class="card blueprint" style="padding:0; gap:0;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0; padding:14px 16px 8px; color:var(--color-neutral-700);">Sizing decisions — last 50</h6>
+          <table class="table" style="font-size:13px;">
+            <thead><tr><th style="padding-left:16px;">Time</th><th>Symbol</th><th style="text-align:right;">Requested</th><th style="text-align:right;">Computed</th><th style="padding-right:16px;">Result</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ sizingRows }}" as="d" hint-placeholder-count="3">
+                <tr>
+                  <td style="font-family:'IBM Plex Mono',monospace; font-size:12px; padding-left:16px;" class="text-muted">{{ d.time }}</td>
+                  <td style="font-weight:700;">{{ d.symbol }}</td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">{{ d.req }}</td>
+                  <td style="text-align:right; font-family:'IBM Plex Mono',monospace;">{{ d.comp }}</td>
+                  <td style="padding-right:16px;"><span class="tag" style="font-weight:700; background:{{ d.bg }}; color:{{ d.fg }};">{{ d.result }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== BROKERS (SETTINGS) -->
+    <sc-if value="{{ isBrokers }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Settings — Brokers" style="display:flex; flex-direction:column; gap:20px; max-width:760px;">
+        <div><h2 style="margin:0;">Brokers</h2><p style="margin:2px 0 0; font-size:14px;" class="text-muted">Connect and manage your own broker accounts. Keys are encrypted at rest.</p></div>
+
+        <section class="card blueprint" style="padding:20px; gap:14px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0; color:var(--color-neutral-700);">Connected</h6>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:16px; font-weight:700;">Alpaca Paper</span>
+                <span class="tag tag-neutral" style="font-weight:700;">PAPER</span>
+                <span class="tag tag-outline" style="font-weight:700;">DEFAULT</span>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; margin-top:4px;" class="text-muted">PA3XK29F · last connected Jul 19, 08:12</div>
+            </div>
+            <span class="tag" style="gap:6px; font-weight:700; background:#DFEEE4; color:#2E5C40;"><span style="width:6px; height:6px; background:#2E5C40;"></span>CONNECTED</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-ghost" style="font-size:13px;">Test connection</button>
+            <button onClick="{{ openRemove }}" class="btn btn-ghost" style="font-size:13px; color:#A63D36;" style-hover="background:color-mix(in srgb, #A63D36 10%, transparent);">Remove</button>
+            <button class="btn btn-ghost" style="font-size:13px; color:#6E5220;" style-hover="background:color-mix(in srgb, #C9A23E 15%, transparent);">Flatten positions</button>
+            <span style="flex:1;"></span>
+            <div class="seg"><span class="seg-opt" style="background:var(--color-accent); color:var(--color-bg);">PAPER</span><span class="seg-opt" title="Live trading ships disabled — enable it deliberately on your own instance." style="opacity:.45; cursor:not-allowed;">LIVE</span></div>
+          </div>
+          <sc-if value="{{ removeOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:center; gap:8px; border-top:1px solid var(--color-divider); padding-top:12px;">
+              <input class="input" type="text" placeholder="MFA code" style="width:110px; min-height:32px; font-family:'IBM Plex Mono',monospace; font-size:12px;">
+              <button onClick="{{ closeRemove }}" class="btn" style="font-size:12px; padding:4px 12px; background:#A63D36; border-color:#A63D36; color:var(--color-bg);">Confirm remove</button>
+              <button onClick="{{ closeRemove }}" class="btn btn-secondary" style="font-size:12px; padding:4px 10px;">Cancel</button>
+            </div>
+          </sc-if>
+        </section>
+
+        <section class="card blueprint" style="padding:20px; gap:12px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0; color:var(--color-neutral-700);">Connect Alpaca (paper)</h6>
+          <p style="margin:0; font-size:13px;" class="text-muted">Bring your own API keys. <a href="#" style="color:var(--color-accent-700);">Where do I find these? →</a></p>
+          <div class="field" style="margin:0; max-width:420px;"><label>API key ID</label><input class="input" type="text" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+          <div class="field" style="margin:0; max-width:420px;"><label>API secret</label><input class="input" type="password" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"><span style="font-size:11px;" class="text-muted">Write-only — stored encrypted, never shown again.</span></div>
+          <div class="field" style="margin:0; max-width:420px;"><label>Nickname (optional)</label><input class="input" type="text"></div>
+          <button class="btn btn-primary" style="width:fit-content;">Connect</button>
+        </section>
+
+        <section class="card blueprint" style="padding:20px; gap:10px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <h6 style="margin:0; color:var(--color-neutral-700);">TradeStation</h6>
+          <p style="margin:0; font-size:13px;" class="text-muted">OAuth-based connection for TradeStation accounts.</p>
+          <button class="btn btn-secondary" disabled aria-disabled="true" style="width:fit-content;">Connect TradeStation</button>
+          <span style="font-size:12px;" class="text-muted">Not enabled in this deployment — ships behind a feature flag.</span>
+        </section>
+      </div>
+    </sc-if>
+
+    <!-- ================================================== ADMIN -->
+    <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Admin" style="display:flex; flex-direction:column; gap:20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+          <div><h2 style="margin:0;">Admin</h2><p style="margin:2px 0 0; font-size:14px;" class="text-muted">Platform health and the platform-level kill switch.</p></div>
+          <nav style="display:flex; gap:16px; font-size:14px;">
+            <a href="#" aria-current="page" style="color:var(--color-accent); border-bottom:2px solid var(--color-accent); padding-bottom:2px; text-decoration:none;">Overview</a>
+            <a href="#" style="color:var(--color-text); text-decoration:none;">Users</a>
+            <a href="#" style="color:var(--color-text); text-decoration:none;">Audit</a>
+            <a href="#" style="color:var(--color-text); text-decoration:none;">Flags</a>
+            <a href="#" style="color:var(--color-text); text-decoration:none;">Health</a>
+          </nav>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px;">
+          <div class="card blueprint" style="padding:14px 16px; gap:2px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="font-size:10px; letter-spacing:.1em; text-transform:uppercase;" class="text-muted">Database</span><span style="font-family:var(--font-heading); font-weight:600; font-size:22px; color:#2E6B45;">OK</span></div>
+          <div class="card blueprint" style="padding:14px 16px; gap:2px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="font-size:10px; letter-spacing:.1em; text-transform:uppercase;" class="text-muted">Redis</span><span style="font-family:var(--font-heading); font-weight:600; font-size:22px; color:#2E6B45;">OK</span></div>
+          <div class="card blueprint" style="padding:14px 16px; gap:2px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="font-size:10px; letter-spacing:.1em; text-transform:uppercase;" class="text-muted">Queue depth</span><span style="font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:20px;">1,204</span></div>
+          <div class="card blueprint" style="padding:14px 16px; gap:2px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="font-size:10px; letter-spacing:.1em; text-transform:uppercase;" class="text-muted">Sentiment backlog</span><span style="font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:20px;">38</span></div>
+        </div>
+        <section class="card blueprint" style="padding:20px 24px; gap:12px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+            <div>
+              <h4 style="margin:0;">Platform kill switch</h4>
+              <p style="margin:4px 0 0; font-size:13px; color:{{ platformStatusColor }};">{{ platformStatus }}</p>
+            </div>
+            <sc-if value="{{ platformHalted }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ openAdminRelease }}" class="btn" style="background:#2E6B45; border-color:#2E6B45; color:var(--color-bg);" style-hover="background:#2A5C3D;">Release halt</button>
+            </sc-if>
+            <sc-if value="{{ platformRunning }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ openAdminHalt }}" class="btn" style="background:#A63D36; border-color:#A63D36; color:var(--color-bg);" style-hover="background:#8C3A34;">Engage platform halt</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ adminReleaseOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="border-top:1px solid var(--color-divider); padding-top:14px; display:flex; flex-direction:column; gap:10px;">
+              <span style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; font-weight:500; color:var(--color-accent);">Confirm with MFA</span>
+              <div style="display:flex; gap:8px;">
+                <span style="width:38px; height:44px; border:1px solid var(--color-divider); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:600;">8</span>
+                <span style="width:38px; height:44px; border:2px solid var(--color-accent); background:var(--color-surface);"></span>
+                <span style="width:38px; height:44px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+                <span style="width:38px; height:44px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+                <span style="width:38px; height:44px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+                <span style="width:38px; height:44px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button onClick="{{ cancelAdminRelease }}" class="btn btn-ghost" style="font-size:13px; color:var(--color-text);">Cancel</button>
+                <button onClick="{{ confirmAdminRelease }}" class="btn" style="font-size:13px; background:#2E6B45; border-color:#2E6B45; color:var(--color-bg);">Release</button>
+              </div>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </sc-if>
+  </main>
+
+  <!-- ============ Halt-my-trading dialog ============ -->
+  <sc-if value="{{ haltModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ cancelHalt }}" style="z-index:50;">
+      <div class="dialog blueprint" role="dialog" aria-modal="true" onClick="{{ stopProp }}" style="background:var(--color-bg);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+          <span class="dialog-title" style="color:#A63D36;">Halt my trading</span>
+          <button onClick="{{ cancelHalt }}" aria-label="Close" style="border:none; background:none; cursor:pointer; font-size:14px; padding:2px;" class="text-muted">✕</button>
+        </div>
+        <p class="dialog-body" style="margin:0;">Cancels open orders and blocks new ones. Open positions are flattened at market. Confirm with your authenticator code.</p>
+        <div class="field" style="margin:0;"><label>MFA code</label><input class="input" type="text" placeholder="••••••" maxLength="6" style="width:140px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3em;"></div>
+        <div class="dialog-actions">
+          <button onClick="{{ cancelHalt }}" class="btn btn-ghost" style="color:var(--color-text);">Cancel</button>
+          <button onClick="{{ confirmHalt }}" class="btn" style="background:#A63D36; border-color:#A63D36; color:var(--color-bg);">Halt trading</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ Admin: engage platform halt dialog ============ -->
+  <sc-if value="{{ adminHaltOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ cancelAdminHalt }}" style="z-index:50;">
+      <div class="dialog blueprint" role="dialog" aria-modal="true" onClick="{{ stopProp }}" style="background:var(--color-bg);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span class="dialog-title" style="color:#A63D36;">Engage platform halt</span>
+        <p class="dialog-body" style="margin:0;">Halts trading for <strong>every user</strong> on this instance. Type <span style="font-family:'IBM Plex Mono',monospace;">HALT PLATFORM</span> to confirm.</p>
+        <div class="field" style="margin:0;"><label>Reason</label><input class="input" type="text" placeholder="Why is trading being halted?"></div>
+        <div class="field" style="margin:0;"><label>Confirmation phrase</label><input class="input" type="text" placeholder="HALT PLATFORM" style="font-family:'IBM Plex Mono',monospace; font-size:13px;"></div>
+        <div class="field" style="margin:0;"><label>MFA code</label><input class="input" type="text" placeholder="••••••" maxLength="6" style="width:140px; font-family:'IBM Plex Mono',monospace; letter-spacing:.3em;"></div>
+        <div class="dialog-actions">
+          <button onClick="{{ cancelAdminHalt }}" class="btn btn-ghost" style="color:var(--color-text);">Cancel</button>
+          <button onClick="{{ confirmAdminHalt }}" class="btn" style="background:#A63D36; border-color:#A63D36; color:var(--color-bg);">Halt platform</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ Webhook config dialog ============ -->
+  <sc-if value="{{ whOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ closeWh }}" style="z-index:50;">
+      <div class="dialog blueprint" role="dialog" aria-modal="true" onClick="{{ stopProp }}" style="background:var(--color-bg); width:min(560px,100%); max-height:88vh; overflow-y:auto;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+          <div><span class="dialog-title">Webhook configuration</span><p style="margin:2px 0 0; font-size:13px;" class="text-muted">ORB Breakout v2</p></div>
+          <button onClick="{{ closeWh }}" aria-label="Close" style="border:none; background:none; cursor:pointer; font-size:14px; padding:2px;" class="text-muted">✕</button>
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Webhook URL</label>
+          <div style="display:flex; gap:8px;">
+            <input class="input" readOnly type="text" value="https://your-host/api/webhooks/orb_breakout_v2/" style="font-family:'IBM Plex Mono',monospace; font-size:12px;">
+            <button class="btn btn-secondary" style="font-size:12px;">Copy</button>
+          </div>
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Secret (v3)</label>
+          <div style="font-size:12px; font-style:italic;" class="text-muted">Hidden — rotate to reveal a new secret once.</div>
+          <button class="btn" style="width:fit-content; margin-top:6px; font-size:12px; padding:3px 12px; border-color:#A63D36; color:#A63D36; background:#F6E3E1;" style-hover="background:#F0D5D2;">Rotate secret</button>
+          <span style="font-size:11px; color:#6E5220; margin-top:4px;">⚠ Rotating breaks TradingView alerts using the current secret.</span>
+        </div>
+        <div class="field" style="margin:0;"><label>JSON schema</label><textarea class="input" rows="4" spellcheck="false" style="min-height:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6;">{ "type": "object", "required": ["strategy", "action", "symbol", "sig"] }</textarea></div>
+        <div class="field" style="margin:0;"><label>Payload template</label><textarea class="input" rows="4" spellcheck="false" style="min-height:0; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.6;">{ "strategy": "orb_breakout_v2", "action": "&#123;&#123;strategy.order.action&#125;&#125;", "symbol": "&#123;&#123;ticker&#125;&#125;" }</textarea></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary" style="font-size:13px;">Save</button>
+          <button class="btn btn-secondary" style="font-size:13px;">Test payload</button>
+          <button class="btn btn-secondary" style="font-size:13px;">Copy TradingView template</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ Order detail drawer ============ -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeOrder }}" style="position:fixed; inset:0; background:color-mix(in srgb, var(--color-neutral-900) 40%, transparent); z-index:50;"></div>
+    <aside role="dialog" aria-modal="true" class="elev-lg" style="position:fixed; top:0; right:0; bottom:0; width:440px; background:var(--color-bg); border-left:1px solid var(--color-divider); z-index:51; overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:16px; box-sizing:border-box;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h6 style="margin:0; color:var(--color-neutral-700);">Order detail</h6>
+        <button onClick="{{ closeOrder }}" aria-label="Close" style="border:none; background:none; cursor:pointer; font-size:14px; padding:2px;" class="text-muted">✕</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-family:var(--font-heading); font-weight:600; font-size:24px;">{{ selSymbol }}</span>
+        <span class="tag" style="font-weight:700; background:{{ selChipBg }}; color:{{ selChipFg }};">{{ selStatus }}</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; font-size:13px;">
+        <sc-for list="{{ selFields }}" as="f" hint-placeholder-count="10">
+          <div><div style="font-size:11px;" class="text-muted">{{ f.k }}</div><div style="font-family:'IBM Plex Mono',monospace; font-size:12px; margin-top:2px; word-break:break-all;">{{ f.v }}</div></div>
+        </sc-for>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; font-weight:500; color:var(--color-accent);">Fills</div>
+        <div style="border:1px solid var(--color-divider);">
+          <div style="display:flex; justify-content:space-between; padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px;"><span>60 @ $523.02</span><span class="text-muted">09:31:04</span></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 12px; border-top:1px solid color-mix(in srgb, var(--color-text) 8%, transparent); font-family:'IBM Plex Mono',monospace; font-size:12px;"><span>60 @ $523.11</span><span class="text-muted">09:31:19</span></div>
+        </div>
+      </div>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440}, &quot;haltActive&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Demo state&quot;}, &quot;mfaEnrolled&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Demo state&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'dashboard', drawer: null, haltModal: false, whOpen: false,
+    chartTab: 'equity', enabled: { s1: true, s2: false, s3: true },
+    userMfaOpen: false, userHalted: false, removeOpen: false,
+    adminHaltOpen: false, adminReleaseOpen: false, platformHalted: false,
+    run1Cancelling: false,
+  };
+  renderVals() {
+    const s = this.state;
+    const set = (patch) => () => this.setState(patch);
+    const T = {
+      up: { bg: '#DFEEE4', fg: '#2E5C40' }, down: { bg: '#F6E3E1', fg: '#8C3A34' },
+      warn: { bg: '#F3E9D4', fg: '#6E5220' }, info: { bg: '#eef6ff', fg: '#2c455d' },
+      neutral: { bg: '#e7e7ea', fg: '#424244' },
+    };
+    const UP = '#2E6B45', DOWN = '#A63D36';
+    const nav = (id, label) => {
+      const active = s.screen === id || (id === 'backtest' && s.screen === 'btdetail');
+      return { label, go: set({ screen: id, drawer: null }),
+        color: active ? 'var(--color-accent-700)' : 'var(--color-text)',
+        weight: active ? '700' : '400',
+        border: active ? 'var(--color-accent)' : 'transparent' };
+    };
+    const chip = {
+      FILLED: T.up, PARTIAL: T.warn, SUBMITTED: T.info, REJECTED: T.down,
+      CANCELLED: T.neutral, PENDING: T.neutral, RUNNING: T.info,
+      COMPLETED: T.up, FAILED: T.down, CANCELLING: T.warn,
+    };
+    const mkOrder = (o) => ({ ...o, chipBg: chip[o.status].bg, chipFg: chip[o.status].fg,
+      sideColor: o.side === 'BUY' ? UP : DOWN,
+      open: () => this.setState({ drawer: o }) });
+    const orders = [
+      { time: 'Jul 19 09:31', broker: 'ALPACA', strategy: 'orb_breakout_v2', symbol: 'SPY', side: 'BUY', qty: '120', type: 'MKT', status: 'FILLED', filled: '120' },
+      { time: 'Jul 19 09:34', broker: 'ALPACA', strategy: 'orb_breakout_v2', symbol: 'QQQ', side: 'BUY', qty: '85', type: 'MKT', status: 'FILLED', filled: '85' },
+      { time: 'Jul 19 10:02', broker: 'ALPACA', strategy: 'mean_rev_daily', symbol: 'IWM', side: 'SELL', qty: '200', type: 'LMT', status: 'PARTIAL', filled: '140' },
+      { time: 'Jul 19 10:15', broker: 'ALPACA', strategy: 'mean_rev_daily', symbol: 'NVDA', side: 'BUY', qty: '40', type: 'MKT', status: 'SUBMITTED', filled: '0' },
+      { time: 'Jul 18 15:48', broker: 'ALPACA', strategy: 'orb_breakout_v2', symbol: 'TSLA', side: 'SELL', qty: '25', type: 'MKT', status: 'REJECTED', filled: '0' },
+      { time: 'Jul 18 14:20', broker: 'ALPACA', strategy: 'mean_rev_daily', symbol: 'AMD', side: 'BUY', qty: '90', type: 'LMT', status: 'CANCELLED', filled: '0' },
+      { time: 'Jul 18 09:32', broker: 'ALPACA', strategy: 'orb_breakout_v2', symbol: 'SPY', side: 'SELL', qty: '120', type: 'MKT', status: 'FILLED', filled: '120' },
+    ].map(mkOrder);
+    const sel = s.drawer;
+    const toggleStrat = (key) => () => this.setState(st => ({ enabled: { ...st.enabled, [key]: !st.enabled[key] } }));
+    const strat = (key, o) => {
+      const on = s.enabled[key];
+      return { ...o, toggle: toggleStrat(key), configure: set({ whOpen: true }),
+        trackBg: on ? UP : 'var(--color-surface)', trackBorder: on ? UP : 'var(--color-divider)',
+        knobLeft: on ? '21px' : '2px', knobBg: on ? 'var(--color-bg)' : 'var(--color-neutral-400)',
+        typeBg: o.type === 'SYSTEM' ? '#eef6ff' : '#e7e7ea', typeFg: o.type === 'SYSTEM' ? '#2c455d' : '#424244',
+        whColor: o.webhook === 'Configured' ? UP : 'var(--color-neutral-600)' };
+    };
+    const runStatus1 = s.run1Cancelling ? 'CANCELLING' : 'RUNNING';
+    const mkRun = (r) => ({ ...r, chipBg: chip[r.status].bg, chipFg: chip[r.status].fg,
+      pboColor: r.pboHigh ? DOWN : 'var(--color-neutral-700)',
+      open: set({ screen: 'btdetail' }),
+      cancel: (e) => { e.stopPropagation(); this.setState({ run1Cancelling: true }); } });
+    const runs = [
+      { created: 'Jul 19 08:40', strategy: 'ORB Breakout v2', symbols: 'SPY, QQQ', status: runStatus1, pct: '58%', active: !s.run1Cancelling, pbo: '—', duration: '—' },
+      { created: 'Jul 18 16:02', strategy: 'ORB Breakout v2', symbols: 'SPY, QQQ', status: 'COMPLETED', pbo: '0.31', duration: '14m 08s' },
+      { created: 'Jul 17 11:19', strategy: 'Mean Reversion Daily', symbols: 'IWM', status: 'FAILED', pbo: '—', duration: '2m 44s' },
+      { created: 'Jul 15 09:55', strategy: 'Mean Reversion Daily', symbols: 'SPY', status: 'COMPLETED', pbo: '0.62', pboHigh: true, duration: '9m 31s' },
+    ].map(mkRun);
+    const tab = (id, label) => ({ label, go: set({ chartTab: id }),
+      color: s.chartTab === id ? 'var(--color-text)' : 'var(--color-neutral-600)',
+      weight: s.chartTab === id ? '700' : '400',
+      border: s.chartTab === id ? 'var(--color-accent)' : 'transparent' });
+    const heat = (v) => {
+      if (v === null) return { v: '', bg: '#f5f5f8', fg: 'var(--color-neutral-500)', tip: '' };
+      const t = Math.max(-1, Math.min(1, v / 6));
+      const bg = t >= 0 ? `rgba(76,138,98,${0.12 + t * 0.6})` : `rgba(179,86,79,${0.12 - t * 0.6})`;
+      return { v: (v > 0 ? '+' : '') + v.toFixed(1), bg, fg: '#1d1f20', tip: `${v.toFixed(1)}%` };
+    };
+    const sh = [1.2, 0.8, -0.4, 1.6, 1.1, -0.3, 1.9, 0.7, 1.3, -0.6, 2.1, 0.9];
+    return {
+      navItems: [nav('dashboard', 'Dashboard'), nav('strategies', 'Strategies'), nav('backtest', 'Backtest'), nav('risk', 'Risk'), nav('orders', 'Orders'), nav('brokers', 'Settings'), nav('admin', 'Admin')],
+      goDashboard: set({ screen: 'dashboard' }), goBacktest: set({ screen: 'backtest' }),
+      isDashboard: s.screen === 'dashboard', isOrders: s.screen === 'orders', isStrategies: s.screen === 'strategies',
+      isBacktest: s.screen === 'backtest', isBtDetail: s.screen === 'btdetail', isRisk: s.screen === 'risk',
+      isBrokers: s.screen === 'brokers', isAdmin: s.screen === 'admin',
+      haltActive: (this.props.haltActive ?? false) || s.userHalted || s.platformHalted,
+      mfaNeeded: !(this.props.mfaEnrolled ?? true),
+      openHalt: set({ haltModal: true }), cancelHalt: set({ haltModal: false }),
+      confirmHalt: set({ haltModal: false, userHalted: true }), haltModalOpen: s.haltModal,
+      stopProp: (e) => e.stopPropagation(),
+      news: [
+        { arrow: '▲', color: UP, title: 'Fed signals steady rates through Q3 as inflation cools', source: 'Reuters', impact: '0.82' },
+        { arrow: '▲', color: UP, title: 'Mega-cap earnings beat consensus across the board', source: 'Bloomberg', impact: '0.64' },
+        { arrow: '▼', color: DOWN, title: 'Semiconductor export controls widen to new categories', source: 'FT', impact: '0.58' },
+        { arrow: '•', color: 'var(--color-neutral-600)', title: 'Treasury auction demand in line with expectations', source: 'WSJ', impact: '0.21' },
+      ],
+      positions: [
+        { symbol: 'SPY', qty: '120', avg: '$512.40', mark: '$523.11', pnl: '+$1,285.20', pnlColor: UP },
+        { symbol: 'QQQ', qty: '85', avg: '$448.02', mark: '$444.87', pnl: '−$267.75', pnlColor: DOWN },
+        { symbol: 'IWM', qty: '60', avg: '$219.15', mark: '$221.40', pnl: '+$135.00', pnlColor: UP },
+        { symbol: 'NVDA', qty: '40', avg: '$121.80', mark: '$128.44', pnl: '+$265.60', pnlColor: UP },
+      ],
+      fills: [
+        { symbol: 'SPY', side: 'BUY', sideColor: UP, detail: '120 @ $512.40', time: '09:31:19' },
+        { symbol: 'QQQ', side: 'BUY', sideColor: UP, detail: '85 @ $448.02', time: '09:34:02' },
+        { symbol: 'IWM', side: 'SELL', sideColor: DOWN, detail: '140 @ $221.38', time: '10:04:47' },
+      ],
+      orders,
+      recon: [
+        { time: 'Jul 19 06:00', symbol: 'IWM', kind: 'QTY DRIFT', ours: '200', broker: '140', detail: 'Broker reports partial fill not yet acked' },
+        { time: 'Jul 18 06:00', symbol: 'TSLA', kind: 'ORPHAN', ours: '0', broker: '25', detail: 'Position at broker with no local order' },
+      ],
+      drawerOpen: !!sel, closeOrder: set({ drawer: null }),
+      selSymbol: sel ? sel.symbol : '', selStatus: sel ? sel.status : '',
+      selChipBg: sel ? sel.chipBg : '', selChipFg: sel ? sel.chipFg : '',
+      selFields: sel ? [
+        { k: 'Asset class', v: 'STOCK' }, { k: 'Side', v: sel.side },
+        { k: 'Type', v: sel.type }, { k: 'Time in force', v: 'DAY' },
+        { k: 'Qty', v: sel.qty }, { k: 'Filled', v: sel.filled },
+        { k: 'Broker', v: sel.broker }, { k: 'Strategy', v: sel.strategy },
+        { k: 'Client order id', v: 'stp-9f21c4d8a0' }, { k: 'Broker order id', v: 'e6b2…a91f' },
+        { k: 'Created', v: sel.time }, { k: 'Updated', v: sel.time },
+      ] : [],
+      strategies: [
+        strat('s1', { name: 'ORB Breakout v2', desc: 'Opening-range breakout with regime-aware sizing.', type: 'SYSTEM', webhook: 'Configured', untested: false }),
+        strat('s2', { name: 'Mean Reversion Daily', desc: 'Daily mean-reversion on liquid ETFs.', type: 'SYSTEM', webhook: 'Configured', untested: false }),
+        strat('s3', { name: 'my_custom_strat', desc: 'Uploaded Jul 12 — 3-file contract (pine, description, webhook).', type: 'USER', webhook: 'Not configured', untested: true }),
+      ],
+      whOpen: s.whOpen, closeWh: set({ whOpen: false }),
+      runs,
+      chartTabs: [tab('equity', 'Equity'), tab('drawdown', 'Drawdown'), tab('monthly', 'Monthly'), tab('window', 'Per-window')],
+      tabEquity: s.chartTab === 'equity', tabDrawdown: s.chartTab === 'drawdown',
+      tabMonthly: s.chartTab === 'monthly', tabWindow: s.chartTab === 'window',
+      monthLabels: ['J','F','M','A','M','J','J','A','S','O','N','D'],
+      heatRows: [
+        { year: '2024', cells: [1.8, -0.6, 2.4, 0.9, -1.2, 3.1, 1.4, 0.2, -2.0, 2.8, 4.2, 1.1].map(heat) },
+        { year: '2025', cells: [2.2, 1.6, -0.8, 0.4, 2.9, -1.6, 3.4, 1.9, 0.6, -0.4, 2.1, 3.0].map(heat) },
+        { year: '2026', cells: [1.4, -2.2, 0.8, 2.6, 1.0, 1.8, 0.5, null, null, null, null, null].map(heat) },
+      ],
+      windowBars: sh.map((v, i) => ({
+        h: `${Math.round(Math.abs(v) / 2.1 * 200)}px`,
+        bg: v >= 0 ? '#4C8A62' : '#B3564F',
+        tip: `Window #${i + 1} · OOS Sharpe ${v.toFixed(2)}`,
+      })),
+      riskFields: [
+        { label: 'Risk per trade %', value: '1', help: 'Equity share risked per trade' },
+        { label: 'Max position %', value: '10', help: 'Cap per symbol' },
+        { label: 'Max concurrent', value: '5', help: 'Open positions at once' },
+        { label: 'Daily loss $', value: '1000', help: 'Hard dollar stop per day' },
+        { label: 'Daily loss %', value: '5', help: 'Hard percent stop per day' },
+        { label: 'Leverage cap', value: '1', help: 'Gross exposure / equity' },
+        { label: 'Soft stop %', value: '3', help: 'Warns and downsizes' },
+        { label: 'Hard stop %', value: '6', help: 'Halts the strategy' },
+        { label: 'ATR factor', value: '2', help: 'Volatility-scaled stops' },
+      ],
+      userHalted: s.userHalted, userNotHalted: !s.userHalted,
+      userHaltBorder: s.userHalted ? '#A63D36' : 'var(--color-divider)',
+      userHaltStatus: s.userHalted ? 'Active — armed Jul 19, 10:22 · manual' : 'Inactive',
+      userHaltStatusColor: s.userHalted ? DOWN : 'var(--color-neutral-600)',
+      openUserMfa: set({ userMfaOpen: true }), cancelUserMfa: set({ userMfaOpen: false }),
+      confirmUserHalt: set({ userMfaOpen: false, userHalted: true }),
+      releaseUserHalt: set({ userHalted: false }),
+      userMfaOpen: s.userMfaOpen,
+      riskEvents: [
+        { type: 'HALT', bg: T.down.bg, fg: T.down.fg, time: 'Jul 18 14:02', detail: '{"scope":"STRATEGY","reason":"DAILY_LOSS","auto":true}' },
+        { type: 'DOWNSIZE', bg: T.warn.bg, fg: T.warn.fg, time: 'Jul 18 11:40', detail: '{"symbol":"NVDA","from":80,"to":40,"rule":"max_position_pct"}' },
+        { type: 'REJECT', bg: T.down.bg, fg: T.down.fg, time: 'Jul 17 15:11', detail: '{"symbol":"TSLA","rule":"leverage_cap"}' },
+      ],
+      sizingRows: [
+        { time: 'Jul 19 09:31', symbol: 'SPY', req: '150', comp: '120', result: 'OK — downsized', bg: T.up.bg, fg: T.up.fg },
+        { time: 'Jul 19 09:34', symbol: 'QQQ', req: '85', comp: '85', result: 'OK', bg: T.up.bg, fg: T.up.fg },
+        { time: 'Jul 18 15:48', symbol: 'TSLA', req: '25', comp: '0', result: 'REJECT — daily loss', bg: T.down.bg, fg: T.down.fg },
+      ],
+      removeOpen: s.removeOpen, openRemove: set({ removeOpen: true }), closeRemove: set({ removeOpen: false }),
+      platformHalted: s.platformHalted, platformRunning: !s.platformHalted,
+      platformStatus: s.platformHalted ? 'HALTED — all user trading blocked' : 'Running — no platform halt active',
+      platformStatusColor: s.platformHalted ? DOWN : UP,
+      adminHaltOpen: s.adminHaltOpen, openAdminHalt: set({ adminHaltOpen: true }),
+      cancelAdminHalt: set({ adminHaltOpen: false }),
+      confirmAdminHalt: set({ adminHaltOpen: false, platformHalted: true, adminReleaseOpen: false }),
+      adminReleaseOpen: s.adminReleaseOpen, openAdminRelease: set({ adminReleaseOpen: true }),
+      cancelAdminRelease: set({ adminReleaseOpen: false }),
+      confirmAdminRelease: set({ adminReleaseOpen: false, platformHalted: false }),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+"""emit() write-path tests (AC-10-1): chaining, scrubbing, capture, never-raises."""
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.test import RequestFactory, TestCase
+
+from apps.audit.hashing import GENESIS_PREV_HASH, canonical_payload, compute_self_hash
+from apps.audit.models import AuditLog
+from apps.audit.services import emit
+
+User = get_user_model()
+
+
+class EmitTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="e@x.com", password="pw-123456789A")
+        self.actor = User.objects.create_user(email="a@x.com", password="pw-123456789A", is_staff=True)
+
+    def test_first_row_is_genesis_chained(self):
+        row = emit("admin.user_disabled", user=self.user, actor=self.actor,
+                   entity_type="user", entity_id=str(self.user.id))
+        self.assertIsNotNone(row)
+        self.assertEqual(row.prev_hash, GENESIS_PREV_HASH)
+        self.assertRegex(row.self_hash, r"^[0-9a-f]{64}$")
+
+    def test_second_row_chains_on_first(self):
+        r1 = emit("admin.user_disabled", user=self.user, actor=self.actor)
+        r2 = emit("admin.user_enabled", user=self.user, actor=self.actor)
+        self.assertEqual(r2.prev_hash, r1.self_hash)
+
+    def test_stored_row_reverifies(self):
+        # Property: what we hashed on write == what we can recompute from the row.
+        row = emit("risk.profile_changed", user=self.user,
+                   data_before={"a": 1}, data_after={"a": 2})
+        payload = canonical_payload(
+            occurred_at=row.occurred_at, user_id=row.user_id, actor_id=row.actor_id,
+            event_type=row.event_type, entity_type=row.entity_type, entity_id=row.entity_id,
+            data_before=row.data_before, data_after=row.data_after, ip=row.ip, ua=row.ua,
+        )
+        self.assertEqual(compute_self_hash(row.prev_hash, payload), row.self_hash)
+
+    def test_secrets_are_scrubbed(self):
+        row = emit(
+            "strategy.secret_rotated",
+            user=self.user,
+            data_after={"secret": "supersecret", "mfa_code": "123456", "version": 3},
+        )
+        self.assertEqual(row.data_after["secret"], "***REDACTED***")
+        self.assertEqual(row.data_after["mfa_code"], "***REDACTED***")
+        self.assertEqual(row.data_after["version"], 3)
+        # And the secret never appears anywhere in the persisted payload.
+        self.assertNotIn("supersecret", str(row.data_after))
+
+    def test_scrub_redacts_substring_keys(self):
+        # P1-9: exact-match missed variants like api_secret / current_password.
+        from apps.audit.scrub import scrub
+
+        out = scrub({
+            "api_secret": "x", "current_password": "y", "secret_encrypted": "z",
+            "refresh_token": "r", "access_token": "a", "authorization": "b",
+            "api_key_id_enc": "c", "name": "keep", "count": 3,
+        })
+        for k in ("api_secret", "current_password", "secret_encrypted",
+                  "refresh_token", "access_token", "authorization", "api_key_id_enc"):
+            self.assertEqual(out[k], "***REDACTED***", k)
+        self.assertEqual(out["name"], "keep")
+        self.assertEqual(out["count"], 3)
+
+    def test_scrub_nested_and_no_overmatch(self):
+        from apps.audit.scrub import scrub
+
+        out = scrub({"outer": {"api_secret": "x"}, "list": [{"password_hash": "y"}],
+                     "design": 1, "monkey": 2, "zip_code": "90210"})
+        self.assertEqual(out["outer"]["api_secret"], "***REDACTED***")
+        self.assertEqual(out["list"][0]["password_hash"], "***REDACTED***")
+        # Benign field names must not be over-redacted.
+        self.assertEqual((out["design"], out["monkey"], out["zip_code"]), (1, 2, "90210"))
+
+    def test_scrub_and_gdpr_share_denylist(self):
+        # One shared substring list backs both the audit scrubber and the GDPR
+        # export redactor.
+        from apps.audit.scrub import _key_is_sensitive
+        from apps.users.gdpr import _is_sensitive
+
+        for name in ("api_secret", "current_password", "secret_encrypted",
+                     "refresh_token", "ts_access_token_enc"):
+            self.assertTrue(_is_sensitive(name), name)
+            self.assertTrue(_key_is_sensitive(name), name)
+
+    def test_captures_ip_and_ua_from_request(self):
+        req = RequestFactory().post("/x", HTTP_USER_AGENT="UnitAgent/1.0",
+                                    HTTP_X_FORWARDED_FOR="9.9.9.9, 10.0.0.1")
+        row = emit("broker.connect", user=self.user, request=req)
+        self.assertEqual(row.ip, "9.9.9.9")
+        self.assertEqual(row.ua, "UnitAgent/1.0")
+
+    def test_metadata_folds_into_data_after(self):
+        row = emit("flag.flipped", actor=self.actor, metadata={"flag": "BACKTEST_ENABLED", "enabled": False})
+        self.assertEqual(row.data_after["flag"], "BACKTEST_ENABLED")
+        self.assertIs(row.data_after["enabled"], False)
+
+    def test_never_raises_and_drops_on_failure(self):
+        with patch("apps.audit.models.AuditLog.objects") as mgr:
+            mgr.order_by.side_effect = RuntimeError("db exploded")
+            # Must not raise; returns None.
+            self.assertIsNone(emit("order.submitted", user=self.user))
+
+    def test_record_event_repoint_writes_auth_namespace(self):
+        from apps.users.services import record_event
+
+        record_event("login_ok", user=self.user)
+        self.assertTrue(AuditLog.objects.filter(event_type="auth.login_ok", user=self.user).exists())

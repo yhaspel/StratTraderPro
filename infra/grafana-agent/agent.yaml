@@ -1,0 +1,120 @@
+# Grafana Agent config — pushes Prometheus metrics from the StratTraderPro
+# backend to Grafana Cloud Hosted Prometheus.
+#
+# Substitution: launched with `-config.expand-env=true` so ${VAR} expands from
+# the container env at startup. Set GRAFANA_PROM_URL / GRAFANA_PROM_USER /
+# GRAFANA_PROM_TOKEN / BACKEND_TARGET / RAILWAY_ENVIRONMENT_NAME on the Railway
+# service. For staging the backend address is `backend.railway.internal:8777`
+# (the API service's Railway-internal DNS name on the same project).
+#
+# M10 §6.5 — additional env: METRICS_BASIC_AUTH_USERNAME/PASSWORD (the /metrics
+# basic auth), and the worker/beat/streams targets (Railway internal DNS,
+# e.g. worker.railway.internal:9101). See docs/runbooks/worker-metrics-scrape.md.
+
+server:
+  log_level: info
+
+metrics:
+  global:
+    # BUG-005 — 60s, NOT 30s. Grafana Cloud does not bill raw active series; it
+    # bills `active_series x (actual_DPM / included_DPM)`, and the free tier
+    # includes 1 datapoint-per-minute per series. A 30s scrape is 2 DPM, so it
+    # DOUBLES billable series: 6,946 real series were being billed as 13,068,
+    # blowing the 10,000 free allowance and triggering the "reached your free
+    # tier limit" banner — with no series-count problem whatsoever.
+    #
+    # The 2x spend bought nothing: every alert rule group evaluates at 1m, so the
+    # extra sample is never read by anything. 60s aligns scrape to evaluation.
+    #
+    # Do not lower this without re-checking the budget:
+    #   grafanacloud_org_metrics_billable_series / grafanacloud_org_metrics_included_series
+    # (grafanacloud-usage datasource). The MetricsBudgetExhausted alert guards it.
+    scrape_interval: 60s
+    external_labels:
+      cluster: strattraderpro-${RAILWAY_ENVIRONMENT_NAME}
+      env: ${RAILWAY_ENVIRONMENT_NAME}
+    remote_write:
+      - url: ${GRAFANA_PROM_URL}
+        basic_auth:
+          username: ${GRAFANA_PROM_USER}
+          password: ${GRAFANA_PROM_TOKEN}
+  configs:
+    - name: strattraderpro
+      scrape_configs:
+        - job_name: backend
+          metrics_path: /metrics
+          scheme: http
+          # M10 §6.5a — /metrics now enforces basic auth in prod.
+          basic_auth:
+            username: ${METRICS_BASIC_AUTH_USERNAME}
+            password: ${METRICS_BASIC_AUTH_PASSWORD}
+          static_configs:
+            - targets:
+                - ${BACKEND_TARGET}
+              labels:
+                service: backend
+          # Trim noisy default python_* runtime metrics to stay inside the
+          # Grafana Cloud free-tier active-series quota.
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: 'python_gc_.*|python_info'
+              action: drop
+
+        # M10 FIX-C1 §6.5b — worker/beat/streams processes expose their in-process
+        # registry on TASK_METRICS_PORT (no auth; internal network only).
+        - job_name: worker
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${WORKER_TARGET}' ]
+              labels: { service: worker }
+        - job_name: worker-backtest
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${WORKER_BACKTEST_TARGET}' ]
+              labels: { service: worker-backtest }
+        - job_name: beat
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${BEAT_TARGET}' ]
+              labels: { service: beat }
+        - job_name: streams
+          metrics_path: /metrics
+          static_configs:
+            - targets: [ '${STREAMS_TARGET}' ]
+              labels: { service: streams }
+
+        # M10 §6.5d — the DB / Redis exporter scrape jobs lived here until they
+        # were removed entirely per ADR-109 (2026-08), together with the retired
+        # DB connection-saturation rule they served.
+        #
+        # ---------------------------------------------------------------------
+        # ACTIVE-SERIES BUDGET (2026-07-13) — measured, not guessed. Kept as the
+        # justification of record for BUG-005 and for the exporter removal.
+        #
+        # The stack was at 9,130 / 10,000 active series (91% of the Grafana Cloud
+        # free tier), which is why `MetricsBudgetHigh` sat in `pending`. The split:
+        #
+        #     postgres exporter   4,786   52%   <-- these two exporters were 76%
+        #     redis exporter      2,185   24%   <--  of the ENTIRE budget
+        #     backend               822    9%
+        #     worker/beat/wb/streams 1,336  15%
+        #
+        # What actually consumed those exporter series, across every committed
+        # alert rule and dashboard: two pg_* series, read only by the DB
+        # connection-saturation rule — and nothing else. Zero redis_* metrics
+        # were queried anywhere. ~7,000 series were being ingested to serve TWO.
+        # First mitigation was keep-lists (~10 series per exporter, 2026-07-13);
+        # ADR-109 then removed the exporter services, their scrape jobs, and the
+        # one rule that read them.
+        #
+        # !! THE TRAP !!  `up` is what TargetDown and the whole dead-man's switch
+        # (BUG-008) key off. A keep-list that forgets it would silently stop a
+        # target from reporting `up` at all — and because every liveness rule is
+        # self-filtering, the alerting would go GREEN precisely because it had gone
+        # BLIND. That is this project's signature failure and it must not be
+        # reintroduced by a cost optimisation. `up` and `scrape_*` must therefore
+        # be pinned first in any future keep regex. (Vanilla Prometheus does not
+        # apply metric_relabel_configs to synthetic scrape samples, so this is
+        # belt-and-braces — but the cost of being wrong here is blindness, and the
+        # cost of the extra alternation is nothing.)
+        # ---------------------------------------------------------------------

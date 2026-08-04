@@ -5,23 +5,35 @@ Kept separate from views so logic is unit-testable without HTTP.
 """
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Optional
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.audit.events import AuthEventType as EventType
+
+from .metrics import (
+    EMAIL_SEND_TOTAL,
+    FAMILY_REVOCATIONS_TOTAL,
+    REFRESH_TOTAL,
+    EmailSendResult,
+    RefreshResult,
+)
 from .models import (
-    AuthEvent,
     EmailVerificationToken,
     FailedLoginAttempt,
     PasswordResetToken,
     RefreshTokenFamily,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -34,19 +46,17 @@ def record_event(
     email: str = "",
     request=None,
     metadata: Optional[dict] = None,
-) -> AuthEvent:
-    ip = ua = ""
-    if request is not None:
-        ip = _client_ip(request) or ""
-        ua = (request.META.get("HTTP_USER_AGENT") or "")[:512]
-    return AuthEvent.objects.create(
-        user=user,
-        email=email or (getattr(user, "email", "") or ""),
-        event_type=event_type,
-        ip=ip or None,
-        user_agent=ua,
-        metadata=metadata or {},
-    )
+):
+    """M10: thin wrapper over the audit service (frozen decision 1). Namespaces
+    the bare auth event value under ``auth.`` and folds email/metadata into the
+    ``data_after`` diff. Signature unchanged so every existing caller keeps
+    working. Returns the ``AuditLog`` row (or ``None`` if emission was dropped)."""
+    from apps.audit.services import emit
+
+    data_after = {"email": email or (getattr(user, "email", "") or "")}
+    if metadata:
+        data_after.update(metadata)
+    return emit(f"auth.{event_type}", user=user, request=request, data_after=data_after)
 
 
 def _client_ip(request) -> Optional[str]:
@@ -59,20 +69,51 @@ def _client_ip(request) -> Optional[str]:
 # ---------------------------------------------------------------------------
 # JWT issuance with family rotation
 # ---------------------------------------------------------------------------
-def issue_token_pair(user, *, family: Optional[RefreshTokenFamily] = None) -> dict:
-    """Issue a fresh access+refresh pair. Creates a new family unless one is provided."""
+def issue_token_pair(
+    user,
+    *,
+    family: Optional[RefreshTokenFamily] = None,
+    request=None,
+) -> dict:
+    """Issue a fresh access+refresh pair. Creates a new family unless one is provided.
+
+    M02: when creating a family we capture the request's UA + IP so the
+    sessions page can show "Chrome on macOS — last used …". On rotation we
+    refresh the timestamp via ``family.touch()``.
+    """
     refresh = RefreshToken.for_user(user)
+    ip = _client_ip(request) if request else None
+    ua = (request.META.get("HTTP_USER_AGENT") or "")[:512] if request else ""
     if family is None:
-        family = RefreshTokenFamily.objects.create(user=user, current_jti=str(refresh["jti"]))
+        family = RefreshTokenFamily.objects.create(
+            user=user,
+            current_jti=str(refresh["jti"]),
+            ip=ip,
+            user_agent=ua,
+            last_used_at=timezone.now(),
+        )
     else:
+        # P2-8 — remember the JTI we're rotating away from as the one-step grace
+        # anchor before overwriting it.
+        family.previous_jti = family.current_jti or ""
         family.current_jti = str(refresh["jti"])
-        family.save(update_fields=["current_jti"])
+        family.last_used_at = timezone.now()
+        # Refresh device hints if we got new ones.
+        update_fields = ["current_jti", "previous_jti", "last_used_at"]
+        if ip:
+            family.ip = ip
+            update_fields.append("ip")
+        if ua:
+            family.user_agent = ua
+            update_fields.append("user_agent")
+        family.save(update_fields=update_fields)
     refresh["family_id"] = str(family.family_id)
     # Re-mint access from the (now-mutated) refresh so claims line up.
     access = refresh.access_token
     access["email"] = user.email
     access["display_name"] = user.display_name
     access["is_verified"] = user.is_verified
+    access["mfa_enabled"] = user.mfa_enabled
     return {
         "access": str(access),
         "refresh": str(refresh),
@@ -89,56 +130,77 @@ def rotate_refresh(raw_refresh: str, *, request=None) -> dict:
     try:
         token = RefreshToken(raw_refresh)
     except TokenError as exc:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken(str(exc)) from exc
 
     family_id = token.get("family_id")
     jti = str(token["jti"])
     user_id = token.get("user_id")
     if not family_id or not user_id:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("Refresh token is missing required claims")
 
-    try:
-        family = RefreshTokenFamily.objects.select_related("user").get(family_id=family_id)
-    except RefreshTokenFamily.DoesNotExist:
-        raise InvalidToken("Unknown refresh token family")
+    # P2-8: lock the family row for the compare-and-swap so two near-simultaneous
+    # refreshes serialize instead of racing (the loser would otherwise trip
+    # reuse-detection and revoke the whole family, logging a double-submitting
+    # client out everywhere). The DB writes (rotation OR revoke) happen inside the
+    # locked block and commit on exit; audit events + the InvalidToken raise are
+    # done AFTER the block so the revoke isn't rolled back by the raise.
+    #   jti == current  → normal rotation.
+    #   jti == previous → one-step GRACE: a double-submit of the just-rotated
+    #                     token (a client racing itself). Rotate again, don't revoke.
+    #   anything else   → genuine reuse → burn the family.
+    pair = None
+    with transaction.atomic():
+        try:
+            family = (
+                RefreshTokenFamily.objects.select_for_update()
+                .select_related("user")
+                .get(family_id=family_id)
+            )
+        except RefreshTokenFamily.DoesNotExist as exc:
+            REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
+            raise InvalidToken("Unknown refresh token family") from exc
 
-    if family.is_revoked:
+        already_revoked = family.is_revoked
+        is_reuse = (not already_revoked) and jti != family.current_jti and jti != (
+            family.previous_jti or None
+        )
+        inactive = (not already_revoked and not is_reuse) and not family.user.is_active
+        if is_reuse:
+            family.revoke(reason="reuse_detected")
+        elif not already_revoked and not inactive:
+            pair = issue_token_pair(family.user, family=family, request=request)
+
+    # Outside the locked block (writes committed) — now emit + signal outcome.
+    if already_revoked:
         record_event(
-            AuthEvent.EventType.REFRESH_REUSE,
-            user=family.user,
-            request=request,
+            EventType.REFRESH_REUSE, user=family.user, request=request,
             metadata={"family_id": str(family.family_id), "reason": "already_revoked"},
         )
+        REFRESH_TOTAL.labels(result=RefreshResult.FAMILY_REVOKED).inc()
         raise InvalidToken("Refresh token family revoked")
-
-    if jti != family.current_jti:
-        # Reuse detected — burn the entire family.
-        family.revoke(reason="reuse_detected")
+    if is_reuse:
         record_event(
-            AuthEvent.EventType.REFRESH_REUSE,
-            user=family.user,
-            request=request,
+            EventType.REFRESH_REUSE, user=family.user, request=request,
             metadata={"family_id": str(family.family_id), "presented_jti": jti},
         )
         record_event(
-            AuthEvent.EventType.FAMILY_REVOKED,
-            user=family.user,
-            request=request,
+            EventType.FAMILY_REVOKED, user=family.user, request=request,
             metadata={"family_id": str(family.family_id)},
         )
+        REFRESH_TOTAL.labels(result=RefreshResult.REUSE_DETECTED).inc()
+        FAMILY_REVOCATIONS_TOTAL.inc()
         raise InvalidToken("Refresh token reuse detected — family revoked")
-
-    user = family.user
-    if not user.is_active:
+    if inactive:
+        REFRESH_TOTAL.labels(result=RefreshResult.INVALID).inc()
         raise InvalidToken("User inactive")
 
-    pair = issue_token_pair(user, family=family)
     record_event(
-        AuthEvent.EventType.REFRESH_OK,
-        user=user,
-        request=request,
+        EventType.REFRESH_OK, user=family.user, request=request,
         metadata={"family_id": str(family.family_id)},
     )
+    REFRESH_TOTAL.labels(result=RefreshResult.OK).inc()
     return pair
 
 
@@ -159,29 +221,38 @@ def revoke_refresh(raw_refresh: str, *, request=None) -> bool:
         return False
     family.revoke(reason="logout")
     record_event(
-        AuthEvent.EventType.LOGOUT,
+        EventType.LOGOUT,
         user=family.user,
         request=request,
         metadata={"family_id": str(family.family_id)},
     )
+    FAMILY_REVOCATIONS_TOTAL.inc()
     return True
 
 
 # ---------------------------------------------------------------------------
 # Lockout
 # ---------------------------------------------------------------------------
-def is_locked(email: str) -> bool:
+def is_locked(email: str, ip: Optional[str] = None) -> bool:
+    """Whether ``email`` is locked out of login.
+
+    P2-4: when ``ip`` is given the count is scoped to that IP, so a remote
+    attacker flooding failures from their own IP cannot lock the victim out of a
+    *different* IP (a targeted-DoS primitive). The per-email 5/m rate limit is the
+    primary throttle; this lock is a secondary, IP-scoped control (ADR-108).
+    ``ip=None`` preserves the legacy per-email count for callers without an IP."""
     threshold = settings.AUTH_LOCKOUT_THRESHOLD
     window = timedelta(minutes=settings.AUTH_LOCKOUT_WINDOW_MINUTES)
     cutoff = timezone.now() - window
-    return (
-        FailedLoginAttempt.objects.filter(email=email, occurred_at__gte=cutoff).count()
-        >= threshold
-    )
+    qs = FailedLoginAttempt.objects.filter(email=email, occurred_at__gte=cutoff)
+    if ip:
+        qs = qs.filter(ip=ip)
+    return qs.count() >= threshold
 
 
-def record_failed_login(email: str, request=None) -> None:
-    FailedLoginAttempt.objects.create(email=email, ip=_client_ip(request) if request else None)
+def record_failed_login(email: str, request=None, ip: Optional[str] = None) -> None:
+    resolved = ip if ip is not None else (_client_ip(request) if request else None)
+    FailedLoginAttempt.objects.create(email=email, ip=resolved)
 
 
 def clear_failed_logins(email: str) -> None:
@@ -191,17 +262,49 @@ def clear_failed_logins(email: str) -> None:
 # ---------------------------------------------------------------------------
 # Email
 # ---------------------------------------------------------------------------
-def _send_templated(*, to: str, subject: str, template_base: str, context: dict) -> None:
+def _send_templated(*, to: str, subject: str, template_base: str, context: dict) -> bool:
+    """
+    Render and send a transactional email. Returns True if the provider accepted
+    the message, False if it did not.
+
+    Network failures (Resend down, 403 because DEFAULT_FROM_EMAIL is still the
+    `onboarding@resend.dev` sandbox sender and the recipient is not the account
+    owner, SMTP timeout, …) are LOGGED and COUNTED but NOT raised — the
+    user-facing endpoint must not 500 just because the provider rejected
+    delivery. The matching AuthEvent is still recorded by the caller so we can
+    replay sends later if needed.
+
+    Swallowing the exception used to also swallow the *signal*: a registration
+    whose verification email was rejected still returned 201 and nothing said
+    otherwise. Callers now get a boolean, and every attempt increments
+    auth_email_send_total{template,result} so a broken sender is visible in
+    Grafana instead of being discovered by a user who never got their email.
+    """
     text = render_to_string(f"email/{template_base}.txt", context)
     html = render_to_string(f"email/{template_base}.html", context)
     msg = EmailMultiAlternatives(subject=subject, body=text, to=[to])
     msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    try:
+        msg.send(fail_silently=False)
+    except Exception:  # noqa: BLE001 — we genuinely want to swallow ALL errors here
+        # structlog scrubber will redact `to` (matches `email`-like fields if
+        # present), so this is safe to log even with PII rules in place.
+        logger.exception(
+            "transactional email send failed",
+            extra={"template": template_base, "to": to},
+        )
+        EMAIL_SEND_TOTAL.labels(
+            template=template_base, result=EmailSendResult.ERROR
+        ).inc()
+        return False
+    EMAIL_SEND_TOTAL.labels(template=template_base, result=EmailSendResult.OK).inc()
+    return True
 
 
-def send_verification_email(user, raw_token: str) -> None:
+def send_verification_email(user, raw_token: str) -> bool:
+    """Returns False when the provider rejected the message (nothing was sent)."""
     link = f"{settings.FRONTEND_BASE_URL}/verify-email?token={raw_token}"
-    _send_templated(
+    return _send_templated(
         to=user.email,
         subject="Verify your StratTraderPro account",
         template_base="verify_email",
@@ -209,9 +312,9 @@ def send_verification_email(user, raw_token: str) -> None:
     )
 
 
-def send_password_reset_email(user, raw_token: str) -> None:
+def send_password_reset_email(user, raw_token: str) -> bool:
     link = f"{settings.FRONTEND_BASE_URL}/password-reset/confirm?token={raw_token}"
-    _send_templated(
+    return _send_templated(
         to=user.email,
         subject="Reset your StratTraderPro password",
         template_base="password_reset",
@@ -231,6 +334,52 @@ def send_account_locked_email(user) -> None:
     )
 
 
+# M02 — MFA notification emails
+def send_mfa_enabled_email(user) -> None:
+    _send_templated(
+        to=user.email,
+        subject="Two-factor authentication enabled on your account",
+        template_base="mfa_enabled",
+        context={"user": user},
+    )
+
+
+def send_mfa_disabled_email(user) -> None:
+    _send_templated(
+        to=user.email,
+        subject="Two-factor authentication disabled on your account",
+        template_base="mfa_disabled",
+        context={"user": user},
+    )
+
+
+# M2.5 — OAuth notification emails
+def send_oauth_account_created_email(user) -> None:
+    _send_templated(
+        to=user.email,
+        subject="Welcome to StratTraderPro",
+        template_base="oauth_account_created",
+        context={"user": user, "provider": "Google"},
+    )
+
+
+def send_oauth_account_linked_email(user) -> None:
+    _send_templated(
+        to=user.email,
+        subject="Google sign-in connected to your StratTraderPro account",
+        template_base="oauth_account_linked",
+        context={"user": user, "provider": "Google"},
+    )
+
+
+# M2.5 — helper for "did this happen in the last X seconds" check used by
+# OAuthPostCallbackView to distinguish first-time signup vs returning user.
+def _now_microsec_diff(t) -> int:
+    """Microseconds since timestamp t. Used by views_oauth.py."""
+    delta = timezone.now() - t
+    return delta.seconds * 1_000_000 + delta.microseconds
+
+
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
@@ -240,7 +389,103 @@ def serialize_user(user) -> dict:
         "email": user.email,
         "display_name": user.display_name,
         "is_verified": user.is_verified,
+        "mfa_enabled": user.mfa_enabled,
+        # M10 — the frontend adminGuard reads this off the login token-pair payload.
+        "is_staff": user.is_staff,
     }
+
+
+def serialize_profile(profile) -> dict:
+    """Serialize a UserProfile row."""
+    return {
+        "timezone": profile.timezone,
+        "language": profile.language,
+        "notification_email": profile.notification_email,
+        "default_broker_id": str(profile.default_broker_id) if profile.default_broker_id else None,
+        "terms_version_accepted": profile.terms_version_accepted or None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Sessions (refresh-token-family) helpers — M02
+# ---------------------------------------------------------------------------
+def _mask_ip(ip: Optional[str]) -> Optional[str]:
+    """Mask the last octet of v4 / last hextet group of v6 — UI-only hint."""
+    if not ip:
+        return None
+    if ":" in ip:
+        parts = ip.split(":")
+        return ":".join(parts[:-1] + ["xxxx"])
+    parts = ip.split(".")
+    if len(parts) == 4:
+        return ".".join(parts[:3] + ["xxx"])
+    return ip
+
+
+def _summarize_user_agent(ua: str) -> str:
+    """One-line, human-friendly hint. Strip versions and wordy fragments."""
+    if not ua:
+        return "Unknown device"
+    s = ua
+    # Cheap heuristic — order matters, more specific first.
+    matches = [
+        ("Edg/", "Edge"),
+        ("Chrome/", "Chrome"),
+        ("Firefox/", "Firefox"),
+        ("Safari/", "Safari"),
+    ]
+    browser = next((label for needle, label in matches if needle in s), "Browser")
+    os_label = "Unknown OS"
+    if "Windows" in s:
+        os_label = "Windows"
+    elif "Mac OS X" in s or "Macintosh" in s:
+        os_label = "macOS"
+    elif "Android" in s:
+        os_label = "Android"
+    elif "iPhone" in s or "iPad" in s or "iOS" in s:
+        os_label = "iOS"
+    elif "Linux" in s:
+        os_label = "Linux"
+    return f"{browser} on {os_label}"
+
+
+def serialize_session(family, *, current_family_id: Optional[str] = None) -> dict:
+    """Render a RefreshTokenFamily for the sessions UI.
+
+    ``current_family_id`` is the ``family_id`` claim of the access token making
+    the request (see views_m02._current_family_id) — the "current" flag matches
+    against ``family.family_id``, never ``current_jti`` (SEC-4).
+    """
+    return {
+        "family_id": str(family.family_id),
+        "created_at": family.created_at.isoformat(),
+        "last_used_at": family.last_used_at.isoformat() if family.last_used_at else None,
+        "ip_masked": _mask_ip(family.ip),
+        "device": _summarize_user_agent(family.user_agent),
+        "current": bool(current_family_id and str(family.family_id) == current_family_id),
+    }
+
+
+def list_user_sessions(user, *, current_family_id: Optional[str] = None) -> list[dict]:
+    """All non-revoked refresh families for ``user``, current first."""
+    families = list(
+        user.refresh_families.filter(revoked_at__isnull=True).order_by("-last_used_at", "-created_at")
+    )
+    return [serialize_session(f, current_family_id=current_family_id) for f in families]
+
+
+def revoke_other_sessions(user, *, except_family_id: Optional[str] = None, reason: str = "user_revoke") -> int:
+    """Revoke all live families for ``user`` except optionally one."""
+    qs = user.refresh_families.filter(revoked_at__isnull=True)
+    if except_family_id:
+        qs = qs.exclude(family_id=except_family_id)
+    count = 0
+    for fam in qs:
+        fam.revoke(reason=reason)
+        count += 1
+    if count:
+        FAMILY_REVOCATIONS_TOTAL.inc(count)
+    return count
 
 
 # Re-export to keep imports tidy in views.
@@ -255,7 +500,13 @@ __all__ = [
     "send_verification_email",
     "send_password_reset_email",
     "send_account_locked_email",
+    "send_mfa_enabled_email",
+    "send_mfa_disabled_email",
     "serialize_user",
+    "serialize_profile",
+    "serialize_session",
+    "list_user_sessions",
+    "revoke_other_sessions",
     "EmailVerificationToken",
     "PasswordResetToken",
 ]

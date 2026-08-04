@@ -8,6 +8,13 @@ export const AUTH_ROUTES: Routes = [
     loadComponent: () => import('./login/login.component').then(m => m.LoginComponent),
   },
   {
+    // /login/mfa — MFA challenge step. NOT guest-guarded: it's reachable
+    // *only* when AuthStore holds an mfa_token; the component itself
+    // bounces back to /login if there's no token.
+    path: 'login/mfa',
+    loadComponent: () => import('./mfa-challenge/mfa-challenge.component').then(m => m.MfaChallengeComponent),
+  },
+  {
     path: 'register',
     canMatch: [guestGuard],
     loadComponent: () => import('./register/register.component').then(m => m.RegisterComponent),
@@ -28,5 +35,13 @@ export const AUTH_ROUTES: Routes = [
   {
     path: 'password-reset/confirm',
     loadComponent: () => import('./password-reset-confirm/password-reset-confirm.component').then(m => m.PasswordResetConfirmComponent),
+  },
+  {
+    // /oauth/callback — landing page after Google → backend → frontend
+    // round-trip. Receives ?exchange=<code> or ?error=oauth_failed.
+    // NOT guest-guarded: the user technically isn't authed yet (the exchange
+    // happens here), and the component handles the ?error case gracefully.
+    path: 'oauth/callback',
+    loadComponent: () => import('./oauth-callback/oauth-callback.component').then(m => m.OAuthCallbackComponent),
   },
 ];

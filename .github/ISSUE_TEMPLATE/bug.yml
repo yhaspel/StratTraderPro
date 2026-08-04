@@ -2,7 +2,7 @@ name: Bug Report
 description: Report a bug in StratTraderPro
 title: "[Bug]: "
 labels: ["bug", "triage"]
-assignees: ["yuval3000"]
+assignees: ["yhaspel"]
 
 body:
   - type: markdown

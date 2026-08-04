@@ -1,0 +1,17 @@
+# M11 §7.0 — pinned expected `SERVICE_ROLE` -> resolved-command literals.
+# The entrypoint dry-run (STP_ENTRYPOINT_DRY_RUN=1) must print each command
+# TEMPLATE un-expanded (literal ${PORT}); the test asserts STRING EQUALITY
+# against these rows — an exit-0 check alone proves nothing (BUG-009 lesson).
+# Parsers (pytest + shell gauntlet) skip `#` comment lines and blank lines.
+# Source of each literal (pinned @ 8ecb292):
+#   web              -> docker/backend.Dockerfile CMD (incl. both logfile flags)
+#   web-dev, worker, worker-backtest, beat, streams, ws -> docker-compose.yml
+# Format: <role>|<command>   (7 data rows; trailing newline REQUIRED so a
+# `while read` loop does not silently drop the final `ws` row.)
+web|python manage.py migrate --noinput && exec gunicorn config.wsgi:application --config /app/gunicorn.conf.py --bind 0.0.0.0:${PORT} --workers 3 --worker-class gthread --threads 4 --timeout 120 --access-logfile - --error-logfile -
+web-dev|python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8777
+worker|exec celery -A config.celery worker -l info --concurrency=1
+worker-backtest|exec celery -A config.celery worker -Q backtest -l info --concurrency=1 --max-memory-per-child=2000000
+beat|exec celery -A config.celery beat -l info -S redbeat.RedBeatScheduler
+streams|exec python manage.py run_broker_streams
+ws|exec daphne -b 0.0.0.0 -p ${PORT:-8788} config.asgi:application

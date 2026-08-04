@@ -1,0 +1,50 @@
+[
+  {
+    "symbol": "NVDA",
+    "companyName": "NVIDIA Corporation",
+    "marketCap": 3200000000000,
+    "sector": "Technology",
+    "industry": "Semiconductors",
+    "beta": 1.7,
+    "price": 182.11,
+    "lastAnnualDividend": 0.04,
+    "volume": 41000000,
+    "exchange": "NASDAQ Global Select",
+    "exchangeShortName": "NASDAQ",
+    "country": "US",
+    "isEtf": false,
+    "isActivelyTrading": true
+  },
+  {
+    "symbol": "MSFT",
+    "companyName": "Microsoft Corporation",
+    "marketCap": 3100000000000,
+    "sector": "Technology",
+    "industry": "Software - Infrastructure",
+    "beta": 0.9,
+    "price": 431.2,
+    "lastAnnualDividend": 3.0,
+    "volume": 18000000,
+    "exchange": "NASDAQ Global Select",
+    "exchangeShortName": "NASDAQ",
+    "country": "US",
+    "isEtf": false,
+    "isActivelyTrading": true
+  },
+  {
+    "symbol": "AAPL",
+    "companyName": "Apple Inc.",
+    "marketCap": 2900000000000,
+    "sector": "Technology",
+    "industry": "Consumer Electronics",
+    "beta": 1.2,
+    "price": 214.05,
+    "lastAnnualDividend": 0.96,
+    "volume": 52000000,
+    "exchange": "NASDAQ Global Select",
+    "exchangeShortName": "NASDAQ",
+    "country": "US",
+    "isEtf": false,
+    "isActivelyTrading": true
+  }
+]

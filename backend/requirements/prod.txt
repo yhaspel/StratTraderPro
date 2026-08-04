@@ -1,7 +1,10 @@
 -r base.txt
 
 # WSGI server
-gunicorn>=21.2,<21.3
+# gunicorn 22.0.0+ clears CVE-2024-1135 and CVE-2024-6827 (HIGH, HTTP request
+# smuggling via improper Transfer-Encoding header validation). Trivy fails CI
+# on HIGH with a fixed version available.
+gunicorn>=22.0.0,<23.0
 uvicorn[standard]>=0.27,<0.28
 
 # Static files

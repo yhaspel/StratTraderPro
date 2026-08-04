@@ -57,6 +57,9 @@ typings/
 .vscode/
 *.code-workspace
 
+# Claude Code / Cowork session-local state
+.claude/settings.local.json
+
 # ===== OS =====
 .DS_Store
 Thumbs.db
@@ -85,9 +88,39 @@ coverage.xml
 celerybeat-schedule
 celerybeat.pid
 
+# ===== Playwright =====
+frontend/playwright-report/
+frontend/test-results/
+frontend/playwright/.cache/
+frontend/out-tsc/
+
 # ===== Misc =====
 *.bak
 *.tmp
 *.temp
 .terraform/
 *.tfstate*
+
+.claude/worktrees/
+_tmp_*
+
+# ===== Finder / editor duplicate dirs & files (e.g. "security 2/") =====
+*\ 2/
+*\ 2.*
+
+# ===== M11 load-test fixtures — per-user tokens + TOTP secrets, NEVER commit =====
+backend/loadtest/fixtures.json
+
+# Tester account creds + TOTP secret (local + prod) — NEVER commit
+TESTER_ACCOUNT.local.md
+# Project-local agent notes (points to the tester file) — keep private
+CLAUDE.local.md
+
+# osv-scanner ephemeral output (CI dependency audit)
+frontend/osv.json
+
+# ADR-109 cutover backups (rollback artifacts — local safety net, not source)
+stp-adr109-backup-2026-08-01/
+
+# ADR-109 H.3 checker output (regenerated each run)
+project-plan/ADR-109-H3-VERDICT.txt

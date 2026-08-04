@@ -1,0 +1,9 @@
+Hi {{ user.display_name }},
+
+Two-factor authentication has just been DISABLED on your StratTraderPro
+account.
+
+If this wasn't you, your account may be at risk. Sign in immediately,
+re-enable MFA, and contact support.
+
+— StratTraderPro

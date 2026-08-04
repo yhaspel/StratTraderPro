@@ -1,0 +1,2014 @@
+openapi: 3.0.3
+info:
+  title: StratTraderPro API
+  version: 0.0.0
+  description: Trading bot platform API — webhook-driven, regime-aware, multi-broker.
+paths:
+  /api/v1/admin/audit/:
+    get:
+      operationId: v1_admin_audit_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/audit/export.csv:
+    get:
+      operationId: v1_admin_audit_export.csv_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/flags/:
+    get:
+      operationId: v1_admin_flags_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/flags/{name}/:
+    post:
+      operationId: v1_admin_flags_create
+      parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/health/:
+    get:
+      operationId: v1_admin_health_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/impersonation/{session_id}/stop/:
+    post:
+      operationId: v1_admin_impersonation_stop_create
+      parameters:
+      - in: path
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/platform/killswitch/:
+    post:
+      operationId: v1_admin_platform_killswitch_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/platform/status/:
+    get:
+      operationId: v1_admin_platform_status_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/:
+    get:
+      operationId: admin_users_list
+      tags:
+      - admin
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/:
+    get:
+      operationId: admin_users_detail
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/disable/:
+    post:
+      operationId: v1_admin_users_disable_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/enable/:
+    post:
+      operationId: v1_admin_users_enable_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/admin/users/{user_id}/impersonate/start/:
+    post:
+      operationId: v1_admin_users_impersonate_start_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/login/:
+    post:
+      operationId: auth_login
+      description: Returns `{access, refresh, user, mfa_required}`. `mfa_required`
+        is always false in M01 (MFA ships in M02).
+      summary: Log in with email + password
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+            examples:
+              LoginRequest:
+                value:
+                  email: trader@example.com
+                  password: correct horse battery staple
+                summary: Login request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairEnvelope'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                InvalidCredentials:
+                  value:
+                    error:
+                      code: INVALID_CREDENTIALS
+                      message: Invalid email or password.
+                  summary: Invalid credentials
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                EmailNotVerified:
+                  value:
+                    error:
+                      code: EMAIL_NOT_VERIFIED
+                      message: Please verify your email before signing in.
+                  summary: Email not verified
+          description: ''
+        '423':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                AccountLocked:
+                  value:
+                    error:
+                      code: ACCOUNT_LOCKED
+                      message: Account temporarily locked due to repeated failures.
+                  summary: Account locked
+          description: ''
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                RateLimited:
+                  value:
+                    error:
+                      code: RATE_LIMITED
+                      message: Too many requests.
+                  summary: Rate limited
+          description: ''
+  /api/v1/auth/logout/:
+    post:
+      operationId: auth_logout
+      summary: Log out — revokes refresh family
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Logout'
+            examples:
+              LogoutRequest:
+                value:
+                  refresh: eyJhbGciOi...refresh.jwt
+                summary: Logout request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Logout'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Logout'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusEnvelope'
+          description: ''
+  /api/v1/auth/mfa/backup-codes/regenerate/:
+    post:
+      operationId: auth_mfa_regenerate_backup
+      summary: Replace the user's set of backup codes with a fresh batch of 10.
+      tags:
+      - mfa
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/mfa/disable/:
+    post:
+      operationId: auth_mfa_disable
+      summary: Disable MFA. Requires both current password and a current TOTP code.
+      tags:
+      - mfa
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/mfa/enroll/:
+    post:
+      operationId: auth_mfa_enroll
+      description: Generate (or replace) a pending MFA device. Returns the QR PNG
+        (base64) + raw secret. Confirm via /enroll/confirm/.
+      summary: Begin TOTP enrollment
+      tags:
+      - mfa
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/mfa/enroll/confirm/:
+    post:
+      operationId: auth_mfa_enroll_confirm
+      summary: Confirm TOTP enrollment with a verification code
+      tags:
+      - mfa
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/mfa/verify/:
+    post:
+      operationId: auth_mfa_verify
+      summary: Complete MFA challenge — exchange mfa_token + code for tokens
+      tags:
+      - mfa
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/oauth/exchange/:
+    post:
+      operationId: auth_oauth_exchange
+      description: |-
+        POST /api/v1/auth/oauth/exchange/
+
+        Body: ``{"exchange": "<code>"}``
+        Returns either:
+          * ``{"access": "...", "refresh": "...", "user": {...}}`` — same as login
+          * ``{"mfa_required": true, "mfa_token": "..."}`` — MFA-enrolled user
+
+        The exchange code is consumed (single-use) regardless of whether the
+        response includes tokens or an MFA challenge — the user proceeds to
+        /auth/mfa/verify/ with the mfa_token to complete login.
+      summary: Swap an OAuth exchange code for a JWT pair (or MFA challenge).
+      tags:
+      - oauth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/oauth/google/available/:
+    get:
+      operationId: auth_oauth_google_available
+      description: |-
+        GET /api/v1/auth/oauth/google/available/
+
+        Read-only, side-effect-free probe (no session cookie, no state) the frontend
+        calls before rendering the "Continue with Google" button. Mirrors the enable
+        condition in :class:`OAuthGoogleStartView` exactly, so a deploy with Google
+        OAuth unconfigured never shows a button that dead-ends on the ``/start/``
+        503 ``FEATURE_DISABLED`` (raw JSON) response.
+      summary: Whether Google sign-in is configured + enabled in this deploy.
+      tags:
+      - oauth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/oauth/google/start/:
+    get:
+      operationId: auth_oauth_google_start
+      description: |-
+        GET /api/v1/auth/oauth/google/start/
+
+        302s to Google's authorize URL via allauth's stock ``oauth2_login`` view.
+        The frontend does ``window.location.assign('.../start/')`` — a top-level
+        navigation, NOT an XHR. This is critical: the browser sets the session
+        cookie that allauth uses to stash the OAuth state token, and that cookie
+        must travel back when Google redirects to our /callback/. A cross-origin
+        XHR followed by ``window.location`` drops that cookie and the callback
+        rejects with ``PermissionDenied`` from ``verify_and_unstash_state``.
+      summary: Redirect the browser to Google's OAuth authorize URL.
+      tags:
+      - oauth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/password/reset/:
+    post:
+      operationId: auth_password_reset
+      description: Always returns 200 to avoid email enumeration.
+      summary: Request a password reset email
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+            examples:
+              ResetRequest:
+                value:
+                  email: trader@example.com
+                summary: Reset request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusEnvelope'
+          description: ''
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                RateLimited:
+                  value:
+                    error:
+                      code: RATE_LIMITED
+                      message: Too many requests.
+                  summary: Rate limited
+          description: ''
+  /api/v1/auth/password/reset/confirm/:
+    post:
+      operationId: auth_password_reset_confirm
+      description: Issues a JWT pair on success and revokes any outstanding refresh
+        families.
+      summary: Set a new password using the reset token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+            examples:
+              ConfirmRequest:
+                value:
+                  token: prv_7a1c...sample
+                  password: correct horse battery staple
+                summary: Confirm request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairEnvelope'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                TokenInvalidOrExpired:
+                  value:
+                    error:
+                      code: TOKEN_INVALID
+                      message: Token is invalid or expired.
+                  summary: Token invalid or expired
+                PasswordDoesNotMeetPolicy:
+                  value:
+                    error:
+                      code: PASSWORD_WEAK
+                      message: Password does not meet policy.
+                      details:
+                        password:
+                        - This password is too common.
+                  summary: Password does not meet policy
+          description: ''
+  /api/v1/auth/refresh/:
+    post:
+      operationId: auth_refresh
+      description: Consumes the supplied refresh token and issues a new pair in the
+        same family. Reusing an already-rotated refresh revokes the whole family.
+      summary: Rotate a refresh token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Refresh'
+            examples:
+              RefreshRequest:
+                value:
+                  refresh: eyJhbGciOi...refresh.jwt
+                summary: Refresh request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Refresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Refresh'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairEnvelope'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                TokenInvalidOrExpired:
+                  value:
+                    error:
+                      code: TOKEN_INVALID
+                      message: Token is invalid or expired.
+                  summary: Token invalid or expired
+          description: ''
+  /api/v1/auth/register/:
+    post:
+      operationId: auth_register
+      description: Creates a new user and sends a verification email. Duplicate emails
+        return 202 with a generic body to prevent enumeration.
+      summary: Register a new account
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+            examples:
+              RegisterRequest:
+                value:
+                  email: trader@example.com
+                  display_name: Jane Trader
+                  password: correct horse battery staple
+                summary: Register request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterOkEnvelope'
+          description: ''
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusEnvelope'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                PasswordDoesNotMeetPolicy:
+                  value:
+                    error:
+                      code: PASSWORD_WEAK
+                      message: Password does not meet policy.
+                      details:
+                        password:
+                        - This password is too common.
+                  summary: Password does not meet policy
+                ValidationError:
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: Invalid input.
+                      details:
+                        email:
+                        - Enter a valid email address.
+                  summary: Validation error
+          description: ''
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                RateLimited:
+                  value:
+                    error:
+                      code: RATE_LIMITED
+                      message: Too many requests.
+                  summary: Rate limited
+          description: ''
+  /api/v1/auth/resend-verification/:
+    post:
+      operationId: auth_resend_verification
+      description: Idempotent. Returns 200 whether or not the address maps to an unverified
+        account, to avoid email enumeration. Returns 503 EMAIL_SEND_FAILED only when
+        the mail provider rejected a message we genuinely tried to send.
+      summary: Resend verification email
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerification'
+            examples:
+              ResendRequest:
+                value:
+                  email: trader@example.com
+                summary: Resend request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResendVerification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResendVerification'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusEnvelope'
+          description: ''
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                RateLimited:
+                  value:
+                    error:
+                      code: RATE_LIMITED
+                      message: Too many requests.
+                  summary: Rate limited
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: ''
+  /api/v1/auth/verify-email/:
+    post:
+      operationId: auth_verify_email
+      description: Consumes the verification token and returns a JWT pair on success.
+      summary: Verify email via token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmail'
+            examples:
+              VerifyRequest:
+                value:
+                  token: uvv_6d2c...sample
+                summary: Verify request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VerifyEmail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VerifyEmail'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairEnvelope'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                TokenInvalidOrExpired:
+                  value:
+                    error:
+                      code: TOKEN_INVALID
+                      message: Token is invalid or expired.
+                  summary: Token invalid or expired
+          description: ''
+  /api/v1/backtest/runs/:
+    get:
+      operationId: backtest_runs_list
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: backtest_runs_create
+      tags:
+      - backtest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BacktestRunCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BacktestRunCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BacktestRunCreate'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/:
+    get:
+      operationId: backtest_runs_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/cancel/:
+    post:
+      operationId: backtest_runs_cancel
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/report.html:
+    get:
+      operationId: backtest_report_html
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/report.json:
+    get:
+      operationId: backtest_report_json
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/runs/{id}/report.pdf:
+    get:
+      operationId: backtest_report_pdf
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+  /api/v1/backtest/strategies/:
+    get:
+      operationId: backtest_strategies
+      description: 'Picker source: backtestable strategies + whether an adapter is
+        registered.'
+      tags:
+      - backtest
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/:
+    get:
+      operationId: brokers_list
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: brokers_connect
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/:
+    get:
+      operationId: brokers_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: brokers_remove
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      responses:
+        '204':
+          description: No response body
+  /api/v1/brokers/{id}/flatten/:
+    post:
+      operationId: brokers_flatten
+      description: Admin-gated debug flatten in M04 (full kill-switch engine in M08).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/mode/:
+    post:
+      operationId: brokers_set_mode
+      description: |-
+        PAPER ↔ LIVE mode switch (M05 §6.6 / AC-05-8). LIVE is rejected until the
+        global flag is on AND the user has opted in — server-enforced regardless of
+        UI. M05 always rejects LIVE (ENABLE_LIVE_TRADING defaults False).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/status/:
+    get:
+      operationId: brokers_status
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/{id}/test-connection/:
+    post:
+      operationId: brokers_test_connection
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - brokers
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/ping/:
+    get:
+      operationId: v1_brokers_ping_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/tradestation/oauth/callback/:
+    get:
+      operationId: v1_brokers_tradestation_oauth_callback_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/brokers/tradestation/oauth/start/:
+    get:
+      operationId: v1_brokers_tradestation_oauth_start_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/fills/:
+    get:
+      operationId: fills_list
+      tags:
+      - orders
+      responses:
+        '200':
+          description: No response body
+  /api/v1/marketdata/keys/:
+    get:
+      operationId: marketdata_keys_status
+      description: |-
+        Status only — ``configured`` + ``source`` for everyone; last-4 hint
+        and updated-by detail for staff. Never key material.
+      tags:
+      - marketdata
+      responses:
+        '200':
+          description: No response body
+  /api/v1/marketdata/keys/{provider}/:
+    put:
+      operationId: marketdata_keys_set
+      parameters:
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - marketdata
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: marketdata_keys_remove
+      parameters:
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - marketdata
+      responses:
+        '204':
+          description: No response body
+  /api/v1/onboarding/status/:
+    get:
+      operationId: onboarding_status
+      description: GET the onboarding checklist state. Auth required, but NOT MFA-gated.
+      tags:
+      - onboarding
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatusEnvelope'
+          description: ''
+  /api/v1/orders/:
+    get:
+      operationId: orders_list
+      tags:
+      - orders
+      responses:
+        '200':
+          description: No response body
+  /api/v1/orders/{id}/:
+    get:
+      operationId: orders_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - orders
+      responses:
+        '200':
+          description: No response body
+  /api/v1/orders/export.csv:
+    get:
+      operationId: orders_export_csv
+      tags:
+      - orders
+      responses:
+        '200':
+          description: No response body
+  /api/v1/orders/ping/:
+    get:
+      operationId: v1_orders_ping_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/positions/:
+    get:
+      operationId: positions_list
+      tags:
+      - orders
+      responses:
+        '200':
+          description: No response body
+  /api/v1/reconciliation/events/:
+    get:
+      operationId: reconciliation_events
+      tags:
+      - orders
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/current/:
+    get:
+      operationId: regime_current
+      tags:
+      - regime
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/history/:
+    get:
+      operationId: regime_history
+      tags:
+      - regime
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/model/:
+    get:
+      operationId: regime_model
+      tags:
+      - regime
+      responses:
+        '200':
+          description: No response body
+  /api/v1/regime/symbol/{sym}/:
+    get:
+      operationId: regime_symbol
+      parameters:
+      - in: path
+        name: sym
+        schema:
+          type: string
+        required: true
+      tags:
+      - regime
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/events/:
+    get:
+      operationId: risk_events
+      tags:
+      - risk
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/killswitches/:
+    get:
+      operationId: risk_killswitches_list
+      description: GET active kill switches; POST to trigger/release (AC-08-7/8/9/10).
+      tags:
+      - risk
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: risk_killswitches_set
+      description: GET active kill switches; POST to trigger/release (AC-08-7/8/9/10).
+      tags:
+      - risk
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/ping/:
+    get:
+      operationId: v1_risk_ping_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/profile/:
+    get:
+      operationId: risk_profile_get
+      tags:
+      - risk
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: risk_profile_put
+      tags:
+      - risk
+      responses:
+        '200':
+          description: No response body
+  /api/v1/risk/sizing-decisions/:
+    get:
+      operationId: risk_sizing_decisions
+      tags:
+      - risk
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sentiment/articles/:
+    get:
+      operationId: sentiment_articles
+      tags:
+      - sentiment
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sentiment/market/:
+    get:
+      operationId: sentiment_market
+      tags:
+      - sentiment
+      responses:
+        '200':
+          description: No response body
+  /api/v1/sentiment/symbol/{sym}/:
+    get:
+      operationId: sentiment_symbol
+      parameters:
+      - in: path
+        name: sym
+        schema:
+          type: string
+        required: true
+      tags:
+      - sentiment
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/:
+    get:
+      operationId: strategies_list
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: strategies_upload
+      summary: Upload a 3-file strategy bundle.
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/:
+    get:
+      operationId: strategies_detail
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: strategies_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: strategies_delete
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '204':
+          description: No response body
+  /api/v1/strategies/{id}/files/{kind}/:
+    get:
+      operationId: strategies_file_download
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: kind
+        schema:
+          type: string
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/webhook-config/:
+    get:
+      operationId: strategies_webhook_get
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: strategies_webhook_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/webhook-config/dry-run/:
+    post:
+      operationId: strategies_webhook_dryrun
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{id}/webhook-config/rotate/:
+    post:
+      operationId: strategies_webhook_rotate
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - strategies
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/:
+    post:
+      operationId: screener_run_create
+      summary: Queue a screen for this strategy.
+      parameters:
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/criteria/:
+    get:
+      operationId: screener_criteria
+      summary: Parse the strategy description's [screen] block.
+      parameters:
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/runs/:
+    get:
+      operationId: screener_run_list
+      parameters:
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/strategies/{strategy_id}/screen/runs/{run_id}/:
+    get:
+      operationId: screener_run_detail
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: strategy_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - screener
+      responses:
+        '200':
+          description: No response body
+  /api/v1/terms/accept/:
+    post:
+      operationId: v1_terms_accept_create
+      summary: Record Terms/Privacy acceptance
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/_TermsAccept'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/_TermsAccept'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_TermsAccept'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/v1/terms/current/:
+    get:
+      operationId: v1_terms_current_retrieve
+      summary: Current ToS/Privacy versions + whether the user must re-accept
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/:
+    get:
+      operationId: users_me
+      summary: Get the currently authenticated user
+      tags:
+      - auth
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserEnvelope'
+              examples:
+                CurrentUser:
+                  value:
+                    data:
+                      id: 6f2e5a1d-0c9b-4b4e-8d6a-111111111111
+                      email: trader@example.com
+                      display_name: Jane Trader
+                      is_verified: true
+                      created_at: '2026-04-17T12:00:00Z'
+                  summary: Current user
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: ''
+  /api/v1/users/me/delete/:
+    post:
+      operationId: v1_users_me_delete_create
+      summary: Schedule a 30-day soft account deletion
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/delete/cancel/:
+    post:
+      operationId: v1_users_me_delete_cancel_create
+      summary: Cancel a pending account deletion
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/export/:
+    get:
+      operationId: v1_users_me_export_retrieve
+      summary: Start a personal-data export
+      tags:
+      - v1
+      responses:
+        '202':
+          description: No response body
+  /api/v1/users/me/export/{job_id}/:
+    get:
+      operationId: v1_users_me_export_retrieve_2
+      summary: Personal-data export status + signed download URL
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/export/{job_id}/download/:
+    get:
+      operationId: v1_users_me_export_download_retrieve
+      description: |-
+        P1-3 — serve the export ZIP through an authenticated, owner-checked view.
+
+        The filesystem export backend (the default self-hosted deploy) has no served
+        ``/media/`` path, so the previously-advertised signed URL 404'd. This streams
+        the bytes only to the owner, only while the job is READY and unexpired.
+      summary: Download a produced personal-data export (owner only)
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/password/:
+    post:
+      operationId: users_me_password_change
+      summary: Change password. Revokes all other refresh sessions.
+      tags:
+      - users
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/sessions/:
+    get:
+      operationId: users_me_sessions
+      summary: List the user's active refresh-token families.
+      tags:
+      - users
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/sessions/revoke/:
+    post:
+      operationId: users_me_sessions_revoke
+      summary: Revoke a single session by family_id, OR all-other if all=true.
+      tags:
+      - users
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/me/update/:
+    patch:
+      operationId: users_me_update
+      summary: Update display_name / timezone / language / notification preferences
+      tags:
+      - users
+      responses:
+        '200':
+          description: No response body
+  /hooks/v1/{user_id}/{strategy_id}/:
+    post:
+      operationId: webhook_ingest
+      tags:
+      - webhooks
+      summary: TradingView webhook ingest (secret-authenticated in body).
+      description: Public endpoint mounted outside `/api/v1` — no JWT auth. Authentication
+        is a constant-time match of the static bearer `sig` secret embedded in the
+        alert body (see ADR-042). Hardened with a per-user rate limit (before body
+        read), a 16 KB body cap, `application/json`-only, 24h idempotency, and a halt
+        gate.
+      security: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: strategy_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - strategy
+              - action
+              - symbol
+              - qty
+              - order_type
+              - sig
+              properties:
+                strategy:
+                  type: string
+                action:
+                  type: string
+                  enum:
+                  - buy
+                  - sell
+                  - exit
+                symbol:
+                  type: string
+                qty:
+                  type: number
+                order_type:
+                  type: string
+                  enum:
+                  - MKT
+                  - LMT
+                limit_price:
+                  type: number
+                sig:
+                  type: string
+                  description: Static bearer secret.
+                idempotency_key:
+                  type: string
+      responses:
+        '200':
+          description: Accepted / duplicate / halted (see body).
+        '400':
+          description: Invalid JSON or schema validation failure.
+        '401':
+          description: Missing/invalid secret (generic — no oracle).
+        '413':
+          description: Payload exceeds 16 KB.
+        '415':
+          description: Content-Type is not application/json.
+        '429':
+          description: Per-user rate limit exceeded.
+        '503':
+          description: Webhook ingest disabled by ops.
+components:
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Optional field→messages map for validation errors.
+      required:
+      - code
+      - message
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        is_verified:
+          type: boolean
+        mfa_enabled:
+          type: boolean
+        is_staff:
+          type: boolean
+      required:
+      - display_name
+      - email
+      - id
+      - is_verified
+    BacktestRunCreate:
+      type: object
+      properties:
+        strategy:
+          type: string
+          format: uuid
+        symbols:
+          type: array
+          items:
+            type: string
+            maxLength: 16
+          maxItems: 10
+          minItems: 1
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+        tf:
+          type: string
+          default: 1d
+        train_window_days:
+          type: integer
+          maximum: 6000
+          minimum: 1
+        test_window_days:
+          type: integer
+          maximum: 6000
+          minimum: 1
+        step_days:
+          type: integer
+          maximum: 6000
+          minimum: 1
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ModeEnum'
+          default: rolling
+        metric:
+          allOf:
+          - $ref: '#/components/schemas/MetricEnum'
+          default: sharpe
+        initial_cash:
+          type: number
+          format: double
+          minimum: 1.0
+          default: 100000.0
+        param_grid: {}
+        costs:
+          $ref: '#/components/schemas/Costs'
+        sizing_mode:
+          allOf:
+          - $ref: '#/components/schemas/SizingModeEnum'
+          default: fixed_qty_1
+        retention_days:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 90
+      required:
+      - end
+      - start
+      - step_days
+      - strategy
+      - symbols
+      - test_window_days
+      - train_window_days
+    Costs:
+      type: object
+      properties:
+        slippage_bps:
+          type: number
+          format: double
+          maximum: 1000.0
+          minimum: 1.0
+          default: 5.0
+        per_order_usd:
+          type: number
+          format: double
+          minimum: 0.0
+          default: 0.0
+        per_share_usd:
+          type: number
+          format: double
+          minimum: 0.0
+          default: 0.0
+        volume_participation_pct:
+          type: number
+          format: double
+          maximum: 100.0
+          minimum: 0.001
+          default: 10.0
+    CurrentUserEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/_CurrentUserData'
+      required:
+      - data
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ApiError'
+      required:
+      - error
+    Login:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    Logout:
+      type: object
+      properties:
+        refresh:
+          type: string
+      required:
+      - refresh
+    MetricEnum:
+      enum:
+      - sharpe
+      - sortino
+      - total_return
+      - mar
+      type: string
+      description: |-
+        * `sharpe` - sharpe
+        * `sortino` - sortino
+        * `total_return` - total_return
+        * `mar` - mar
+    ModeEnum:
+      enum:
+      - anchored
+      - rolling
+      type: string
+      description: |-
+        * `anchored` - anchored
+        * `rolling` - rolling
+    OnboardingStatusEnvelope:
+      type: object
+      description: M10.5 §9 — the four onboarding booleans + a derived ``complete``
+        flag.
+      properties:
+        data:
+          $ref: '#/components/schemas/_OnboardingData'
+      required:
+      - data
+    PasswordReset:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    PasswordResetConfirm:
+      type: object
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 256
+          minLength: 12
+      required:
+      - password
+      - token
+    Refresh:
+      type: object
+      properties:
+        refresh:
+          type: string
+      required:
+      - refresh
+    Register:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          maxLength: 64
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 256
+          minLength: 12
+      required:
+      - display_name
+      - email
+      - password
+    RegisterData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+      required:
+      - email
+      - id
+    RegisterOkEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/RegisterData'
+      required:
+      - data
+    ResendVerification:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    SizingModeEnum:
+      enum:
+      - production
+      - fixed_qty_1
+      type: string
+      description: |-
+        * `production` - production
+        * `fixed_qty_1` - fixed_qty_1
+    StatusData:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+      - status
+    StatusEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/StatusData'
+      required:
+      - data
+    TokenPairData:
+      type: object
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        mfa_required:
+          type: boolean
+      required:
+      - access
+      - refresh
+      - user
+    TokenPairEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TokenPairData'
+      required:
+      - data
+    VerifyEmail:
+      type: object
+      properties:
+        token:
+          type: string
+      required:
+      - token
+    _CurrentUserData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        is_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - display_name
+      - email
+      - id
+      - is_verified
+    _OnboardingData:
+      type: object
+      properties:
+        mfa_enrolled:
+          type: boolean
+        broker_connected:
+          type: boolean
+        strategy_ready:
+          type: boolean
+        first_fill_seen:
+          type: boolean
+        complete:
+          type: boolean
+      required:
+      - broker_connected
+      - complete
+      - first_fill_seen
+      - mfa_enrolled
+      - strategy_ready
+    _TermsAccept:
+      type: object
+      properties:
+        tos_version:
+          type: string
+          maxLength: 32
+        privacy_version:
+          type: string
+          maxLength: 32
+      required:
+      - privacy_version
+      - tos_version

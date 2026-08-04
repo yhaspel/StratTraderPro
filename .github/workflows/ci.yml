@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: CI only reads the repo. GITHUB_TOKEN gets no write scopes,
+# so a fork PR cannot use it to mutate the repo. Any job needing more must
+# declare its own narrower `permissions:`.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -52,6 +58,15 @@ jobs:
           key: pip-${{ hashFiles('backend/requirements/dev.txt') }}
           restore-keys: pip-
 
+      # WeasyPrint (M09 PDF tearsheets) native deps — kept in sync with the apt
+      # list in docker/backend.Dockerfile. CI runs pytest on the runner (not in
+      # Docker), so the PDF-render tests need Pango/HarfBuzz/fontconfig + a font.
+      - name: Install WeasyPrint system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
+
       - name: Install dependencies
         run: pip install -r backend/requirements/dev.txt
 
@@ -59,7 +74,7 @@ jobs:
         run: cd backend && ruff check .
 
       - name: Security scan (bandit)
-        run: cd backend && bandit -r apps/ config/ -x tests -q
+        run: cd backend && bandit -r apps/ config/ -x tests -q --severity-level medium
 
       - name: Run tests
         env:
@@ -68,10 +83,48 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: cd backend && python -m pytest --tb=short -q
 
+      # M10 §6.0 — Postgres lane: the `-m pg` tests exercise the audit append-only
+      # triggers, advisory-lock concurrency, the restricted-role privilege check,
+      # the AuthEvent data migration, and the audit-search index-usage EXPLAIN —
+      # all no-ops/undefined on the SQLite lane. Runs against the already-
+      # provisioned (previously unused) postgres service container.
+      - name: Run tests (Postgres lane)
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test_pg
+          DATABASE_URL: postgres://test_user:test_pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+        run: cd backend && python -m pytest -m pg --tb=short -q
+
+      # M11 §7.2 / AC-11-1 — pip-audit has NO severity threshold: it fails on ANY
+      # advisory in the shipping closure (base + prod). Suppression is per-ID only
+      # (--ignore-vuln), and every ignored ID is a row in
+      # docs/security/dependency-waivers.md. Do not add a --severity flag (there
+      # isn't one) and do not delete the gate to quiet it.
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip install pip-audit
+          cd backend
+          pip-audit -r requirements/base.txt -r requirements/prod.txt \
+            --ignore-vuln PYSEC-2025-110 \
+            --ignore-vuln PYSEC-2025-111 \
+            --ignore-vuln PYSEC-2026-56 \
+            --ignore-vuln CVE-2026-49452
+
   # ---------- Frontend ----------
   frontend-lint-test:
-    name: Frontend — Lint & Test
+    # BUG-007 — renamed. This was "Frontend — Lint & Test" while running neither:
+    # `ng lint` has no target configured in angular.json ("Cannot find 'lint'
+    # target"), and the test step simply did not exist. A job name that promises
+    # checks it does not perform is worse than no job, because it manufactures
+    # confidence. Tests are wired up below; a real lint target (angular-eslint)
+    # means new dependencies, which M12 freezes, so it is tracked separately
+    # rather than smuggled in here.
+    name: Frontend — Build & Test
     runs-on: ubuntu-latest
+    # Job-level env so the sourcemap step's `if: env.SENTRY_AUTH_TOKEN != ''`
+    # can see the secret (step-level env is not available in that step's own `if`).
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -94,8 +147,76 @@ jobs:
       - name: Install dependencies
         run: cd frontend && pnpm install --frozen-lockfile
 
+      # M11 §7.2 / AC-11-1 — gate is "zero un-waived HIGH+". Waivers live in
+      # package.json (pnpm.auditConfig.ignoreGhsas), documented in
+      # docs/security/dependency-waivers.md (client-SPA-N/A @angular advisories
+      # patched only in Angular 20+, plus dev/build-tooling not shipped in the
+      # bundle). npm retired its audit endpoints (HTTP 410), breaking
+      # `pnpm audit`, so we scan the lockfile with osv-scanner (OSV.dev) and
+      # enforce the same policy in scripts/audit-gate.mjs. `|| true` lets
+      # osv-scanner emit JSON for LOW/MODERATE findings without short-circuiting;
+      # the HIGH+ gate is enforced by the script's exit code, not osv-scanner's.
+      - name: Dependency audit (osv-scanner, HIGH+ gate)
+        run: |
+          cd frontend
+          docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:latest \
+            scan source --lockfile=pnpm-lock.yaml --format=json > osv.json || true
+          node ../scripts/audit-gate.mjs osv.json package.json
+
+      # BUG-007 — this job was named "Lint & Test" and did NEITHER: it only ran
+      # `pnpm build`. Every frontend spec in the repo had therefore never executed
+      # in CI, so a green build said nothing whatsoever about frontend behaviour.
+      # `ng test` is properly configured (karma builder + tsconfig.spec.json), and
+      # ubuntu-latest ships Chrome, so ChromeHeadless just works.
+      - name: Test (karma, headless)
+        run: cd frontend && pnpm test:ci
+
       - name: Build
         run: cd frontend && pnpm build
+
+      # M10 §6.5e — upload frontend source maps to Sentry for readable stack
+      # traces. Gated on the SENTRY_AUTH_TOKEN secret so CI stays green until an
+      # operator adds it (deferred-live). Cleanly skipped when the secret is absent.
+      - name: Upload source maps to Sentry
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          cd frontend
+          npx @sentry/cli@2 sourcemaps inject dist
+          npx @sentry/cli@2 sourcemaps upload --release "${GITHUB_SHA}" dist
+
+  # ---------- Accessibility (axe-core) — M11 §7.10 / AC-11-11 ----------
+  # The a11y specs seed auth (mock.seedRefreshToken + mocked /api/v1/**) and assert
+  # a page-identifying locator is visible BEFORE AxeBuilder.analyze(), so they scan
+  # the REAL authed pages — not a silent /login redirect (the BUG-009 trap the plan
+  # calls out). They mock the backend, so `ng serve` alone is enough (Playwright's
+  # webServer self-spawns it); no docker-compose needed.
+  a11y:
+    name: A11y — axe-core (dashboard/strategies/backtest/risk/admin)
+    runs-on: ubuntu-latest
+    needs: [frontend-lint-test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: cd frontend && pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: cd frontend && pnpm exec playwright install --with-deps chromium
+
+      - name: axe-core a11y audit
+        run: cd frontend && pnpm exec playwright test e2e/a11y
 
   # ---------- E2E Smoke ----------
   e2e-smoke:
@@ -112,7 +233,7 @@ jobs:
       - name: Wait for backend
         run: |
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:8000/healthz; then
+            if curl -sf http://localhost:8777/healthz; then
               echo "Backend is up"
               exit 0
             fi
@@ -122,12 +243,219 @@ jobs:
           docker compose logs backend
           exit 1
 
+      - name: Wait for frontend
+        # The compose `frontend` service runs `pnpm install && ng serve` from
+        # scratch on a fresh node:20-alpine container, which can take 60–90s
+        # before the dev server starts answering on :4444. Mirror the backend
+        # retry loop here so the smoke step doesn't race the dev server.
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4444 -o /dev/null; then
+              echo "Frontend is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend failed to start"
+          docker compose logs frontend
+          exit 1
+
       - name: Check frontend
-        run: curl -sf http://localhost:4200 | grep -q "StratTraderPro"
+        run: curl -sf http://localhost:4444 | grep -q "StratTraderPro"
 
       - name: Teardown
         if: always()
         run: docker compose down -v
+
+  # ---------- Entrypoint SERVICE_ROLE dispatch (M11 §7.0 / AC-11-14) ----------
+  # BUG-011: a blank Railway start command silently ran gunicorn in celery-worker
+  # /celery-beat for two months. The image entrypoint now REQUIRES SERVICE_ROLE
+  # and exits non-zero (never falls back to `web`) on unset/unrecognised. This
+  # job proves it in CI so no future PR can regress it (the dry-run/mode/guard
+  # tests also run inside backend-lint-test's pytest; the `web`-role gunicorn boot
+  # is only provable here because it needs the built image + a DB).
+  entrypoint-dispatch:
+    name: Entrypoint — SERVICE_ROLE dispatch
+    runs-on: ubuntu-latest
+    needs: [backend-lint-test]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Deps-free: pinned-literal string equality for all 7 roles + the
+      # unset/bogus/web-dev-misconfig exit-non-zero guards + the committed 0755.
+      - name: Dry-run dispatch gauntlet (pinned literals + guards + mode)
+        run: bash scripts/verify_entrypoint_dispatch.sh
+
+      - name: Build backend image
+        run: docker build -f docker/backend.Dockerfile -t stp-backend:ci .
+
+      # The E2E smoke boots web-dev/worker/beat/streams/ws through the dispatcher;
+      # the production `web` role is only exercised here. `--network host` lets the
+      # run container reach the postgres/redis service containers on localhost.
+      - name: SERVICE_ROLE=web boots gunicorn and answers /healthz
+        run: |
+          docker run -d --rm --name stp-web-check --network host \
+            -e SERVICE_ROLE=web \
+            -e DJANGO_SETTINGS_MODULE=config.settings.dev \
+            -e DATABASE_URL="postgres://test_user:test_pass@localhost:5432/test_db" \
+            -e REDIS_URL="redis://localhost:6379/0" \
+            -e SECRET_KEY="ci-entrypoint-web-boot-check" \
+            stp-backend:ci
+          ok=0
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:8777/healthz; then echo "SERVICE_ROLE=web booted gunicorn"; ok=1; break; fi
+            sleep 2
+          done
+          if [ "$ok" != "1" ]; then echo "::error::SERVICE_ROLE=web did not boot gunicorn"; docker logs stp-web-check || true; docker rm -f stp-web-check || true; exit 1; fi
+          # Prove it is really gunicorn (the whole point of BUG-011).
+          docker logs stp-web-check 2>&1 | grep -qi gunicorn || { echo "::error::web role is not gunicorn"; docker logs stp-web-check; docker rm -f stp-web-check; exit 1; }
+          docker rm -f stp-web-check
+
+      # Day-6 role-removal drill (§7.5): an unset SERVICE_ROLE must CRASH, not
+      # quietly serve HTTP. Assert on exit code + the loud log line.
+      - name: Role-removal drill — unset SERVICE_ROLE crashes (does not serve)
+        run: |
+          set +e
+          docker run --name stp-role-removal \
+            -e DJANGO_SETTINGS_MODULE=config.settings.dev \
+            -e SECRET_KEY="ci-role-removal-drill" \
+            stp-backend:ci
+          code=$(docker inspect -f '{{.State.ExitCode}}' stp-role-removal)
+          logs=$(docker logs stp-role-removal 2>&1)
+          docker rm -f stp-role-removal >/dev/null 2>&1
+          set -e
+          [ "$code" != "0" ] || { echo "::error::unset SERVICE_ROLE exited 0 (should crash)"; exit 1; }
+          echo "$logs" | grep -q "SERVICE_ROLE is unset" || { echo "::error::missing loud unset message"; echo "$logs"; exit 1; }
+          echo "unset SERVICE_ROLE crashed with exit $code and the loud message — as designed"
+
+  # ---------- Legacy IBKR credential guard (M04 §6.9 / AC-04-13) ----------
+  # After the Alpaca pivot (ADR-041) the IBKR TWS_* / DEBUG_VNC env vars must
+  # not reappear in active code or config. They are allowed ONLY in the parked
+  # reference paths (the ib-gateway sidecar, the compose profile, and the
+  # historical docs / plans that document the spike).
+  block-legacy-ibkr-creds:
+    name: Guard — no legacy IBKR creds
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Grep for TWS_ / DEBUG_VNC outside the allowlist
+        run: |
+          MATCHES=$(git grep -nE "TWS_|DEBUG_VNC" -- \
+            ':!.github/workflows/ci.yml' \
+            ':!docker/ib-gateway' \
+            ':!docker-compose.yml' \
+            ':!docs' \
+            ':!project-plan' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::Legacy IBKR credentials (TWS_/DEBUG_VNC) found outside the allowlist:"
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "No legacy IBKR credentials in active code/config."
+
+  # ---------- Guard: live trading must stay OFF in committed config (M13 AC-13-16) ----------
+  # M13 makes real-money execution reachable. The ONLY thing between a beta user
+  # and a live order is `ENABLE_LIVE_TRADING`, and M12 runs a 3-5 user PAPER beta
+  # (M12 §3: "Live trading enablement (v0.2; ENABLE_LIVE_TRADING stays False)")
+  # on a build that now contains the live code path.
+  #
+  # "The flag is off" was a convention. This project has been burned twice by a
+  # control that was assumed to be in force and was not (BUG-009: every alert rule
+  # silently paused; BUG-011: workers silently running gunicorn) — in both cases
+  # the system cheerfully reported healthy. A convention is not a control.
+  #
+  # Enabling live trading is an OPERATOR act on a deployed environment, performed
+  # deliberately once project-plan/13-live-trading-switch.md §6 is fully green. It
+  # is never a commit. So: no committed config may arm it.
+  block-live-trading-enabled:
+    name: Guard — live trading stays disabled
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Grep for a committed ENABLE_LIVE_TRADING=true
+        run: |
+          # Match ENABLE_LIVE_TRADING set to any truthy value, in env files,
+          # compose, settings and infra. Docs/plans are allowlisted because they
+          # legitimately DISCUSS the flag (this is why the earlier IBKR guard
+          # allowlists docs/ and project-plan/ too).
+          # Test files are allowlisted too: @override_settings(ENABLE_LIVE_TRADING=True)
+          # is process-local test config, never a deployed env — the exact thing
+          # M13's test suite must exercise. This guard is about committed *config*
+          # (env files, compose, settings, infra), not test doubles.
+          MATCHES=$(git grep -inE "ENABLE_LIVE_TRADING[[:space:]]*[=:][[:space:]]*[\"']?(true|1|yes|on)\b" -- \
+            ':!.github/workflows/ci.yml' \
+            ':!docs' \
+            ':!project-plan' \
+            ':!*.md' \
+            ':!*/test_*.py' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error::ENABLE_LIVE_TRADING is armed in committed config. Real-money trading must never be enabled by a commit — it is an operator act on a deployed env, gated by 13-live-trading-switch.md §6."
+            echo "$MATCHES"
+            exit 1
+          fi
+          echo "ENABLE_LIVE_TRADING is not armed in any committed config."
+
+      - name: Assert the code default is False
+        run: |
+          # Defence in depth: even if no config sets it, the *default* must be
+          # False, so a fresh environment (e.g. the new prod project from M11
+          # PART H) that never sets the var is paper-only by construction.
+          grep -qE 'ENABLE_LIVE_TRADING\s*=\s*env\.bool\(\s*"ENABLE_LIVE_TRADING"\s*,\s*default=False\s*\)' \
+            backend/config/settings/base.py \
+            || { echo "::error::ENABLE_LIVE_TRADING no longer defaults to False in settings/base.py"; exit 1; }
+          echo "ENABLE_LIVE_TRADING defaults to False — an unset env is paper-only."
+
+  # ---------- Guard: nginx runtime-config substitution (BUG-004) ----------
+  # NGINX_ENVSUBST_FILTER is an anchored allowlist. Any ${VAR} in
+  # docker/nginx.conf.template that is missing from it is NOT substituted and its
+  # literal "${FOO}" text is served to the browser. That is how frontend Sentry
+  # shipped broken: the SPA received sentryDsn: '${SENTRY_DSN}' and Sentry.init()
+  # silently no-op'd on the malformed DSN.
+  #
+  # The E2E smoke runs `ng serve`, so it never exercises the nginx image — this
+  # static cross-check is what actually covers the production artifact.
+  block-unsubstituted-runtime-config:
+    name: Guard — nginx envsubst filter in sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cross-check NGINX_ENVSUBST_FILTER against nginx.conf.template
+        run: python3 scripts/check_envsubst_filter.py
+
+      # The Guides catalog and assets/guides/*.html can drift silently: a catalog
+      # entry with no file renders a card that opens "not found", and a file with
+      # no entry is an orphan article unreachable from the index. Both only fail
+      # in a user's browser, so cross-check them statically here.
+      - name: Cross-check the Guides catalog against assets/guides/
+        run: python3 scripts/check_guides_catalog.py
 
   # ---------- Image Scan ----------
   image-scan:

@@ -1,0 +1,17 @@
+Hi {{ user.display_name }},
+
+Welcome to StratTraderPro! Your account was just created via {{ provider }} sign-in.
+
+A couple of things you should do next:
+
+  - Set up two-factor authentication. Trades and broker connections require
+    it. Visit Settings → Security in the app to enable it.
+
+  - You signed up via {{ provider }} so no password is set yet. If you ever
+    want to sign in with a password as a fallback, use "Forgot password" on
+    the sign-in page to set one.
+
+If this wasn't you, contact support immediately — someone may have used
+your {{ provider }} account to register on our service.
+
+— StratTraderPro

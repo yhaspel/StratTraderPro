@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Understanding the Regime badge</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+  .dot { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; margin-right: 0.4rem; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<h1>Understanding the Regime badge</h1>
+
+<p>The <strong>Regime</strong> badge on your dashboard is a one-glance read on
+what kind of market you're in right now — from calm and rising to stressed and
+falling. It's a market-wide signal (based on the broad US market, not any single
+stock), and it updates automatically through the trading day.</p>
+
+<div class="tip">
+  The regime is <strong>information, not an instruction</strong>. It doesn't place
+  or block trades on its own in this release — it's context to help you read your
+  strategies' behavior. Later releases use it as an input to position sizing.
+</div>
+
+<h2>What the badges mean</h2>
+
+<table>
+  <tr><th>Badge</th><th>What it's telling you</th></tr>
+  <tr>
+    <td><span class="dot" style="background:#1a9850"></span><strong>BULL</strong></td>
+    <td>Risk-on. Broad participation, firm momentum, calm volatility, tight credit
+    spreads — a healthy, rising market.</td>
+  </tr>
+  <tr>
+    <td><span class="dot" style="background:#66bd63"></span><strong>NEUTRAL</strong></td>
+    <td>Mixed. No clear risk-on or risk-off tilt — the signals roughly cancel out.</td>
+  </tr>
+  <tr>
+    <td><span class="dot" style="background:#fdae61"></span><strong>CHOP</strong></td>
+    <td>Choppy / sideways. The model sees a churning, directionless regime rather
+    than a clean trend — common in range-bound markets.</td>
+  </tr>
+  <tr>
+    <td><span class="dot" style="background:#f46d43"></span><strong>BEAR</strong></td>
+    <td>Risk-off. Weak breadth, negative momentum, rising volatility or widening
+    credit spreads — a falling or defensive market.</td>
+  </tr>
+  <tr>
+    <td><span class="dot" style="background:#a50026"></span><strong>CRISIS</strong></td>
+    <td>Acute stress. Volatility and credit spreads are extreme — the most
+    defensive reading.</td>
+  </tr>
+</table>
+
+<h2>How the regime is worked out</h2>
+
+<p>The badge blends <strong>two</strong> independent views of the market and
+combines them into one label:</p>
+
+<ul>
+  <li><strong>A rule-based score.</strong> A transparent, always-on score built
+  from market breadth (how many stocks are participating), volatility (VIX and
+  related stress gauges), and credit spreads (how nervous the bond market is),
+  plus momentum and a couple of macro signals. Each ingredient pushes the score
+  toward risk-on or risk-off, landing in one of four bands from risk-on down to
+  panic.</li>
+  <li><strong>A statistical model (an HMM).</strong> A model trained on years of
+  daily market data that learns recurring market "states" directly from the data
+  — patterns the fixed rule can't see on its own. It's retrained automatically
+  overnight and only replaces the previous model if it's at least as good.</li>
+</ul>
+
+<p>The final badge is the combination of the two: the model can sharpen or
+override the rule's read when it's confident, while the rule keeps the whole thing
+explainable and always available.</p>
+
+<h2>The top-features popover</h2>
+
+<p>Hover (or tap) the badge to see <strong>why</strong> the market is being read
+this way. The popover lists the <strong>top contributing features</strong> —
+the signals moving the score the most right now — each with a
+<strong>z-score</strong>: how unusual that signal is versus its own recent
+history.</p>
+
+<ul>
+  <li>A <strong>positive</strong> z-score means the signal is running high versus
+  its recent norm; <strong>negative</strong> means it's running low.</li>
+  <li>Bigger numbers (further from zero) mean more unusual — a
+  <code>+2.1</code> on breadth or a <code>+2.5</code> on credit spreads is a
+  strong contributor; a value near <code>0</code> is business as usual.</li>
+</ul>
+
+<div class="tip">
+  So a <strong>BEAR</strong> badge whose popover shows credit spreads and
+  volatility both well above normal is telling you the read is driven by
+  <em>stress</em>, not just weak prices — that's the reason code, in plain sight.
+</div>
+
+<h2>The "Rule-based only" state</h2>
+
+<div class="warn">
+  If you see a <strong>"Rule-based only"</strong> note on the badge, the
+  statistical model is temporarily unavailable — usually because its overnight
+  retrain hasn't produced a fresh model in over 48 hours. When that happens the
+  badge falls back to the transparent rule-based score <strong>alone</strong>.
+</div>
+
+<p>This is a <strong>graceful fallback, not an outage</strong>. The badge still
+shows a valid regime and its top features — you're simply seeing the rule's read
+without the model's input until the model refreshes. Nothing you do is affected;
+it clears automatically once the next model trains successfully.</p>
+
+<h2>The history chart</h2>
+
+<p>Below the badge, the regime history chart shows how the market's regime has
+moved over recent months, so you can see whether today's read is a fresh shift or
+part of a longer stretch. Hover any point to see the reading for that day.</p>
+
+<h2>Good to know</h2>
+
+<ul>
+  <li>The regime is <strong>market-wide</strong> — one read for the whole US
+  market, not per-symbol. Per-symbol regimes may come in a later release.</li>
+  <li>It refreshes on its own during market hours; you don't need to do
+  anything.</li>
+  <li>It's a <strong>context signal</strong>. Treat it as one more input to your
+  own judgement, not a buy/sell trigger.</li>
+</ul>
+
+</body>
+</html>

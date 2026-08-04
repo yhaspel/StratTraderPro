@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Interpreting PBO</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Interpreting PBO</h1>
+
+<p><strong>PBO</strong> stands for <strong>Probability of Backtest
+Overfitting</strong>. It answers one blunt question: <em>when you pick the
+best-looking parameters on historical data, how often do those exact parameters
+turn out to be a poor choice going forward?</em> It's a single number between
+<strong>0 and 1</strong>, and it's shown per symbol on the tearsheet.</p>
+
+<div class="tip">
+  <strong>The short version.</strong> Low PBO = the parameters that looked best
+  in-sample also tended to do well out-of-sample, so your selection process is
+  finding something real. High PBO (above 0.5) = the best in-sample parameters
+  tended to <em>underperform</em> out-of-sample, which is the classic signature of
+  overfitting — you tuned to noise.
+</div>
+
+<h2>Why it exists</h2>
+
+<p>Any backtest that sweeps many parameter combinations has a built-in trap: with
+enough combinations, <em>something</em> will look great on your history by pure
+luck. Pick that winner and you've optimized to noise. A big total return and a
+high Sharpe don't tell you whether you fell into this trap. PBO is designed to tell
+you exactly that.</p>
+
+<h2>How it's computed (CSCV)</h2>
+
+<p>PBO uses <strong>CSCV</strong> — Combinatorially Symmetric Cross-Validation
+(Bailey et al., 2015). In plain terms:</p>
+
+<ol>
+  <li>Every parameter combination is run over the full date range, giving a matrix
+  of daily returns (one column per combination).</li>
+  <li>The timeline is chopped into equal blocks, and those blocks are split many
+  different ways into an "in-sample" half and an "out-of-sample" half.</li>
+  <li>For each split, it finds the combination that was <em>best in-sample</em>,
+  then checks where that same combination <em>ranked out-of-sample</em>.</li>
+  <li><strong>PBO is the fraction of splits where the in-sample winner landed in
+  the bottom half out-of-sample.</strong></li>
+</ol>
+
+<p>If your selection had real predictive power, the in-sample best would keep
+ranking well out-of-sample and PBO would be low. If it was luck, the in-sample best
+lands anywhere out-of-sample — including the bottom half about half the time —
+and PBO climbs toward and past 0.5.</p>
+
+<h2>How to read the number</h2>
+
+<table>
+  <tr><th>PBO</th><th>Reading</th></tr>
+  <tr><td><strong>0.0 – 0.2</strong></td><td>Low overfitting risk. The selected parameters generalize well.</td></tr>
+  <tr><td><strong>0.2 – 0.5</strong></td><td>Moderate. Some overfitting; weigh it against per-window Sharpe stability and drawdown.</td></tr>
+  <tr><td><strong>&gt; 0.5</strong></td><td><strong>High overfitting risk</strong> — the tearsheet shows a warning badge. The in-sample-best parameters tend to underperform out-of-sample. Treat the results as unreliable.</td></tr>
+</table>
+
+<div class="warn">
+  <strong>A high total return with PBO above 0.5 is a red flag, not a green
+  light.</strong> It means the impressive number is likely an artifact of picking
+  the luckiest combination, and there's little reason to expect it to repeat.
+</div>
+
+<h2>When PBO is blank (<code>null</code>)</h2>
+
+<p>PBO needs enough parameter combinations and enough history to be meaningful. If
+the sweep had too few combinations (fewer than 10) or the date range was too short
+for the block splits, PBO is left <strong>unset</strong> and the tearsheet notes
+<em>"insufficient trials for an overfit estimate."</em> That's not a pass or a fail
+— it just means the test couldn't run. To get a PBO, widen the parameter grid
+and/or lengthen the date range.</p>
+
+<h2>What to do about a high PBO</h2>
+
+<ul>
+  <li><strong>Simplify the strategy or the grid.</strong> Fewer parameters and
+  fewer combinations give overfitting less room to hide.</li>
+  <li><strong>Lean on the robustness signals, not the headline.</strong> Prefer a
+  strategy with low PBO and steady per-window Sharpe over one with a bigger return
+  and a high PBO.</li>
+  <li><strong>Lengthen the history.</strong> More out-of-sample data makes the
+  estimate stronger and makes it harder to fit noise.</li>
+</ul>
+
+<p>PBO doesn't replace judgment — but a strategy that clears a low PBO, holds a
+stable per-window Sharpe, and survives its own drawdown is a far better candidate
+than one that just posted a big backtest number. See also <em>Reading the
+tearsheet</em>.</p>
+
+</body>
+</html>

@@ -1,7 +1,8 @@
 """M00 backend tests — health endpoints, schema, logging scrubber, sentry init."""
 import json
 
-from django.test import TestCase, RequestFactory, override_settings
+from django.test import RequestFactory, TestCase, override_settings
+
 from config.urls import healthz
 
 
@@ -27,7 +28,14 @@ class ReadyzTest(TestCase):
 
 class OpenAPISchemaTest(TestCase):
     def test_openapi_schema_parses_as_json(self):
-        response = self.client.get("/api/schema/", HTTP_ACCEPT="application/json")
+        # P3-5: the schema endpoint is admin-gated when not DEBUG — authenticate.
+        from apps.m04_testutils import access_token, create_user
+
+        admin = create_user(email="schemaadmin@example.com", staff=True)
+        response = self.client.get(
+            "/api/schema/", HTTP_ACCEPT="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token(admin)}",
+        )
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertIn("openapi", data)
@@ -36,7 +44,7 @@ class OpenAPISchemaTest(TestCase):
 
 class LoggingScrubberTest(TestCase):
     def test_logging_scrubber_strips_authorization(self):
-        from config.settings.base import _scrub_sensitive
+        from apps.audit.scrub import _scrub_sensitive
 
         event = {"authorization": "Bearer secret123", "user": "test@example.com"}
         result = _scrub_sensitive(None, None, event)
@@ -44,7 +52,7 @@ class LoggingScrubberTest(TestCase):
         self.assertEqual(result["user"], "test@example.com")
 
     def test_logging_scrubber_strips_multiple_keys(self):
-        from config.settings.base import _scrub_sensitive
+        from apps.audit.scrub import _scrub_sensitive
 
         event = {"password": "hunter2", "token": "abc", "name": "safe"}
         result = _scrub_sensitive(None, None, event)

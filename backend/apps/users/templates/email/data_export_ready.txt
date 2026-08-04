@@ -1,0 +1,9 @@
+{% load i18n %}{% blocktrans %}Hi {{ display_name }},{% endblocktrans %}
+
+{% blocktrans %}Your StratTraderPro personal-data export is ready. Download it here:{% endblocktrans %}
+
+{{ url }}
+
+{% blocktrans %}This link expires in 24 hours. For your security, broker API keys and MFA secrets are redacted from the export.{% endblocktrans %}
+
+— {% trans "The StratTraderPro team" %}

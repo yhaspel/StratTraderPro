@@ -1,13 +1,16 @@
 """
-User model and auth-supporting tables (M01).
+User model and auth-supporting tables (M01 + M02).
 
 Tables:
-- User: email-keyed AbstractBaseUser; UUID PK.
-- EmailVerificationToken: single-use, 24h TTL.
-- PasswordResetToken: single-use, 1h TTL.
-- RefreshTokenFamily: tracks JWT refresh-token families for rotation/reuse detection.
-- FailedLoginAttempt: per-email sliding-window counter for account lockout.
-- AuthEvent: lightweight audit precursor (folded into AuditLog in M10).
+- User: email-keyed AbstractBaseUser; UUID PK. (M01)
+- EmailVerificationToken: single-use, 24h TTL. (M01)
+- PasswordResetToken: single-use, 1h TTL. (M01)
+- RefreshTokenFamily: tracks JWT refresh-token families for rotation/reuse
+  detection; M02 adds user_agent / ip / last_used_at for the sessions UI.
+- FailedLoginAttempt: per-email sliding-window counter for account lockout. (M01)
+- UserProfile: per-user prefs — timezone, language, notifications. (M02)
+- MFADevice: TOTP secret (Fernet-encrypted at rest). (M02)
+- BackupCode: 10 single-use codes per user, sha256+salt hashed. (M02)
 """
 from __future__ import annotations
 
@@ -22,6 +25,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
     PermissionsMixin,
 )
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils import timezone
 
@@ -70,6 +74,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # M11 §7.7 — 30-day soft account delete. Set to now+30d on a delete request;
+    # a nightly job anonymizes-in-place on expiry (the User row is NEVER hard
+    # deleted — its PK keeps AuditLog.user/actor FKs resolving). Cleared on cancel.
+    pending_delete_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["display_name"]
@@ -81,6 +89,22 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    # ------------------------------------------------------------------
+    # M02 — derived MFA flag
+    # ------------------------------------------------------------------
+    @property
+    def mfa_enabled(self) -> bool:
+        """True iff the user has a verified MFADevice.
+
+        Derived (not cached) — single source of truth is the MFADevice row.
+        Use ``select_related("mfa_device")`` in views that hit this in a hot
+        path to avoid the extra query.
+        """
+        try:
+            return bool(self.mfa_device and self.mfa_device.verified)
+        except ObjectDoesNotExist:
+            return False
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +184,15 @@ class RefreshTokenFamily(models.Model):
     # JTI of the currently-valid refresh token in this family. Any other JTI
     # presented for this family is treated as reuse → family revoked.
     current_jti = models.CharField(max_length=64, db_index=True)
+    # P2-8 — the immediately-preceding JTI. Presenting it is treated as a
+    # one-step GRACE (a double-submitting client racing the rotation), not reuse,
+    # so a legitimate concurrent refresh doesn't self-revoke the whole family.
+    previous_jti = models.CharField(max_length=64, blank=True, default="")
+    # M02 — sessions UI hints. Captured at family creation, refreshed on
+    # successful rotation. Stored verbatim then redacted at serialization.
+    user_agent = models.CharField(max_length=512, blank=True, default="")
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "users_refresh_token_family"
@@ -174,6 +207,19 @@ class RefreshTokenFamily(models.Model):
             self.revoked_at = timezone.now()
             self.revoke_reason = reason[:64]
             self.save(update_fields=["revoked_at", "revoke_reason"])
+
+    def touch(self, *, ip: str | None = None, user_agent: str | None = None) -> None:
+        """Record activity. Called on successful refresh rotation."""
+        fields: list[str] = []
+        self.last_used_at = timezone.now()
+        fields.append("last_used_at")
+        if ip:
+            self.ip = ip
+            fields.append("ip")
+        if user_agent:
+            self.user_agent = user_agent[:512]
+            fields.append("user_agent")
+        self.save(update_fields=fields)
 
 
 # ---------------------------------------------------------------------------
@@ -191,38 +237,251 @@ class FailedLoginAttempt(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# AuthEvent (precursor to full AuditLog in M10)
+# M02 — User profile
 # ---------------------------------------------------------------------------
-class AuthEvent(models.Model):
-    class EventType(models.TextChoices):
-        REGISTER = "register"
-        VERIFY_EMAIL = "verify_email"
-        LOGIN_OK = "login_ok"
-        LOGIN_FAIL = "login_fail"
-        LOGOUT = "logout"
-        REFRESH_OK = "refresh_ok"
-        REFRESH_REUSE = "refresh_reuse"
-        FAMILY_REVOKED = "family_revoked"
-        PASSWORD_RESET_REQUESTED = "password_reset_requested"
-        PASSWORD_RESET_CONFIRMED = "password_reset_confirmed"
-        ACCOUNT_LOCKED = "account_locked"
-        RESEND_VERIFICATION = "resend_verification"
+class UserProfile(models.Model):
+    """Per-user preferences. Auto-created on user save (see signals.py)."""
 
-    id = models.BigAutoField(primary_key=True)
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="auth_events",
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile"
     )
-    email = models.EmailField(blank=True, default="")  # captured for anon/failed events
-    event_type = models.CharField(max_length=32, choices=EventType.choices)
-    ip = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=512, blank=True, default="")
-    metadata = models.JSONField(default=dict, blank=True)
-    occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # IANA tz name. Validated at the serializer layer against
+    # zoneinfo.available_timezones().
+    timezone = models.CharField(max_length=64, default="America/New_York")
+    language = models.CharField(max_length=8, default="en")
+    notification_email = models.BooleanField(default=True)
+    # FK populated in M04 once Broker model lands. Plain UUID for now to
+    # avoid a circular dependency.
+    default_broker_id = models.UUIDField(null=True, blank=True)
+    terms_version_accepted = models.CharField(max_length=32, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "users_auth_event"
-        indexes = [models.Index(fields=["user", "occurred_at"])]
+        db_table = "users_user_profile"
+
+    def __str__(self):
+        return f"Profile<{self.user.email}>"
+
+
+# ---------------------------------------------------------------------------
+# M02 — MFA device (TOTP)
+# ---------------------------------------------------------------------------
+class MFADevice(models.Model):
+    """One TOTP device per user. ``secret_encrypted`` is Fernet-wrapped at rest.
+
+    Verification flow:
+    - Row created when user starts enrollment (verified=False).
+    - Flipped to verified=True when /enroll/confirm/ accepts a valid code.
+    - On disable: row deleted.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mfa_device"
+    )
+    secret_encrypted = models.BinaryField()
+    verified = models.BooleanField(default=False)
+    enrolled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "users_mfa_device"
+
+    def __str__(self):
+        return f"MFADevice<{self.user.email} verified={self.verified}>"
+
+
+# ---------------------------------------------------------------------------
+# M02 — Backup codes
+# ---------------------------------------------------------------------------
+class BackupCode(models.Model):
+    """Single-use 8-char backup codes. Stored as sha256(code + per-row salt).
+
+    A user has exactly ``MFA_BACKUP_CODE_COUNT`` (default 10) un-used codes
+    at any moment. Regenerating wipes the prior set.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="backup_codes"
+    )
+    code_hash = models.CharField(max_length=128, db_index=True)
+    salt = models.CharField(max_length=32)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "users_backup_code"
+        indexes = [models.Index(fields=["user", "used_at"])]
+
+    @property
+    def is_used(self) -> bool:
+        return self.used_at is not None
+
+
+# ---------------------------------------------------------------------------
+# M2.5 — OAuth exchange code
+# ---------------------------------------------------------------------------
+class OAuthExchangeCode(models.Model):
+    """
+    Single-use code issued at the end of the Google OAuth callback. The
+    frontend POSTs this to ``/api/v1/auth/oauth/exchange/`` to swap it for a
+    JWT pair (or an MFA challenge if the user has MFA enabled).
+
+    Why not put the JWT in the redirect URL directly? URL fragments leak via
+    referer headers, server logs, and browser history. The exchange-code
+    pattern keeps the JWT off the wire entirely — the code is single-use,
+    short-lived, and only ever transits through one redirect hop.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="oauth_exchange_codes"
+    )
+    code_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    # Provider that issued this code (currently always 'google'; future: apple, github)
+    provider = models.CharField(max_length=32, default="google")
+
+    class Meta:
+        db_table = "users_oauth_exchange_code"
+        indexes = [models.Index(fields=["user", "consumed_at"])]
+
+    @classmethod
+    def issue(cls, user, *, provider: str = "google"):
+        """Mint a fresh exchange code. Returns ``(row, raw_code)``."""
+        from datetime import timedelta as _td
+
+        raw = secrets.token_urlsafe(32)
+        ttl_minutes = settings.OAUTH_EXCHANGE_TTL_MINUTES
+        row = cls.objects.create(
+            user=user,
+            code_hash=_hash_token(raw),
+            expires_at=timezone.now() + _td(minutes=ttl_minutes),
+            provider=provider,
+        )
+        return row, raw
+
+    @classmethod
+    def consume(cls, raw: str):
+        """
+        Single-use consumption. Returns the matching User if the code is
+        valid + unconsumed + unexpired, else None.
+        """
+        try:
+            row = cls.objects.select_related("user").get(code_hash=_hash_token(raw))
+        except cls.DoesNotExist:
+            return None
+        if row.consumed_at is not None or row.expires_at < timezone.now():
+            return None
+        row.consumed_at = timezone.now()
+        row.save(update_fields=["consumed_at"])
+        return row.user
+
+
+# ---------------------------------------------------------------------------
+# M11 §7.8 — Versioned Terms of Service / Privacy Policy + acceptance
+# ---------------------------------------------------------------------------
+class TermsDocument(models.Model):
+    """A versioned legal document (ToS or Privacy). The *current* document of a
+    kind is the one with the greatest ``effective_from`` that is <= now. The SPA
+    re-prompts for acceptance whenever the accepted version differs from current.
+    """
+
+    class Kind(models.TextChoices):
+        TERMS = "terms", "Terms of Service"
+        PRIVACY = "privacy", "Privacy Policy"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=16, choices=Kind.choices, db_index=True)
+    version = models.CharField(max_length=32)
+    text = models.TextField(blank=True, default="")
+    # URL the SPA links to for the full rendered document (optional).
+    url = models.CharField(max_length=256, blank=True, default="")
+    effective_from = models.DateTimeField(default=timezone.now, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "users_terms_document"
+        constraints = [
+            models.UniqueConstraint(fields=["kind", "version"], name="uq_terms_kind_version"),
+        ]
+        indexes = [models.Index(fields=["kind", "effective_from"])]
+
+    def __str__(self):
+        return f"TermsDocument<{self.kind} {self.version}>"
+
+    @classmethod
+    def current(cls, kind: str):
+        """The in-force document of ``kind`` (latest effective_from <= now), or None."""
+        return (
+            cls.objects.filter(kind=kind, effective_from__lte=timezone.now())
+            .order_by("-effective_from")
+            .first()
+        )
+
+
+class TermsAcceptance(models.Model):
+    """One row per (user, acceptance event). Immutable audit of consent — the IP
+    and timestamp make the acceptance legally meaningful (§12)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="terms_acceptances"
+    )
+    tos_version = models.CharField(max_length=32)
+    privacy_version = models.CharField(max_length=32)
+    accepted_at = models.DateTimeField(auto_now_add=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        db_table = "users_terms_acceptance"
+        indexes = [models.Index(fields=["user", "accepted_at"])]
+
+    def __str__(self):
+        return f"TermsAcceptance<{self.user_id} tos={self.tos_version} priv={self.privacy_version}>"
+
+
+# ---------------------------------------------------------------------------
+# M11 §7.7 — GDPR personal-data export job
+# ---------------------------------------------------------------------------
+class DataExportJob(models.Model):
+    """Tracks an async personal-data export. The ZIP is streamed to S3-compatible
+    storage (``STORAGES['exports']``) and delivered via a 24h signed URL."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        READY = "ready", "Ready"
+        FAILED = "failed", "Failed"
+        EXPIRED = "expired", "Expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="export_jobs"
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True)
+    # Storage key of the produced ZIP within STORAGES['exports']; empty until READY.
+    file_key = models.CharField(max_length=256, blank=True, default="")
+    size_bytes = models.BigIntegerField(default=0)
+    error = models.CharField(max_length=256, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    ready_at = models.DateTimeField(null=True, blank=True)
+    # Signed-URL / retention expiry (created_at + 24h).
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "users_data_export_job"
+        indexes = [models.Index(fields=["user", "created_at"])]
+
+    def __str__(self):
+        return f"DataExportJob<{self.id} {self.status}>"
+
+    @property
+    def is_expired(self) -> bool:
+        return bool(self.expires_at and self.expires_at < timezone.now())

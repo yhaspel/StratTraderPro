@@ -5,6 +5,13 @@
 > **Depends on:** M04 (Orders), M06 (Regime), M07 (Sentiment)
 > **Unlocks:** M09 (Backtester can borrow sizing primitives)
 
+> **Review note (2026-07-05, post-Alpaca pivot — ADR-041):**
+>
+> 1. Build the kill-switch levels on the `brokers.TradingHalt` table M04 now creates (M04 §8, `brokers.0002_tradinghalt`) — don't invent a parallel model; M04's ingest gate already reads it.
+> 2. Flatten got cheaper: Alpaca has a native one-call `close_all_positions(cancel_orders=True)`. The ≤5s L1 flatten budget should be comfortably achievable through the adapter's `flatten_all`; keep the per-position fallback loop only for brokers without a bulk endpoint (TradeStation).
+> 3. Carry-over from the master-plan analysis (HIGH-01): the daily-loss watcher must pull fresh broker marks with a short timeout and fall back to conservative cached values — don't compute halts off stale `Position` rows alone.
+> 4. Use `SELECT FOR UPDATE` / serializable isolation on the halt-toggle + daily-loss paths (analysis doc's transaction-isolation gap).
+
 ## 1. Purpose
 
 Wire the three decision inputs — regime, sentiment, and user risk profile — into a coherent pre-trade pipeline that (a) computes correct position size, (b) applies risk gates, and (c) exposes four kill-switch levels with sub-5-second latency. This milestone transforms the raw "alert → order" pipeline of M04 into a defensible risk-aware engine.

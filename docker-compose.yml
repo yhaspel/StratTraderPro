@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ---------- Data stores ----------
   postgres:
@@ -9,7 +7,10 @@ services:
       POSTGRES_USER: stp_user
       POSTGRES_PASSWORD: stp_local_pw
     ports:
-      - "5432:5432"
+      # Host 5434 avoids a clash with other local Postgres instances (5432 is
+      # the system default; 5433 is taken by another project's docker-db). The
+      # app containers still reach this DB internally as postgres:5432.
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +22,9 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      # Host 6380 avoids a clash with a local Redis on 6379; the app containers
+      # still reach this instance internally as redis:6379.
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -33,17 +36,19 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py runserver 0.0.0.0:8000"
+    # M11 §7.0 — no `command:`; the image entrypoint dispatches on SERVICE_ROLE.
+    # `web-dev` (not `web`) keeps the hot-reload runserver + ./backend bind mount;
+    # the entrypoint refuses web-dev unless settings end in `.dev` and no
+    # RAILWAY_ENVIRONMENT_NAME is set.
     environment:
+      SERVICE_ROLE: web-dev
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
       SENTRY_DSN: ""
     ports:
-      - "8000:8000"
+      - "8777:8777"
     volumes:
       - ./backend:/app
     depends_on:
@@ -57,12 +62,43 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: celery -A config.celery worker -l info
+    # concurrency=1 gives a clean 1:1 mapping to TASK_METRICS_PORT (FIX-C1, §6.5b);
+    # prefork children can't share a scrape port. M11 §7.0 — command via SERVICE_ROLE.
+    # The backend service runs `migrate` on boot; on a fresh DB this worker can
+    # start first and hit a not-yet-created table. Self-heal until migrations land.
+    restart: on-failure
     environment:
+      SERVICE_ROLE: worker
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9101"  # FIX-C1 — scraped by grafana-agent as worker:9101
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Backtest worker (M09 §6.8) ----------
+  # Dedicated worker for the `backtest` queue so long sweeps never starve order
+  # flow on the default `celery` queue. concurrency=1 + a 2 GB per-child memory
+  # cap (grid chunking keeps peak RSS under it). On Railway this is a separate
+  # service (operator step — until it exists, prod runs sit QUEUED forever).
+  worker-backtest:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
+    environment:
+      SERVICE_ROLE: worker-backtest  # M11 §7.0 — command via SERVICE_ROLE
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9102"  # FIX-C1 — scraped as worker-backtest:9102
     volumes:
       - ./backend:/app
     depends_on:
@@ -76,15 +112,66 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    command: celery -A config.celery beat -l info -S redbeat.RedBeatScheduler
+    restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
     environment:
+      SERVICE_ROLE: beat  # M11 §7.0 — command via SERVICE_ROLE
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9103"  # FIX-C1 — scraped as beat:9103
     volumes:
       - ./backend:/app
     depends_on:
+      redis:
+        condition: service_healthy
+
+  # ---------- Broker fill streams (M04 §6.5) ----------
+  # One TradingStream per connected paper account; writes fills to Redis.
+  streams:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: on-failure  # tolerate the fresh-DB migrate race (see worker)
+    environment:
+      SERVICE_ROLE: streams  # M11 §7.0 — command via SERVICE_ROLE
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+      TASK_METRICS_PORT: "9104"  # already wired; scraped as streams:9104
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Websocket ASGI server (M04 §6.6) ----------
+  # Serves /ws/dashboard/ via daphne (the HTTP backend stays WSGI/gunicorn).
+  ws:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    # M11 §7.0 — command via SERVICE_ROLE. The image sets ENV PORT=8777, so the
+    # `ws` role's `${PORT:-8788}` never falls back; PORT: 8788 here makes daphne
+    # bind 8788 so the published 8788:8788 maps to a live socket (Railway injects
+    # $PORT). Without this the 100-WS load test would hit a dead port.
+    environment:
+      SERVICE_ROLE: ws
+      PORT: "8788"
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://stp_user:stp_local_pw@postgres:5432/strattraderpro
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: local-dev-secret-key-not-for-prod
+    ports:
+      - "8788:8788"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -92,9 +179,9 @@ services:
   frontend:
     image: node:20-alpine
     working_dir: /app
-    command: sh -c "corepack enable && pnpm install && pnpm start -- --host 0.0.0.0"
+    command: sh -c "corepack enable && pnpm install && pnpm exec ng serve --host 0.0.0.0 --port 4444"
     ports:
-      - "4200:4200"
+      - "4444:4444"
     volumes:
       - ./frontend:/app
       - fe_node_modules:/app/node_modules
@@ -104,13 +191,77 @@ services:
     image: ngrok/ngrok:latest
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-    command: http backend:8000
+    command: http backend:8777
     ports:
       - "4040:4040"  # ngrok web UI
     depends_on:
       - backend
     profiles:
       - tunnel  # only starts with: docker compose --profile tunnel up
+
+  # ---------- IB Gateway sidecar (M04 Day-1 SPIKE) ----------
+  # Opt-in only (PARKED — Alpaca pivot, ADR-041): starts with
+  # `docker compose --profile ibkr up ib-gateway`. Not booted by `make up`.
+  # Validates the four assumptions in docs/adr/040-ibkr-gateway-sidecar.md
+  # before broker-adapter work compounds on top. Throwaway-or-promote.
+  #
+  # Required env (put in .env, gitignored):
+  #   TWS_USERID=<your IBKR paper username>
+  #   TWS_PASSWORD=<your IBKR paper password>
+  # Optional:
+  #   DEBUG_VNC=1   to expose the Gateway GUI on localhost:5900
+  ib-gateway:
+    build:
+      context: .
+      dockerfile: docker/ib-gateway/Dockerfile
+    environment:
+      TWS_USERID: ${TWS_USERID:-}
+      TWS_PASSWORD: ${TWS_PASSWORD:-}
+      TRADING_MODE: paper
+      # VNC for debug visibility. Set VNC_SERVER_PASSWORD=<anything> in .env
+      # to enable; gnzsnz's run.sh only starts x11vnc when this env var is
+      # non-empty. Connect via `open vnc://localhost:5900` on macOS using
+      # the same password. Leave unset for normal operation — the older
+      # DEBUG_VNC compose var was a misnomer (gnzsnz never read it).
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-}
+      # gnzsnz contract — without these the API hangs after TCP accept:
+      #   TWS_ACCEPT_INCOMING=accept  → auto-confirm the "incoming connection"
+      #     dialog Gateway raises on every new client. Default `manual` blocks
+      #     the API handshake on a modal IBC won't click → 10s ib_insync TO.
+      #   READ_ONLY_API=no            → image default is `yes`; placeOrder
+      #     would silently no-op in step 3 of the smoke even after H3 fixed.
+      #   BYPASS_WARNING=yes          → suppress the "API precautions" modal
+      #     on each connect.
+      #   RELOGIN_AFTER_TWOFA_TIMEOUT=yes → 2FA-friendly auto-recovery.
+      #   EXISTING_SESSION_DETECTED_ACTION=primary → take over a prior session
+      #     instead of waiting on a modal that IBC can't auto-click. Without
+      #     this, IBC stalls forever on the "Existing session detected" dialog
+      #     — service appears Active but API never goes live (ADR-040 gotcha #6).
+      #   TIME_ZONE                    → keeps Gateway clock aligned w/ IBKR;
+      #     mismatched clocks have caused order-routing oddities in past.
+      TWS_ACCEPT_INCOMING: accept
+      READ_ONLY_API: "no"
+      BYPASS_WARNING: "yes"
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      TIME_ZONE: ${TIME_ZONE:-Asia/Jerusalem}
+    ports:
+      # gnzsnz indirection: IB Gateway itself binds 127.0.0.1:4002 (only),
+      # and a sidecar `socat` listens on container :4004 forwarding to
+      # 127.0.0.1:4002. We must publish host:4002 → container:4004 so
+      # external clients pass through socat — connecting straight to
+      # container:4002 hits Gateway with the Docker bridge source IP and
+      # IB's TrustedIPs=127.0.0.1 silently drops the API handshake.
+      - "4002:4004"   # paper API — smoke test connects here
+      - "5900:5900"   # VNC, only useful when DEBUG_VNC=1
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/tcp/127.0.0.1/4004' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    profiles:
+      - ibkr
 
 volumes:
   pgdata:

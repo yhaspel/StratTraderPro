@@ -1,8 +1,7 @@
 {
   "app": {
     "title": "StratTraderPro",
-    "tagline": "Regime-aware algorithmic trading — powered by webhooks, sentiment, and market breadth.",
-    "status": "Platform scaffold — staging environment"
+    "tagline": "Regime-aware algorithmic trading — powered by webhooks, sentiment, and market breadth."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -10,8 +9,17 @@
     "backtest": "Backtest",
     "risk": "Risk",
     "admin": "Admin",
+    "settings": "Settings",
+    "data_providers": "Data providers",
     "login": "Log In",
-    "logout": "Log Out"
+    "logout": "Log Out",
+    "orders": "Orders",
+    "getting_started": "Getting started",
+    "primary": "Primary navigation",
+    "open_menu": "Open menu",
+    "skip_to_content": "Skip to content",
+    "help": "Help",
+    "guides": "Guides"
   },
   "common": {
     "loading": "Loading...",
@@ -20,7 +28,9 @@
     "save": "Save",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "delete": "Delete"
+    "delete": "Delete",
+    "copied": "Copied",
+    "close": "Close"
   },
   "auth": {
     "login": {
@@ -35,7 +45,13 @@
         "INVALID_CREDENTIALS": "Invalid email or password.",
         "ACCOUNT_LOCKED": "Account temporarily locked. Please try again later.",
         "EMAIL_NOT_VERIFIED": "Please verify your email before signing in.",
-        "RATE_LIMITED": "Too many attempts. Please wait and try again."
+        "RATE_LIMITED": "Too many attempts. Please wait and try again.",
+        "UNKNOWN": "Something went wrong. Please try again."
+      },
+      "errors": {
+        "email_required": "Email is required.",
+        "email_invalid": "Enter a valid email address.",
+        "password_required": "Password is required."
       }
     },
     "register": {
@@ -46,7 +62,15 @@
       "password_hint": "At least 12 characters, with letters and digits.",
       "submit": "Create account",
       "have_account": "Already have an account?",
-      "login_link": "Sign in"
+      "login_link": "Sign in",
+      "errors": {
+        "email_required": "Email is required.",
+        "email_invalid": "Enter a valid email address.",
+        "display_name_required": "Display name is required.",
+        "password_required": "Password is required.",
+        "password_min": "Password must be at least 12 characters.",
+        "password_letters_digits": "Password must include both letters and digits."
+      }
     },
     "verify_email": {
       "verifying": "Verifying your email...",
@@ -57,7 +81,10 @@
       "description": "We sent a verification link to your email. Click it to activate your account.",
       "sent": "Verification email sent!",
       "submit": "Resend email",
-      "back_to_login": "Back to sign in"
+      "back_to_login": "Back to sign in",
+      "email": "Email address",
+      "need_email": "Enter the email address you signed up with.",
+      "error": "We couldn't resend the verification email. Please try again."
     },
     "reset": {
       "title": "Reset your password",
@@ -65,7 +92,8 @@
       "email": "Email address",
       "submit": "Send reset link",
       "sent": "If an account with that email exists, we sent a reset link. Check your inbox.",
-      "back_to_login": "Back to sign in"
+      "back_to_login": "Back to sign in",
+      "error": "We couldn't send the reset link. Please try again."
     },
     "reset_confirm": {
       "title": "Choose a new password",
@@ -73,6 +101,1106 @@
       "confirm_password": "Confirm new password",
       "submit": "Reset password",
       "back_to_login": "Back to sign in"
+    }
+  },
+  "mfa": {
+    "challenge": {
+      "title": "Two-factor authentication",
+      "subtitle": "Enter the 6-digit code from your authenticator app.",
+      "submit": "Verify",
+      "use_backup_instead": "Use a backup code instead",
+      "use_totp_instead": "Use my authenticator app instead",
+      "backup_label": "Backup code",
+      "cancel": "Cancel and sign in again"
+    },
+    "setup": {
+      "title": "Set up two-factor authentication",
+      "step": {
+        "intro": "Intro",
+        "qr": "Scan",
+        "verify": "Verify",
+        "backup": "Backup"
+      },
+      "intro": {
+        "body": "Two-factor authentication protects your trading account by requiring a code from your phone every time you sign in.",
+        "bullet1": "Use any TOTP-compatible app: Google Authenticator, Authy, 1Password, Bitwarden.",
+        "bullet2": "Trades, broker connections, and risk settings are gated behind 2FA.",
+        "bullet3": "You'll receive 10 single-use backup codes — store them safely.",
+        "cta": "Begin enrollment"
+      },
+      "qr": {
+        "body": "Scan this QR code with your authenticator app, OR copy the secret manually.",
+        "alt": "QR code containing the TOTP enrollment URI",
+        "show_secret": "Show secret as text",
+        "copy": "Copy secret",
+        "cta": "I've added it — continue"
+      },
+      "verify": {
+        "body": "Enter the 6-digit code from your authenticator app to confirm.",
+        "cta": "Confirm"
+      },
+      "backup": {
+        "body": "Save these backup codes somewhere safe. Each one works exactly once and can sign you in if you lose your phone.",
+        "warning": "These will not be shown again. Store them now.",
+        "download": "Download as .txt",
+        "copy": "Copy all",
+        "confirm_saved": "I've saved my backup codes in a safe place.",
+        "cta": "Finish"
+      },
+      "done": {
+        "body": "Two-factor authentication is now enabled on your account.",
+        "cta": "Back to security settings"
+      }
+    },
+    "error": {
+      "MFA_CODE_INVALID": "That code didn't match. Try again.",
+      "MFA_LOCKED": "Too many incorrect codes. Please sign in again.",
+      "TOKEN_INVALID": "Your sign-in session expired. Please sign in again.",
+      "INVALID_CREDENTIALS": "Password or code didn't match.",
+      "MFA_NOT_ENABLED": "MFA is not enabled on this account.",
+      "MFA_ALREADY_ENABLED": "MFA is already enabled.",
+      "RATE_LIMITED": "Too many attempts. Please wait and try again.",
+      "FEATURE_DISABLED": "MFA is temporarily unavailable. Please try later."
+    }
+  },
+  "security": {
+    "title": "Security",
+    "mfa": {
+      "title": "Two-factor authentication",
+      "subtitle": "Require a code from your authenticator app at every sign-in.",
+      "enabled": "Enabled",
+      "disabled": "Off",
+      "enroll_cta": "Set up 2FA",
+      "disable_help": "Disabling 2FA requires both your current password and a current authenticator code.",
+      "password_placeholder": "Current password",
+      "totp_placeholder": "6-digit code",
+      "disable_cta": "Disable 2FA"
+    },
+    "backup": {
+      "title": "Backup codes",
+      "subtitle": "Generate a fresh batch of 10 single-use codes. The old set stops working immediately.",
+      "regenerate_cta": "Regenerate codes",
+      "shown_once": "These will not be shown again. Save them now."
+    },
+    "sessions": {
+      "title": "Active sessions",
+      "subtitle": "Devices currently signed in to your account.",
+      "current": "this device",
+      "last_used": "Last used",
+      "revoke_one": "Revoke",
+      "revoke_all": "Sign out everywhere else",
+      "empty": "No other active sessions."
+    },
+    "password": {
+      "title": "Change password",
+      "subtitle": "Choose a new password. Other devices will be signed out.",
+      "current": "Current password",
+      "next": "New password",
+      "cta": "Change password",
+      "success": "Password changed. Other sessions have been signed out."
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "display_name": "Display name",
+    "timezone": "Timezone",
+    "timezone_search": "Search timezones…",
+    "language": "Language",
+    "language_hint": "Only English is currently supported. More languages coming soon.",
+    "notification_email": "Email me about important account events",
+    "saved": "Profile saved.",
+    "timezone_current": "Current",
+    "timezone_no_match": "No timezone matches that search.",
+    "timezone_count": "Showing {{shown}} of {{total}} timezones",
+    "timezone_detect": "Use my browser timezone"
+  },
+  "oauth": {
+    "continue_with_google": "Continue with Google",
+    "or": "OR",
+    "callback": {
+      "working_title": "Signing you in…",
+      "working_body": "One moment while we finish setting up your session.",
+      "error_title": "Sign-in didn't complete",
+      "back_to_login": "Back to sign in",
+      "error": {
+        "OAUTH_FAILED": "Google sign-in didn't complete. Please try again.",
+        "EXCHANGE_INVALID": "Your sign-in session expired. Please start over.",
+        "NO_EXCHANGE_CODE": "Missing sign-in token. Please start over.",
+        "FEATURE_DISABLED": "Google sign-in is temporarily unavailable. Please use email + password.",
+        "UNKNOWN": "Something went wrong. Please try again."
+      }
+    }
+  },
+  "strategies": {
+    "list": {
+      "title": "Strategies",
+      "upload_button": "Upload strategy",
+      "loading": "Loading strategies…",
+      "empty": "No strategies yet. Upload one to get started.",
+      "untested_banner": "Community-tested: No",
+      "configure_webhook": "Configure webhook",
+      "delete": "Delete",
+      "delete_confirm": "Delete \"{{name}}\"? It will be disabled and hidden from your list; you can re-upload it later.",
+      "enable": "Enable",
+      "disable": "Disable",
+      "enable_confirm": {
+        "title": "Enable this strategy?",
+        "body": "Enabling this strategy will execute live orders from its webhook alerts.",
+        "confirm": "Enable strategy"
+      },
+      "col": {
+        "name": "Strategy",
+        "type": "Type",
+        "enabled": "Enabled",
+        "webhook": "Webhook"
+      },
+      "badge": {
+        "system": "System",
+        "user": "User-uploaded"
+      },
+      "webhook": {
+        "configured": "Configured",
+        "unconfigured": "Not yet configured"
+      },
+      "view": "View",
+      "how_to": "How to use"
+    },
+    "upload": {
+      "title": "Upload a strategy",
+      "subtitle": "Upload your three-file bundle: Pine script, description, and webhook payload.",
+      "next": "Next",
+      "back": "Back",
+      "submit": "Upload strategy",
+      "submitting": "Uploading…",
+      "warn": {
+        "pine_ext": "File must end in .pine",
+        "stem": "Name must be 3–64 characters (letters, numbers, _ or -)",
+        "filename": "Filename must be {{name}}",
+        "too_large": "File exceeds {{size}}"
+      },
+      "pine": {
+        "label": "Pine script (.pine)",
+        "hint": "Must start with //@version= within the first 64 bytes. Max 64 KB."
+      },
+      "desc": {
+        "label": "Description (.txt)",
+        "hint": "Filename must be {{stem}}_Description.txt. Max 256 KB."
+      },
+      "webhook": {
+        "label": "Webhook payload template (.json)",
+        "hint": "Filename must be {{stem}}_Webhook.json. Required keys: strategy, action, symbol, qty, order_type."
+      },
+      "review": {
+        "stem": "Strategy stem",
+        "pine_size": "Pine size",
+        "description_preview": "Description preview",
+        "webhook_keys": "Webhook keys"
+      },
+      "warning": {
+        "title": "User-uploaded strategies are not tested by StratTraderPro",
+        "body": "Pine and webhook bytes are stored verbatim and never executed server-side. The shared secret is encrypted at rest. You are responsible for reviewing the strategy before enabling live execution."
+      },
+      "acknowledge": {
+        "label": "I understand uploaded strategies are not tested by StratTraderPro. I accept the risk."
+      }
+    },
+    "detail": {
+      "back": "Back to strategies",
+      "loading": "Loading…",
+      "not_found": "Strategy not found.",
+      "pine": "Pine script",
+      "description": "Description",
+      "how_to": "How to run this strategy",
+      "how_to_webhook": "How to use the webhook template",
+      "description_empty": "This strategy has no description file.",
+      "webhook_template": "TradingView payload template",
+      "webhook_template_hint": "Paste this into the Message box of your TradingView alert, then replace the placeholder secret with the one shown once in Configure webhook.",
+      "webhook_template_empty": "This strategy has no webhook payload template."
+    }
+  },
+  "webhook": {
+    "modal": {
+      "title": "Webhook configuration",
+      "loading": "Loading configuration…",
+      "url": {
+        "label": "Webhook URL"
+      },
+      "secret": {
+        "label": "HMAC secret",
+        "reveal_once": "Copy this secret now — it will not be shown again. Rotate it any time.",
+        "hidden": "Secret is hidden. Click Rotate to generate and reveal a new one.",
+        "rotate_warning": "Rotating breaks TradingView alerts using the current secret."
+      },
+      "schema": {
+        "label": "JSON Schema (Draft 2020-12)"
+      },
+      "template": {
+        "label": "Payload template"
+      },
+      "copy": "Copy",
+      "copy_url": "Copy webhook URL",
+      "copy_tv": "Copy TradingView alert template",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved.",
+      "test": "Test against schema",
+      "rotate": "Rotate secret",
+      "rotating": "Rotating…",
+      "editor_loading": "Loading rich editor…"
+    }
+  },
+  "brokers": {
+    "title": "Broker connections",
+    "status": {
+      "connected": "Connected",
+      "degraded": "Degraded",
+      "down": "Down"
+    },
+    "connected": {
+      "title": "Connected brokers",
+      "empty": "No brokers connected yet. Connect an Alpaca paper account below.",
+      "default": "Default",
+      "last_connected": "Last connected",
+      "account_number": "Account",
+      "buying_power": "Buying power",
+      "test": "Test connection",
+      "remove": "Remove",
+      "flatten": "Flatten all",
+      "mfa_placeholder": "6-digit code",
+      "confirm_remove": "Confirm remove"
+    },
+    "flatten": {
+      "title": "Flatten all positions?",
+      "warning": "This closes ALL open positions on this account at market. This cannot be undone.",
+      "type_to_confirm": "Type FLATTEN to confirm",
+      "confirm": "Flatten positions"
+    },
+    "connect": {
+      "title": "Connect Alpaca Paper",
+      "help": "Paper trading only. Live keys are rejected.",
+      "help_link": "How to get Alpaca paper API keys",
+      "api_key_id": "API Key ID",
+      "api_secret": "API Secret",
+      "nickname": "Nickname",
+      "optional": "optional",
+      "submit": "Connect",
+      "success": "Broker connected"
+    },
+    "connect_tradestation": {
+      "title": "Connect TradeStation",
+      "help": "Authorize StratTraderPro to trade through your TradeStation account via OAuth.",
+      "button": "Connect TradeStation",
+      "unavailable": "TradeStation connection is not yet available."
+    },
+    "mode": {
+      "label": "Mode",
+      "paper": "Paper",
+      "live": "Live",
+      "live_soon": "Live trading coming soon"
+    },
+    "error": {
+      "BROKER_LIVE_KEYS_FORBIDDEN": "Live trading keys are not allowed. Please use Alpaca paper trading keys.",
+      "BROKER_AUTH_FAILED": "Alpaca rejected those credentials. Double-check the API Key ID and Secret.",
+      "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code to confirm removal.",
+      "BROKER_RATE_LIMITED": "Alpaca is rate-limiting requests. Wait a moment and try again.",
+      "NO_BROKER_CONNECTED": "No broker is connected. Connect an Alpaca paper account first.",
+      "BROKER_ALREADY_CONNECTED": "This Alpaca account is already connected.",
+      "BROKER_DISABLED": "Broker connections are temporarily disabled by the operator.",
+      "BROKER_UNAVAILABLE": "Alpaca is temporarily unavailable. Please try again shortly.",
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again.",
+      "LIVE_TRADING_DISABLED": "Live trading is not enabled yet. Your broker stays in paper mode."
+    }
+  },
+  "data_providers": {
+    "title": "Data Providers",
+    "intro": "One set of API keys powers this instance's market data — the nightly Market Regime pipeline and strategy screening. Keys are validated with the provider before saving, stored encrypted, and take effect on every service immediately. A key saved here overrides the FMP_API_KEY / FRED_API_KEY environment variables; removing it falls back to them.",
+    "guide_link": "How the regime data source works",
+    "staff_only": "Only staff accounts can change these keys. Ask your administrator to configure them.",
+    "mfa_link": "Enroll in Settings → Security.",
+    "hint_label": "Key ending",
+    "updated_by": "set by",
+    "env_active_note": "This key currently comes from the server environment. Saving a key here overrides it without touching the deployment.",
+    "fmp": {
+      "title": "Financial Modeling Prep (FMP)",
+      "subtitle": "Daily equity bars, sector performance and the treasury curve — powers the regime pipeline and stock screening.",
+      "get_key": "Get an FMP API key ↗"
+    },
+    "fred": {
+      "title": "FRED (St. Louis Fed)",
+      "subtitle": "VIX, credit spreads, yields and the dollar index — free API from the St. Louis Fed.",
+      "get_key": "Get a FRED API key ↗"
+    },
+    "status": {
+      "configured_ui": "Configured",
+      "configured_env": "Configured (server environment)",
+      "not_configured": "Not configured"
+    },
+    "form": {
+      "api_key": "API key",
+      "save": "Validate & save",
+      "replace": "Validate & replace",
+      "saved": "Key validated and saved. It takes effect immediately on all services.",
+      "removed": "Key removed.",
+      "remove": "Remove",
+      "confirm_remove": "Confirm remove",
+      "env_note": "Removing falls back to the server environment variable, if one is set."
+    },
+    "error": {
+      "INVALID_API_KEY": "The provider rejected this key. Check it and try again.",
+      "PROVIDER_UNREACHABLE": "Could not reach the provider to validate the key. Try again shortly.",
+      "UNKNOWN_PROVIDER": "Unknown provider.",
+      "VALIDATION_ERROR": "Enter a valid API key (ASCII, up to 256 characters).",
+      "FORBIDDEN": "Only staff accounts can change data-provider keys.",
+      "MFA_REQUIRED": "MFA is required to view or change data-provider keys."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "live": "Live",
+    "offline": "Offline",
+    "broker_status": {
+      "title": "Broker status",
+      "empty": "No broker connected."
+    },
+    "positions": {
+      "title": "Open positions",
+      "empty": "No open positions.",
+      "col": {
+        "symbol": "Symbol",
+        "qty": "Qty",
+        "avg_cost": "Avg cost",
+        "mark": "Mark",
+        "pnl": "Unrealized P&L"
+      }
+    },
+    "fills": {
+      "title": "Today's fills",
+      "empty": "No fills yet today."
+    },
+    "dev": {
+      "send_test_alert": "Send test alert",
+      "alert_sent": "Test alert sent"
+    },
+    "mfa_required": "Enable two-factor authentication to use this",
+    "requires_mfa": "Requires two-factor authentication",
+    "live_hint": "Realtime stream connected — positions and fills update as they happen.",
+    "offline_hint": "Realtime stream disconnected. Data still loads when you open or refresh a page, but it will not update on its own."
+  },
+  "orders": {
+    "title": "Orders",
+    "empty": "No orders match these filters.",
+    "export": "Export CSV",
+    "filters": {
+      "broker": "Broker",
+      "strategy": "Strategy",
+      "status": "Status",
+      "from": "From",
+      "to": "To",
+      "all": "All",
+      "apply": "Apply"
+    },
+    "col": {
+      "time": "Time",
+      "broker": "Broker",
+      "strategy": "Strategy",
+      "symbol": "Symbol",
+      "side": "Side",
+      "qty": "Qty",
+      "type": "Type",
+      "status": "Status",
+      "filled": "Filled"
+    },
+    "status": {
+      "PENDING_SUBMIT": "Pending submit",
+      "SUBMITTED": "Submitted",
+      "PARTIAL": "Partially filled",
+      "FILLED": "Filled",
+      "CANCELLED": "Cancelled",
+      "REJECTED": "Rejected",
+      "NEEDS_RECONCILE": "Reconciling"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{pages}} · {{total}} total",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "detail": {
+      "title": "Order detail",
+      "close": "Close",
+      "fills": "Fills (lifecycle)",
+      "no_fills": "No fills yet.",
+      "field": {
+        "asset_class": "Asset class",
+        "side": "Side",
+        "type": "Order type",
+        "tif": "Time in force",
+        "qty": "Quantity",
+        "filled": "Filled",
+        "limit_price": "Limit price",
+        "stop_price": "Stop price",
+        "option_expiry": "Option expiry",
+        "option_strike": "Option strike",
+        "option_right": "Option right",
+        "future_root": "Future root",
+        "future_expiry": "Future expiry",
+        "broker": "Broker",
+        "strategy": "Strategy",
+        "client_order_id": "Client order ID",
+        "broker_order_id": "Broker order ID",
+        "reason": "Reason",
+        "created": "Created",
+        "updated": "Updated"
+      }
+    },
+    "recon": {
+      "title": "Reconciliation events",
+      "empty": "No reconciliation events.",
+      "col": {
+        "time": "Time",
+        "symbol": "Symbol",
+        "kind": "Kind",
+        "our_qty": "Our qty",
+        "broker_qty": "Broker qty",
+        "detail": "Detail"
+      },
+      "kind": {
+        "DRIFT": "Drift detected",
+        "HEAL": "Healed toward broker",
+        "RESOLVED": "Resolved"
+      }
+    }
+  },
+  "regime": {
+    "title": "Market regime",
+    "top_features": "Top contributing features",
+    "history": "90-day history",
+    "no_data": "No regime data yet.",
+    "degraded": "Rule-based only",
+    "label": {
+      "BULL": "Bull",
+      "CHOP": "Chop",
+      "BEAR": "Bear",
+      "CRISIS": "Crisis",
+      "NEUTRAL": "Neutral"
+    },
+    "rule": {
+      "RISK_ON": "Risk-on",
+      "NEUTRAL": "Neutral",
+      "RISK_OFF": "Risk-off",
+      "PANIC": "Panic"
+    },
+    "feature": {
+      "pct_above_50sma": "% above 50-day MA",
+      "pct_above_200sma": "% above 200-day MA",
+      "ad_ratio": "Advance/decline ratio",
+      "nh_nl_diff": "New highs − new lows",
+      "mcclellan_osc": "McClellan oscillator",
+      "vix": "VIX",
+      "vix_term_ratio": "VIX term structure",
+      "move": "MOVE (bond volatility)",
+      "hy_oas": "High-yield OAS",
+      "ig_oas": "Investment-grade OAS",
+      "mom_50": "50-day momentum",
+      "mom_200": "200-day momentum",
+      "rsi_14": "RSI (14)",
+      "yield_spread": "Yield-curve spread",
+      "dxy": "US dollar index"
+    },
+    "source_missing": "Data source not configured",
+    "source_missing_hint": "The daily regime pipeline needs FMP and FRED API keys, and neither is configured on this instance, so no regime has ever been computed.",
+    "source_missing_settings_link": "Set up data-provider keys",
+    "source_missing_link": "How to configure the regime data source"
+  },
+  "sentiment": {
+    "title": "Market sentiment",
+    "market": "Market",
+    "degraded": "Rule-based / LLM degraded",
+    "recent_news": "Recent impactful news",
+    "no_data": "No sentiment data yet.",
+    "positive": "Positive",
+    "neutral": "Neutral",
+    "negative": "Negative",
+    "impact": "Impact",
+    "source": "Source",
+    "sector": {
+      "TECHNOLOGY": "Technology",
+      "HEALTHCARE": "Health Care",
+      "FINANCIALS": "Financials",
+      "ENERGY": "Energy",
+      "INDUSTRIALS": "Industrials",
+      "MATERIALS": "Materials",
+      "UTILITIES": "Utilities",
+      "CONSUMER_DISCRETIONARY": "Consumer Discretionary",
+      "CONSUMER_STAPLES": "Consumer Staples",
+      "REAL_ESTATE": "Real Estate",
+      "COMMUNICATION_SERVICES": "Communication Services"
+    }
+  },
+  "risk": {
+    "title": "Risk management",
+    "save": "Save",
+    "defaults": "Reset to defaults",
+    "halt_my_trading": "Halt my trading",
+    "halt_confirm": "This immediately stops new orders. Enter your authenticator code to confirm.",
+    "halt_flatten_choice": "Also flatten (close) all open positions at market. This cannot be undone.",
+    "halt_banner": "Trading is halted — a kill switch is active. New orders are blocked.",
+    "mfa_prompt": "Authenticator code",
+    "profile": {
+      "title": "Risk profile",
+      "saved": "Risk profile saved.",
+      "risk_per_trade_pct": "Risk per trade (%)",
+      "risk_per_trade_pct_help": "Maximum account equity risked on a single trade.",
+      "max_position_pct": "Max position size (%)",
+      "max_position_pct_help": "Cap on any single position as a share of equity.",
+      "max_concurrent": "Max concurrent positions",
+      "max_concurrent_help": "Maximum number of positions open at once.",
+      "daily_loss_usd": "Daily loss limit ($)",
+      "daily_loss_usd_help": "Halt trading once realized losses reach this amount in a day.",
+      "daily_loss_pct": "Daily loss limit (%)",
+      "daily_loss_pct_help": "Halt trading once realized losses reach this share of equity in a day.",
+      "leverage_cap": "Leverage cap",
+      "leverage_cap_help": "Maximum gross exposure relative to equity.",
+      "soft_stop_pct": "Soft stop (%)",
+      "soft_stop_pct_help": "First protective stop, as a share of entry price.",
+      "hard_stop_pct": "Hard stop (%)",
+      "hard_stop_pct_help": "Final protective stop; must be wider than the soft stop.",
+      "atr_factor": "ATR factor",
+      "atr_factor_help": "Multiplier applied to ATR when sizing stops.",
+      "strict_mode": "Strict mode",
+      "strict_mode_help": "Reject any order that breaches a limit instead of clamping it.",
+      "permitted_asset_classes": "Permitted asset classes",
+      "asset_class": {
+        "STOCK": "Stocks",
+        "ETF": "ETFs",
+        "OPTION": "Options",
+        "FUTURE": "Futures"
+      }
+    },
+    "event": {
+      "DAILY_LOSS_BREACH": "Daily loss breach",
+      "KILL_SWITCH_ON": "Kill switch armed",
+      "KILL_SWITCH_OFF": "Kill switch released",
+      "SOFT_STOP": "Soft stop",
+      "SIZING_REJECT": "Sizing rejected",
+      "FLATTEN": "Positions flattened"
+    },
+    "switch": {
+      "title": "Active kill switches",
+      "STRATEGY": "Strategy halt",
+      "USER": "Personal halt (L1)",
+      "PLATFORM": "Platform halt",
+      "active": "Active",
+      "inactive": "Not halted",
+      "since": "since",
+      "halt": "Halt trading",
+      "release": "Release",
+      "flatten": "Also flatten open positions",
+      "auto": "Auto",
+      "auto_locked": "Auto daily-loss halt — releases at the next trading day",
+      "confirm_halt": "Confirm halt",
+      "mfa_placeholder": "6-digit code"
+    },
+    "reason": {
+      "REGIME_CRISIS": "Crisis regime — trading paused",
+      "REGIME_SIDE_MISMATCH": "Order side conflicts with the current regime",
+      "SIZING_ZERO": "Computed size rounded to zero",
+      "SIZING_ERROR": "Sizing failed — order rejected for safety",
+      "NO_RISK_PROFILE": "Set up your risk profile before live trading — order rejected for safety",
+      "HARD_STOP": "Hard-stop drawdown reached — trading halted for the day",
+      "DAILY_LOSS_BREACH": "Daily loss limit reached",
+      "KILL_SWITCH_ACTIVE": "A kill switch is active",
+      "LIMIT_POSITION_PCT": "Position-size limit exceeded"
+    },
+    "error": {
+      "HALT_LOCKED": "This halt is locked by an automatic (L2) kill switch and can't be released manually.",
+      "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code to confirm.",
+      "FORBIDDEN": "You don't have permission to change this kill switch.",
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again.",
+      "UNKNOWN": "Something went wrong. Please try again."
+    },
+    "events": {
+      "title": "Risk events",
+      "empty": "No risk events yet.",
+      "details": "Details"
+    },
+    "sizing": {
+      "title": "Sizing decisions",
+      "empty": "No sizing decisions yet.",
+      "ok": "Accepted",
+      "reject": "Rejected",
+      "col": {
+        "time": "Time",
+        "symbol": "Symbol",
+        "requested": "Requested",
+        "computed": "Computed",
+        "result": "Result"
+      }
+    }
+  },
+  "backtest": {
+    "title": "Backtester",
+    "launcher": {
+      "title": "New backtest",
+      "submit": "Run backtest",
+      "submitting": "Submitting…",
+      "no_adapter_note": "Only strategies with a registered Python adapter can be backtested.",
+      "no_adapter_banner": "Backtest not available — no Python adapter registered",
+      "no_adapter_suffix": "no adapter"
+    },
+    "form": {
+      "strategy": "Strategy",
+      "strategy_placeholder": "Select a strategy…",
+      "symbols": "Symbols",
+      "symbols_placeholder": "AAPL, MSFT, SPY",
+      "symbols_help": "Up to 10 symbols, comma or space separated.",
+      "symbols_empty": "Enter at least one symbol.",
+      "symbols_too_many": "At most 10 symbols.",
+      "start": "Start date",
+      "end": "End date",
+      "train_window_days": "Train window (days)",
+      "test_window_days": "Test window (days)",
+      "step_days": "Step (days)",
+      "step_help": "Auto-synced to the test window.",
+      "mode": "Window mode",
+      "metric": "Selection metric",
+      "initial_cash": "Initial cash ($)",
+      "sizing": "Position sizing",
+      "sizing_production": "Production sizing (regime/sentiment neutralized)",
+      "sizing_fixed_qty_1": "Fixed qty 1",
+      "param_grid": "Parameter grid (JSON)",
+      "param_grid_help": "Object of {\"name\": [values]}. Leave as {} to sweep the adapter's full grid.",
+      "param_grid_not_object": "Parameter grid must be a JSON object of {name: [values]}.",
+      "param_grid_invalid_json": "Invalid JSON: {{msg}}",
+      "advanced": "Advanced: costs & retention",
+      "slippage_bps": "Slippage (bps)",
+      "per_order_usd": "Per-order fee ($)",
+      "per_share_usd": "Per-share fee ($)",
+      "volume_participation_pct": "Volume participation (%)",
+      "retention_days": "Retention (days)",
+      "retention_help": "Artifacts are evicted after this many days (1–365)."
+    },
+    "mode": {
+      "rolling": "Rolling",
+      "anchored": "Anchored"
+    },
+    "metric": {
+      "sharpe": "Sharpe",
+      "sortino": "Sortino",
+      "total_return": "Total return",
+      "mar": "MAR"
+    },
+    "runs": {
+      "title": "Runs",
+      "empty": "No backtest runs yet.",
+      "cancel": "Cancel",
+      "pagination": "Page {{page}} of {{pages}} · {{total}} total",
+      "prev": "Previous",
+      "next": "Next",
+      "col": {
+        "created": "Created",
+        "strategy": "Strategy",
+        "symbols": "Symbols",
+        "status": "Status",
+        "pbo": "Worst PBO",
+        "duration": "Duration",
+        "actions": "Actions"
+      }
+    },
+    "status": {
+      "QUEUED": "Queued",
+      "RUNNING": "Running",
+      "CANCELLING": "Cancelling",
+      "COMPLETED": "Completed",
+      "FAILED": "Failed",
+      "CANCELLED": "Cancelled"
+    },
+    "stage": {
+      "queued": "Queued",
+      "loading": "Loading data",
+      "sweeping": "Sweeping parameters",
+      "replaying": "Replaying out-of-sample",
+      "reporting": "Building report"
+    },
+    "chart": {
+      "equity": "Equity",
+      "drawdown": "Drawdown",
+      "heatmap": "Monthly heatmap",
+      "window": "Per-window"
+    },
+    "metric_col": {
+      "total_return": "Total return",
+      "cagr": "CAGR",
+      "sharpe": "Sharpe",
+      "sortino": "Sortino",
+      "mar": "MAR",
+      "max_drawdown": "Max DD",
+      "trade_count": "Trades"
+    },
+    "detail": {
+      "back": "Back to backtester",
+      "rerun": "Rerun with same config",
+      "hash": "hash",
+      "eta": "ETA",
+      "downloads": "Download",
+      "download_json": "JSON",
+      "download_html": "HTML",
+      "download_pdf": "PDF",
+      "metrics": "Per-symbol metrics",
+      "segments": "Walk-forward windows",
+      "col": {
+        "symbol": "Symbol",
+        "pbo": "PBO",
+        "window": "Window",
+        "train": "Train",
+        "test": "Test",
+        "params": "Best params",
+        "sharpe": "OOS Sharpe"
+      }
+    },
+    "error": {
+      "VALIDATION_ERROR": "Please check the highlighted fields and try again.",
+      "BACKTEST_NO_ADAPTER": "This strategy has no registered Python adapter, so it can't be backtested.",
+      "BACKTEST_GRID_TOO_LARGE": "The parameter grid is too large. Reduce the number of combinations (max 500).",
+      "BACKTEST_LIMIT_CONCURRENT": "You already have the maximum number of backtests running. Wait for one to finish.",
+      "BACKTEST_DISABLED": "Backtesting is temporarily disabled by the operator.",
+      "UNKNOWN": "Something went wrong. Please try again."
+    }
+  },
+  "admin": {
+    "nav": {
+      "overview": "Overview",
+      "users": "Users",
+      "audit": "Audit log",
+      "flags": "Feature flags",
+      "health": "Health",
+      "back": "Back to admin",
+      "back_users": "Back to users"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{pages}} · {{total}} total",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "overview": {
+      "title": "Admin portal",
+      "kpis": "Platform snapshot",
+      "killswitch": "Platform kill switch",
+      "running": "Platform is running normally.",
+      "halted": "Platform is halted — all trading is blocked.",
+      "halt_banner": "PLATFORM HALTED — all trading is blocked for every user.",
+      "release": "Release halt",
+      "releasing": "Releasing…",
+      "kpis_error": "Couldn't load the platform snapshot.",
+      "kpis_mfa_required": "Enable two-factor authentication to use this."
+    },
+    "halt": {
+      "title": "Halt the entire platform",
+      "warning": "This immediately blocks new orders for every user on the platform. Type the confirmation phrase and enter your authenticator code to proceed.",
+      "confirm_label": "Type HALT PLATFORM to confirm",
+      "mfa_label": "Authenticator code",
+      "reason_label": "Reason (optional)",
+      "engage": "Halt platform",
+      "engaging": "Halting…",
+      "error": {
+        "CONFIRM_PHRASE_MISMATCH": "The confirmation phrase must be exactly HALT PLATFORM.",
+        "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code."
+      }
+    },
+    "impersonation": {
+      "banner": "You are impersonating a user. Actions are performed as them.",
+      "stop": "Stop impersonating",
+      "stopping": "Stopping…"
+    },
+    "users": {
+      "title": "Users",
+      "empty": "No users match these filters.",
+      "staff": "Staff",
+      "on": "On",
+      "off": "Off",
+      "filter": {
+        "search": "Search",
+        "search_placeholder": "Email or name…",
+        "active": "Active",
+        "broker": "Has broker",
+        "all": "All",
+        "active_yes": "Yes",
+        "active_no": "No",
+        "broker_yes": "Yes",
+        "broker_no": "No",
+        "apply": "Apply"
+      },
+      "col": {
+        "email": "Email",
+        "name": "Name",
+        "active": "Active",
+        "mfa": "MFA",
+        "brokers": "Brokers",
+        "created": "Created"
+      }
+    },
+    "detail": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "verified": "Verified",
+      "mfa": "Authenticator code",
+      "staff": "Staff",
+      "created": "Created",
+      "brokers": "Broker connections",
+      "no_brokers": "No broker connections.",
+      "default": "Default",
+      "actions": "Actions",
+      "disable": "Disable account",
+      "enable": "Enable account",
+      "impersonate": "Impersonate",
+      "reason": "Reason",
+      "submitting": "Working…",
+      "recent_audit": "Recent activity",
+      "no_audit": "No recent activity.",
+      "confirm": {
+        "disable": "Disabling this account signs the user out everywhere and blocks new orders. Confirm with your authenticator code.",
+        "enable": "Re-enable this account. Confirm with your authenticator code.",
+        "impersonate": "Start an impersonation session for this user. Confirm with your authenticator code."
+      },
+      "error": {
+        "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code."
+      }
+    },
+    "audit": {
+      "title": "Audit log",
+      "empty": "No audit events match these filters.",
+      "export": "Export CSV",
+      "filter": {
+        "user": "User",
+        "actor": "Actor",
+        "event_type": "Event type",
+        "entity_type": "Entity type",
+        "entity_id": "Entity ID",
+        "after": "After",
+        "before": "Before",
+        "apply": "Apply"
+      },
+      "col": {
+        "time": "Time",
+        "event": "Event",
+        "actor": "Actor",
+        "entity": "Entity",
+        "ip": "IP",
+        "hash": "Hash"
+      }
+    },
+    "flags": {
+      "title": "Feature flags",
+      "empty": "No feature flags registered.",
+      "dangerous": "Dangerous",
+      "immutable": "Immutable",
+      "source": "Source",
+      "on": "Enabled",
+      "off": "Disabled",
+      "enable": "Enable",
+      "disable": "Disable",
+      "mfa": "Authenticator code",
+      "confirm_name": "Type the flag name to confirm",
+      "submitting": "Working…",
+      "error": {
+        "FLAG_IMMUTABLE": "This flag is immutable and can't be changed here.",
+        "MFA_REQUIRED": "That code didn't match. Enter a current authenticator code."
+      }
+    },
+    "health": {
+      "title": "Platform health",
+      "grafana": "Open Grafana dashboards",
+      "ok": "OK",
+      "down": "Down",
+      "db": "Database",
+      "redis": "Redis",
+      "queue_total": "Queue depth (total)",
+      "sentiment_backlog": "Sentiment backlog",
+      "hmm_age": "HMM model age (s)",
+      "queues": "Queue depths",
+      "no_queues": "No queues reported.",
+      "broker_streams": "Broker streams",
+      "no_streams": "No broker streams reported.",
+      "active_halts": "Active halts",
+      "no_halts": "No active halts.",
+      "overridden_flags": "Overridden flags",
+      "no_overrides": "No overridden flags.",
+      "generated": "Generated",
+      "sentiment_oldest": "Oldest unscored",
+      "sentiment_alert": "Backlog alert",
+      "halt_platform": "Platform-wide",
+      "regime_source": "Regime data source",
+      "regime_source_ok": "Configured",
+      "regime_source_missing": "Not configured",
+      "regime_source_hint": "No FMP + FRED keys are configured, so the daily regime pipeline skips every run and no observations are written. A staff user can set both in Settings → Data Providers (takes effect on web, worker and beat immediately, no redeploy); the FMP_API_KEY / FRED_API_KEY env vars remain supported as a fallback."
+    }
+  },
+  "audit": {
+    "event": {
+      "auth.login_ok": "Login succeeded",
+      "auth.login_failed": "Login failed",
+      "auth.logout": "Logout",
+      "auth.mfa_verified": "MFA verified",
+      "auth.password_changed": "Password changed",
+      "admin.user_disabled": "User disabled",
+      "admin.user_enabled": "User enabled",
+      "admin.impersonation_started": "Impersonation started",
+      "admin.impersonation_stopped": "Impersonation stopped",
+      "admin.platform_halted": "Platform halted",
+      "admin.platform_released": "Platform halt released",
+      "flag.flipped": "Feature flag changed",
+      "broker.connected": "Broker connected",
+      "broker.removed": "Broker removed",
+      "order.submitted": "Order submitted",
+      "order.filled": "Order filled",
+      "order.cancelled": "Order cancelled",
+      "risk.kill_switch_on": "Kill switch armed",
+      "risk.kill_switch_off": "Kill switch released"
+    }
+  },
+  "landing": {
+    "hero": {
+      "tag": "SELF-HOSTED · YOU OWN THE KEYS",
+      "title_pre": "Webhook-driven algo trading, on",
+      "title_em": "your",
+      "title_post": "infrastructure.",
+      "subtitle": "Regime-aware paper trading — turn TradingView alerts into risk-checked Alpaca paper orders."
+    },
+    "cta": {
+      "sign_in": "Sign in",
+      "create_account": "Create account"
+    },
+    "how": {
+      "title": "How it works"
+    },
+    "steps": {
+      "alert": {
+        "title": "TradingView alert",
+        "body": "Your strategy fires a TradingView alert when its entry or exit conditions hit."
+      },
+      "webhook": {
+        "title": "Secure webhook",
+        "body": "The alert reaches StratTraderPro over a signed, per-strategy webhook."
+      },
+      "risk": {
+        "title": "Risk engine",
+        "body": "Regime- and sentiment-aware sizing plus kill switches decide what actually gets sent."
+      },
+      "broker": {
+        "title": "Alpaca paper broker",
+        "body": "Approved orders are placed on your connected Alpaca paper account and tracked live."
+      }
+    },
+    "disclaimer": "Ships with live trading disabled. Enabling it is your choice, on your instance, with your money, at your risk. Not financial advice."
+  },
+  "errors": {
+    "not_found": {
+      "title": "Page not found",
+      "body": "The page you're looking for doesn't exist or has moved.",
+      "home": "Go home"
+    }
+  },
+  "help": {
+    "not_found": {
+      "title": "Help article not found",
+      "body": "We couldn't find that help article.",
+      "home": "Back to dashboard"
+    },
+    "index": {
+      "title": "Help topics",
+      "subtitle": "Guides for the jargon and workflows in StratTraderPro."
+    }
+  },
+  "onboarding": {
+    "title": "Getting started",
+    "subtitle": "Complete these steps to start paper trading.",
+    "done": "Done",
+    "fill_hint": "Send a test alert to your webhook to see your first paper fill.",
+    "steps": {
+      "mfa": "Enable two-factor authentication",
+      "broker": "Connect a broker",
+      "strategy": "Add a strategy with its webhook",
+      "fill": "See your first paper fill"
+    },
+    "cta": {
+      "enable": "Enable",
+      "connect": "Connect",
+      "add": "Add",
+      "view": "View dashboard"
+    }
+  },
+  "terms": {
+    "title": "Updated terms",
+    "intro": "We've updated our Terms of Service and Privacy Policy. Please review and accept them to continue using StratTraderPro.",
+    "tos_link": "Terms of Service",
+    "privacy_link": "Privacy Policy",
+    "accept": "I Accept",
+    "accepting": "Accepting…",
+    "error": "We couldn't record your acceptance. Please try again."
+  },
+  "guides": {
+    "index": {
+      "title": "Guides",
+      "subtitle": "Step-by-step instructions for everything StratTraderPro does.",
+      "filter": "Filter guides…",
+      "no_match": "No guide matches that. Try a shorter word."
+    },
+    "back": "All guides",
+    "nav": "Guide navigation"
+  },
+  "screener": {
+    "title": "Screening",
+    "guide": "How screening works",
+    "run": "Run screen",
+    "configure_link": "Configure data providers",
+    "history": "Recent runs",
+    "no_matches": "No candidates matched these criteria.",
+    "empty": {
+      "heading": "No screening block in this description",
+      "description": "This strategy's description has no [screen] block, so there are no screening recommendations to run. Add one to the description to turn its universe rules into a runnable screen.",
+      "cta": "How to write a [screen] block"
+    },
+    "invalid": {
+      "intro": "This strategy's [screen] block could not be parsed. Fix these lines in the description and re-upload it:",
+      "line": "Line",
+      "how_to_fix": "See the [screen] key reference"
+    },
+    "status": {
+      "QUEUED": "Queued…",
+      "RUNNING": "Screening…",
+      "DONE": "Done",
+      "FAILED": "Failed"
+    },
+    "degraded": {
+      "chip": "Partial results"
+    },
+    "counts": {
+      "returned": "matches"
+    },
+    "table": {
+      "caption": "Screening results: candidates matching this strategy's criteria.",
+      "symbol": "Symbol",
+      "name": "Name",
+      "exchange": "Exchange",
+      "sector": "Sector",
+      "market_cap": "Market cap",
+      "price": "Price",
+      "volume": "Volume",
+      "from_high": "From 52w high",
+      "trend": "Trend"
+    },
+    "error": {
+      "FMP_NOT_CONFIGURED": "Screening needs an FMP API key for this instance.",
+      "NO_SCREEN_CRITERIA": "This strategy's description has no [screen] block.",
+      "SCREEN_CRITERIA_INVALID": "The [screen] block in this description could not be parsed.",
+      "SCREEN_RUN_ACTIVE": "A screen is already running for this strategy.",
+      "RATE_LIMITED": "You've run 10 screens this hour. Try again shortly.",
+      "FMP_RATE_LIMITED": "The market-data provider is rate-limiting this instance. Try again shortly.",
+      "FMP_UNAVAILABLE": "The market-data provider is unavailable right now.",
+      "SCREEN_TIME_CAP": "The screen took too long and was stopped.",
+      "SCREEN_FAILED": "The screen failed unexpectedly.",
+      "SCREEN_STALE": "This screen was abandoned (the worker never picked it up) and was cleared. Run it again.",
+      "POLL_LOST": "Lost contact while the screen was running. It may still have finished — reload to check.",
+      "generic": "The screen did not complete."
     }
   }
 }

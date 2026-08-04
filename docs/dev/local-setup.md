@@ -10,15 +10,15 @@
 ## Option A: Docker (recommended)
 
 ```bash
-git clone https://github.com/yuval3000/strattraderpro.git
+git clone https://github.com/yhaspel/StratTraderPro.git
 cd strattraderpro
 cp backend/.env.example backend/.env
 make up
 ```
 
-This starts: Postgres 16, Redis 7, Django backend (port 8000), Celery worker, Celery beat, Angular frontend (port 4200).
+This starts: Postgres 16, Redis 7, Django backend (port 8777), Celery worker, Celery beat, Angular frontend (port 4444).
 
-Verify: `curl http://localhost:8000/healthz`
+Verify: `curl http://localhost:8777/healthz`
 
 ### Useful commands
 
@@ -54,7 +54,7 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements/dev.txt
 cp .env.example .env  # Edit DATABASE_URL and REDIS_URL for local Postgres/Redis
 DJANGO_SETTINGS_MODULE=config.settings.dev python manage.py migrate
-DJANGO_SETTINGS_MODULE=config.settings.dev python manage.py runserver 8000
+DJANGO_SETTINGS_MODULE=config.settings.dev python manage.py runserver 8777
 ```
 
 ### Frontend
@@ -63,7 +63,7 @@ DJANGO_SETTINGS_MODULE=config.settings.dev python manage.py runserver 8000
 cd frontend
 corepack enable
 pnpm install
-pnpm start   # http://localhost:4200
+pnpm start   # http://localhost:4444
 ```
 
 ## i18n

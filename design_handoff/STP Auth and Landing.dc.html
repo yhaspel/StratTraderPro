@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-1b09ac0e-0eae-4abd-8f4c-b9aba234f315/styles.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { -webkit-font-smoothing:antialiased; }
+</style>
+</helmet>
+<div style="min-height:100vh; display:flex; flex-direction:column;">
+
+  <!-- Screen switcher (design review control, not part of the product) -->
+  <div style="background:var(--color-neutral-900); padding:8px 24px; display:flex; gap:2px; align-items:center;">
+    <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.08em; color:var(--color-neutral-500); margin-right:10px;">PREVIEW</span>
+    <sc-for list="{{ views }}" as="v" hint-placeholder-count="4">
+      <button onClick="{{ v.go }}" style="border:none; background:{{ v.bg }}; color:{{ v.color }}; padding:5px 10px; font-size:12px; font-weight:600; cursor:pointer;">{{ v.label }}</button>
+    </sc-for>
+  </div>
+
+  <!-- ================================================== LANDING -->
+  <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="Landing" style="flex:1; display:flex; flex-direction:column;">
+      <header class="nav" style="max-width:1120px; width:100%; margin:0 auto; box-sizing:border-box; border-bottom:1px solid var(--color-divider);">
+        <span class="nav-brand" style="display:inline-flex; align-items:center; gap:9px;">
+          <span style="width:24px; height:24px; border:1px solid var(--color-text); display:inline-flex; align-items:flex-end; justify-content:center; gap:2px; padding:4px 4px 3px;"><span style="width:3px; height:7px; background:var(--color-accent);"></span><span style="width:3px; height:11px; background:var(--color-accent);"></span><span style="width:3px; height:5px; background:var(--color-accent-400);"></span></span>
+          StratTrader<span style="color:var(--color-accent);">Pro</span>
+        </span>
+        <button onClick="{{ goLogin }}" class="btn btn-secondary" style="font-size:13px;">Sign in</button>
+      </header>
+      <main style="max-width:1120px; width:100%; margin:0 auto; padding:64px 32px 96px; box-sizing:border-box; display:flex; flex-direction:column; gap:64px;">
+        <section style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:20px;">
+          <div class="tag tag-outline" style="font-family:'IBM Plex Mono',monospace; font-weight:600; letter-spacing:.1em;">SELF-HOSTED · YOU OWN THE KEYS</div>
+          <h1 style="margin:0; font-size:56px; max-width:800px; line-height:1.05;">Webhook-driven algo trading, on <span style="color:var(--color-accent-700);">your</span> infrastructure.</h1>
+          <p style="margin:0; max-width:620px; font-size:17px; line-height:1.6;" class="text-muted">Regime- and sentiment-aware order sizing with risk management and kill switches — driven by TradingView-style webhooks, executed against your own broker account. Paper trading via Alpaca.</p>
+          <div style="display:flex; gap:14px; margin-top:8px;">
+            <span class="blueprint" style="display:inline-block;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><button onClick="{{ goLogin }}" class="btn btn-primary" style="margin:0; font-size:15px; padding:10px 22px;">Sign in</button></span>
+            <button onClick="{{ goRegister }}" class="btn btn-secondary" style="font-size:15px; padding:10px 22px;">Create account</button>
+          </div>
+        </section>
+        <section aria-labelledby="how-it-works" style="display:flex; flex-direction:column; gap:24px;">
+          <h6 id="how-it-works" style="margin:0; text-align:center; color:var(--color-neutral-600);">How it works</h6>
+          <ol style="list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(4,1fr); gap:14px;">
+            <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+              <li class="card blueprint" style="padding:20px; gap:8px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; color:var(--color-accent-700);">{{ st.n }}</span>
+                <span class="card-title">{{ st.title }}</span>
+                <span class="card-body">{{ st.body }}</span>
+              </li>
+            </sc-for>
+          </ol>
+          <p style="margin:0; text-align:center; font-size:12px; max-width:640px; align-self:center; line-height:1.6;" class="text-muted">Not financial advice. Automated trading can lose money rapidly. Live trading ships disabled — enabling it is your choice, on your instance, at your own risk.</p>
+        </section>
+      </main>
+    </div>
+  </sc-if>
+
+  <!-- ================================================== LOGIN -->
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Login" style="flex:1; display:flex; align-items:center; justify-content:center; padding:48px 24px;">
+      <div style="width:400px; display:flex; flex-direction:column; gap:24px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+          <span class="blueprint" style="width:48px; height:48px; display:inline-flex; align-items:flex-end; justify-content:center; gap:4px; padding:10px 10px 8px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="width:5px; height:12px; background:var(--color-accent);"></span><span style="width:5px; height:21px; background:var(--color-accent);"></span><span style="width:5px; height:8px; background:var(--color-accent-400);"></span></span>
+          <h3 style="margin:0;">Sign in</h3>
+        </div>
+        <div class="card blueprint" style="padding:26px; gap:14px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <button class="btn btn-secondary btn-block" style="margin:0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.1h6.5c-.1 1.1-.8 2.7-2.4 3.8l3.7 2.9c2.2-2.1 3.7-5.1 3.7-8.6z"></path><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.7-2.9c-1 .7-2.4 1.2-4.2 1.2-3.1 0-5.8-2.1-6.7-5l-3.9 3C3.4 21.3 7.4 24 12 24z"></path><path fill="#FBBC05" d="M5.3 14.4c-.3-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4l-3.9-3C.5 8.2 0 10 0 12s.5 3.8 1.4 5.4l3.9-3z"></path><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.4 0 3.4 2.7 1.4 6.6l3.9 3c.9-2.9 3.6-4.9 6.7-4.9z"></path></svg>
+            Continue with Google
+          </button>
+          <div style="display:flex; align-items:center; gap:12px; font-size:11px;" class="text-muted"><span style="flex:1; height:1px; background:var(--color-divider);"></span>OR<span style="flex:1; height:1px; background:var(--color-divider);"></span></div>
+          <div class="field" style="margin:0;"><label>Email</label><input class="input" type="email" autoComplete="email"></div>
+          <div class="field" style="margin:0;"><label>Password</label><input class="input" type="password" autoComplete="current-password"></div>
+          <span class="blueprint" style="display:block;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><button onClick="{{ goMfa }}" class="btn btn-primary btn-block" style="margin:0;">Sign in</button></span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px; font-size:13px;">
+          <a href="#" style="color:var(--color-accent-700);">Forgot your password?</a>
+          <span class="text-muted">No account? <a href="#" onClick="{{ goRegisterA }}" style="color:var(--color-accent-700);">Create one</a></span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ================================================== REGISTER -->
+  <sc-if value="{{ isRegister }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Register" style="flex:1; display:flex; align-items:center; justify-content:center; padding:48px 24px;">
+      <div style="width:400px; display:flex; flex-direction:column; gap:24px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+          <span class="blueprint" style="width:48px; height:48px; display:inline-flex; align-items:flex-end; justify-content:center; gap:4px; padding:10px 10px 8px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="width:5px; height:12px; background:var(--color-accent);"></span><span style="width:5px; height:21px; background:var(--color-accent);"></span><span style="width:5px; height:8px; background:var(--color-accent-400);"></span></span>
+          <h3 style="margin:0;">Create your account</h3>
+        </div>
+        <div class="card blueprint" style="padding:26px; gap:14px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <button class="btn btn-secondary btn-block" style="margin:0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.1h6.5c-.1 1.1-.8 2.7-2.4 3.8l3.7 2.9c2.2-2.1 3.7-5.1 3.7-8.6z"></path><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.7-2.9c-1 .7-2.4 1.2-4.2 1.2-3.1 0-5.8-2.1-6.7-5l-3.9 3C3.4 21.3 7.4 24 12 24z"></path><path fill="#FBBC05" d="M5.3 14.4c-.3-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4l-3.9-3C.5 8.2 0 10 0 12s.5 3.8 1.4 5.4l3.9-3z"></path><path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.4 0 3.4 2.7 1.4 6.6l3.9 3c.9-2.9 3.6-4.9 6.7-4.9z"></path></svg>
+            Continue with Google
+          </button>
+          <div style="display:flex; align-items:center; gap:12px; font-size:11px;" class="text-muted"><span style="flex:1; height:1px; background:var(--color-divider);"></span>OR<span style="flex:1; height:1px; background:var(--color-divider);"></span></div>
+          <div class="field" style="margin:0;"><label>Email</label><input class="input" type="email" autoComplete="email"></div>
+          <div class="field" style="margin:0;"><label>Display name</label><input class="input" type="text" autoComplete="name"></div>
+          <div class="field" style="margin:0;"><label>Password</label><input class="input" type="password" autoComplete="new-password"><span style="font-size:11px;" class="text-muted">At least 12 characters, with letters and digits.</span></div>
+          <button class="btn btn-primary btn-block" disabled style="margin:0;">Create account</button>
+        </div>
+        <div style="display:flex; justify-content:center; font-size:13px;">
+          <span class="text-muted">Already have an account? <a href="#" onClick="{{ goLoginA }}" style="color:var(--color-accent-700);">Sign in</a></span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ================================================== MFA CHALLENGE -->
+  <sc-if value="{{ isMfa }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="MFA challenge" style="flex:1; display:flex; align-items:center; justify-content:center; padding:48px 24px;">
+      <div style="width:400px; display:flex; flex-direction:column; gap:24px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;">
+          <span class="blueprint" style="width:48px; height:48px; display:inline-flex; align-items:flex-end; justify-content:center; gap:4px; padding:10px 10px 8px;"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><span style="width:5px; height:12px; background:var(--color-accent);"></span><span style="width:5px; height:21px; background:var(--color-accent);"></span><span style="width:5px; height:8px; background:var(--color-accent-400);"></span></span>
+          <h3 style="margin:0;">Two-factor authentication</h3>
+          <p style="margin:0; font-size:14px;" class="text-muted">Enter the 6-digit code from your authenticator app.</p>
+        </div>
+        <div class="card blueprint" style="padding:26px; gap:18px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <sc-if value="{{ totpMode }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; gap:9px; justify-content:center;" aria-label="Authentication code">
+              <span style="width:44px; height:54px; border:1px solid var(--color-divider); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600;">4</span>
+              <span style="width:44px; height:54px; border:1px solid var(--color-divider); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600;">7</span>
+              <span style="width:44px; height:54px; border:2px solid var(--color-accent); background:var(--color-surface); display:inline-flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600;">2</span>
+              <span style="width:44px; height:54px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+              <span style="width:44px; height:54px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+              <span style="width:44px; height:54px; border:1px solid var(--color-divider); background:var(--color-surface);"></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ backupMode }}" hint-placeholder-val="{{ false }}">
+            <div class="field" style="margin:0;"><label>Backup code</label><input class="input" type="text" placeholder="XXXX-XXXX" autoComplete="one-time-code" style="min-height:44px; font-family:'IBM Plex Mono',monospace; font-size:16px; letter-spacing:.15em; text-transform:uppercase;"></div>
+          </sc-if>
+          <button class="btn btn-primary btn-block" style="margin:0;">Verify</button>
+          <button onClick="{{ toggleBackup }}" class="btn btn-ghost" style="font-size:13px; width:fit-content; align-self:center;">{{ backupToggleLabel }}</button>
+        </div>
+        <div style="display:flex; justify-content:center; font-size:13px;">
+          <a href="#" onClick="{{ goLoginA }}" class="text-muted" style="color:var(--color-neutral-700);">Cancel and return to sign in</a>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { view: 'landing', backup: false };
+  renderVals() {
+    const s = this.state;
+    const go = (view) => () => this.setState({ view });
+    const goA = (view) => (e) => { e.preventDefault(); this.setState({ view }); };
+    const mk = (id, label) => ({ label, go: go(id),
+      bg: s.view === id ? '#5980a6' : 'transparent',
+      color: s.view === id ? '#f2f2f3' : '#98989b' });
+    return {
+      views: [mk('landing', 'Landing'), mk('login', 'Login'), mk('register', 'Register'), mk('mfa', 'MFA challenge')],
+      isLanding: s.view === 'landing', isLogin: s.view === 'login',
+      isRegister: s.view === 'register', isMfa: s.view === 'mfa',
+      goLogin: go('login'), goRegister: go('register'), goMfa: go('mfa'),
+      goLoginA: goA('login'), goRegisterA: goA('register'),
+      steps: [
+        { n: '01', title: 'Alert fires', body: 'Your TradingView strategy emits an alert with a signed JSON payload.' },
+        { n: '02', title: 'Webhook received', body: 'Your instance verifies the HMAC signature and validates the payload schema.' },
+        { n: '03', title: 'Risk engine sizes it', body: 'Regime, sentiment and your risk envelope decide the final quantity — or reject it.' },
+        { n: '04', title: 'Broker executes', body: 'The order reaches your own Alpaca account and the fill streams back live.' },
+      ],
+      totpMode: !s.backup, backupMode: s.backup,
+      toggleBackup: () => this.setState(st => ({ backup: !st.backup })),
+      backupToggleLabel: s.backup ? 'Use authenticator code instead' : 'Use a backup code instead',
+    };
+  }
+}
+</script>
+</body>
+</html>

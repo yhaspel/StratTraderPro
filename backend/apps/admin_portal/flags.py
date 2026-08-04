@@ -1,0 +1,193 @@
+"""Feature-flag read/flip helper (M10 §6.4, ADR-101).
+
+Resolution order for a mutable flag: 30 s process-local cache → Redis
+(``flag:{name}``, 60 s TTL, via the Django cache) → DB ``FeatureFlag`` row →
+registry default (the env-parsed settings value). Immutable flags short-circuit
+to ``settings.<NAME>`` so their env-only nature is unmissable. Everything
+fails OPEN to the env default — flag plumbing must never take the platform down,
+and it must be safe before the ``FeatureFlag`` table exists (during ``migrate``).
+"""
+from __future__ import annotations
+
+import logging
+import time
+
+from django.conf import settings
+from django.core.cache import cache
+from django.db.utils import OperationalError, ProgrammingError
+
+logger = logging.getLogger(__name__)
+
+LOCAL_CACHE_TTL = 30  # seconds
+REDIS_TTL = 60  # seconds
+
+# Patched by tests to time-travel the local cache without sleeping.
+_monotonic = time.monotonic
+
+# name -> (value, monotonic_expiry)
+_local_cache: dict[str, tuple[bool, float]] = {}
+
+
+class FlagImmutable(Exception):
+    """Raised when a flip targets an env-only (immutable) flag."""
+
+
+def _registry() -> dict:
+    return getattr(settings, "FEATURE_FLAGS_REGISTRY", {})
+
+
+def _redis_key(name: str) -> str:
+    return f"flag:{name}"
+
+
+# Sentinel stored in Redis for "no DB override exists" (distinct from absent key).
+_NO_OVERRIDE = "__none__"
+
+
+def _env_default(name: str) -> bool:
+    """The fail-open default — read LIVE from settings so @override_settings and
+    env changes are respected (the registry ``default`` is only metadata)."""
+    reg = _registry().get(name)
+    fallback = reg["default"] if reg is not None else False
+    return bool(getattr(settings, name, fallback))
+
+
+def _cache_local(name: str, override) -> None:
+    _local_cache[name] = (override, _monotonic() + LOCAL_CACHE_TTL)
+
+
+def _bust_local(name: str | None = None) -> None:
+    if name is None:
+        _local_cache.clear()
+    else:
+        _local_cache.pop(name, None)
+
+
+def _resolve_override(name: str):
+    """Return the DB override (True/False) or None when no override exists.
+
+    Only the OVERRIDE STATE is cached (30 s local → 60 s Redis → DB). The final
+    value for the no-override case is always resolved from live settings by the
+    caller, so a settings change is never masked by the cache.
+    """
+    hit = _local_cache.get(name)
+    if hit is not None and hit[1] > _monotonic():
+        return hit[0]
+
+    # Redis error → fall THROUGH to the DB (the source of truth may be up even
+    # when Redis is down/hung), rather than immediately failing open.
+    cached = None
+    try:
+        cached = cache.get(_redis_key(name))
+    except Exception:  # noqa: BLE001 — fail open, but still try the DB below
+        logger.warning("flags.redis_read_failed", extra={"flag": name})
+    if cached is not None:
+        override = None if cached == _NO_OVERRIDE else bool(cached)
+        _cache_local(name, override)
+        return override
+
+    try:
+        from .models import FeatureFlag
+
+        row = FeatureFlag.objects.filter(name=name).values_list("enabled", flat=True).first()
+    except (ProgrammingError, OperationalError):
+        # Table not migrated yet — treat as no override, but don't cache (the
+        # table will appear shortly and we want to pick it up).
+        return None
+    except Exception:  # noqa: BLE001 — fail open
+        logger.warning("flags.db_read_failed", extra={"flag": name})
+        # Cache the fail-open result locally so a sustained outage doesn't re-hit
+        # the backing store every request (converges within LOCAL_CACHE_TTL).
+        _cache_local(name, None)
+        return None
+
+    override = None if row is None else bool(row)
+    try:
+        cache.set(_redis_key(name), _NO_OVERRIDE if override is None else override, REDIS_TTL)
+    except Exception:  # noqa: BLE001,S110 — Redis write is best-effort
+        pass
+    _cache_local(name, override)
+    return override
+
+
+def is_enabled(name: str) -> bool:
+    """Effective value of ``name`` (call-time only; never at import)."""
+    reg = _registry().get(name)
+    # Immutable flags are env-only forever.
+    if reg is not None and not reg["mutable"]:
+        return bool(getattr(settings, name, reg["default"]))
+    override = _resolve_override(name)
+    if override is not None:
+        return override
+    return _env_default(name)
+
+
+def source(name: str) -> str:
+    """Where the current value comes from: ``db`` or ``env-default``."""
+    reg = _registry().get(name)
+    if reg is not None and not reg["mutable"]:
+        return "env-default"
+    try:
+        from .models import FeatureFlag
+
+        return "db" if FeatureFlag.objects.filter(name=name).exists() else "env-default"
+    except (ProgrammingError, OperationalError):
+        return "env-default"
+
+
+def set_flag(name: str, enabled: bool, *, actor=None, request=None, note: str = "") -> bool:
+    """Flip a mutable flag: DB write → Redis set → local bust → audit + metric.
+
+    Raises ``FlagImmutable`` for env-only flags, ``KeyError`` for unknown flags.
+    """
+    reg = _registry().get(name)
+    if reg is None:
+        raise KeyError(name)
+    if not reg["mutable"]:
+        raise FlagImmutable(name)
+
+    from .metrics import FEATURE_FLAG_FLIPS
+    from .models import FeatureFlag
+
+    before = is_enabled(name)
+    FeatureFlag.objects.update_or_create(
+        name=name,
+        defaults={"enabled": bool(enabled), "updated_by": actor, "note": note[:255]},
+    )
+    try:
+        cache.set(_redis_key(name), bool(enabled), REDIS_TTL)
+    except Exception:  # noqa: BLE001,S110 — Redis write is best-effort
+        pass
+    _bust_local(name)
+
+    from apps.audit.events import AuditEventType
+    from apps.audit.services import emit
+
+    emit(
+        AuditEventType.FLAG_FLIPPED,
+        actor=actor,
+        request=request,
+        entity_type="feature_flag",
+        entity_id=name,
+        data_before={"enabled": before},
+        data_after={"enabled": bool(enabled), "note": note},
+    )
+    FEATURE_FLAG_FLIPS.labels(flag=name).inc()
+    return bool(enabled)
+
+
+def flag_state(name: str) -> dict:
+    reg = _registry().get(name, {})
+    return {
+        "name": name,
+        "enabled": is_enabled(name),
+        "source": source(name),
+        "mutable": reg.get("mutable", False),
+        "dangerous": reg.get("dangerous", False),
+        "description": reg.get("description", ""),
+        "default": bool(reg.get("default", False)),
+    }
+
+
+def all_flags() -> list[dict]:
+    return [flag_state(name) for name in _registry()]

@@ -5,6 +5,8 @@
 > **Depends on:** M06 (Market Data + Regime)
 > **Unlocks:** M08 (Risk sizing uses sentiment as an input)
 
+> **Review note (2026-07-05):** two adjustments before kickoff. (1) **Source list** — verify each feed's ToS before wiring (the master-plan analysis flagged Yahoo scraping and Benzinga RSS as non-compliant; this plan's Finnhub/Benzinga mix needs the same check). A compliant no-cost baseline: FMP news (already licensed) + SEC EDGAR 8-K + Nasdaq halts + **Alpaca News API** (free with the M04 integration — historical via `NewsClient` and real-time via `NewsDataStream` in the already-pinned `alpaca-py`; verify its source coverage and ToS fit during Day-1 spike). (2) **Llama-8B latency is the milestone's wildcard** — benchmark Q4_K_M tokens/sec on the actual Railway worker size on Day 1; if p95 per-article > 5s, descope to FinBERT-only for MVP and keep the LLM tier behind a flag. Neither adjustment changes the pipeline architecture.
+
 ## 1. Purpose
 
 Ingest breaking financial news, tag ticker symbols, score sentiment with a tiered model stack (FinBERT → local Llama), and expose both per-symbol and market-wide scores to downstream sizing and the dashboard. Built for **cost-predictable privacy**: runs entirely on our cloud infrastructure, no per-token LLM API fees.

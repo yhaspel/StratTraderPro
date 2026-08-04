@@ -12,13 +12,13 @@
 
 ## 1. Executive Summary
 
-StratTraderPro is a cloud-hosted, always-on, multi-tenant trading bot platform that executes pre-defined quantitative strategies against live broker accounts in response to TradingView webhook alerts. It adds a regime-aware decision layer that conditions position sizing and strategy selection on:
+StratTraderPro is a self-hosted, always-on trading bot that executes pre-defined quantitative strategies against the operator's own live broker accounts in response to TradingView webhook alerts. It adds a regime-aware decision layer that conditions position sizing and strategy selection on:
 
 - **Market Breadth & Regime** — Hidden Markov Model (HMM) plus a rule-based breadth classifier (advance/decline, NH/NL, % above 50/200 SMA, VIX, credit spreads).
 - **Market Sentiment** — A small, locally-hosted LLM (FinBERT + a quantized Llama-class model) scoring breaking-news impact on the user's watchlist and the broad market.
 - **User-defined Risk Envelope** — Daily-loss circuit breakers, per-strategy and per-user kill switches, and a platform-wide admin halt.
 
-The system ships with a strict **paper-trading-first MVP** (using IBKR paper and TradeStation simulator endpoints), unlocks **live trading in a gated second release**, and is designed for a population of **10–50 concurrent users** at 6 months, with a clean horizontal-scale path to hundreds.
+The system ships with a strict **paper-trading-first default** (using IBKR paper and TradeStation simulator endpoints) and unlocks **live trading behind a feature flag** that each self-hoster enables on their own box, trading their own money.
 
 ### 1.1 MVP Success Criteria
 
@@ -89,8 +89,6 @@ StratTraderPro is a **3-tier multi-tenant monorepo**:
 | ADR-010 | Deploy to Railway: 1 web (Django), 1 worker, 1 beat, 1 LLM-worker, Postgres, Redis, PgBouncer. | Matches the available Railway skill; simplest path to always-on. PgBouncer prevents connection exhaustion across 6+ services. |
 | ADR-011 | Market data via a **provider-abstraction layer** (`MarketDataProvider` protocol); active provider swappable by env var. FMP for dev/beta; **Polygon.io** for production live trading. | No single vendor covers all needs at all price points; the adapter pattern means switching costs are a config change, not a code change. See §3.4 for full provider comparison. |
 | ADR-012 | Beat scheduler uses **`celery-redbeat`** (Redis leader-lock) instead of `django-celery-beat` (DB polling). | Redbeat survives crash-restart without duplicate task execution — a crash during beat dispatch doesn't re-fire in-flight tasks. |
-| ADR-013 | Subscription billing via **Stripe Checkout + Billing Portal**; plan tiers enforced at API middleware (`PlanEnforcer`). | Industry-standard; excellent webhooks; handles trials, upgrades, proration, invoices. Plan-gating at middleware catches all paths including direct API calls. |
-
 ---
 
 ## 3. Technology Stack
@@ -108,9 +106,7 @@ StratTraderPro is a **3-tier multi-tenant monorepo**:
 | Task queue | Celery 5 + **`celery-redbeat`** (Redis leader-lock beat) | Scheduled jobs (regime, sentiment, eod recon). Redbeat replaces `django-celery-beat` to prevent duplicate task execution on beat restarts. |
 | HTTP client | `httpx` (async) | Broker, news, market-data calls. |
 | Brokers | **IBKR CPAPI** (Client Portal API, REST+WS, no Java sidecar) + TradeStation v3 REST+WS (custom thin client) | See §6.8. CPAPI scales to N concurrent user sessions without a Gateway process per user. |
-| Market data | **Provider abstraction layer** (`MarketDataProvider` protocol). **Dev/beta:** FMP $49/mo Growth. **Production:** Polygon.io $79–199/mo. **Macro (free):** FRED API. Provider switched via `MARKET_DATA_PROVIDER` env var. See §3.4 and §6.13. | |
-| Billing | **Stripe Checkout + Billing Portal**; `stripe-python`; plan webhooks. `Subscription` model + `PlanEnforcer` middleware. | Three tiers (Free/Trader/Pro). See §13. |
-| News | FMP news endpoint (primary) + SEC EDGAR 8-K RSS + Nasdaq Trader halts RSS + Alpha Vantage News (free-tier backup) | Benzinga and Yahoo Finance RSS removed — ToS violations. Webhook-less pull every 15 min. |
+| Market data | **Provider abstraction layer** (`MarketDataProvider` protocol). **Dev/beta:** FMP $49/mo Growth. **Production:** Polygon.io $79–199/mo. **Macro (free):** FRED API. Provider switched via `MARKET_DATA_PROVIDER` env var. See §3.4 and §6.13. | || News | FMP news endpoint (primary) + SEC EDGAR 8-K RSS + Nasdaq Trader halts RSS + Alpha Vantage News (free-tier backup) | Benzinga and Yahoo Finance RSS removed — ToS violations. Webhook-less pull every 15 min. |
 | NLP | `transformers` + `FinBERT` + `llama-cpp-python` (GGUF-quantized 7–8B, e.g. Llama-3.1-8B-Instruct-Q4) | Runs on CPU (4–8 cores) acceptably for the use case; optional GPU later. |
 | HMM | `hmmlearn` or `pomegranate` | Gaussian HMM on feature vector. |
 | Backtester | `vectorbt` + `backtrader` + custom WF orchestrator | See §11. |
@@ -216,9 +212,7 @@ StratTraderPro/
 │   │   ├── wsgi.py
 │   │   └── urls.py
 │   ├── apps/
-│   │   ├── users/             # CustomUser, MFA, profiles
-│   │   ├── billing/           # Stripe Checkout, Subscription, PlanEnforcer middleware
-│   │   ├── strategies/        # Strategy, StrategyFile, WebhookConfig
+│   │   ├── users/             # CustomUser, MFA, profiles│   │   ├── strategies/        # Strategy, StrategyFile, WebhookConfig
 │   │   ├── webhooks/          # Ingestion endpoint, HMAC verify, dedupe
 │   │   ├── regime/            # HMM + rule classifier, features
 │   │   ├── sentiment/         # FinBERT + LLM workers, news pipeline
@@ -708,7 +702,7 @@ All endpoints JSON over HTTPS, JWT bearer, `Api-Version: 2026-04-01` header. Ope
 | Secrets | Railway env vars; per-user broker creds fernet-encrypted with a KEK stored in env. |
 | Webhook auth | HMAC-SHA256 with per-user-per-strategy secret; constant-time compare; replay-protected via idempotency key. |
 | CSRF | N/A for pure-JWT API, but CSRF tokens on cookie-based admin. |
-| CORS | Strict allowlist: production frontend origin + `localhost:4200` in dev. |
+| CORS | Strict allowlist: production frontend origin + `localhost:4444` in dev. |
 | Rate limiting | Per-endpoint (webhook: 60/min/user; auth: 5/min/email; trade: 30/min/user). |
 | Input validation | DRF serializers + jsonschema for webhook payloads. |
 | Dependency security | `pip-audit` in CI; Dependabot PRs. |
@@ -827,7 +821,7 @@ jobs:
 - `postgres`, `redis`, `backend` (Django), `frontend` (ng serve), `celery-worker`, `celery-beat`, `llm-worker`, `ngrok`.
 
 **ngrok bridge (for local TradingView testing):**
-- `ngrok http 8000 --domain=<user-reserved-subdomain>` exposes the local webhook endpoint.
+- `ngrok http 8777 --domain=<user-reserved-subdomain>` exposes the local webhook endpoint.
 - A management command `python manage.py set_dev_webhook_host <ngrok-url>` updates the `WebhookConfig.url_base` for all user strategies in the local DB so TradingView alerts reach localhost.
 - `.env.local.example` shipped with safe defaults.
 
@@ -835,7 +829,9 @@ jobs:
 
 ---
 
-## 12. Railway Deployment
+## 12. Deployment (self-hosted, deploy-anywhere)
+
+StratTraderPro is self-hosted: deploy the `docker-compose` stack anywhere that runs Docker — a single VPS, a home server, or any container platform (Railway, Fly, Render, plain Compose). No managed platform is required.
 
 **Services (6):**
 1. `backend` — Django ASGI (daphne/uvicorn workers).
@@ -843,7 +839,7 @@ jobs:
 3. `beat` — Celery beat scheduler (1 replica, crash-loop protected).
 4. `llm-worker` — Separate service with higher RAM; consumes `sentiment` queue.
 5. `frontend` — nginx serving built Angular SPA.
-6. `postgres` + `redis` — managed by Railway.
+6. `postgres` + `redis`.
 
 **Config highlights:**
 - Backend: min 1, max 3 replicas (autoscale on CPU).
@@ -852,241 +848,11 @@ jobs:
 - Health checks on `/healthz`, `/readyz`.
 - Rolling deploys with `preStop` graceful shutdown so Celery drains.
 
-**Storage:** Railway's volume for `llm-worker` model cache; S3-compatible (Cloudflare R2 or Railway + minio side-car) for backtest PDFs + strategy files.
+**Storage:** A persistent volume for the `llm-worker` model cache; any S3-compatible object store (Cloudflare R2, minio side-car, etc.) for backtest PDFs + strategy files.
 
-**Domains:** `api.strattraderpro.com`, `app.strattraderpro.com`. Cloudflare in front for DDoS + WAF.
+**Domains:** Whatever hostnames the operator points at their box; front the stack with a reverse proxy (Caddy, nginx, or Cloudflare) for TLS.
 
-**DB backups:** Railway automated daily + weekly; extra `pg_dump` to R2 weekly; test restore monthly.
-
----
-
-## 13. Monetization
-
-### 13.1 Positioning
-
-StratTraderPro has materially stronger features than every direct competitor (TradersPost $49, Composer $40, 3Commas $49) — specifically: HMM-based regime filtering, AI news sentiment via a local LLM, walk-forward backtesting with PBO scoring, and a four-level institutional kill-switch hierarchy. This justifies pricing above the $49 commodity tier.
-
-**Core positioning:** *"Systematic edge. Institutional safety net."*
-**Hero copy:** *"Your TradingView strategies, automated — with an AI layer that knows when not to trade."*
-
-Key differentiators to lead with:
-- 🧠 **Regime-aware sizing** — the only bot that scales down in bear markets automatically.
-- 📰 **AI sentiment filter** — reads breaking news so your bot doesn't trade into a disaster.
-- 📊 **Walk-forward backtests** — know if your edge is real or overfit before risking capital.
-- 🛡️ **Four-level risk engine** — from per-strategy pause to platform-wide emergency halt.
-
----
-
-### 13.2 Tier Structure
-
-#### 🆓 Free — "Paper Pilot"
-**$0 / month — no credit card, forever.**
-
-| Feature | Limit |
-|---------|-------|
-| Trading mode | Paper / simulator only |
-| System strategies | 3 (curated selection) |
-| User-uploaded strategies | ❌ |
-| Broker connections | 1 (paper only) |
-| Webhook alerts/day | 10 |
-| Walk-forward backtest | 1 run/day · 1-year history · 1 symbol |
-| Regime badge | ✅ current label only (no history) |
-| Sentiment | ✅ market-wide score only |
-| Kill switches | L1 global halt only |
-| Risk profile | Basic (no Kelly, no sentiment sizing) |
-| Support | Community Discord |
-| Data retention | 30 days |
-
-**Purpose:** Frictionless discovery. A user with a TradingView subscription and a paper broker account can be live-testing in under 15 minutes. The 10 alert/day limit triggers a natural upgrade moment within the first trading week. Free users are also the primary word-of-mouth channel in trader communities.
-
----
-
-#### 📈 Trader — "Live Ready"
-**$69 / month · $52 / month billed annually ($624/yr) — saves 25%**
-14-day free trial, no credit card required for trial.
-
-| Feature | Limit |
-|---------|-------|
-| Trading mode | Paper + **Live trading** |
-| System strategies | All (full catalogue) |
-| User-uploaded strategies | 5 |
-| Broker connections | 2 (IBKR + TradeStation in any combination) |
-| Webhook alerts/day | 200 |
-| Walk-forward backtest | 3 simultaneous · 5-year history · 5 symbols |
-| Regime | ✅ full history (90 days chart) |
-| Sentiment | ✅ market + per-symbol (S&P 1500) |
-| Kill switches | ✅ all 4 levels |
-| Risk profile | ✅ full (Kelly damper, sentiment sizing, soft/hard stop) |
-| Notifications | Email + in-app |
-| Support | Email · 48h SLA |
-| Data retention | 1 year |
-
-**Why $69 not $49:** Competitors at $49 offer no regime awareness, no AI sentiment, and no walk-forward PBO backtesting. A $20 premium for those features is conservative; validated by competitor pricing and customer interviews in beta.
-
----
-
-#### 🚀 Pro — "Full Automation"
-**$129 / month · $97 / month billed annually ($1,164/yr) — saves 25%**
-14-day free trial, card required.
-
-| Feature | Limit |
-|---------|-------|
-| Everything in Trader, plus: | |
-| User-uploaded strategies | Unlimited |
-| Broker connections | Unlimited (all supported brokers) |
-| Webhook alerts/day | Unlimited |
-| Walk-forward backtest | 10 simultaneous · full history · unlimited symbols |
-| Backtest report retention | 1 year |
-| Regime | ✅ 2-year history + per-symbol regime |
-| Sentiment | ✅ enhanced: Llama structured reports, impact scores, news archive |
-| **Auto strategy selector** | ✅ system selects optimal strategy for current regime |
-| **Telegram + Discord alerts** | ✅ real-time push |
-| **Read-only REST API** | ✅ positions, fills, regime, sentiment (for your own tooling) |
-| Priority webhook execution | ✅ front-of-queue |
-| Support | Priority · 24h SLA |
-| Data retention | 3 years |
-| Early access | ✅ new brokers, new strategies |
-
----
-
-#### 🏢 Studio — Enterprise (Post-v0.2, custom)
-Designed for prop firms, family offices, hedge fund operators.
-- Custom per-seat contract.
-- White-label option (your domain, your branding).
-- Isolated tenant infrastructure (dedicated DB + workers).
-- Custom strategy Python adapter written by us.
-- SLA: 4h response, 99.9% uptime guarantee.
-- Target: $500–$2,000/month.
-
----
-
-### 13.3 Annual Plan Mechanics
-
-- Discount: **25%** (not 20% — the additional 5% is primarily a churn-reduction tool).
-- Annual plans billed upfront via Stripe one-time invoice for 12 months.
-- Display savings as a **concrete dollar amount** ("Save $204/year") in checkout — dollar savings outperform percentage discount labels in A/B tests.
-- Annual → monthly downgrade allowed at renewal only; mid-cycle changes are not.
-- Annual churn rate target: ≤1%/month vs 4–6%/month for monthly.
-
----
-
-### 13.4 Feature Gate Implementation
-
-The `PlanEnforcer` middleware (wired into DRF `permission_classes` globally) checks plan limits on every write endpoint:
-
-```python
-class PlanLimits:
-    FREE  = PlanConfig(max_strategies_upload=0,  max_webhooks_day=10,  max_brokers=1,  live_trading=False, ...)
-    TRADER = PlanConfig(max_strategies_upload=5, max_webhooks_day=200, max_brokers=2,  live_trading=True,  ...)
-    PRO   = PlanConfig(max_strategies_upload=-1, max_webhooks_day=-1,  max_brokers=-1, live_trading=True,  ...)
-```
-
-On limit breach → `HTTP 402 Payment Required` with body:
-```json
-{ "code": "PLAN_LIMIT_REACHED", "limit": "webhooks_per_day",
-  "current": 200, "allowed": 200,
-  "upgrade_url": "https://app.strattraderpro.com/settings/billing/upgrade" }
-```
-
-Frontend intercepts 402 → shows an upgrade modal with plan comparison and Stripe Checkout CTA.
-
----
-
-### 13.5 Trial Flow
-
-1. User registers (Free).
-2. User connects a broker → system detects intent to go live → prompts "Start your 14-day Trader trial".
-3. Trial: all Trader features enabled; `subscription.trial_ends_at` set.
-4. Day 12: email reminder "2 days left on your trial" + usage summary (how many alerts fired, positions taken, backtest runs).
-5. Day 14: auto-downgrade to Free unless card added and Stripe subscription confirmed.
-6. Pro trial: presented to Trader users who hit a Trader limit (e.g., 6th strategy upload).
-
----
-
-### 13.6 Billing Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Checkout + Billing Portal | Stripe Checkout (hosted) + Stripe Customer Portal |
-| Subscription model | Stripe Subscriptions with `MARKET_DATA_PROVIDER` analogy — `plan` field on `Subscription` |
-| Webhooks | `/api/v1/billing/stripe-webhook/` — `customer.subscription.updated`, `invoice.payment_failed`, `invoice.paid`, `customer.subscription.deleted` |
-| Trial | `subscription.trial_ends_at`; Stripe trial period |
-| Invoices | Stripe auto-invoicing; PDF invoice download via Stripe Customer Portal |
-| Currency | USD only at launch |
-| Tax | Stripe Tax (automated for SaaS); disable for MVP, enable at 100+ users |
-| DB model | `Subscription(user, stripe_customer_id, stripe_subscription_id, plan, status, trial_ends_at, current_period_end)` |
-
----
-
-### 13.7 Revenue Model & Projections
-
-Assumptions: 5% monthly churn (monthly plans), 1% (annual plans), 8% free-to-paid conversion rate, 40% Trader / 60% Pro split among paying users (Pro ratio is higher because Pro users self-select for high engagement).
-
-| Month | Free users | Paying users | Est. MRR |
-|-------|-----------|-------------|---------|
-| 1 (beta) | 5 | 0 | $0 |
-| 3 | 30 | 5 | ~$450 |
-| 6 | 100 | 20 | ~$1,900 |
-| 9 | 250 | 55 | ~$5,500 |
-| 12 | 500 | 115 | ~$11,500 |
-| 18 | 1,200 | 290 | ~$29,000 |
-
-**Infrastructure break-even:** ~$360–505/mo (see §13.8). Reached at ~8 paying users.
-**Comfortable solo-operation threshold:** 80–100 paying users (~month 10).
-**Full-time sustainable income:** 150+ paying users (~month 12–14).
-
----
-
-### 13.8 Monthly Infrastructure Cost at Scale
-
-| Scale | Railway infra | External services | **Total** |
-|-------|--------------|-------------------|-----------|
-| Pre-launch | $175 | $185 | **$360** |
-| 10 users | $200 | $210 | **$410** |
-| 50 users | $265 | $240 | **$505** |
-| 100 users | $380 | $270 | **$650** |
-| 250 users | $600 | $310 | **$910** |
-
-Key costs by line item (production):
-- Railway (llm-worker 8GB): $60–90/mo (largest single item).
-- Market data — Polygon.io Pro: $199/mo (replaces FMP at ~100 users).
-- Market data — FMP Growth: $49/mo (dev/beta / fallback news).
-- Cloudflare Pro: $20/mo.
-- Sentry Team: $26/mo.
-- Resend Starter (50k emails): $20/mo.
-- Stripe: 2.9% + $0.30 per transaction (no fixed monthly fee).
-
-**Cost optimisation levers:**
-- Downgrade Llama to 3B model → halves llm-worker RAM → saves $30/mo.
-- Stay on FMP Growth until live-trading user count justifies Polygon upgrade.
-- Coarsen regime compute to 15-min intervals → reduces worker CPU by ~40%.
-
----
-
-### 13.9 Additional Revenue Levers (post-v0.2)
-
-| Lever | Mechanism | Notes |
-|-------|-----------|-------|
-| Strategy Marketplace | Community authors list strategies; 20% of upgrades attributed to their strategy go back as credits | Acquisition + retention flywheel |
-| On-demand backtest credits | $9/extra run beyond plan quota | Low-friction upsell |
-| Broker referrals | Revenue-share with IBKR ($50–200/activated account) + TradeStation partner programme | Passive income |
-| API data exports | $9.99 one-time for extended data beyond retention period | Long-tail upsell |
-| Affiliate programme | $50 cash per referred annual subscriber | Community-driven acquisition |
-| Studio / white-label | $500–2,000/mo custom contract | High-ACV, low-volume |
-
----
-
-### 13.10 Regulatory & Legal Checklist
-
-| Item | Status | Action required |
-|------|--------|----------------|
-| Investment Advisor / CTA registration | ⚠️ Risk | Legal opinion before v0.2 live trading. EULA must state platform provides no investment advice and user owns all strategy logic. |
-| CFTC / NFA (futures automation) | ⚠️ Research | Webhook-delivery model (not discretionary) has lower risk; still needs counsel review. |
-| IBKR / TradeStation ToS re: credential storage | ⚠️ Research | Both have restrictions on third-party credential storage; review with counsel before v0.2. |
-| Backtest disclaimers | ✅ Plan'd | "Past performance is not indicative…" disclaimer on every PDF tearsheet page. |
-| GDPR / CCPA (data export + delete) | ✅ Plan'd | M11 implements export + soft delete. |
-| Terms of Service + Privacy Policy | ✅ Plan'd | Drafted in M11; counsel review before v0.2. |
-| PCI DSS | ✅ N/A | Stripe handles card data; we never touch raw card numbers. |
+**DB backups:** Automated daily + weekly dumps; extra `pg_dump` to object storage weekly; test restore monthly.
 
 ---
 
@@ -1100,9 +866,7 @@ Key costs by line item (production):
 | R4 | LLM worker OOM with spiky news | Medium | Medium | Queue caps + circuit breaker to FinBERT-only; autoscale RAM. |
 | R5 | Broker API outage | Medium | High | Read-only positions cached; kill switch continues to work via cached state; status banner. |
 | R6 | Market data vendor (FMP) rate limit | Medium | Medium | Local cache + long TTLs on bars; secondary source (yfinance) fallback for non-critical data. |
-| R7 | User uploads malicious Pine file | Low | Low (Pine doesn't execute server-side, but displayed) | Sanitize on render; scan for XSS; file size cap. |
-| R8 | Compliance: unregistered investment advisor concerns | Low | High | EULA explicitly states platform does NOT provide investment advice; all strategies are user-owned. Legal review before public launch. |
-| R9 | Secret leak in logs | Low | Critical | Structlog processor strips keys; automated tests assert. |
+| R7 | User uploads malicious Pine file | Low | Low (Pine doesn't execute server-side, but displayed) | Sanitize on render; scan for XSS; file size cap. || R9 | Secret leak in logs | Low | Critical | Structlog processor strips keys; automated tests assert. |
 | R10 | Runaway Celery retry storm | Medium | Medium | `autoretry_for` + exponential backoff + max retries + dead-letter queue. |
 | R11 | HMM drift during regime shift | Medium | Medium | Nightly retrain + rule-based fallback + alerting on freshness. |
 | R12 | Kill switch latency too high | Low | Critical | Pre-warm broker session; `flatten_all` uses market orders; dedicated priority queue; load test. |
@@ -1133,13 +897,12 @@ Assumption: 1 senior full-stack engineer (you), ~35 focused hrs/week. Scope is t
 - Profile page, password change.
 - **Exit gate:** MFA can be enabled; required before any broker-related route.
 
-### Week 3 — Strategies & Webhook Plumbing + Billing Foundation
+### Week 3 — Strategies & Webhook Plumbing
 - `strategies` app + upload endpoint + validation.
 - Seed command: import from Trading Strategies project folder.
 - `WebhookConfig` + rotate, reveal-once UI.
 - Webhook modal (Monaco editor + schema test).
-- **Billing (M03.5):** Stripe integration — `Subscription` model, Stripe Checkout, Billing Portal, `PlanEnforcer` middleware, plan-gated 402 responses, upgrade modal in frontend.
-- **Exit gate:** Strategies list shows seeded strategies + user can upload + configure webhook. Stripe test-mode checkout completes and grants Trader plan in DB.
+- **Exit gate:** Strategies list shows seeded strategies + user can upload + configure webhook.
 
 ### Week 4 — Webhook Ingest + Broker Adapter Interface + IBKR paper
 - `/hooks/v1/...` endpoint: HMAC verify, idempotency, Celery dispatch.
@@ -1198,18 +961,16 @@ Assumption: 1 senior full-stack engineer (you), ~35 focused hrs/week. Scope is t
 - Runbooks (on-call, broker outage, HMM retrain failure).
 - **Exit gate:** Load test passes; docs reviewed.
 
-### Week 12 — Beta, bugfix, sign-off
-- Private beta with 3–5 users (paper).
-- Collect feedback, fix critical.
+### Week 12 — Bugfix & sign-off
+- Fix critical bugs found in paper shake-down.
 - Final sign-off against §1.1 success criteria.
-- **Exit gate:** All MVP success criteria green; release `v0.1.0` → prod.
+- **Exit gate:** All MVP success criteria green; release `v0.1.0`.
 
 ### Post-MVP (v0.2+, outside 12 weeks)
 - Gated live trading rollout (separate ADR + legal review).
 - Additional brokers (Alpaca, Schwab).
 - Options-aware sizing, IV rank filters.
 - Mobile-friendly responsive polish.
-- Strategy marketplace (community-tested flag promotion flow).
 - GPU-backed LLM worker.
 
 ---
@@ -1247,17 +1008,14 @@ Assumption: 1 senior full-stack engineer (you), ~35 focused hrs/week. Scope is t
 
 ## 18. Open Questions / Assumptions (flagged for confirmation before Week 3)
 
-1. **Legal / EULA.** Plan assumes StratTraderPro is a tool, not an advisor. Before live rollout we will draft a legal-reviewed EULA clarifying (a) user takes all trading risk, (b) platform makes no investment recommendation, (c) strategy outcomes are historical and not indicative. Additionally a legal opinion on CFTC/NFA CTA registration risk is needed before v0.2 given futures automation. ❓ Confirm we engage fintech counsel before v0.2.
-2. **Trading Strategies project path.** The import command needs the absolute path to the existing Cowork "Trading Strategies Project." ❓ Please provide access / path in Week 3.
-3. **Live-trading gate.** The plan assumes paper-only in MVP. Enabling live is a v0.2 story with additional checklist (KYC disclaimer, TermsAcceptance v2, per-user soft-cap on notional, IBKR/TS ToS review). ❓ Confirm alignment.
-4. **Market data provider + tier.** Dev/beta uses FMP Growth ($49/mo). Production live-trading phase requires Polygon.io Developer ($79/mo) minimum for real-time WebSocket. Upgrade triggered when first user goes live, or when FMP poll latency becomes a user complaint. ❓ Confirm FMP current plan/limits so rate-limit sizing can be set accurately in M06.
-5. **Polygon.io commercial licence.** Polygon explicitly permits commercial SaaS use on paid plans. ❓ Confirm sign-up and store API key in Railway env before M06.
-6. **vectorbt Pro licence.** Community edition is AGPL — not suitable for a SaaS web service (requires source disclosure). ❓ Purchase commercial licence before M09 (backtester milestone). Alternative: replace sweep stage with a custom pandas/numpy vectorised engine (~3–4 days work); viable if licence cost is prohibitive.
-7. **Stripe account.** Billing milestone (M03.5) requires a Stripe account in test mode. ❓ Create account before Week 3; confirm USD is the launch currency.
-8. **Timezone.** All displayed times default to user's IANA tz; internal storage is always UTC. ❓ Confirm OK.
-9. **Mobile.** Responsive but **not** a native app in MVP. ❓ Confirm.
-10. **Notifications.** Email + in-app for MVP; Telegram/Discord in Pro tier (v0.1); SMS deferred. ❓ Confirm.
-11. **IBKR CPAPI access.** CPAPI requires enrollment through IBKR's developer programme. ❓ Apply for CPAPI access before M04 (IBKR milestone). Note: paper accounts can use CPAPI directly for testing without special approval.
+1. **Trading Strategies project path.** The import command needs the absolute path to the existing Cowork "Trading Strategies Project." ❓ Please provide access / path in Week 3.
+2. **Live-trading gate.** The plan assumes paper-only in MVP. Enabling live is a v0.2 story with additional checklist (KYC disclaimer, TermsAcceptance v2, per-user soft-cap on notional, IBKR/TS ToS review). ❓ Confirm alignment.
+3. **Market data provider + tier.** Dev/beta uses FMP Growth ($49/mo). Production live-trading phase requires Polygon.io Developer ($79/mo) minimum for real-time WebSocket. Upgrade triggered when first user goes live, or when FMP poll latency becomes a user complaint. ❓ Confirm FMP current plan/limits so rate-limit sizing can be set accurately in M06.
+4. **Polygon.io licence.** Confirm the chosen paid plan permits the operator's use. ❓ Confirm sign-up and store API key in env before M06.
+5. **Timezone.** All displayed times default to user's IANA tz; internal storage is always UTC. ❓ Confirm OK.
+6. **Mobile.** Responsive but **not** a native app in MVP. ❓ Confirm.
+7. **Notifications.** Email + in-app for MVP; Telegram/Discord (v0.1); SMS deferred. ❓ Confirm.
+8. **IBKR CPAPI access.** CPAPI requires enrollment through IBKR's developer programme. ❓ Apply for CPAPI access before M04 (IBKR milestone). Note: paper accounts can use CPAPI directly for testing without special approval.
 
 ---
 

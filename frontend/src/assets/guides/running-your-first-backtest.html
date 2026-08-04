@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Help — Running your first backtest</title>
+<style>
+  body { font: 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.6rem; }
+  h2 { margin-top: 2rem; font-size: 1.2rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+  pre { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+  .warn { background: #fff7e6; border: 1px solid #ffd591; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+  .tip { background: #eef6ff; border-left: 4px solid #0066ff; padding: 0.75rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; font-size: 0.9rem; }
+  th { background: #fafafa; }
+</style>
+</head>
+<body>
+
+<h1>Running your first backtest</h1>
+
+<p>A <strong>walk-forward backtest</strong> tests a strategy the honest way: it
+tunes the strategy's parameters on a stretch of history (the <em>train</em>
+window), then measures how those tuned parameters actually performed on the
+following stretch it never saw (the <em>test</em>, or out-of-sample, window). It
+rolls that train-then-test window forward across your whole date range and
+stitches the out-of-sample pieces into one continuous equity curve. Good
+in-sample results are easy; stable out-of-sample results are what earn a strategy
+the right to trade.</p>
+
+<p>Open <strong>Backtest</strong> (<code>/backtest</code>) and click
+<strong>New backtest</strong>.</p>
+
+<h2>1. Pick a strategy</h2>
+
+<p>Only strategies with a registered <strong>backtest adapter</strong> can be
+run. The picker enables those and greys out the rest with a
+<em>"Backtest not available — no Python adapter registered"</em> banner.</p>
+
+<div class="tip">
+  <strong>Why can't I backtest my uploaded strategy?</strong> Backtesting runs
+  the strategy's logic on our servers, and for safety we never execute uploaded
+  Pine or community code. A strategy is backtestable only when it has an in-repo
+  Python adapter written for it. The built-in <strong>SMA Cross Demo</strong>
+  (<code>sma-cross-demo</code>) ships with one, so it's the easiest way to see a
+  full run end to end.
+</div>
+
+<h2>2. Choose symbols and a date range</h2>
+
+<ul>
+  <li><strong>Symbols</strong> — 1 to 10. Each symbol is walk-forwarded
+  <em>independently</em> and gets its own out-of-sample curve and metrics; there's
+  no cross-symbol portfolio allocation.</li>
+  <li><strong>Date range</strong> — up to 15 years, daily bars only in this
+  release. The data comes from your local market-data store, so a symbol needs to
+  be backfilled first. If coverage is thin you'll get
+  <code>BACKTEST_INSUFFICIENT_DATA</code> naming the biggest gaps — backfill the
+  symbol and retry.</li>
+</ul>
+
+<h2>3. Set the train / test windows</h2>
+
+<p>Three numbers, in <strong>calendar days</strong>:</p>
+
+<table>
+  <tr><th>Field</th><th>What it does</th></tr>
+  <tr><td><strong>Train window</strong></td><td>How much history each window uses to pick the best parameters.</td></tr>
+  <tr><td><strong>Test window</strong></td><td>How much out-of-sample history each window is then measured on.</td></tr>
+  <tr><td><strong>Step</strong></td><td>How far the window slides each time. In this release it is <strong>locked equal to the test window</strong>, so the out-of-sample pieces line up end-to-end with no gaps or overlaps.</td></tr>
+</table>
+
+<p><strong>Mode</strong> controls the train window: <em>Rolling</em> slides a
+fixed-length train window forward; <em>Anchored</em> keeps the start pinned and
+grows the train window each step. Your range must fit at least
+<strong>2 complete windows</strong> — for example, a 1-year range with a 180-day
+train and 60-day test gives 3 windows.</p>
+
+<div class="warn">
+  <strong>Too few windows?</strong> If the range can't fit two full train+test
+  windows the run is rejected. Widen the date range, or shrink the train/test
+  windows.
+</div>
+
+<h2>4. Metric, cash, and costs</h2>
+
+<ul>
+  <li><strong>Ranking metric</strong> — how each window picks its "best"
+  parameters from the sweep: <code>sharpe</code> (default), <code>sortino</code>,
+  <code>total_return</code>, or <code>mar</code>.</li>
+  <li><strong>Initial cash</strong> — starting equity per segment (default
+  100,000). Each out-of-sample segment replays from this same amount; the pieces
+  are compounded afterward into the full curve.</li>
+  <li><strong>Costs</strong> — slippage in basis points (default 5, floor 1),
+  optional per-order and per-share commission (default $0, Alpaca-style), and the
+  volume-participation cap for partial fills (default 10% of a bar's volume). The
+  costs you choose are printed on the tearsheet cover.</li>
+</ul>
+
+<h2>5. Choose a sizing mode</h2>
+
+<p>This decides how many shares each entry buys:</p>
+
+<table>
+  <tr><th>Mode</th><th>What it does</th></tr>
+  <tr>
+    <td><strong>Fixed qty 1</strong></td>
+    <td>Every entry buys exactly 1 share. Simplest way to see the raw shape of a
+    strategy's signals, independent of position sizing.</td>
+  </tr>
+  <tr>
+    <td><strong>Production sizing<br>(regime/sentiment neutralized)</strong></td>
+    <td>Sizes each entry with the <em>same</em> risk engine that sizes your live
+    orders — your risk profile's per-trade risk, ATR-based stop, position cap, and
+    lot rounding — so the backtest reflects how big your real positions would have
+    been.</td>
+  </tr>
+</table>
+
+<div class="tip">
+  <strong>What "regime/sentiment neutralized" means.</strong> Live sizing also
+  reacts to the current market regime and news sentiment. A historical backtest
+  has no live regime or sentiment feed, so those inputs are held neutral (regime =
+  NEUTRAL, sentiment = 0). Everything else — your risk percentage, ATR stop,
+  position cap — is applied exactly as in production.
+</div>
+
+<div class="warn">
+  <strong>No risk profile yet?</strong> Live trading skips sizing entirely until
+  you create a risk profile (your alert qty is used as-is). A backtest is
+  different: in Production sizing mode it uses your profile's <em>default values</em>
+  so it can still produce a sized curve. If you haven't tuned a risk profile, treat
+  a Production-sizing backtest as "sized with the defaults," not "sized like my
+  configured account."
+</div>
+
+<h2>6. Advanced: parameter grid and retention</h2>
+
+<ul>
+  <li><strong>Parameter grid</strong> — a JSON object of
+  <code>{ "name": [values] }</code> that narrows the strategy's built-in parameter
+  space (e.g. <code>{ "fast": [5, 10], "slow": [20, 30] }</code>). It must be a
+  subset of what the strategy declares; leave it blank to sweep the full grid. The
+  editor validates the JSON as you type. Total combinations are capped at 500.</li>
+  <li><strong>Retention</strong> — how long the downloadable report is kept
+  (default 90 days, up to 365). After that the metrics stay but the report files
+  are evicted.</li>
+</ul>
+
+<h2>7. Submit and watch it run</h2>
+
+<p>Submit, and you land on the run detail page. A live progress bar shows the
+stage — <em>queued → loading → sweeping → replaying → reporting</em> — with an ETA.
+You can leave and come back; the runs list shows status and lets you
+<strong>cancel</strong> an active run (it stops within about 30 seconds). When it
+finishes you get charts, a metrics table, per-window results, and
+<strong>JSON / HTML / PDF</strong> downloads. "Rerun with same config" clones
+everything back into the launcher.</p>
+
+<div class="warn">
+  <strong>Run sitting in "Queued" and not starting?</strong> The backtest worker
+  may not be running in your environment. Backtests execute on a dedicated queue
+  separate from order flow; if no backtest worker is provisioned, runs wait. This
+  is an operator setup step — see the <em>backtest-stuck</em> runbook.
+</div>
+
+<p>Next: <em>Reading the tearsheet</em> and <em>Interpreting PBO</em>.</p>
+
+</body>
+</html>

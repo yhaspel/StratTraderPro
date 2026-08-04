@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Guide — Profile settings: timezone, language, email</title>
+</head>
+<body>
+
+<h1>Profile settings: timezone, language, email</h1>
+
+<p>Your profile controls three things: the timezone every timestamp in the app is
+rendered in, the interface language, and whether we email you about account
+events. Open it at <em>Settings &rarr; Profile</em>.</p>
+
+<h2>Why the timezone matters</h2>
+
+<p>Fill times, order timestamps, audit-log entries, backtest windows and the
+"generated at" line on admin pages are all rendered in your profile timezone.
+Leaving it on the default means every timestamp you read is shifted, which is a
+genuinely bad way to reason about intraday trading.</p>
+
+<p>The timezone is stored as an IANA name (<code>Asia/Jerusalem</code>,
+<code>America/New_York</code>), not as a fixed UTC offset, so daylight-saving
+transitions are handled for you.</p>
+
+<h2>Setting it, step by step</h2>
+
+<figure>
+  <img src="assets/guides/img/settings-timezone.png"
+       alt="The profile form. Under Timezone, a line reads Current: Asia/Jerusalem (GMT+03:00), followed by a search box, a scrolling list of timezones with Asia/Jerusalem highlighted, a count reading 418 of 418, and a Use my browser timezone link." />
+  <figcaption>The timezone field. The current value is named above the list and highlighted inside it.</figcaption>
+</figure>
+
+<ol>
+  <li>The line marked <strong>Current</strong> names the timezone that is saved
+  right now, with its UTC offset in brackets. The same entry is highlighted in
+  the list below and scrolled into view.</li>
+  <li>To change it, either:
+    <ul>
+      <li>type a city or region into <em>Search timezones…</em> — the list filters as
+      you type, so <code>jeru</code>, <code>new_y</code> or <code>london</code> all
+      work; or</li>
+      <li>click <strong>Use my browser timezone</strong> to take whatever your
+      operating system reports (the name is shown in the link, so you can see what
+      you are about to get).</li>
+    </ul>
+  </li>
+  <li>Click the timezone you want in the list. The <strong>Current</strong> line
+  updates immediately.</li>
+  <li>Press <strong>Save</strong>. A green confirmation appears above the form.</li>
+</ol>
+
+<div class="warn">
+  <strong>Nothing is saved until you press Save.</strong> Selecting a row in the
+  list only stages the change — navigating away discards it.
+</div>
+
+<h2>The count under the list</h2>
+
+<p><em>Showing N of M timezones</em> tells you whether a filter is still applied.
+If you search and then cannot find your zone, check that line first: a stale
+search term is the usual reason a zone appears to be "missing".</p>
+
+<h2>Language</h2>
+
+<p>English only for now. The selector exists so the setting is already on your
+profile when more languages land; changing it has no visible effect today.</p>
+
+<h2>Email notifications</h2>
+
+<p><em>Email me about important account events</em> covers security and account
+mail — new sign-ins, password and 2FA changes, and account-lifecycle notices.
+It does not control trade notifications.</p>
+
+<p>Turning it off does <strong>not</strong> silence transactional email you have
+to receive, such as email verification and password reset. Those are sent
+regardless, because without them you cannot use the account.</p>
+
+<h2>Display name</h2>
+
+<p>The display name is what appears in the header's user menu and beside your
+entries in the audit log. It is not your login — you always sign in with your
+email address.</p>
+
+</body>
+</html>

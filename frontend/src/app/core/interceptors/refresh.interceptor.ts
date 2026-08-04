@@ -3,9 +3,9 @@
  * Queues concurrent requests while refresh is in-flight.
  * On failure, logs the user out.
  */
-import { HttpInterceptorFn, HttpErrorResponse, HttpRequest, HttpHandlerFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse, HttpRequest, HttpHandlerFn, HttpEvent } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Observable, throwError, from, switchMap, catchError, Subject, filter, take } from 'rxjs';
+import { Observable, throwError, from, switchMap, catchError, Subject, take, timeout } from 'rxjs';
 import { AuthFacade } from '../../abstraction/facades/auth.facade';
 import { AuthStore } from '../../abstraction/stores/auth.store';
 import { environment } from '../../../environments/environment';
@@ -13,27 +13,49 @@ import { environment } from '../../../environments/environment';
 let isRefreshing = false;
 let refreshDone$ = new Subject<boolean>();
 
+// C-FE-4: hard cap on a single refresh attempt. Without it, a hung
+// refreshSession() leaves `isRefreshing` true forever and deadlocks every
+// subsequent 401 (queued requests never resolve).
+const REFRESH_TIMEOUT_MS = 15_000;
+
+// C-FE-1: the refresh flow must NOT run on the *unauthenticated* auth
+// endpoints. A 401 there (e.g. wrong login password) is a real credential
+// error, not access-token expiry — running refresh would wipe the error the
+// user needs to see (facade.logout) or, with a stale refresh token, re-submit
+// the POST and double-count the backend lockout. Authenticated /auth/mfa/enroll
+// & /auth/mfa/disable are intentionally NOT skipped (they can 401 on expiry).
+const SKIP_REFRESH_PATHS = [
+  '/auth/login/',
+  '/auth/register/',
+  '/auth/refresh/',
+  '/auth/logout/',
+  '/auth/mfa/verify/',
+  '/auth/verify-email/',
+  '/auth/resend-verification/',
+  '/auth/password/reset',
+  '/auth/oauth/',
+];
+
 export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
   if (!req.url.startsWith(environment.apiBase)) return next(req);
-  // Don't intercept refresh/logout calls themselves
-  if (req.url.includes('/auth/refresh/') || req.url.includes('/auth/logout/')) return next(req);
+  if (SKIP_REFRESH_PATHS.some(p => req.url.includes(p))) return next(req);
+
+  const facade = inject(AuthFacade);
+  const store = inject(AuthStore);
 
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
       if (err.status !== 401) return throwError(() => err);
 
-      const facade = inject(AuthFacade);
-      const store = inject(AuthStore);
-
-      if (!store.refreshToken()) {
-        facade.logout();
-        return throwError(() => err);
-      }
+      // P1-4: the refresh token is an HttpOnly cookie the SPA can't inspect, so
+      // we can't pre-check its presence — attempt a refresh and let the server
+      // decide (a 401 from /auth/refresh/ triggers logout below).
 
       if (isRefreshing) {
-        // Queue this request until refresh completes
+        // Queue this request until the in-flight refresh completes (P3-11: the
+        // old `filter(ok => ok !== null …)` was a no-op with a misleading cast —
+        // the subject only ever emits a boolean).
         return refreshDone$.pipe(
-          filter(ok => ok !== null as unknown as boolean),
           take(1),
           switchMap(ok => {
             if (!ok) return throwError(() => err);
@@ -46,6 +68,7 @@ export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
       refreshDone$ = new Subject<boolean>();
 
       return from(facade.refreshSession()).pipe(
+        timeout(REFRESH_TIMEOUT_MS),
         switchMap(ok => {
           isRefreshing = false;
           refreshDone$.next(ok);
@@ -68,7 +91,9 @@ export const refreshInterceptor: HttpInterceptorFn = (req, next) => {
   );
 };
 
-function retryWithNewToken(req: HttpRequest<unknown>, next: HttpHandlerFn, store: AuthStore): Observable<any> {
+function retryWithNewToken(
+  req: HttpRequest<unknown>, next: HttpHandlerFn, store: AuthStore,
+): Observable<HttpEvent<unknown>> {
   const token = store.accessToken();
   const cloned = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
   return next(cloned);

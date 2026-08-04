@@ -2,12 +2,14 @@
 Base settings for StratTraderPro.
 Shared across dev, prod, and test environments.
 """
+import contextlib
 import os
 import subprocess
 from datetime import timedelta
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -26,14 +28,51 @@ ALLOWED_HOSTS: list[str] = []
 # ---------------------------------------------------------------------------
 # Git version (used in /healthz)
 # ---------------------------------------------------------------------------
-try:
-    GIT_SHA = (
-        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
-        .decode("ascii")
-        .strip()
-    )
-except Exception:
-    GIT_SHA = env("GIT_SHA", default="unknown")
+# M11 operator follow-up (2026-07-13): prod `/healthz` was reporting `e5ecd75`
+# while actually running `dd93bcb` — a *stale* SHA, which is worse than no SHA:
+# it is a deploy marker that silently lies. Root cause: every source below except
+# the image itself is RUNTIME state, and runtime state can drift from the code in
+# the container (a Railway redeploy triggered by a variable change does not
+# necessarily refresh `RAILWAY_GIT_COMMIT_SHA`, and an explicitly-set `GIT_SHA`
+# never refreshes at all).
+#
+# The only source that CANNOT lie is one baked into the image at build time,
+# because it ships with — and is therefore pinned to — the code it describes.
+#
+# Resolution order (most trustworthy first):
+#   1. `/app/.git_sha` — written by docker/backend.Dockerfile at BUILD time from
+#      the RAILWAY_GIT_COMMIT_SHA build arg. Immutable image identity. If this
+#      file exists and is non-empty, it is the truth and nothing can override it.
+#   2. `git rev-parse` — local dev, where the repo is mounted and IS the truth.
+#   3. `GIT_SHA` env var — explicit CI override.
+#   4. `RAILWAY_GIT_COMMIT_SHA` — runtime injection; kept as a last resort but
+#      known to go stale (see above), so it must never outrank the baked value.
+#   5. Literal "unknown" — honest ignorance beats a confident wrong answer.
+def _resolve_git_sha() -> str:
+    # A failure to resolve the SHA must never break boot — an unreadable file or
+    # a missing `git` is a cosmetic problem, and /healthz falling back to
+    # "unknown" is the correct, honest outcome.
+    with contextlib.suppress(Exception):  # pragma: no cover - defensive
+        baked = BASE_DIR / ".git_sha"
+        if baked.is_file():
+            sha = baked.read_text(encoding="ascii").strip()
+            if sha:
+                return sha[:7]
+
+    with contextlib.suppress(Exception):
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("ascii")
+            .strip()
+        )
+
+    return env("GIT_SHA", default="") or env("RAILWAY_GIT_COMMIT_SHA", default="")[:7] or "unknown"
+
+
+GIT_SHA = _resolve_git_sha()
 
 # ---------------------------------------------------------------------------
 # Installed apps
@@ -45,6 +84,7 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # M2.5 — required by django-allauth
 ]
 
 THIRD_PARTY_APPS = [
@@ -56,6 +96,12 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
     "django_prometheus",
     "anymail",
+    # M2.5 — django-allauth for Google OAuth (we hijack only the OAuth bits;
+    # see apps/users/social_adapters.py for the bridge to our custom JWT pipeline).
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
 ]
 
 LOCAL_APPS = [
@@ -67,28 +113,44 @@ LOCAL_APPS = [
     "apps.risk",
     "apps.brokers",
     "apps.orders",
+    "apps.dashboard",  # M04 — Channels dashboard consumer
     "apps.backtest",
     "apps.marketdata",
     "apps.audit",
     "apps.admin_portal",
+    "apps.screener",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# M04 — Django Channels. ``daphne`` MUST precede django.contrib.staticfiles so
+# its ASGI runserver takes over in dev; ``channels`` provides the consumer /
+# routing / layer machinery. Prod HTTP is still served by gunicorn/WSGI
+# (docker/backend.Dockerfile); websockets are served by a dedicated ASGI
+# process (docker-compose `ws` service running `daphne config.asgi`).
+INSTALLED_APPS = ["daphne"] + DJANGO_APPS + ["channels"] + THIRD_PARTY_APPS + LOCAL_APPS
 
 # ---------------------------------------------------------------------------
 # Middleware
 # ---------------------------------------------------------------------------
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    # M10 §6.6 — mint/propagate a request_id (ULID) as early as possible.
+    "config.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # M11 §7.1 — CSP (report-only) + Permissions-Policy on every Django response.
+    "config.security_headers.SecurityHeadersMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # M2.5 — required by django-allauth >= 0.61
+    "allauth.account.middleware.AccountMiddleware",
     "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
+
+# M2.5 — django-allauth requires the sites framework
+SITE_ID = 1
 
 # ---------------------------------------------------------------------------
 # URL / WSGI / ASGI
@@ -101,6 +163,13 @@ ASGI_APPLICATION = "config.asgi.application"
 # Auth
 # ---------------------------------------------------------------------------
 AUTH_USER_MODEL = "users.User"
+
+# M2.5 — allauth needs its auth backend installed alongside Django's default
+# (which our existing email/password login uses).
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
 
 # ---------------------------------------------------------------------------
 # Templates
@@ -124,9 +193,28 @@ TEMPLATES = [
 # ---------------------------------------------------------------------------
 # Database (overridden per environment)
 # ---------------------------------------------------------------------------
-DATABASES = {
+def _wrap_db_engines_for_prometheus(databases):
+    """Swap stock Django DB engines for ``django_prometheus`` wrapper
+    subclasses so ``/metrics`` emits ``django_db_query_duration_seconds``
+    and ``django_db_new_connections_total``. The wrappers are transparent
+    drop-in subclasses — same DSN handling, same query behavior. Without
+    this, the System Health dashboard's Django DB row stays empty
+    (`django_prometheus`'s middleware-side counters work without the
+    wrapper, but the DB-side histogram + connection counter do not).
+    """
+    mapping = {
+        "django.db.backends.postgresql": "django_prometheus.db.backends.postgresql",
+        "django.db.backends.sqlite3": "django_prometheus.db.backends.sqlite3",
+        "django.db.backends.mysql": "django_prometheus.db.backends.mysql",
+    }
+    for conf in databases.values():
+        conf["ENGINE"] = mapping.get(conf["ENGINE"], conf["ENGINE"])
+    return databases
+
+
+DATABASES = _wrap_db_engines_for_prometheus({
     "default": env.db("DATABASE_URL", default="sqlite:///db.sqlite3"),
-}
+})
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------
@@ -157,8 +245,11 @@ PASSWORD_HASHERS = [
 # REST Framework
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
+    # M10 — impersonation-aware authentication. The read-only write-block for
+    # impersonation tokens MUST live at the auth layer: every mutating view
+    # overrides permission_classes, which would drop a global permission (§6.2).
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "apps.users.authentication.ImpersonationAwareJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -169,6 +260,8 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+    # M02 — uniform error envelope, MFA_REQUIRED mapping
+    "EXCEPTION_HANDLER": "apps.users.exception_handler.custom_exception_handler",
 }
 
 # ---------------------------------------------------------------------------
@@ -197,7 +290,300 @@ AUTH_LOCKOUT_WINDOW_MINUTES = env.int("AUTH_LOCKOUT_WINDOW_MINUTES", default=15)
 AUTH_LOCKOUT_DURATION_MINUTES = env.int("AUTH_LOCKOUT_DURATION_MINUTES", default=15)
 
 # Frontend base URL — used to construct verification / reset links in emails.
-FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:4200")
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:4444")
+
+# ---------------------------------------------------------------------------
+# Auth (M02) — MFA
+# ---------------------------------------------------------------------------
+# Master feature flag: when False, /api/v1/auth/mfa/* return 503 and login
+# never branches into the MFA-pending state. Useful for emergency rollback
+# without redeploying. See plan-progress-tracker.md M02 §15.
+MFA_ENABLED = env.bool("MFA_ENABLED", default=True)
+
+# C3 — step-up MFA brute-force throttle (verify_mfa_code). After this many
+# failures within the window, step-up checks are rejected pre-verification and a
+# security audit event is written.
+MFA_STEPUP_MAX_FAILURES = env.int("MFA_STEPUP_MAX_FAILURES", default=5)
+MFA_STEPUP_WINDOW_SECONDS = env.int("MFA_STEPUP_WINDOW_SECONDS", default=900)
+
+# P1-1 — login MFA challenge brute-force cap. The per-IP ratelimit is only half a
+# control (attacker with the password can re-mint mfa_tokens from a distributed IP
+# pool). A per-user counter locks the challenge after this many failures within the
+# window, and the specific mfa_token's jti is burned so it cannot be reused.
+MFA_LOGIN_MAX_FAILURES = env.int("MFA_LOGIN_MAX_FAILURES", default=5)
+MFA_LOGIN_WINDOW_SECONDS = env.int("MFA_LOGIN_WINDOW_SECONDS", default=900)
+
+# Fernet key-encryption key (KEK) for MFA secrets at rest. In dev/test we
+# derive a deterministic KEK from SECRET_KEY so the test suite + a fresh
+# `runserver` work without provisioning. In prod, FERNET_KEK MUST be a real
+# 32-byte url-safe base64 key supplied via Railway env. Rotation procedure
+# documented in docs/runbooks/mfa-kek-rotation.md.
+import base64 as _b64
+import hashlib as _hashlib
+
+_default_kek = _b64.urlsafe_b64encode(_hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()).decode("ascii")
+FERNET_KEK = env("FERNET_KEK", default=_default_kek)
+
+# P1-4 — the refresh token is delivered to browsers as an HttpOnly cookie (never
+# in the JSON body / localStorage, which any XSS can exfiltrate). SameSite=Strict
+# is the CSRF control: the cookie is never sent on cross-site requests, so a
+# malicious origin cannot trigger a rotation with the victim's cookie. Scoped to
+# the auth path so it reaches /auth/refresh/ + /auth/logout/ only. Secure is off
+# in dev/test (plain http) and forced on in prod.py.
+REFRESH_COOKIE_NAME = env("REFRESH_COOKIE_NAME", default="stp_refresh")
+REFRESH_COOKIE_PATH = env("REFRESH_COOKIE_PATH", default="/api/v1/auth/")
+REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
+
+# MFA token (issued at login for enrolled users, exchanged at /auth/mfa/verify/)
+MFA_TOKEN_TTL_MINUTES = env.int("MFA_TOKEN_TTL_MINUTES", default=5)
+# TOTP step tolerance: ±1 step (= ±30s) per plan AC-02-11.
+MFA_TOTP_VALID_WINDOW = env.int("MFA_TOTP_VALID_WINDOW", default=1)
+MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", default="StratTraderPro")
+MFA_BACKUP_CODE_COUNT = env.int("MFA_BACKUP_CODE_COUNT", default=10)
+
+# ---------------------------------------------------------------------------
+# Auth (M2.5) — Google OAuth via django-allauth
+# ---------------------------------------------------------------------------
+# We use django-allauth ONLY for the OAuth state machine (Google authorize
+# round-trip + SocialAccount bookkeeping). Email verification, password reset,
+# session login, and signup forms remain handled by our M01 custom code.
+# Bridge logic lives in apps/users/social_adapters.py — it auto-links by
+# verified email and bridges the post-callback User into our JWT pipeline.
+
+GOOGLE_OAUTH_ENABLED = env.bool("GOOGLE_OAUTH_ENABLED", default=True)
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+
+# Exchange-code TTL — frontend POSTs the code to /auth/oauth/exchange/ within
+# this window to swap it for a token pair (or MFA challenge).
+OAUTH_EXCHANGE_TTL_MINUTES = env.int("OAUTH_EXCHANGE_TTL_MINUTES", default=5)
+
+# allauth account config — neutered to avoid colliding with our M01 flows.
+# We mix old-style (AUTHENTICATION_METHOD/USERNAME_REQUIRED) and new-style
+# (LOGIN_METHODS/SIGNUP_FIELDS) settings because allauth 0.61 still validates
+# both during boot.
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_VERIFICATION = "none"   # we send our own verification email
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_USER_MODEL_EMAIL_FIELD = "email"
+ACCOUNT_ADAPTER = "apps.users.social_adapters.AccountAdapter"
+
+# allauth socialaccount config
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True            # auto-link by verified email
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_STORE_TOKENS = False                   # we don't need Google's access token; only ID claims
+SOCIALACCOUNT_ADAPTER = "apps.users.social_adapters.SocialAdapter"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APP": {
+            "client_id": GOOGLE_OAUTH_CLIENT_ID,
+            "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+            "key": "",
+        },
+        "SCOPE": ["email", "profile", "openid"],
+        "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
+        # Trust Google's email_verified claim — that's the whole point of OAuth.
+        "VERIFIED_EMAIL": True,
+    },
+}
+
+# After allauth completes the OAuth dance, redirect to our custom callback view
+# which issues the exchange code and 302s to the frontend.
+LOGIN_REDIRECT_URL = "/api/v1/auth/oauth/google/post-callback/"
+ACCOUNT_LOGOUT_REDIRECT_URL = "/"
+
+# ---------------------------------------------------------------------------
+# Strategies (M03)
+# ---------------------------------------------------------------------------
+# Master feature flag — when False, /api/v1/strategies/* return 503.
+# Useful for rollback without redeploy. See plan §15.
+STRATEGIES_V1_ENABLED = env.bool("STRATEGIES_V1_ENABLED", default=True)
+
+# Public base URL for the per-user/per-strategy webhook receiver. The
+# endpoint itself goes live in M04; here we only display the URL to the
+# user. Keep the trailing-slash semantics consistent with how TradingView
+# constructs alert webhook URLs.
+STRATEGY_WEBHOOK_BASE_URL = env(
+    "STRATEGY_WEBHOOK_BASE_URL",
+    default="https://api.strattraderpro.com/hooks/v1",
+)
+
+# ---------------------------------------------------------------------------
+# Webhook ingest + Broker execution (M04)
+# ---------------------------------------------------------------------------
+# Master rollback flags (plan §15): flip either OFF without a redeploy.
+#   WEBHOOK_V1_ENABLED=false  → the public webhook returns 503.
+#   BROKER_ALPACA_ENABLED=false → Alpaca hidden from the picker; connect /
+#                                 place_order return 503; streams exit cleanly.
+WEBHOOK_V1_ENABLED = env.bool("WEBHOOK_V1_ENABLED", default=True)
+BROKER_ALPACA_ENABLED = env.bool("BROKER_ALPACA_ENABLED", default=True)
+
+# Master gate for real-money execution. Ships DISABLED by default. Since M13 the
+# live code path exists: with this flag True AND the admin DB flag set, the
+# Alpaca adapter follows the account row to the live endpoint. Enabling it is a
+# deliberate act on your own instance, with your own money (see README Disclaimer).
+ENABLE_LIVE_TRADING = env.bool("ENABLE_LIVE_TRADING", default=False)
+
+# Webhook hardening (§6.3 / §11). Rate limit is applied BEFORE the body is read.
+WEBHOOK_RATE_LIMIT_PER_MIN = env.int("WEBHOOK_RATE_LIMIT_PER_MIN", default=60)
+WEBHOOK_MAX_BODY_BYTES = env.int("WEBHOOK_MAX_BODY_BYTES", default=16 * 1024)
+WEBHOOK_IDEMPOTENCY_TTL_SECONDS = env.int("WEBHOOK_IDEMPOTENCY_TTL_SECONDS", default=86400)
+# Optional TradingView source-IP allowlist — empty = disabled (default).
+WEBHOOK_IP_ALLOWLIST = env.list("WEBHOOK_IP_ALLOWLIST", default=[])
+# Number of trusted proxies that append to X-Forwarded-For between the client and
+# this app (e.g. Railway edge + nginx = 2). The client IP is read as the Nth entry
+# from the RIGHT; the left-most entries are client-settable and never trusted
+# (P2-1). 0 (default) → use REMOTE_ADDR only. Set this when enabling the allowlist.
+WEBHOOK_TRUSTED_PROXY_COUNT = env.int("WEBHOOK_TRUSTED_PROXY_COUNT", default=0)
+
+# Fill transport. When True, publish_fill applies fills inline/synchronously
+# (no Redis Stream, no consumer group) so the whole webhook→fill→position→WS
+# path runs under SQLite + eager Celery in tests. Prod/staging keep this False
+# and use the real Redis Stream `fills:user:{id}` + the FillIngestor consumer.
+FILLS_INLINE = env.bool("FILLS_INLINE", default=False)
+
+# Streams service heartbeat freshness (seconds) before a broker flips DEGRADED.
+BROKER_STREAM_HEARTBEAT_TTL = env.int("BROKER_STREAM_HEARTBEAT_TTL", default=45)
+
+# Optional platform-level Alpaca paper keys — LOCAL SMOKE ONLY. Production
+# users always bring their own keys via the UI (stored encrypted per-user).
+# Read by the `alpaca_smoke` management command; empty by default.
+ALPACA_PAPER_KEY_ID = env("ALPACA_PAPER_KEY_ID", default="")
+ALPACA_PAPER_SECRET_KEY = env("ALPACA_PAPER_SECRET_KEY", default="")
+
+# ---------------------------------------------------------------------------
+# Order lifecycle + second broker (M05)
+# ---------------------------------------------------------------------------
+# TradeStation is approval-gated (API access + no official Python SDK). The
+# adapter + OAuth2/PKCE code path ship behind this flag, OFF by default; the
+# live OAuth flow + real sim fills are verified later once access is granted.
+BROKER_TRADESTATION_ENABLED = env.bool("BROKER_TRADESTATION_ENABLED", default=False)
+TRADESTATION_CLIENT_ID = env("TRADESTATION_CLIENT_ID", default="")
+TRADESTATION_CLIENT_SECRET = env("TRADESTATION_CLIENT_SECRET", default="")
+TRADESTATION_REDIRECT_URI = env(
+    "TRADESTATION_REDIRECT_URI",
+    default="http://localhost:8777/api/v1/brokers/tradestation/oauth/callback/",
+)
+# Sim (paper) base URL in M05; the live URL is never used until the M12 gate.
+TRADESTATION_API_BASE = env("TRADESTATION_API_BASE", default="https://sim-api.tradestation.com/v3")
+TRADESTATION_OAUTH_BASE = env("TRADESTATION_OAUTH_BASE", default="https://signin.tradestation.com")
+# OAuth `state` single-use TTL (Redis-backed).
+TRADESTATION_OAUTH_STATE_TTL = env.int("TRADESTATION_OAUTH_STATE_TTL", default=600)
+
+# Live trading requires BOTH this global flag AND per-user opt-in + a signed
+# versioned disclaimer. False until the M12 gate (AC-05-8 enforcement).
+LIVE_TRADING_DISCLAIMER_VERSION = env("LIVE_TRADING_DISCLAIMER_VERSION", default="v1")
+
+# ---------------------------------------------------------------------------
+# Market data + regime classifier (M06)
+# ---------------------------------------------------------------------------
+ENABLE_REGIME_UI = env.bool("ENABLE_REGIME_UI", default=True)
+# FMP (equities/sector/treasury) + FRED (credit spreads). Keys are deferred
+# externals — empty by default; all live calls are fixture-mocked in CI.
+# ADR-062: these env vars are the FALLBACK. A key stored via Settings → Data
+# Providers (encrypted DataProviderKey row, staff-set) takes precedence —
+# see apps.marketdata.keys.resolve_key, which every consumer goes through.
+FMP_API_KEY = env("FMP_API_KEY", default="")
+FMP_BASE_URL = env("FMP_BASE_URL", default="https://financialmodelingprep.com/stable")
+FMP_RATE_LIMIT_PER_MIN = env.int("FMP_RATE_LIMIT_PER_MIN", default=750)
+FRED_API_KEY = env("FRED_API_KEY", default="")
+# Rule-classifier weight overrides (feature → signed weight); empty = defaults.
+REGIME_RULE_WEIGHTS: dict = {}
+# HMM retrain seed (deterministic training in CI).
+REGIME_HMM_SEED = env.int("REGIME_HMM_SEED", default=42)
+
+# ---------------------------------------------------------------------------
+# Sentiment pipeline (M07)
+# ---------------------------------------------------------------------------
+SENTIMENT_ENABLED = env.bool("SENTIMENT_ENABLED", default=True)
+# Tier-2 LLM (Llama) is behind its own flag — off drops to FinBERT-only
+# (AC-07-10). Default OFF; enabled only on the dedicated llm-worker service.
+LLM_WORKER_ENABLED = env.bool("LLM_WORKER_ENABLED", default=False)
+# Real FinBERT (transformers[torch]) is off by default; the base image ships
+# the FakeFinBert. The sentiment worker image sets FINBERT_ENABLED=true.
+FINBERT_ENABLED = env.bool("FINBERT_ENABLED", default=False)
+# When True (default), scorers are the deterministic canned fakes — no model
+# weights required. The worker image sets this False to use the real models.
+SENTIMENT_FAKE_SCORERS = env.bool("SENTIMENT_FAKE_SCORERS", default=True)
+SENTIMENT_SPACY_NER = env.bool("SENTIMENT_SPACY_NER", default=False)
+SENTIMENT_ALIAS_TAGGING = env.bool("SENTIMENT_ALIAS_TAGGING", default=True)
+# GGUF path on the mounted volume (llm-worker image). Deferred external.
+LLAMA_GGUF_PATH = env("LLAMA_GGUF_PATH", default="/models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
+
+# ---------------------------------------------------------------------------
+# Risk engine + kill switches (M08)
+# ---------------------------------------------------------------------------
+# When off, process_alert uses the alert-provided qty directly (M04 behavior).
+SIZING_V1_ENABLED = env.bool("SIZING_V1_ENABLED", default=True)
+# When off, only the plain per-strategy on/off toggle is honored (plan §15).
+KILL_SWITCHES_ENABLED = env.bool("KILL_SWITCHES_ENABLED", default=True)
+# NOTE: sizing never falls back to a constant equity — a failed broker read
+# fails CLOSED with a SIZING_NO_EQUITY reject (FIX-H2). No RISK_DEFAULT_EQUITY.
+
+# ---------------------------------------------------------------------------
+# Walk-forward backtester (M09)
+# ---------------------------------------------------------------------------
+# Master rollback flag (plan §15): when False the UI nav is hidden and all
+# /api/v1/backtest/* endpoints return 503 BACKTEST_DISABLED. The nightly
+# eviction beat still runs (default queue) so retention keeps working — it
+# doubles as orphan cleanup while the feature is disabled.
+BACKTEST_ENABLED = env.bool("BACKTEST_ENABLED", default=True)
+
+# ---------------------------------------------------------------------------
+# Admin portal + audit (M10)
+# ---------------------------------------------------------------------------
+# Env-only master gate (immutable flag): off → all /api/v1/admin/* return 503
+# ADMIN_PORTAL_DISABLED and the frontend hides /admin. Audit emission is never
+# gated by this (writes continue). Rollback without redeploy (§15).
+ADMIN_PORTAL_ENABLED = env.bool("ADMIN_PORTAL_ENABLED", default=True)
+
+# ---------------------------------------------------------------------------
+# Strategy screener (M16)
+# ---------------------------------------------------------------------------
+# Rollback flag (plan §15): off -> every /api/v1/strategies/{id}/screen/*
+# endpoint returns 503 FEATURE_DISABLED and the panel hides itself, with zero
+# vendor spend. No deploy needed — it is a mutable flag.
+SCREENER_ENABLED = env.bool("SCREENER_ENABLED", default=True)
+# Operator address the nightly integrity verifier pages on a failure (AC-10-2).
+AUDIT_ALERT_EMAIL = env("AUDIT_ALERT_EMAIL", default="")
+# Read-only impersonation token/session TTL (AC-10-7).
+IMPERSONATION_TTL_MINUTES = env.int("IMPERSONATION_TTL_MINUTES", default=15)
+
+# Feature-flag registry (M10 §6.4). Each entry's ``default`` is the env-parsed
+# settings value above (the fail-open target). Immutable flags (``mutable=False``)
+# are env-only forever — the admin API rejects a flip with FLAG_IMMUTABLE.
+# Dangerous flags require a typed name-confirm in the UI (server still MFA-gates).
+def _flag(default, description, *, mutable=True, dangerous=False):
+    return {"default": bool(default), "description": description, "mutable": mutable, "dangerous": dangerous}
+
+
+FEATURE_FLAGS_REGISTRY = {
+    "MFA_ENABLED": _flag(MFA_ENABLED, "MFA challenge + enrollment endpoints.", mutable=False),
+    "GOOGLE_OAUTH_ENABLED": _flag(GOOGLE_OAUTH_ENABLED, "Google OAuth sign-in."),
+    "STRATEGIES_V1_ENABLED": _flag(STRATEGIES_V1_ENABLED, "Strategy CRUD + upload API."),
+    "WEBHOOK_V1_ENABLED": _flag(WEBHOOK_V1_ENABLED, "Public webhook ingest."),
+    "BROKER_ALPACA_ENABLED": _flag(BROKER_ALPACA_ENABLED, "Alpaca broker adapter."),
+    "BROKER_TRADESTATION_ENABLED": _flag(BROKER_TRADESTATION_ENABLED, "TradeStation broker adapter."),
+    "ENABLE_LIVE_TRADING": _flag(ENABLE_LIVE_TRADING, "Master live-trading gate.", dangerous=True),
+    "FILLS_INLINE": _flag(FILLS_INLINE, "Apply fills inline (no Redis stream).", mutable=False),
+    "ENABLE_REGIME_UI": _flag(ENABLE_REGIME_UI, "Regime dashboard UI."),
+    "SENTIMENT_ENABLED": _flag(SENTIMENT_ENABLED, "Sentiment pipeline + API."),
+    "LLM_WORKER_ENABLED": _flag(LLM_WORKER_ENABLED, "Tier-2 LLM (Llama) scorer."),
+    "FINBERT_ENABLED": _flag(FINBERT_ENABLED, "Real FinBERT scorer."),
+    "SENTIMENT_FAKE_SCORERS": _flag(SENTIMENT_FAKE_SCORERS, "Use canned fake scorers.", dangerous=True),
+    "SENTIMENT_SPACY_NER": _flag(SENTIMENT_SPACY_NER, "spaCy NER entity tagging."),
+    "SENTIMENT_ALIAS_TAGGING": _flag(SENTIMENT_ALIAS_TAGGING, "Alias-based ticker tagging."),
+    "SIZING_V1_ENABLED": _flag(SIZING_V1_ENABLED, "Risk-based position sizing.", dangerous=True),
+    "KILL_SWITCHES_ENABLED": _flag(KILL_SWITCHES_ENABLED, "Kill-switch engine.", mutable=False),
+    "BACKTEST_ENABLED": _flag(BACKTEST_ENABLED, "Walk-forward backtester."),
+    "ADMIN_PORTAL_ENABLED": _flag(ADMIN_PORTAL_ENABLED, "Admin portal API.", mutable=False),
+    "SCREENER_ENABLED": _flag(SCREENER_ENABLED, "Strategy screener (FMP)."),
+}
 
 # ---------------------------------------------------------------------------
 # Email (Anymail / Resend; console backend in dev — see dev.py)
@@ -217,6 +603,12 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Trading bot platform API — webhook-driven, regime-aware, multi-broker.",
     "VERSION": "0.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Keep the default enum hook and append the M04 webhook-path injector
+    # (the webhook is a plain Django view outside DRF — see apps.webhooks.schema).
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "apps.webhooks.schema.add_webhook_path",
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -235,6 +627,100 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULER = "redbeat.RedBeatScheduler"
 CELERY_REDBEAT_REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+# Backstop so a task blocked on a black-holed broker HTTP call can't wedge a
+# worker forever (FIX-H7). Soft raises SoftTimeLimitExceeded for cleanup; hard
+# kills the worker process. Keep soft < hard.
+CELERY_TASK_SOFT_TIME_LIMIT = env.int("CELERY_TASK_SOFT_TIME_LIMIT", default=30)
+CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=45)
+# Prometheus scrape port for long-lived task processes (streams/worker/beat),
+# which don't sit behind gunicorn's /metrics. 0 = disabled (FIX-C1).
+TASK_METRICS_PORT = env.int("TASK_METRICS_PORT", default=0)
+
+# M09 — dedicated `backtest` queue. **Explicit per-task route only** (first
+# task-route in the repo): a `apps.backtest.tasks.*` glob would drag the nightly
+# eviction task onto the backtest queue and silently break retention whenever
+# the backtest worker is absent. `run_backtest` → backtest queue; everything
+# else (incl. evict_expired_artifacts) stays on the default `celery` queue.
+CELERY_TASK_ROUTES = {
+    "apps.backtest.tasks.run_backtest": {"queue": "backtest"},
+}
+
+# Beat schedule. `fill_ingestor` drains the Redis fill streams (no-op under
+# FILLS_INLINE, so inert in tests). run_broker_streams is deployed as its own
+# always-on service, not a beat task.
+CELERY_BEAT_SCHEDULE = {
+    "fill-ingestor": {
+        "task": "apps.orders.tasks.fill_ingestor",
+        "schedule": env.float("FILL_INGESTOR_INTERVAL_SECONDS", default=5.0),
+    },
+    # M05 — reconcile positions against broker truth every 5 minutes.
+    "reconcile-positions": {
+        "task": "apps.orders.tasks.reconcile_positions_task",
+        "schedule": env.float("RECONCILE_INTERVAL_SECONDS", default=300.0),
+    },
+    # M06 — nightly HMM retrain (~03:00 ET) + authoritative daily feature vector.
+    "regime-retrain-hmm": {
+        "task": "apps.regime.tasks.retrain_hmm",
+        "schedule": crontab(hour=7, minute=0),
+    },
+    "regime-compute-features-daily": {
+        "task": "apps.regime.tasks.compute_features_daily",
+        "schedule": crontab(hour=22, minute=30),
+    },
+    # M07 — news ingest (15 min) → score pending → aggregate.
+    "sentiment-ingest-news": {
+        "task": "apps.sentiment.tasks.ingest_news",
+        "schedule": env.float("SENTIMENT_INGEST_INTERVAL_SECONDS", default=900.0),
+    },
+    "sentiment-score-pending": {
+        "task": "apps.sentiment.tasks.score_pending_articles",
+        "schedule": env.float("SENTIMENT_SCORE_INTERVAL_SECONDS", default=120.0),
+    },
+    "sentiment-aggregate": {
+        "task": "apps.sentiment.tasks.aggregate_sentiment",
+        "schedule": env.float("SENTIMENT_AGG_INTERVAL_SECONDS", default=300.0),
+    },
+    # M08 — daily-loss circuit-breaker watcher (every 30s during market hours).
+    "risk-daily-loss-watcher": {
+        "task": "apps.risk.tasks.daily_loss_watcher",
+        "schedule": env.float("DAILY_LOSS_INTERVAL_SECONDS", default=30.0),
+    },
+    # M09 — nightly (03:30 UTC) eviction of expired backtest artifacts. Runs on
+    # the DEFAULT `celery` queue (not `backtest`) so retention keeps working when
+    # the backtest worker is scaled to zero / not yet provisioned (§6.8).
+    "backtest-evict-artifacts": {
+        "task": "apps.backtest.tasks.evict_expired_artifacts",
+        "schedule": crontab(hour=3, minute=30),
+    },
+    # M10 — nightly (08:00 UTC ≈ 04:00 ET) audit-chain integrity verification.
+    # Default `celery` queue (M09 rule: no glob routes).
+    "audit-verify-integrity": {
+        "task": "apps.audit.tasks.verify_audit_integrity",
+        "schedule": crontab(hour=8, minute=0),
+    },
+    # M11 §7.7 — nightly (02:00 UTC) anonymize-in-place of accounts whose 30-day
+    # soft-delete has expired. Default `celery` queue.
+    "users-anonymize-expired": {
+        "task": "apps.users.tasks.anonymize_expired_accounts",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    # P2-6 — nightly (02:30 UTC) eviction of expired GDPR export ZIPs + job rows.
+    "users-evict-expired-exports": {
+        "task": "apps.users.tasks.evict_expired_exports",
+        "schedule": crontab(hour=2, minute=30),
+    },
+    # M10 — refresh celery_queue_depth{queue} gauge every 30s (default queue).
+    "admin-queue-depths": {
+        "task": "apps.admin_portal.tasks.update_queue_depths",
+        "schedule": env.float("QUEUE_DEPTH_INTERVAL_SECONDS", default=30.0),
+    },
+    # P2-5 — re-dispatch webhook alerts stranded RECEIVED (a crash between the
+    # committed idempotency anchor and process_alert.delay). Default queue.
+    "webhooks-redispatch-stranded": {
+        "task": "apps.webhooks.tasks.redispatch_stranded_alerts",
+        "schedule": env.float("WEBHOOK_REDISPATCH_INTERVAL_SECONDS", default=60.0),
+    },
+}
 
 # ---------------------------------------------------------------------------
 # Caches
@@ -243,6 +729,26 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": env("REDIS_URL", default="redis://localhost:6379/1"),
+        # Fail FAST on an unreachable/hung Redis instead of blocking the worker
+        # until its 120s timeout. Without these, a Redis that accepts the TCP
+        # connection but never responds hangs `/readyz`, `flags.is_enabled()`
+        # (whose except only catches errors, not a blocking socket), webhook
+        # idempotency, and rate limiting. With a short timeout the socket raises,
+        # callers fall back gracefully (flags fail open to the env default).
+        "OPTIONS": {
+            "socket_connect_timeout": env.float("REDIS_SOCKET_CONNECT_TIMEOUT", default=2.0),
+            "socket_timeout": env.float("REDIS_SOCKET_TIMEOUT", default=2.0),
+        },
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Channels (M04 — realtime dashboard)
+# ---------------------------------------------------------------------------
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [env("REDIS_URL", default="redis://localhost:6379/0")]},
     }
 }
 
@@ -263,35 +769,61 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # ---------------------------------------------------------------------------
-# Logging (structlog with sensitive key scrubbing)
+# Storages (M11 §7.7) — the ``exports`` alias holds GDPR personal-data ZIPs.
+# Dev/test use FileSystemStorage; prod overrides ``exports`` with an
+# S3-compatible backend (Cloudflare R2) in prod.py. Accessed in code via
+# ``django.core.files.storage.storages["exports"]``.
 # ---------------------------------------------------------------------------
-SENSITIVE_KEYS = {"authorization", "sig", "secret", "password", "token", "api_key", "dsn"}
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "exports": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": str(BASE_DIR / "export_storage"),
+            "base_url": "/media/exports/",
+        },
+    },
+}
+# Signed-URL TTL for a produced export (frozen decision §4.2). Read by prod.py's
+# S3 backend config; the filesystem dev backend ignores it.
+EXPORT_SIGNED_URL_TTL_SECONDS = env.int("EXPORT_SIGNED_URL_TTL_SECONDS", default=86_400)
+# Whether the export storage is usable. Filesystem (dev/test, and prod when no
+# S3/R2 bucket is configured) is always ready; prod uses S3/R2 only when
+# EXPORTS_BUCKET is set (see prod.py). Exports never sit PENDING for lack of an
+# object store.
+EXPORTS_STORAGE_READY = True
 
-
-def _scrub_sensitive(_, __, event_dict):
-    """Remove sensitive keys from log output."""
-    for key in list(event_dict.keys()):
-        if key.lower() in SENSITIVE_KEYS:
-            event_dict[key] = "***REDACTED***"
-    return event_dict
-
-
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+# NOTE (M10 §6.1): the sensitive-key scrubber (SENSITIVE_KEYS + _scrub_sensitive)
+# was relocated to apps/audit/scrub.py so the audit service and the log config
+# share one key set (ADR-100). Import here only if a logging processor needs it.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    # M10 §6.6 — inject request_id + task_id into every record.
+    # M11 §7.1 — scrub_sensitive redacts secret-named extra= fields (the wiring
+    # M10 flagged as missing; ADR-100 key set).
+    "filters": {
+        "request_context": {"()": "config.request_context.RequestContextFilter"},
+        "scrub_sensitive": {"()": "config.log_scrub.SensitiveDataFilter"},
+    },
     "formatters": {
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": "%(asctime)s %(name)s %(levelname)s %(message)s",
+            "format": "%(asctime)s %(name)s %(levelname)s %(request_id)s %(task_id)s %(message)s",
         },
         "console": {
-            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "format": "%(asctime)s [%(levelname)s] %(name)s [%(request_id)s]: %(message)s",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
+            "filters": ["request_context", "scrub_sensitive"],
         },
     },
     "root": {
@@ -314,3 +846,33 @@ SENTRY_DSN = env("SENTRY_DSN", default="")
 # ---------------------------------------------------------------------------
 OTEL_SERVICE_NAME = "strattraderpro-backend"
 OTEL_EXPORTER_OTLP_ENDPOINT = env("OTEL_EXPORTER_OTLP_ENDPOINT", default="")
+
+# ---------------------------------------------------------------------------
+# Metrics exposition basic auth (M10 §6.5a). Unset → open (dev/test); prod warns.
+# ---------------------------------------------------------------------------
+METRICS_BASIC_AUTH_USERNAME = env("METRICS_BASIC_AUTH_USERNAME", default="")
+METRICS_BASIC_AUTH_PASSWORD = env("METRICS_BASIC_AUTH_PASSWORD", default="")
+# M1: when True, /metrics refuses to serve (401) if basic-auth creds are unset,
+# instead of falling open. Default False (dev/test stay open); prod sets True so
+# an unconfigured deploy fails CLOSED rather than exposing metrics to the world.
+METRICS_REQUIRE_AUTH = env.bool("METRICS_REQUIRE_AUTH", default=False)
+
+# ---------------------------------------------------------------------------
+# Security response headers (M11 §7.1 V9 / §4.6)
+# ---------------------------------------------------------------------------
+# Django's SecurityMiddleware handles these two natively (HSTS is set in prod.py):
+SECURE_CONTENT_TYPE_NOSNIFF = True  # X-Content-Type-Options: nosniff
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+# CSP + Permissions-Policy are added by config.security_headers.SecurityHeadersMiddleware.
+# CSP ships REPORT-ONLY (frozen decision §4.6); flip via CSP_REPORT_ONLY=false once
+# violation reports are clean. The Django tier serves JSON + the Swagger/browsable
+# API — a strict default-src is safe for JSON and only *reported* for the API UIs.
+CSP_REPORT_ONLY = env.bool("CSP_REPORT_ONLY", default=True)
+CSP_POLICY = env(
+    "CSP_POLICY",
+    default="default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+)
+PERMISSIONS_POLICY = env(
+    "PERMISSIONS_POLICY",
+    default="geolocation=(), microphone=(), camera=(), payment=()",
+)

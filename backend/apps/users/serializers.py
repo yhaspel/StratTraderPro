@@ -15,7 +15,7 @@ def _validate_password_or_raise(password: str, user=None) -> None:
     try:
         validate_password(password, user=user)
     except DjangoValidationError as exc:
-        raise serializers.ValidationError({"password": list(exc.messages)})
+        raise serializers.ValidationError({"password": list(exc.messages)}) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +106,109 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 # Me
 # ---------------------------------------------------------------------------
 class CurrentUserSerializer(serializers.ModelSerializer):
+    """Returns user + nested profile (M02)."""
+    mfa_enabled = serializers.BooleanField(read_only=True)
+    profile = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "is_verified", "created_at"]
+        fields = [
+            "id", "email", "display_name", "is_verified", "created_at",
+            "mfa_enabled", "is_staff", "profile",
+        ]
         read_only_fields = fields
+
+    def get_profile(self, obj):
+        from . import services
+
+        # ensure-on-read: defensive in case signal didn't fire (e.g. legacy users)
+        from .models import UserProfile
+        prof, _ = UserProfile.objects.get_or_create(user=obj)
+        return services.serialize_profile(prof)
+
+
+# ---------------------------------------------------------------------------
+# M02 — MFA serializers
+# ---------------------------------------------------------------------------
+class MFAEnrollConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=8, min_length=6)
+
+
+class MFAVerifySerializer(serializers.Serializer):
+    mfa_token = serializers.CharField()
+    code = serializers.CharField(max_length=16, min_length=6)
+    is_backup_code = serializers.BooleanField(required=False, default=False)
+
+
+class MFADisableSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    code = serializers.CharField(max_length=16, min_length=6)
+
+
+class MFABackupRegenerateSerializer(serializers.Serializer):
+    """Backup-code regeneration requires defense-in-depth: password + TOTP."""
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    code = serializers.CharField(max_length=8, min_length=6)
+
+
+# ---------------------------------------------------------------------------
+# M02 — Profile, password change, sessions
+# ---------------------------------------------------------------------------
+def _all_iana_timezones():
+    try:
+        from zoneinfo import available_timezones
+        return available_timezones()
+    except ImportError:  # pragma: no cover — Python < 3.9
+        return set()
+
+
+class ProfileUpdateSerializer(serializers.Serializer):
+    display_name = serializers.CharField(max_length=64, min_length=1, required=False)
+    timezone = serializers.CharField(max_length=64, required=False)
+    language = serializers.CharField(max_length=8, required=False)
+    notification_email = serializers.BooleanField(required=False)
+
+    SUPPORTED_LANGUAGES = {"en"}
+
+    def validate_timezone(self, value):
+        if value not in _all_iana_timezones():
+            raise serializers.ValidationError(f"Unknown IANA timezone: {value!r}")
+        return value
+
+    def validate_language(self, value):
+        if value not in self.SUPPORTED_LANGUAGES:
+            raise serializers.ValidationError(
+                f"Unsupported language: {value!r}. Supported: {sorted(self.SUPPORTED_LANGUAGES)}"
+            )
+        return value
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(
+        write_only=True, min_length=12, max_length=256, trim_whitespace=False
+    )
+
+    def validate(self, attrs):
+        user = self.context.get("request").user if self.context.get("request") else None
+        _validate_password_or_raise(attrs["new_password"], user=user)
+        return attrs
+
+
+class SessionRevokeSerializer(serializers.Serializer):
+    family_id = serializers.UUIDField(required=False)
+    all = serializers.BooleanField(required=False, default=False)
+
+    def validate(self, attrs):
+        if not attrs.get("family_id") and not attrs.get("all"):
+            raise serializers.ValidationError(
+                "Must provide either ``family_id`` or set ``all=true``."
+            )
+        return attrs
+
+
+# ---------------------------------------------------------------------------
+# M2.5 — OAuth exchange
+# ---------------------------------------------------------------------------
+class OAuthExchangeSerializer(serializers.Serializer):
+    exchange = serializers.CharField(min_length=10, max_length=128)

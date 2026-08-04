@@ -1,0 +1,476 @@
+"""M04 — Webhook ingest + process_alert tests.
+
+AC map (project-plan/04-webhook-ingest-and-ibkr.md §4):
+  AC-04-1  valid alert accepted 200                     → WebhookAcceptTests
+  AC-04-2  wrong/missing sig → 401 + audit row          → WebhookAuthTests
+  AC-04-3  bad schema → 400 with detail                 → WebhookSchemaTests
+  AC-04-4  duplicate idempotency_key → duplicate=true   → WebhookIdempotencyTests
+  AC-04-5  halt gate → rejected reason + audit          → WebhookHaltTests
+  AC-04-10 e2e webhook → position ≤5s (FakeBroker)      → WebhookEndToEndTests
+"""
+from __future__ import annotations
+
+import json
+import time
+from unittest import mock
+
+from django.core.cache import cache
+from django.test import TestCase, override_settings
+
+from apps.brokers.models import TradingHalt
+from apps.m04_testutils import (
+    create_broker_account,
+    create_strategy,
+    create_user,
+    create_webhook_config,
+    fake_factory,
+    valid_alert,
+)
+from apps.orders.models import Order, Position
+from apps.webhooks.models import AlertMessage
+
+
+class _Base(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = create_user()
+        self.strategy = create_strategy(self.user)
+        self.wc = create_webhook_config(self.user, self.strategy)
+        self.url = f"/hooks/v1/{self.user.id}/{self.strategy.id}/"
+
+    def post(self, body, **kw):
+        return self.client.post(
+            self.url, data=json.dumps(body), content_type="application/json", **kw
+        )
+
+
+class WebhookAcceptTests(_Base):
+    def test_valid_alert_accepted(self):
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["data"]["accepted"])
+        self.assertEqual(AlertMessage.objects.filter(status="ACCEPTED").count(), 1)
+
+    def test_no_broker_connected_rejects(self):
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        alert = AlertMessage.objects.get()
+        self.assertEqual(alert.reject_reason, "NO_BROKER_CONNECTED")
+
+    def test_feature_flag_off_returns_503(self):
+        with override_settings(WEBHOOK_V1_ENABLED=False):
+            resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 503)
+
+
+class WebhookIpAllowlistTests(_Base):
+    """P2-1: the source-IP allowlist must use the trusted (right-most) XFF entry,
+    not the client-settable left-most one."""
+
+    @override_settings(WEBHOOK_IP_ALLOWLIST=["1.2.3.4"], WEBHOOK_TRUSTED_PROXY_COUNT=1)
+    def test_xff_spoof_does_not_satisfy_allowlist(self):
+        # Attacker prepends the allowlisted IP; the trusted proxy appends the real
+        # (attacker) IP as the right-most entry → real client is NOT allowlisted.
+        resp = self.post(valid_alert(), HTTP_X_FORWARDED_FOR="1.2.3.4, 9.9.9.9")
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "WEBHOOK_SIG_BAD")
+
+    @override_settings(WEBHOOK_IP_ALLOWLIST=["1.2.3.4"], WEBHOOK_TRUSTED_PROXY_COUNT=1)
+    def test_legit_allowlisted_ip_passes(self):
+        # The trusted proxy appends the real client (1.2.3.4) as the right-most entry.
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            resp = self.post(valid_alert(), HTTP_X_FORWARDED_FOR="1.2.3.4")
+        self.assertEqual(resp.status_code, 200)
+
+    @override_settings(WEBHOOK_IP_ALLOWLIST=["1.2.3.4"], WEBHOOK_TRUSTED_PROXY_COUNT=0)
+    def test_no_trusted_proxy_uses_remote_addr(self):
+        # With no trusted proxies, XFF is ignored entirely — REMOTE_ADDR governs.
+        resp = self.post(valid_alert(), HTTP_X_FORWARDED_FOR="1.2.3.4", REMOTE_ADDR="9.9.9.9")
+        self.assertEqual(resp.status_code, 401)
+
+
+class WebhookAmbiguousSubmitTests(_Base):
+    """P1-5: an ambiguous submit (timeout / transient) marks the order
+    NEEDS_RECONCILE (a possibly-live order), not REJECTED; a definitive broker
+    rejection still rejects."""
+
+    def _adapter_factory(self, side_effect):
+        def _factory(account):
+            m = mock.Mock()
+            m.place_order.side_effect = side_effect
+            return m
+        return _factory
+
+    def test_ambiguous_submit_marks_needs_reconcile_not_rejected(self):
+        from apps.brokers.errors import BrokerError, BrokerErrorCode
+
+        create_broker_account(self.user)
+        err = BrokerError(BrokerErrorCode.UNAVAILABLE, "timeout", retryable=True)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=self._adapter_factory(err)):
+            self.post(valid_alert())
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.NEEDS_RECONCILE)
+        # Alert accepted (not rejected) so it isn't reprocessed.
+        self.assertEqual(AlertMessage.objects.get().status, "ACCEPTED")
+
+    def test_unexpected_exception_marks_needs_reconcile(self):
+        create_broker_account(self.user)
+        with mock.patch(
+            "apps.brokers.services.build_adapter",
+            side_effect=self._adapter_factory(RuntimeError("network died")),
+        ):
+            self.post(valid_alert())
+        self.assertEqual(Order.objects.get().status, Order.Status.NEEDS_RECONCILE)
+
+    def test_definitive_broker_rejection_still_rejects(self):
+        from apps.brokers.errors import BrokerError, BrokerErrorCode
+
+        create_broker_account(self.user)
+        err = BrokerError(BrokerErrorCode.ORDER_REJECTED, "rejected", retryable=False)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=self._adapter_factory(err)):
+            self.post(valid_alert())
+        self.assertEqual(Order.objects.get().status, Order.Status.REJECTED)
+
+
+class WebhookAuthTests(_Base):
+    def test_wrong_sig_returns_401_no_order_audit_row(self):
+        resp = self.post(valid_alert(sig="wrong-secret"))
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "WEBHOOK_SIG_BAD")
+        self.assertEqual(Order.objects.count(), 0)
+        # Audit row written for a KNOWN config (AC-04-2).
+        row = AlertMessage.objects.get()
+        self.assertEqual(row.status, "REJECTED")
+        self.assertEqual(row.reject_reason, "SIG_BAD")
+        self.assertNotIn("sig", row.body_json)  # secret never persisted
+
+    def test_missing_sig_returns_401(self):
+        body = valid_alert()
+        body.pop("sig")
+        resp = self.post(body)
+        self.assertEqual(resp.status_code, 401)
+
+    def test_non_ascii_sig_returns_401_not_500(self):
+        # FIX-H6: a non-ASCII sig must yield a clean 401 + SIG_BAD audit, not a
+        # TypeError→500 that skips the audit and pollutes the 5xx alert.
+        resp = self.post(valid_alert(sig="é"))
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "WEBHOOK_SIG_BAD")
+        self.assertEqual(AlertMessage.objects.get().reject_reason, "SIG_BAD")
+
+    def test_unknown_user_strategy_generic_401_no_row(self):
+        import uuid
+
+        url = f"/hooks/v1/{uuid.uuid4()}/{uuid.uuid4()}/"
+        resp = self.client.post(url, data=json.dumps(valid_alert()), content_type="application/json")
+        self.assertEqual(resp.status_code, 401)
+        # No oracle, and no unbounded rows for unknown targets.
+        self.assertEqual(AlertMessage.objects.count(), 0)
+
+    def test_bad_sig_requests_rate_limited(self):
+        with override_settings(WEBHOOK_RATE_LIMIT_PER_MIN=2):
+            self.post(valid_alert(sig="x"))
+            self.post(valid_alert(sig="x"))
+            resp = self.post(valid_alert(sig="x"))
+        self.assertEqual(resp.status_code, 429)
+
+    def test_bad_sig_flood_does_not_starve_valid_alert(self):
+        # P2-2: a flood of bad-sig requests exhausts only the abuse budget; a
+        # VALID alert on the separate budget is still accepted.
+        with override_settings(WEBHOOK_RATE_LIMIT_PER_MIN=2), mock.patch(
+            "apps.brokers.services.build_adapter", side_effect=fake_factory()
+        ):
+            create_broker_account(self.user)
+            self.post(valid_alert(sig="x"))
+            self.post(valid_alert(sig="x"))
+            self.assertEqual(self.post(valid_alert(sig="x")).status_code, 429)  # abuse budget gone
+            resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["data"]["accepted"])
+
+    def test_non_json_content_type_415(self):
+        resp = self.client.post(self.url, data="notjson", content_type="text/plain")
+        self.assertEqual(resp.status_code, 415)
+
+    def test_oversize_body_413(self):
+        with override_settings(WEBHOOK_MAX_BODY_BYTES=10):
+            resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 413)
+
+
+class WebhookSchemaTests(_Base):
+    def test_bad_schema_returns_400_with_detail(self):
+        # qty must be a number per the default schema.
+        resp = self.post(valid_alert(qty="not-a-number"))
+        self.assertEqual(resp.status_code, 400)
+        body = resp.json()
+        self.assertEqual(body["error"]["code"], "WEBHOOK_SCHEMA_INVALID")
+        self.assertIn("detail", body["error"])
+        self.assertEqual(AlertMessage.objects.get().status, "INVALID")
+
+
+class WebhookIdempotencyTests(_Base):
+    def test_duplicate_key_returns_duplicate_true_single_order(self):
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            r1 = self.post(valid_alert(idempotency_key="dup-1"))
+            r2 = self.post(valid_alert(idempotency_key="dup-1"))
+        self.assertEqual(r1.status_code, 200)
+        self.assertTrue(r1.json()["data"].get("accepted"))
+        self.assertEqual(r2.status_code, 200)
+        self.assertTrue(r2.json()["data"].get("duplicate"))
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_duplicate_detected_by_db_anchor_when_cache_cold(self):
+        # P2-5: the committed row (not the cache) is the source of truth. Even
+        # with the cache flushed, a retried key is caught by the unique anchor.
+        from django.core.cache import cache
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            self.post(valid_alert(idempotency_key="dup-2"))
+            cache.clear()  # cold cache — no SETNX fast-path
+            r2 = self.post(valid_alert(idempotency_key="dup-2"))
+        self.assertTrue(r2.json()["data"].get("duplicate"))
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_crash_before_dispatch_is_reprocessed(self):
+        # P2-5: the row commits before dispatch; if dispatch is lost the alert
+        # stays RECEIVED and the redispatch beat task recovers it.
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.webhooks.tasks import redispatch_stranded_alerts
+
+        create_broker_account(self.user)
+        with mock.patch("apps.webhooks.tasks.process_alert.delay") as delay:
+            resp = self.post(valid_alert(idempotency_key="crash-1"))
+        self.assertEqual(resp.status_code, 200)
+        delay.assert_called_once()
+        alert = AlertMessage.objects.get(status=AlertMessage.Status.RECEIVED)
+        AlertMessage.objects.filter(id=alert.id).update(
+            received_at=timezone.now() - timedelta(seconds=300)
+        )
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            result = redispatch_stranded_alerts(older_than_seconds=120)
+        self.assertEqual(result["redispatched"], 1)
+        alert.refresh_from_db()
+        self.assertEqual(alert.status, AlertMessage.Status.ACCEPTED)
+
+    def test_recent_received_alert_not_requeued(self):
+        from apps.webhooks.tasks import redispatch_stranded_alerts
+
+        AlertMessage.objects.create(
+            user=self.user, strategy=self.strategy, body_json={},
+            status=AlertMessage.Status.RECEIVED,
+        )
+        self.assertEqual(redispatch_stranded_alerts(older_than_seconds=120)["redispatched"], 0)
+
+
+class WebhookHaltTests(_Base):
+    def test_user_halt_rejects(self):
+        TradingHalt.objects.create(user=self.user, reason="test", created_by=self.user)
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["rejected"], "USER_HALTED")
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(AlertMessage.objects.get().reject_reason, "USER_HALTED")
+
+    def test_strategy_halt_rejects(self):
+        TradingHalt.objects.create(
+            user=self.user, strategy=self.strategy, reason="test", created_by=self.user
+        )
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.json()["data"]["rejected"], "STRATEGY_HALTED")
+
+    def test_released_halt_does_not_block(self):
+        from django.utils import timezone
+
+        TradingHalt.objects.create(
+            user=self.user, reason="t", created_by=self.user, released_at=timezone.now()
+        )
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            resp = self.post(valid_alert())
+        self.assertTrue(resp.json()["data"].get("accepted"))
+
+
+class WebhookEndToEndTests(_Base):
+    def test_alert_to_position_under_5s(self):
+        create_broker_account(self.user)
+        started = time.monotonic()
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            resp = self.post(valid_alert(symbol="AAPL", qty=3))
+        elapsed = time.monotonic() - started
+        self.assertEqual(resp.status_code, 200)
+        self.assertLess(elapsed, 5.0)
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.FILLED)
+        pos = Position.objects.get(symbol="AAPL")
+        self.assertEqual(pos.qty, 3)
+
+    def test_unsupported_asset_rejected(self):
+        create_broker_account(self.user)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self.post(valid_alert(symbol="BTC/USD"))
+        order = Order.objects.get()
+        self.assertEqual(order.status, Order.Status.REJECTED)
+        self.assertEqual(order.reason, "ORDER_UNSUPPORTED_ASSET")
+
+    def test_limit_order_placed(self):
+        create_broker_account(self.user)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self.post(valid_alert(order_type="LMT", limit_price=150.25))
+        order = Order.objects.get()
+        self.assertEqual(order.order_type, Order.OrderType.LMT)
+        self.assertEqual(str(order.limit_price), "150.2500")
+
+
+class BrokerMisrouteTests(_Base):
+    def test_unconnected_named_broker_rejected_no_order(self):
+        # FIX-H9: an alert that names an unconnected broker must be rejected,
+        # never silently rerouted to the default (AC-05-2).
+        create_broker_account(self.user)  # only ALPACA connected
+        resp = self.post(valid_alert(broker="TRADESTATION", idempotency_key="h9-1"))
+        self.assertEqual(resp.status_code, 200)  # webhook accepts; the task rejects
+        alert = AlertMessage.objects.get()
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(alert.reject_reason, "BROKER_NOT_CONNECTED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_no_broker_specified_uses_default(self):
+        default = create_broker_account(self.user)
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            self.post(valid_alert(idempotency_key="h9-2"))
+        self.assertEqual(Order.objects.get().broker_account_id, default.id)
+
+
+class ProcessAlertValidationTests(_Base):
+    """FIX-M16: numeric/date parse errors route through a clean reject, never a
+    500 or an alert stranded in RECEIVED. Tested at the task layer because the
+    webhook schema rejects some of these shapes before process_alert runs."""
+
+    def _run(self, body):
+        from apps.webhooks.tasks import process_alert
+
+        create_broker_account(self.user)
+        alert = AlertMessage.objects.create(
+            user=self.user, strategy=self.strategy, body_json=body,
+            idempotency_key=body.get("idempotency_key", ""),
+            status=AlertMessage.Status.RECEIVED,
+        )
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            process_alert.delay(str(alert.id))
+        alert.refresh_from_db()
+        return alert
+
+    def test_nan_qty_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": "NaN",
+                           "order_type": "MKT", "idempotency_key": "nan-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "INVALID_QTY")
+
+    def test_infinity_qty_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": "Infinity",
+                           "order_type": "MKT", "idempotency_key": "inf-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "INVALID_QTY")
+
+    def test_bad_option_expiry_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "MKT",
+                           "asset_class": "OPTION", "option_expiry": "not-a-date",
+                           "option_strike": 150, "idempotency_key": "opt-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
+
+    def test_nan_limit_price_rejected(self):
+        # FIX-M16 (review): non-finite limit_price parses but must be rejected.
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "LMT",
+                           "limit_price": "NaN", "idempotency_key": "nl-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_LIMIT")
+
+    def test_nan_option_strike_rejected(self):
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "MKT",
+                           "asset_class": "OPTION", "option_expiry": "2026-01-17",
+                           "option_strike": "Infinity", "idempotency_key": "ns-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
+
+    def test_invalid_calendar_option_expiry_rejected_not_crash(self):
+        # Security review: parse_date RAISES ValueError (not None) on a
+        # well-formed-but-invalid calendar date — must reject cleanly, not crash
+        # the task and strand the order at PENDING_SUBMIT.
+        alert = self._run({"action": "buy", "symbol": "AAPL", "qty": 1, "order_type": "MKT",
+                           "asset_class": "OPTION", "option_expiry": "2026-02-30",
+                           "option_strike": 100, "idempotency_key": "ic-1"})
+        self.assertEqual(alert.status, "REJECTED")
+        self.assertEqual(Order.objects.get().reason, "ORDER_INVALID_OPTION")
+
+
+class WebhookStrategyDisabledTests(_Base):
+    """#46 — pausing (is_enabled=False) or soft-deleting (deleted_at) a strategy
+    must gate BOTH the ingest endpoint and process_alert; before this fix the
+    pipeline never consulted the strategy row and a paused/deleted strategy
+    kept trading."""
+
+    def test_paused_strategy_rejects_alert(self):
+        self.strategy.is_enabled = False
+        self.strategy.save(update_fields=["is_enabled"])
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["rejected"], "STRATEGY_DISABLED")
+        alert = AlertMessage.objects.get()
+        self.assertEqual(alert.status, AlertMessage.Status.REJECTED)
+        self.assertEqual(alert.reject_reason, "STRATEGY_DISABLED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_soft_deleted_strategy_rejects_alert(self):
+        from django.utils import timezone
+
+        self.strategy.is_enabled = False
+        self.strategy.deleted_at = timezone.now()
+        self.strategy.save(update_fields=["is_enabled", "deleted_at"])
+        resp = self.post(valid_alert())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["data"]["rejected"], "STRATEGY_DISABLED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_process_alert_rechecks_strategy_state(self):
+        # Accepted while armed; paused before the worker picks it up (or before
+        # a stranded-alert redispatch) — the task-side re-check must reject.
+        create_broker_account(self.user)
+        body = {k: v for k, v in valid_alert().items() if k != "sig"}
+        alert = AlertMessage.objects.create(
+            user=self.user, strategy=self.strategy, body_json=body,
+            idempotency_key="paused-race-1",
+            status=AlertMessage.Status.RECEIVED,
+        )
+        self.strategy.is_enabled = False
+        self.strategy.save(update_fields=["is_enabled"])
+        from apps.webhooks.tasks import process_alert
+
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            process_alert.delay(str(alert.id))
+        alert.refresh_from_db()
+        self.assertEqual(alert.status, AlertMessage.Status.REJECTED)
+        self.assertEqual(alert.reject_reason, "STRATEGY_DISABLED")
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_reenabled_strategy_accepts_again(self):
+        # Round-trip: pause -> reject, re-enable -> accept (idempotency key
+        # differs; the paused reject must not burn the retry).
+        self.strategy.is_enabled = False
+        self.strategy.save(update_fields=["is_enabled"])
+        self.post(valid_alert(idempotency_key="rt-1"))
+        self.strategy.is_enabled = True
+        self.strategy.save(update_fields=["is_enabled"])
+        with mock.patch("apps.brokers.services.build_adapter", side_effect=fake_factory()):
+            create_broker_account(self.user)
+            resp = self.post(valid_alert(idempotency_key="rt-2"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["data"].get("accepted"))

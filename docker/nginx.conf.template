@@ -1,0 +1,158 @@
+# WebSocket upgrade plumbing for `location /ws/` below.
+#
+# `Connection` is a hop-by-hop header: proxying it verbatim breaks keep-alive on
+# every ordinary request, so the canonical nginx recipe maps it — "upgrade" when
+# the client asked to upgrade, "close" otherwise. conf.d/*.conf is included
+# inside the http{} context, so a map is legal here (it is not legal inside
+# server{}).
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # ---------------------------------------------------------------------
+    # Compression (M11 perf follow-up, AC-11-12)
+    #
+    # `gzip on` alone was a trap: nginx's default gzip_comp_level is **1**, the
+    # weakest setting, and nothing here overrode it. Production was shipping
+    # main.js at 47,990 B when the same bytes at -9 are 41,228 B. Across the
+    # initial payload that is 168.2 kB vs 144.3 kB — ~0.12 s of transfer on a
+    # Slow-4G link, on every cold load.
+    #
+    # gzip_static: docker/frontend.Dockerfile pre-compresses every JS/CSS/HTML/SVG
+    # asset at gzip -9 during the image build. nginx now serves that .gz directly —
+    # best ratio AND zero per-request CPU. If a .gz is missing (or the client sends
+    # no Accept-Encoding), we fall back to compressing on the fly, now at level 6.
+    #
+    # gzip_vary is not cosmetic: without it a shared cache (e.g. a CDN in front
+    # of the app) can hand a gzipped body to a client that never
+    # asked for one. Serving compressed bytes to a client that can't decode them
+    # is a blank page — a silent, total failure. Pin it.
+    #
+    # Brotli: measured (brotli-11 = 128.2 kB vs gzip-9's 144.3 kB, ~0.08 s better)
+    # and deliberately NOT adopted — the official nginx image has no ngx_brotli, so
+    # it would mean replacing the base image and the upstream envsubst entrypoint
+    # (BUG-004 territory). Not worth 80 ms. Deferred to M14.
+    # ---------------------------------------------------------------------
+    gzip on;
+    gzip_static on;
+    gzip_comp_level 6;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_types text/plain text/css application/json application/javascript text/javascript text/xml application/xml image/svg+xml;
+    gzip_min_length 256;
+
+    # Angular SPA — fallback to index.html for client-side routing.
+    # `Cache-Control: no-store` on the HTML response so users always get the
+    # current bundle hash on each deploy. (Hashed JS/CSS bundles are still
+    # cached aggressively by the static-asset rule below; only index.html is
+    # uncached, which is correct because its content changes every build.)
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        expires off;
+    }
+
+    # Runtime config exposed to the SPA. Lets the frontend know its absolute
+    # backend URL — needed for OAuth flows where the cookies set during
+    # /start/ must persist across Google's redirect back to the backend
+    # (a same-origin proxied request would set cookies on the frontend
+    # domain, which the browser then drops when bouncing back to backend).
+    #
+    # M10 §6.3/§6.5e — extended with Grafana + Sentry runtime config.
+    #
+    # EVERY ${VAR} below must appear in NGINX_ENVSUBST_FILTER (docker/frontend.Dockerfile).
+    # The filter is an anchored allowlist: a var that is missing from it is NOT
+    # substituted and its literal "${FOO}" text is served to the browser. That is
+    # BUG-004 — the filter said '^BACKEND_URL$' while this block emitted five vars,
+    # so the SPA received sentryDsn: '${SENTRY_DSN}' and Sentry silently no-op'd.
+    # scripts/check_envsubst_filter.py enforces the two stay in sync (CI guard).
+    #
+    # An UNSET var substitutes to the empty string, which is the correct "feature
+    # off" signal: the SPA treats empty (and, defensively, a leftover "${...}")
+    # as unset — see frontend/src/app/core/runtime-config.ts.
+    location = /config.js {
+        default_type application/javascript;
+        return 200 "window.STP_CONFIG = { backendUrl: '${BACKEND_URL}', grafanaUrl: '${GRAFANA_URL}', sentryDsn: '${SENTRY_DSN}', sentryEnvironment: '${SENTRY_ENVIRONMENT}', release: '${RELEASE}' };";
+    }
+
+    # Proxy API requests to Django backend.
+    # ${BACKEND_URL} is substituted at container start by the official nginx
+    # image's envsubst step (NGINX_ENVSUBST_FILTER limits substitution to BACKEND_URL
+    # so nginx variables like $uri, $host, $remote_addr survive).
+    #
+    # On Railway: set BACKEND_URL=https://<api>.example.com  (PUBLIC URL — see
+    # railway-deployment skill, gotcha #2: private *.railway.internal DNS is
+    # unreliable from nginx).
+    # In docker-compose: set BACKEND_URL=http://backend:8777 (defaults to that if unset).
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # ---------------------------------------------------------------------
+    # Dashboard WebSocket -> the daphne ASGI process (SERVICE_ROLE=ws).
+    #
+    # THIS BLOCK WAS MISSING. environment.prod.ts says "nginx proxies /ws/* to
+    # the daphne process" and derives wss://<page-host>/ws/dashboard/ from the
+    # page origin — but there was no /ws/ location, so the handshake fell through
+    # to the SPA fallback below and nginx answered the Upgrade request with
+    # 200 text/html (index.html). The browser cannot upgrade an HTML response, so
+    # every socket died with close code 1006, DashboardWsService retried on its
+    # capped backoff forever, and the header's Live dot read "Offline" on every
+    # page, in every session, since the M04 dashboard shipped.
+    #
+    # ${WS_URL} must point at the daphne service, NOT the gunicorn one: prod
+    # backend runs config.wsgi (WSGI cannot serve WebSockets at all).
+    #   docker-compose: WS_URL=http://ws:8788        (the default baked below)
+    #   Railway:        WS_URL=https://<ws-service>.up.railway.app  (PUBLIC url,
+    #                   same reasoning as BACKEND_URL — *.railway.internal DNS is
+    #                   unreliable from nginx).
+    # ---------------------------------------------------------------------
+    location /ws/ {
+        proxy_pass ${WS_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # The client heartbeat is 25s (ws.service.ts HEARTBEAT_MS); anything
+        # under that would cut idle sockets between pings.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+
+    # Static assets — long cache
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Health check for the nginx container itself (used by Railway healthcheck)
+    location = /health {
+        default_type text/plain;
+        return 200 'ok';
+    }
+
+    # Legacy alias
+    location = /nginx-health {
+        default_type text/plain;
+        return 200 'ok';
+    }
+}
