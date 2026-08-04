@@ -78,6 +78,10 @@ class AuditEventType(models.TextChoices):
     ADMIN_PLATFORM_HALT_RELEASED = "admin.platform_halt_released", "Platform halt released"
     # flag.*
     FLAG_FLIPPED = "flag.flipped", "Feature flag flipped"
+    # marketdata.* — instance data-provider keys (ADR-062). Key material is
+    # NEVER written to the audit row; only provider + last-4 hint.
+    DATA_PROVIDER_KEY_SET = "marketdata.provider_key_set", "Data-provider key set"
+    DATA_PROVIDER_KEY_REMOVED = "marketdata.provider_key_removed", "Data-provider key removed"
     # audit.*
     AUDIT_INTEGRITY_FAILURE = "audit.integrity_failure", "Audit integrity failure"
     AUDIT_VERIFIER_COMPLETED = "audit.verifier_completed", "Audit verifier completed"

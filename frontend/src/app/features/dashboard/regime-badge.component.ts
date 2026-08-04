@@ -99,10 +99,16 @@ import { StatusChipComponent } from '../shared/ui/status-chip.component';
               <span aria-hidden="true">⚠&nbsp;</span>{{ 'regime.source_missing' | translate }}
             </app-status-chip>
             <p class="text-sm text-neutral-700">{{ 'regime.source_missing_hint' | translate }}</p>
-            <a routerLink="/guides/market-regime-setup"
-               class="inline-block text-[13px] text-accent-700 underline">
-              {{ 'regime.source_missing_link' | translate }}
-            </a>
+            <div class="flex flex-wrap gap-x-4 gap-y-1">
+              <a routerLink="/settings/data-providers"
+                 class="inline-block text-[13px] text-accent-700 underline">
+                {{ 'regime.source_missing_settings_link' | translate }}
+              </a>
+              <a routerLink="/guides/market-regime-setup"
+                 class="inline-block text-[13px] text-accent-700 underline">
+                {{ 'regime.source_missing_link' | translate }}
+              </a>
+            </div>
           </div>
         } @else {
           <p class="text-sm text-neutral-700">{{ 'regime.no_data' | translate }}</p>

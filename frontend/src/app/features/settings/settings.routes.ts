@@ -19,4 +19,9 @@ export const SETTINGS_ROUTES: Routes = [
     path: 'settings/brokers',
     loadComponent: () => import('./brokers/brokers.component').then(m => m.BrokersComponent),
   },
+  {
+    path: 'settings/data-providers',
+    loadComponent: () =>
+      import('./data-providers/data-providers.component').then(m => m.DataProvidersComponent),
+  },
 ];

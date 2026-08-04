@@ -89,5 +89,7 @@ If you suspect this:
 
 - If you disabled MFA more than once for the same user in 30 days, file
   a follow-up ticket — they need help making the codes more durable.
-- Aggregate: how many lost-MFA tickets we get per month is on the
-  Auth Health Grafana dashboard. If it spikes, revisit user education.
+- Aggregate: there is **no** MFA-reset metric — the codebase exports none, and the
+  Auth Health dashboard this used to point at (retired by ADR-109) never carried
+  such a panel. Count these tickets by hand, or add a counter, if you want the
+  monthly trend. If it spikes, revisit user education.

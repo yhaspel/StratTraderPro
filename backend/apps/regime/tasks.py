@@ -72,8 +72,12 @@ def retrain_hmm(self):
 
 def _daily_source_configured() -> bool:
     """The daily pipeline is a genuine no-op only when the market-data keys are
-    truly absent — checked here, not assumed (FIX-H10)."""
-    return bool(getattr(settings, "FMP_API_KEY", "")) and bool(getattr(settings, "FRED_API_KEY", ""))
+    truly absent — checked here, not assumed (FIX-H10). "Configured" means the
+    resolved key: a UI-stored instance key (Settings → Data Providers) OR the
+    FMP_API_KEY/FRED_API_KEY env vars (ADR-062)."""
+    from apps.marketdata.keys import resolve_key
+
+    return bool(resolve_key("FMP")) and bool(resolve_key("FRED"))
 
 
 def gather_daily_inputs(fmp=None, fred=None) -> dict:

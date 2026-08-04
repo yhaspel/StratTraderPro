@@ -42,7 +42,7 @@ Settings in `config/settings/base.py` (overridable via env vars):
 ## Monitoring
 
 - Check `AuthEvent` table for `account_locked` events: `AuthEvent.objects.filter(event_type='account_locked', email='user@example.com')`
-- Grafana: Auth Health dashboard → lockout rate panel.
+- Grafana Explore: `sum by (result) (rate(auth_login_total{result="locked"}[5m]))`. (The Auth Health dashboard was retired by ADR-109; it never carried a lockout panel.)
 - If a single email is being locked repeatedly from many IPs, this may indicate a targeted attack — consider notifying the user and suggesting MFA (M02).
 
 ## Escalation

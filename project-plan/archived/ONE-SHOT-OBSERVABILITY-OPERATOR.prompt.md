@@ -1,5 +1,24 @@
 # ADR-109 observability cutover — one-shot prompt for Claude Cowork
 
+> ## ⛔ ARCHIVED — HISTORICAL. DO NOT RUN.
+>
+> **Never executed.** Superseded by `ONE-SHOT-ADR-109-OPERATOR-CLI.prompt.md`, which is the prompt
+> that actually performed the cutover on **2026-08-02**.
+>
+> Every precondition below is now false: live state is **11 rules / 3 dashboards / 5 targets**, the
+> `StratTraderPro Auth` folder and `auth-health-email` contact point are deleted, and both exporter
+> Railway services are gone. Running this would attempt deletes against objects that no longer
+> exist, re-import rules **paused** (reopening the BUG-009 blind window on a healthy system), and
+> overwrite the committed report.
+>
+> Known factual error, for anyone mining this for reuse: the claim that
+> `django_http_responses_total_by_status_total` has "no series in production" is **wrong** (it has a
+> live `status="200"` series); the conclusion it supports — don't drill with `WebhookErrorRatioCrit`
+> — happens to remain correct, because only `status="200"` exists so the `5..` numerator is empty.
+>
+> Evidence: `project-plan/ADR-109-COWORK-OPERATOR-REPORT.md`.
+
+
 > Paste everything below the line into Claude Cowork. It drives the browser on a Chrome
 > instance already logged into **Grafana Cloud** and **Railway**. It executes the `[LIVE]`
 > operator half of the 2026-08-01 observability rightsizing — the repo half is already merged.

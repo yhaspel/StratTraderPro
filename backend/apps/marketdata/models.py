@@ -7,6 +7,7 @@ plain indexed table, which is SQLite-testable and correct at MVP scale.
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import models
 
 
@@ -56,3 +57,45 @@ class MacroSeries(models.Model):
 
     def __str__(self) -> str:
         return f"MacroSeries<{self.series_id} {self.ts} {self.value}>"
+
+
+class DataProviderKey(models.Model):
+    """The instance's API key for one market-data vendor (ADR-062).
+
+    ONE row per provider — these are deliberately instance-wide, not per-user:
+    the regime pipeline and screener consume shared market data, and a
+    self-hosted deployment runs on a single vendor subscription. Set by staff
+    via ``PUT /api/v1/marketdata/keys/{provider}/`` (Settings → Data
+    Providers); ``FMP_API_KEY`` / ``FRED_API_KEY`` env vars remain the
+    fallback (``apps.marketdata.keys.resolve_key``).
+
+    The key is Fernet-wrapped with the shared platform KEK. Bytes never leave
+    ``apps.marketdata.keys``; serializers are write-only and never echo.
+    """
+
+    class Provider(models.TextChoices):
+        FMP = "FMP", "Financial Modeling Prep"
+        FRED = "FRED", "FRED (St. Louis Fed)"
+
+    id = models.BigAutoField(primary_key=True)
+    provider = models.CharField(max_length=8, choices=Provider.choices, unique=True)
+    key_encrypted = models.BinaryField(help_text="Fernet-wrapped API key (platform KEK).")
+    key_hint = models.CharField(
+        max_length=4, blank=True, default="",
+        help_text="Last 4 chars, display-only; empty for short keys.",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "marketdata_provider_key"
+
+    def __str__(self) -> str:  # never includes key material
+        return f"DataProviderKey<{self.provider} hint=…{self.key_hint}>"

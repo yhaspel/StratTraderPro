@@ -511,7 +511,7 @@ export interface paths {
         put?: never;
         /**
          * Resend verification email
-         * @description Idempotent. Always returns 200 to avoid email enumeration.
+         * @description Idempotent. Returns 200 whether or not the address maps to an unverified account, to avoid email enumeration. Returns 503 EMAIL_SEND_FAILED only when the mail provider rejected a message we genuinely tried to send.
          */
         post: operations["auth_resend_verification"];
         delete?: never;
@@ -814,6 +814,42 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/marketdata/keys/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Status only — ``configured`` + ``source`` for everyone; last-4 hint
+         *     and updated-by detail for staff. Never key material.
+         */
+        get: operations["marketdata_keys_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/marketdata/keys/{provider}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["marketdata_keys_set"];
+        post?: never;
+        delete: operations["marketdata_keys_remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1334,6 +1370,30 @@ export interface paths {
         };
         /** Personal-data export status + signed download URL */
         get: operations["v1_users_me_export_retrieve_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/export/{job_id}/download/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a produced personal-data export (owner only)
+         * @description P1-3 — serve the export ZIP through an authenticated, owner-checked view.
+         *
+         *     The filesystem export backend (the default self-hosted deploy) has no served
+         *     ``/media/`` path, so the previously-advertised signed URL 404'd. This streams
+         *     the bytes only to the owner, only while the job is READY and unexpired.
+         */
+        get: operations["v1_users_me_export_download_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2271,6 +2331,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     auth_verify_email: {
@@ -2687,6 +2755,64 @@ export interface operations {
         responses: {
             /** @description No response body */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    marketdata_keys_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    marketdata_keys_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    marketdata_keys_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3400,6 +3526,26 @@ export interface operations {
         };
     };
     v1_users_me_export_retrieve_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    v1_users_me_export_download_retrieve: {
         parameters: {
             query?: never;
             header?: never;

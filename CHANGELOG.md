@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — FMP/FRED keys are now settable in the UI (Settings → Data Providers, ADR-062)
+- **New page `/settings/data-providers`** (user menu → *Data providers*): one instance-wide
+  set of FMP + FRED API keys, staff-editable, stored Fernet-wrapped with the platform KEK
+  (`marketdata_provider_key` table). Keys are validated live against the vendor **before**
+  persisting (the brokers AC-04-6 rule: a bad key never creates a row; a 429 is accepted —
+  rate-limited still means authenticated), are write-only on the API, and surface only a
+  last-4 hint. Non-staff see status + "ask your administrator".
+- **Resolution order everywhere: UI-stored key → `FMP_API_KEY`/`FRED_API_KEY` env var →
+  unconfigured** (`apps.marketdata.keys.resolve_key`, the single choke point;
+  `FMPClient`/`FREDClient` default through it). A key saved in Settings reaches web, Celery
+  worker and beat through the shared DB **immediately — no per-service env vars, no
+  redeploy** — which retires the "set it on all three Railway services" trap from the
+  2026-07-29 handoff. Env-only deployments keep working untouched.
+- New API: `GET /api/v1/marketdata/keys/` (status; MFA-enforced),
+  `PUT/DELETE /api/v1/marketdata/keys/{provider}/` (staff + MFA). Set/remove are audited
+  (`marketdata.provider_key_set`/`…_removed`, no key material). OpenAPI snapshot + generated
+  types refreshed.
+- The regime card's "data source not configured" empty state, Admin → Health's hint, and
+  the `market-regime-setup` guide now point at Settings → Data Providers first, env vars
+  second. `backfill_bars` names both paths in its refusal message.
+- Tests: 29 backend (encryption round-trip, resolution precedence, gate lights up from
+  UI-stored keys alone, validate-before-persist, never-echo, staff/MFA gates, audit rows) +
+  7 karma specs for the Settings page. MFA sweep test now covers `/marketdata/keys/`.
+
 ### Changed — Observability reduced to the safety core (ADR-109)
 - **Alert rules 18 → 9 in `alert-rules.yaml`** (+2 unchanged usage-budget rules = 11
   as code). Retired: `OrderSubmitLatencyHigh`, `SentimentLag`, `HMMModelStale`,

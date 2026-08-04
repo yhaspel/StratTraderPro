@@ -2,12 +2,12 @@
 
     python manage.py backfill_bars --symbols SPY,QQQ,IWM --from 2015-01-01
 
-Requires FMP_API_KEY (a deferred external). Idempotent — safe to re-run
+Requires an FMP key (a deferred external) — UI-stored (Settings → Data
+Providers) or the FMP_API_KEY env var (ADR-062). Idempotent — safe to re-run
 (upserts on (symbol, tf, ts)); re-running does not duplicate bars (AC-06-1).
 """
 from __future__ import annotations
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.marketdata.fmp import FMPClient
@@ -24,8 +24,13 @@ class Command(BaseCommand):
         parser.add_argument("--to", dest="to_date", default=None)
 
     def handle(self, *args, **options):
-        if not getattr(settings, "FMP_API_KEY", ""):
-            raise CommandError("FMP_API_KEY is not set (deferred external). Set it in .env / Railway.")
+        from apps.marketdata.keys import resolve_key
+
+        if not resolve_key("FMP"):
+            raise CommandError(
+                "No FMP key is configured. Set one in Settings → Data Providers "
+                "(staff) or via the FMP_API_KEY env var (.env / Railway)."
+            )
         symbols = [s.strip().upper() for s in options["symbols"].split(",") if s.strip()]
         client = FMPClient()
         total = 0
