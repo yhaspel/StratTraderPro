@@ -109,7 +109,7 @@ alpaca-py>=0.43,<0.44
 # HTTP path is unchanged (gunicorn still serves config.wsgi); websockets are
 # served by a dedicated ASGI process (docker-compose `ws` service).
 channels>=4.1,<4.2
-channels-redis>=4.2,<4.3
+channels-redis>=4.3.0,<4.4
 # daphne 4.2.2 clears PYSEC-2026-213 (unbounded WS frame/message size — DoS on
 # the public /ws/dashboard/) and PYSEC-2026-214 (header-separator smuggling),
 # both flagged by pip-audit (M11 §7.2).
