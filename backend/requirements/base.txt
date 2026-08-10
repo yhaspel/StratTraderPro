@@ -57,7 +57,7 @@ django-storages[s3]>=1.14,<1.15
 httpx>=0.26,<0.27
 
 # Auth (M01)
-argon2-cffi>=23.1,<24.0
+argon2-cffi>=25.1.0,<26.0
 django-anymail[resend]>=10.2,<11.0
 django-ratelimit>=4.1,<4.2
 
