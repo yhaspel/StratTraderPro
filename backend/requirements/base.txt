@@ -31,11 +31,11 @@ opentelemetry-distro[otlp]>=0.43b0
 # M10 §6.6 — OTel instrumentation for the traced stack. Pinned to the 0.64b0
 # series that matches the resolved `opentelemetry-distro` (api/sdk 1.43.0); the
 # instrumentations must move in lockstep with the distro's semantic-conventions.
-opentelemetry-instrumentation-django==0.64b0
-opentelemetry-instrumentation-celery==0.64b0
-opentelemetry-instrumentation-redis==0.64b0
-opentelemetry-instrumentation-psycopg2==0.64b0
-opentelemetry-instrumentation-httpx==0.64b0
+opentelemetry-instrumentation-django==0.65b0
+opentelemetry-instrumentation-celery==0.65b0
+opentelemetry-instrumentation-redis==0.65b0
+opentelemetry-instrumentation-psycopg2==0.65b0
+opentelemetry-instrumentation-httpx==0.65b0
 python-json-logger>=2.0,<4.2
 # M10 §6.6 — request-id correlation (ULID) across web → Celery → logs → Sentry.
 python-ulid>=3.0,<4.0
@@ -141,7 +141,7 @@ feedparser>=6.0,<7.0
 # bump deliberately. The base install pulls a fat transitive tree (scipy,
 # matplotlib, plotly, scikit-learn, numba, dill, ...). The replay stage is a
 # custom in-repo engine (ADR-090/091) — backtrader is NOT a dependency.
-vectorbt==1.0.0
+vectorbt==1.1.0
 # WeasyPrint (BSD) renders the PDF tearsheet from a Django template + matplotlib
 # SVGs. Needs Pango/HarfBuzz/fontconfig + a font at the OS level (no Cairo for
 # WeasyPrint >= 53) — the apt list is installed in BOTH docker/backend.Dockerfile
