@@ -32,13 +32,13 @@
     "chartjs-chart-matrix": "^3.0.5",
     "rxjs": "~7.8.0",
     "tslib": "^2.6.0",
-    "zone.js": "^0.15.1"
+    "zone.js": "^0.16.2"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.0.0",
     "@angular/cli": "^19.0.0",
     "@angular/compiler-cli": "^19.2.25",
-    "@axe-core/playwright": "^4.12.1",
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.62.1",
     "@types/jasmine": "~5.1.0",
     "autoprefixer": "^10.5.4",
@@ -49,7 +49,7 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.2.0",
     "openapi-typescript": "^7.13.0",
-    "postcss": "^8.5.25",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.0",
     "typescript": "~5.6.0"
   },
