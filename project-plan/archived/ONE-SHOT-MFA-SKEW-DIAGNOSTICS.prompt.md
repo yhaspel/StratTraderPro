@@ -1,3 +1,8 @@
+> ## ⏳ ARCHIVED — IN PROGRESS 2026-09-20. Will be marked EXECUTED once the PR merges and the deploy is
+> confirmed. Durable record: `project-plan/PROGRESS.md` and `MFA-SKEW-EXECUTION-REPORT.md`.
+
+---
+
 # ONE-SHOT PROMPT — Ship `fix/mfa-totp-skew-diagnostics` (land → gauntlet → PR → CI → merge → live verify)
 
 > Paste everything below the line into Claude Code CLI (max effort), running from the repo root
