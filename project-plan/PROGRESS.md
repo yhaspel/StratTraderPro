@@ -43,10 +43,21 @@ information leakage, audit hash-chain shape, exception safety on odd input, back
 traced and confirmed safe); one minor finding (no upper clamp on the operator-only `MFA_TOTP_SKEW_PROBE_STEPS`
 setting) was dismissed rather than fixed, since it's not attacker-facing and the highest-traffic endpoint is
 already IP-rate-limited. Full evidence: `MFA-SKEW-EXECUTION-REPORT.md`.
-**Deferred to the operator:** the live root cause (phone clock drift, self-serve fix, vs. a second User row
-behind the Google OAuth link holding a stale device, needs a follow-up merge) is only distinguishable by
-signing in with the real device once the fix is deployed and reading the new error text / audit row — see
-"OPERATOR" section at the top of the execution report.)
+**BLOCKED before merge — PR #76 left OPEN, nothing deployed.** Backend CI's `pip-audit` step and frontend
+CI's `osv-scanner` step both failed, but on advisories against package versions this diff never touches
+(`backend/requirements/`, `pnpm-lock.yaml`/`package.json` are byte-identical to `main` in this branch) —
+confirmed these two gates are equally red on `main` right now (last green CI on current `main` HEAD was
+2026-08-04, 47 days of live-CVE-database drift ago). Every other check passed (ruff, bandit, the full pytest
+suite incl. the `-m pg` lane, `ngc`, karma 264/264, the production build, all three repo guards). Per this
+run's autonomous policy, a diagnostics-only MFA fix does not bundle a Django/DRF/WeasyPrint version bump or a
+frontend advisory-waiver pass — both out of scope here — so the PR was left open rather than force-merged.
+**Next step:** a separate dependency-bump/waiver PR needs to clear those two gates on `main`; #76 should then
+merge cleanly. **Deferred to the operator once that happens and #76 ships:** the live root cause (phone clock
+drift, self-serve fix, vs. a second User row behind the Google OAuth link holding a stale device, needs a
+follow-up merge) is only distinguishable by signing in with the real device and reading the new error text /
+audit row — see the "OPERATOR" section of `MFA-SKEW-EXECUTION-REPORT.md`. Follow-ups filed regardless:
+[#77](https://github.com/yhaspel/StratTraderPro/issues/77) (MFA verify per-IP rate limit inert in prod),
+[#78](https://github.com/yhaspel/StratTraderPro/issues/78) (`/auth/refresh/` 401 that triggered the incident).)
 
 **Previously verified:** 2026-08-04 (**M16 Strategy Screener SHIPPED** — PR #55, squashed as `7bd3af0`;
 the ADR-062 key gate it depends on landed the same day as PR #53. A strategy description can now

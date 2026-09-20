@@ -1,5 +1,10 @@
-> ## ⏳ ARCHIVED — IN PROGRESS 2026-09-20. Will be marked EXECUTED once the PR merges and the deploy is
-> confirmed. Durable record: `project-plan/PROGRESS.md` and `MFA-SKEW-EXECUTION-REPORT.md`.
+> ## ⏸️ ARCHIVED — RAN 2026-09-20 THROUGH PHASE 4, THEN BLOCKED. PR #76 OPEN, NOT MERGED.
+> Branch landed, invariant audit + full gauntlet + adversarial review all clean, PR opened. Both required CI
+> checks came back red, but in each case the only failing step is a pre-existing dependency-audit gate
+> (`pip-audit` / `osv-scanner`) flagging advisories on package versions this diff never touches — confirmed
+> equally red on `main` right now, unrelated to this fix. Per this prompt's own explicit rule, the PR was left
+> open rather than merged; nothing deployed. Durable record: `project-plan/PROGRESS.md` and
+> `MFA-SKEW-EXECUTION-REPORT.md`. Re-run once a separate dependency-bump PR clears those two gates on `main`.
 
 ---
 

@@ -1,13 +1,21 @@
 # MFA skew-diagnostics — execution report
 
-Branch `fix/mfa-totp-skew-diagnostics` (base `1dcdd70` = `origin/main` at run start). This report is written
-incrementally during the run per `ONE-SHOT-MFA-SKEW-DIAGNOSTICS.prompt.md`; Section C and the operator note
-are completed as later phases finish.
+Branch `fix/mfa-totp-skew-diagnostics` (base `1dcdd70` = `origin/main` at run start).
+**Final status: BLOCKED before merge, PR #76 left OPEN — not deployed.** Phases 0–4 completed (branch landed,
+invariant audit + full gauntlet + adversarial review all clean, docs committed, PR opened, CI run to
+completion). Both `Backend — Lint & Test` and `Frontend — Build & Test` came back red, but in each case the
+*only* failing step is a dependency-audit gate (`pip-audit` / `osv-scanner`) flagging advisories against
+package versions this diff does not touch — confirmed root-caused entirely outside the diff (see Section B).
+Per this prompt's own explicit rule ("Red outside the diff → leave open, report, skip Phases 5–6") the PR was
+**not merged** and nothing was deployed. Phases 5 and 6's merge/deploy steps did not run; the operator step
+below is therefore not yet actionable.
 
-## OPERATOR — do this once the deploy is confirmed (Phase 6)
+## OPERATOR — not yet actionable (PR not merged, nothing deployed)
 
-*(Status: deploy not yet confirmed — this section will be filled in when Phase 5 completes. Do not act on it
-until then; a placeholder is written here now so the structure is in place.)*
+*(This section describes what to do once the fix ships. It has NOT shipped — PR #76 is open, blocked on two
+pre-existing CI gates unrelated to this diff. Do not act on the steps below until a maintainer either waives/
+fixes those two gates on `main` in a separate PR, or explicitly overrides and merges #76 despite them. Kept
+here, unmodified from the original prompt, so it's ready the moment the fix does land.)*
 
 1. Sign in (Google or password), enter one code from Google Authenticator, note the on-screen error text.
 2. **`MFA_CODE_CLOCK_SKEW`** ("…about N s behind/ahead…") → phone clock. Google Authenticator → ⋮ → Settings
@@ -72,28 +80,49 @@ tip is unchanged from what landed at Phase 0.
   lane and the prod-settings smoke test; the project's `worker`/`beat`/`streams`/`worker-backtest` containers
   were separately crash-looping in the environment before this run started (pre-existing, unrelated to this
   branch — Celery workers aren't needed to run pytest) and were left alone.
-- **Frontend dependency-audit gate (osv-scanner) — parked, not fixed.** 16 un-waived HIGH+ advisories against
-  `pnpm-lock.yaml`. Confirmed out-of-diff-scope: `pnpm-lock.yaml` and `package.json` are byte-identical to
-  `main` in this branch, so osv-scanner's live-OSV-DB output is identical regardless of branch — this gate
-  would be equally red on `main` right now. Per the run's autonomous policy ("a new advisory on unchanged
-  pins" is explicitly out-of-scope), no pins were bumped and no waivers were added. This PR's frontend CI run
-  is expected to show this same failure; it is not a regression introduced here.
-- **`pip-audit` not run locally** — not installed in the local venv used for the gauntlet fork; this diff adds
-  zero dependency changes so its result is unaffected. CI runs it independently and will be watched in Phase 4.
+- **Frontend dependency-audit gate (osv-scanner) — parked, not fixed. CI CONFIRMED RED, exactly as predicted.**
+  `Frontend — Build & Test` job (run `35529126548`, job `106126475820`) failed at the "Dependency audit
+  (osv-scanner, HIGH+ gate)" step in 20s — the step aborts the job before `Test (karma)`/`Build` even run, so
+  CI never got to independently confirm the karma/build results this run proved locally. 16 un-waived HIGH+
+  advisories against `pnpm-lock.yaml`. Confirmed out-of-diff-scope: `pnpm-lock.yaml` and `package.json` are
+  byte-identical to `main` in this branch (`git diff --stat` empty), so osv-scanner's live-OSV-DB output is
+  identical regardless of branch — this gate is equally red on `main` right now (`main`'s last CI run on the
+  current HEAD `1dcdd70` was green 2026-08-04, 47 days of live-CVE-DB drift ago). Per the run's autonomous
+  policy ("a new advisory on unchanged pins" is explicitly out-of-scope), no pins were bumped and no waivers
+  were added.
+- **Backend dependency-audit gate (pip-audit) — parked, not fixed. CI CONFIRMED RED, same pattern.**
+  `Backend — Lint & Test` job (run `35529126548`, job `106126475872`) — every other step (ruff, bandit, the
+  full pytest suite, the `-m pg` lane) **passed**, matching the local gauntlet exactly; only the "Dependency
+  audit (pip-audit)" step failed, on 10 known vulnerabilities: 7 on `django==5.1.15` (PYSEC-2026-198/199/201/
+  2090/2091/2092/3717), 2 on `djangorestframework==3.15.2` (PYSEC-2026-3827/3828), 1 on `weasyprint==68.1`
+  (PYSEC-2026-3940). Confirmed out-of-diff-scope: `git diff --stat -- backend/requirements/` between `main`
+  and this branch is empty — this diff touches zero dependency pins. Same 47-day live-CVE-drift explanation
+  as the frontend gate. Per policy, not fixed here — a dependency-bump PR is a separate, out-of-scope piece of
+  work (and `Django`/`DRF`/`weasyprint` version bumps are exactly the kind of change this diagnostics-only fix
+  should not be bundled with).
+- Because both required checks are red for reasons outside this diff, **the PR was left open and unmerged**
+  per the mission's explicit Phase 4 fallback ("Red outside the diff → leave open, report, skip Phases 5–6").
+  No `gh pr merge` was attempted. No deploy occurred. The two downstream jobs gated on
+  `Backend — Lint & Test` (`E2E Smoke`, `Entrypoint — SERVICE_ROLE dispatch`, `Trivy — Docker Image Scan`) and
+  on the frontend build (`A11y — axe-core`) never ran (shown as `skipping`) — this is a consequence of the two
+  audit-gate failures, not an independent problem with this diff.
 - **`plan-progress-tracker.md` left untouched** — Phase 02 (MFA & User Profile) is a fully "✅ Done" historical
   milestone record there with no open/in-progress row this fix should update; per the mission's instruction to
   touch it only if such a row exists, and per its known lag behind `PROGRESS.md` (which is canonical), it was
   not edited.
-- **Follow-up issues (Out-of-scope section of the mission) — filed in Phase 4/6, links recorded here then:**
-  1. MFA verify per-IP rate limit inert in production (7 rapid probes all 401, never 429).
-  2. The `/auth/refresh/` 401 that triggered the incident's re-login (two different failure-body sizes at
-     11:35:40Z vs 11:36:00Z).
+- **Follow-up issues (Out-of-scope section of the mission) — filed:**
+  1. [#77](https://github.com/yhaspel/StratTraderPro/issues/77) — MFA verify per-IP rate limit inert in
+     production (7 rapid probes all 401, never 429).
+  2. [#78](https://github.com/yhaspel/StratTraderPro/issues/78) — the `/auth/refresh/` 401 that triggered the
+     incident's re-login (two different failure-body sizes at 11:35:40Z vs 11:36:00Z).
+- **Recommended next step (not taken here, out of scope):** open a separate dependency-bump PR covering
+  Django (→5.2.17 or 6.0.8), DRF (→3.17.2), and WeasyPrint (→70.0) on `backend/requirements/`, plus a frontend
+  waiver/bump pass for the 16 `osv-scanner` advisories (per the established `docs/security/dependency-
+  waivers.md` pattern used on 2026-08-04 for the same class of issue) — once that lands and both gates are
+  green on `main`, rebase/re-push this branch (or open a fresh PR from it) and it should merge cleanly, since
+  every other required check already passed.
 
 ## Section C — Evidence
-
-*(Filled in as later phases complete — see individual command outputs already summarized in Section A above
-for the Phase 1/2 gauntlet and review. PR URL, CI run URL, squash SHA, `/healthz` before/after, and the
-`en.json` grep result are added once Phases 4–5 complete.)*
 
 ### Phase 1 gauntlet — backend (fork agent, from `backend/`)
 
@@ -126,11 +155,30 @@ for the Phase 1/2 gauntlet and review. PR URL, CI run URL, squash SHA, `/healthz
 | `python3 scripts/check_envsubst_filter.py` | 0 | "envsubst filter in sync (6 vars)" |
 | `python3 scripts/check_guides_catalog.py` | 0 | "guides catalog in sync (19 articles, 7 images)" |
 
-### Pending (Phases 4–6)
+### Phase 4 — PR + CI
 
-- PR URL: TBD
-- CI run URL + final check statuses: TBD
-- Squash-merge SHA: TBD
-- `/healthz` version before/after (with timestamps): TBD
-- `curl .../assets/i18n/en.json \| grep -c MFA_CODE_CLOCK_SKEW`: TBD
-- Follow-up issue links: TBD
+- **PR:** [#76](https://github.com/yhaspel/StratTraderPro/pull/76) — `fix(mfa): report a rejected TOTP as
+  clock skew vs. wrong secret, and audit the offset`. **State: OPEN, not merged.**
+- **CI run:** [`35529126548`](https://github.com/yhaspel/StratTraderPro/actions/runs/35529126548)
+
+| Check | Result | Note |
+|---|---|---|
+| Backend — Lint & Test | **fail** (pip-audit step only; ruff/bandit/pytest/pg lane all pass) | out-of-diff, see Section B |
+| Frontend — Build & Test | **fail** (osv-scanner step only; job aborted before karma/build ran in CI) | out-of-diff, see Section B |
+| A11y — axe-core | skipped (downstream of Frontend job) | — |
+| E2E Smoke — docker-compose healthz | skipped (downstream of Backend job) | — |
+| Entrypoint — SERVICE_ROLE dispatch | skipped (downstream of Backend job) | — |
+| Trivy — Docker Image Scan | skipped (downstream of Backend job) | — |
+| Guard — nginx envsubst filter in sync | pass | — |
+| Guard — no legacy IBKR creds | pass | — |
+| Guard — live trading stays disabled | pass | — |
+
+### Phase 5–6 — not applicable (PR not merged)
+
+- Squash-merge SHA: **N/A — not merged.**
+- `/healthz` version before/after: **N/A — no deploy occurred.**
+- `curl .../assets/i18n/en.json | grep -c MFA_CODE_CLOCK_SKEW`: **N/A — no deploy occurred.**
+- Follow-up issue links: [#77](https://github.com/yhaspel/StratTraderPro/issues/77),
+  [#78](https://github.com/yhaspel/StratTraderPro/issues/78) — both filed regardless, since they're
+  independent of merge status.
+- OPERATOR live-verification step: **not yet actionable** — see note at the top of this report.
