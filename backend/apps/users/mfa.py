@@ -106,6 +106,44 @@ def verify_totp(secret_b32: str, code: str) -> bool:
     )
 
 
+def totp_skew_offset(secret_b32: str, code: str) -> Optional[int]:
+    """Diagnostic probe, called ONLY after ``verify_totp`` has already rejected
+    ``code``. Returns the step offset (in 30 s steps, negative = the client's
+    clock is behind the server) at which ``code`` *would* have matched within
+    ±``MFA_TOTP_SKEW_PROBE_STEPS``, or ``None`` if it matches nowhere in that
+    range.
+
+    Why: a code that matches 3 steps away is an authenticator whose clock is
+    off; a code that matches nowhere is the wrong secret (stale entry, wrong
+    account). Both used to surface as an identical ``MFA_CODE_INVALID``, which
+    made the 2026-09-20 "2FA stopped working after re-enrolling" incident
+    undiagnosable from the outside.
+
+    Security: the probe never accepts the code — every caller still fails the
+    request and counts the failure. A 6-digit HMAC-based code for step T±k
+    reveals nothing about the code for step T, so telling the user "your clock
+    is off" hands an attacker no shortcut. Steps inside the accepted window are
+    skipped (they were already rejected), so the result is never 0/±1.
+    """
+    if code is None:
+        return None
+    code = str(code).strip().replace(" ", "")
+    if not code.isdigit() or len(code) != 6:
+        return None
+    probe = int(getattr(settings, "MFA_TOTP_SKEW_PROBE_STEPS", 10))
+    accepted = int(settings.MFA_TOTP_VALID_WINDOW)
+    if probe <= accepted:
+        return None
+    totp = pyotp.TOTP(secret_b32, interval=30, digits=6)
+    now = timezone.now()
+    # Walk outward from the accepted window so the nearest match wins.
+    for k in range(accepted + 1, probe + 1):
+        for offset in (-k, k):
+            if _secrets.compare_digest(totp.at(now, offset), code):
+                return offset
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Backup codes
 # ---------------------------------------------------------------------------
@@ -277,6 +315,7 @@ __all__ = [
     "build_provisioning_uri",
     "render_qr_png_b64",
     "verify_totp",
+    "totp_skew_offset",
     "generate_backup_codes",
     "consume_backup_code",
     "verify_mfa_code",

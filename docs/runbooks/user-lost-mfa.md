@@ -2,7 +2,7 @@
 
 **Severity:** P3 (user-blocking, not platform-impacting)
 **Audience:** you, running your own instance
-**Last reviewed:** 2026-05-01 (M02)
+**Last reviewed:** 2026-09-20 (skew diagnostics)
 
 ## When this runbook applies
 
@@ -16,6 +16,22 @@ The user contacts support claiming they cannot sign in. They've already:
 If either of those still works, this runbook is **not** the right
 answer; tell them to use the backup-code flow and then regenerate codes
 under Settings → Security → Backup codes.
+
+## First: is the device actually lost, or are codes just being rejected?
+
+Since 2026-09-20 a TOTP miss is no longer a single opaque `MFA_CODE_INVALID`.
+Before disabling anything, read the last few `auth.mfa_challenge_fail` audit
+rows for the user (admin portal → Audit, or `AuditLog.objects.filter(
+event_type="auth.mfa_challenge_fail", user=u).order_by("-occurred_at")[:10]`)
+and look at `data_after.reason`:
+
+| `reason`      | `offset_steps` | Meaning | What to do |
+|---------------|----------------|---------|------------|
+| `clock_skew`  | e.g. `-4`      | The code is a real code from the **right secret**, generated for a time 4×30 s behind the server. The authenticator's clock is off. | User: Google Authenticator → ⋮ → Settings → *Time correction for codes* → Sync now (iOS/Android: enable automatic date & time). No reset needed. |
+| `no_match`    | absent         | The code matches nowhere within ±5 min: it comes from a **different secret** — a stale entry left in the authenticator after a re-enrol, or a second account with the same label. | Have the user delete every "StratTraderPro" entry, then Settings → Security → Disable (or use a backup code to sign in) and re-enrol. If it still fails via one sign-in method but not the other (password vs Google), check for two `User` rows. |
+
+The user also sees the distinction: `MFA_CODE_CLOCK_SKEW` carries the sync
+instructions in its message; `MFA_CODE_INVALID` is the generic miss.
 
 ## Goal
 

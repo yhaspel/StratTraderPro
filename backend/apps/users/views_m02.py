@@ -46,6 +46,7 @@ from .mfa import (
     generate_backup_codes,
     generate_totp_secret,
     render_qr_png_b64,
+    totp_skew_offset,
     verify_totp,
 )
 from .models import MFADevice, RefreshTokenFamily, UserProfile
@@ -94,6 +95,32 @@ def _current_family_id(request) -> str | None:
     if auth is None:
         return None
     return auth.get("family_id") if hasattr(auth, "get") else None
+
+
+def _totp_failure(secret: str, code: str) -> tuple[str, str, dict]:
+    """Classify a TOTP that ``verify_totp`` already rejected.
+
+    Returns ``(error_code, message, audit_metadata)``. The probe never accepts
+    the code — callers still fail the request and count the failure — it only
+    decides *which* failure to report so the user (and the audit log) can tell
+    a skewed authenticator clock from the wrong secret. See ``totp_skew_offset``.
+    """
+    offset = totp_skew_offset(secret, code)
+    if offset is None:
+        return (
+            "MFA_CODE_INVALID",
+            "Code is invalid or already used.",
+            {"reason": "no_match"},
+        )
+    seconds = abs(offset) * 30
+    direction = "behind" if offset < 0 else "ahead of"
+    return (
+        "MFA_CODE_CLOCK_SKEW",
+        f"That code is valid for a time about {seconds}s {direction} the server, "
+        "so your authenticator app's clock is off. Sync its time "
+        "(Google Authenticator: Settings → Time correction for codes) and try again.",
+        {"reason": "clock_skew", "offset_steps": offset},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -163,12 +190,13 @@ class MFAEnrollConfirmView(APIView):
 
         secret = decrypt_secret(device.secret_encrypted)
         if not verify_totp(secret, ser.validated_data["code"]):
+            err_code, err_msg, diag = _totp_failure(secret, ser.validated_data["code"])
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
                 EventType.MFA_CHALLENGE_FAIL,
-                user=user, request=request, metadata={"phase": "enroll"},
+                user=user, request=request, metadata={"phase": "enroll", **diag},
             )
-            return fail("MFA_CODE_INVALID", "TOTP code is invalid.", status=400)
+            return fail(err_code, err_msg, status=400)
 
         device.verified = True
         device.enrolled_at = timezone.now()
@@ -248,12 +276,16 @@ class MFAVerifyView(APIView):
             ok_code = verify_totp(secret, code)
 
         if not ok_code:
+            if is_backup:
+                err_code, err_msg, diag = "MFA_CODE_INVALID", "Code is invalid or already used.", {}
+            else:
+                err_code, err_msg, diag = _totp_failure(secret, code)
             MFA_VERIFICATIONS_TOTAL.labels(result=MFAVerifyResult.FAIL).inc()
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
                 EventType.MFA_CHALLENGE_FAIL,
                 user=user, request=request,
-                metadata={"phase": "login", "kind": "backup" if is_backup else "totp"},
+                metadata={"phase": "login", "kind": "backup" if is_backup else "totp", **diag},
             )
             # P1-1 — count the failure per-user (survives token re-minting) and
             # per-token (burn this challenge token once its own cap is hit).
@@ -270,7 +302,7 @@ class MFAVerifyView(APIView):
                     jti_fails = 1
                 if jti_fails >= max_failures:
                     cache.set(burn_key, 1, timeout=window)
-            return fail("MFA_CODE_INVALID", "Code is invalid or already used.", status=401)
+            return fail(err_code, err_msg, status=401)
 
         # Success — clear the brute-force counters for this user + token.
         cache.delete(user_fail_key)
@@ -328,12 +360,13 @@ class MFADisableView(APIView):
 
         secret = decrypt_secret(user.mfa_device.secret_encrypted)
         if not verify_totp(secret, ser.validated_data["code"]):
+            err_code, err_msg, diag = _totp_failure(secret, ser.validated_data["code"])
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
                 EventType.MFA_CHALLENGE_FAIL,
-                user=user, request=request, metadata={"phase": "disable"},
+                user=user, request=request, metadata={"phase": "disable", **diag},
             )
-            return fail("MFA_CODE_INVALID", "TOTP code is invalid.", status=400)
+            return fail(err_code, err_msg, status=400)
 
         user.mfa_device.delete()
         user.backup_codes.all().delete()
@@ -372,12 +405,13 @@ class MFABackupRegenerateView(APIView):
 
         secret = decrypt_secret(user.mfa_device.secret_encrypted)
         if not verify_totp(secret, ser.validated_data["code"]):
+            err_code, err_msg, diag = _totp_failure(secret, ser.validated_data["code"])
             MFA_CHALLENGE_FAILURES_TOTAL.inc()
             services.record_event(
                 EventType.MFA_CHALLENGE_FAIL,
-                user=user, request=request, metadata={"phase": "regenerate"},
+                user=user, request=request, metadata={"phase": "regenerate", **diag},
             )
-            return fail("MFA_CODE_INVALID", "TOTP code is invalid.", status=400)
+            return fail(err_code, err_msg, status=400)
 
         codes = generate_backup_codes(user)
         services.record_event(
