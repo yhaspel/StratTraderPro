@@ -6,6 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — MFA: a rejected TOTP now says *why* (clock skew vs. wrong secret)
+
+- **Root-cause context (2026-09-20).** Login-time TOTP codes were being rejected as a bare
+  `MFA_CODE_INVALID` while the same authenticator entry had just been accepted by
+  `/auth/mfa/enroll/confirm/` and `/auth/mfa/disable/`. Server clock, Fernet KEK, the stored
+  secret and the input widget were all verified sound, so the miss had to be on the code
+  itself — but every TOTP miss collapsed to one error and one `mfa_challenge_fail` audit row
+  with no detail, leaving nothing to distinguish "authenticator clock is off" from "wrong
+  secret / wrong account".
+- **`totp_skew_offset()`** (`apps/users/mfa.py`) — runs ONLY after `verify_totp` has rejected
+  a code, and checks whether it *would* have matched within ±`MFA_TOTP_SKEW_PROBE_STEPS`
+  (default 10 steps = ±5 min). It never accepts anything: the request still fails and still
+  counts against the P1-1 per-user / per-token caps. Steps inside the accepted ±1 window are
+  skipped, so it never reports 0/±1. Disable by setting the probe ≤ `MFA_TOTP_VALID_WINDOW`.
+- **New error code `MFA_CODE_CLOCK_SKEW`** from `/auth/mfa/verify/` (401), `/enroll/confirm/`,
+  `/disable/` and `/backup-codes/regenerate/` (400) when the code matches a nearby window; the
+  message tells the user how far off their clock is and how to sync it. Everything else stays
+  `MFA_CODE_INVALID`. Backup-code misses are unchanged.
+- **Audit:** `auth.mfa_challenge_fail` now carries `reason: clock_skew|no_match` and, for skew,
+  `offset_steps` (negative = client behind the server). Runbook `user-lost-mfa.md` gained a
+  "device present, codes rejected" section that reads these.
+- Frontend: `mfa.error.MFA_CODE_CLOCK_SKEW` i18n string. 7 new backend tests.
+
 ### Added — Strategy Screener: turn a description's universe rules into a runnable screen (M16)
 
 - **A `[screen]` block in a strategy description is now executable.** Authors already

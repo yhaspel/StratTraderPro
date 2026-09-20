@@ -338,6 +338,11 @@ REFRESH_COOKIE_SECURE = env.bool("REFRESH_COOKIE_SECURE", default=False)
 MFA_TOKEN_TTL_MINUTES = env.int("MFA_TOKEN_TTL_MINUTES", default=5)
 # TOTP step tolerance: ±1 step (= ±30s) per plan AC-02-11.
 MFA_TOTP_VALID_WINDOW = env.int("MFA_TOTP_VALID_WINDOW", default=1)
+# Diagnostic only — after a TOTP is REJECTED, how far (in 30 s steps) to look
+# for a match so the failure can be reported as MFA_CODE_CLOCK_SKEW ("your
+# authenticator's clock is off") instead of a bare MFA_CODE_INVALID. Never
+# widens acceptance. 10 steps = ±5 min. Set <= MFA_TOTP_VALID_WINDOW to disable.
+MFA_TOTP_SKEW_PROBE_STEPS = env.int("MFA_TOTP_SKEW_PROBE_STEPS", default=10)
 MFA_TOTP_ISSUER = env("MFA_TOTP_ISSUER", default="StratTraderPro")
 MFA_BACKUP_CODE_COUNT = env.int("MFA_BACKUP_CODE_COUNT", default=10)
 

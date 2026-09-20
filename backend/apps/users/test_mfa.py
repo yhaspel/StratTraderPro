@@ -83,6 +83,47 @@ class TOTPVerifyTests(TestCase):
         code = pyotp.TOTP(secret, interval=30, digits=6).now()
         self.assertTrue(verify_totp(secret, f" {code[:3]} {code[3:]}"))
 
+    # --- clock-skew probe (diagnostic only; never widens acceptance) ---
+    def test_skew_probe_reports_offset_of_a_stale_code(self):
+        from django.utils import timezone
+
+        from apps.users.mfa import totp_skew_offset
+
+        secret = generate_totp_secret()
+        code = pyotp.TOTP(secret, interval=30, digits=6).at(timezone.now(), -4)
+        self.assertFalse(verify_totp(secret, code))  # outside the ±1 window
+        self.assertEqual(totp_skew_offset(secret, code), -4)
+
+    def test_skew_probe_returns_none_for_wrong_secret(self):
+        from apps.users.mfa import totp_skew_offset
+
+        secret = generate_totp_secret()
+        other = generate_totp_secret()
+        code = pyotp.TOTP(other, interval=30, digits=6).now()
+        self.assertIsNone(totp_skew_offset(secret, code))
+
+    def test_skew_probe_ignores_the_accepted_window(self):
+        """A code inside ±MFA_TOTP_VALID_WINDOW was already accepted by
+        verify_totp; the probe must never report it (result is never 0/±1)."""
+        from django.utils import timezone
+
+        from apps.users.mfa import totp_skew_offset
+
+        secret = generate_totp_secret()
+        totp = pyotp.TOTP(secret, interval=30, digits=6)
+        for off in (-1, 0, 1):
+            self.assertIsNone(totp_skew_offset(secret, totp.at(timezone.now(), off)))
+
+    @override_settings(MFA_TOTP_SKEW_PROBE_STEPS=1)
+    def test_skew_probe_disabled_when_not_wider_than_window(self):
+        from django.utils import timezone
+
+        from apps.users.mfa import totp_skew_offset
+
+        secret = generate_totp_secret()
+        code = pyotp.TOTP(secret, interval=30, digits=6).at(timezone.now(), -4)
+        self.assertIsNone(totp_skew_offset(secret, code))
+
 
 class BackupCodeTests(TestCase):
     def test_generate_creates_n_unused(self):
@@ -167,6 +208,26 @@ class MFAEnrollTests(TestCase):
         self.assertEqual(resp.json()["error"]["code"], "MFA_CODE_INVALID")
         user.refresh_from_db()
         self.assertFalse(user.mfa_enabled)
+
+    def test_enroll_confirm_skewed_code_reports_clock_skew(self):
+        from django.utils import timezone
+
+        user = _create_user()
+        enroll = self.client.post(f"{API}auth/mfa/enroll/", **_auth(user))
+        secret = enroll.json()["data"]["secret_b32"]
+        code = pyotp.TOTP(secret, interval=30, digits=6).at(timezone.now(), 3)
+        resp = self.client.post(
+            f"{API}auth/mfa/enroll/confirm/",
+            {"code": code},
+            content_type="application/json",
+            **_auth(user),
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["error"]["code"], "MFA_CODE_CLOCK_SKEW")
+        user.refresh_from_db()
+        self.assertFalse(user.mfa_enabled)
+        ev = AuditLog.objects.get(event_type="auth.mfa_challenge_fail")
+        self.assertEqual(ev.data_after["offset_steps"], 3)
 
     def test_enroll_when_already_enabled_rejected(self):
         user = _create_user()
@@ -266,6 +327,60 @@ class LoginMFAFlowTests(TestCase):
         self.assertEqual(resp.status_code, 401)
         self.assertEqual(resp.json()["error"]["code"], "MFA_CODE_INVALID")
         self.assertTrue(AuditLog.objects.filter(event_type="auth.mfa_challenge_fail").exists())
+
+    def _login_mfa_token(self, user) -> str:
+        login = self.client.post(
+            f"{API}auth/login/",
+            {"email": user.email, "password": GOOD_PW},
+            content_type="application/json",
+        )
+        return login.json()["data"]["mfa_token"]
+
+    def test_mfa_verify_skewed_code_is_rejected_as_clock_skew(self):
+        """A real code from an authenticator whose clock is 2 min behind is
+        still REJECTED, but as MFA_CODE_CLOCK_SKEW with the offset audited —
+        the 2026-09-20 incident showed a bare MFA_CODE_INVALID here is
+        undiagnosable."""
+        from django.core.cache import cache
+        from django.utils import timezone
+
+        user = _create_user()
+        secret = _enroll_mfa(user)
+        mfa_token = self._login_mfa_token(user)
+        code = pyotp.TOTP(secret, interval=30, digits=6).at(timezone.now(), -4)
+        resp = self.client.post(
+            f"{API}auth/mfa/verify/",
+            {"mfa_token": mfa_token, "code": code},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "MFA_CODE_CLOCK_SKEW")
+        self.assertNotIn("access", resp.json())
+        self.assertNotIn("stp_refresh", resp.cookies)
+        ev = AuditLog.objects.get(event_type="auth.mfa_challenge_fail")
+        self.assertEqual(ev.data_after["reason"], "clock_skew")
+        self.assertEqual(ev.data_after["offset_steps"], -4)
+        # Still counts against the P1-1 per-user brute-force cap.
+        self.assertEqual(cache.get(f"mfa_login_fail_user:{user.pk}"), 1)
+
+    def test_mfa_verify_wrong_secret_audits_no_match(self):
+        from django.core.cache import cache
+
+        user = _create_user()
+        _enroll_mfa(user)
+        mfa_token = self._login_mfa_token(user)
+        code = pyotp.TOTP(generate_totp_secret(), interval=30, digits=6).now()
+        resp = self.client.post(
+            f"{API}auth/mfa/verify/",
+            {"mfa_token": mfa_token, "code": code},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error"]["code"], "MFA_CODE_INVALID")
+        ev = AuditLog.objects.get(event_type="auth.mfa_challenge_fail")
+        self.assertEqual(ev.data_after["reason"], "no_match")
+        self.assertNotIn("offset_steps", ev.data_after)
+        self.assertEqual(cache.get(f"mfa_login_fail_user:{user.pk}"), 1)
 
     def test_mfa_verify_with_invalid_token(self):
         user = _create_user()

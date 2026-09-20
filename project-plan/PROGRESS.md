@@ -4,7 +4,62 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change).
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
-**Last verified:** 2026-08-04 (**M16 Strategy Screener SHIPPED** — PR #55, squashed as `7bd3af0`;
+**Last verified:** 2026-09-20 (**MFA: a rejected TOTP now says why (clock skew vs. wrong secret)** — branch
+`fix/mfa-totp-skew-diagnostics`. Triggered by a live incident the same day: a Railway backend `/auth/refresh/`
+401 forced a logout → Google re-sign-in → MFA challenge → three consecutive `POST /auth/mfa/verify/` 401s
+(`MFA_CODE_INVALID`) at 11:36 and again at 11:46, even though the **same** Google Authenticator entry had just
+been accepted by `/auth/mfa/enroll/confirm/` and `/auth/mfa/disable/` (identical `decrypt_secret` +
+`verify_totp` on the identical `MFADevice` row). Ruled out against the live system before writing any code:
+origin clock (cookie `expires` matched wall time), the Fernet KEK/stored secret (nothing rewrites
+`secret_encrypted` post-enrolment), the per-IP/per-token lockout (different error codes, and the limiter
+wasn't even engaging — 7 rapid probes all 401'd, never 429), the 6-cell `TotpInputComponent` (shared with the
+enrol page, which worked), and Sentry (no MFA errors logged). What remained — phone clock drift vs. a second
+User row behind the Google link holding a stale device — was indistinguishable from the outside, because every
+TOTP miss collapsed to one error and one detail-free `auth.mfa_challenge_fail` audit row.
+**Shipped:** `totp_skew_offset()` (`apps/users/mfa.py`) — a diagnostic probe that runs *only* after
+`verify_totp()` has already rejected a code, and checks whether that code would have matched within
+±`MFA_TOTP_SKEW_PROBE_STEPS` (new setting, default 10 steps = ±5 min, explicitly diagnostic-only in its
+settings comment). A match reports `MFA_CODE_CLOCK_SKEW` with a "your authenticator's clock is off by ~Ns"
+message; no match stays the original `MFA_CODE_INVALID`. Either way the request still fails and still counts
+against the existing per-user/per-token brute-force caps — **the probe never accepts a code**. The audit row
+gains `reason: clock_skew|no_match` and, for skew, `offset_steps`. Wired into all four TOTP-miss paths
+(enroll/confirm, verify, disable, backup-codes/regenerate); backup-code misses are untouched. **The one
+invariant a reviewer had to be unable to break: never widen acceptance** — `verify_totp()` and
+`MFA_TOTP_VALID_WINDOW` are byte-for-byte unchanged; the probe explicitly skips the already-accepted window so
+it can never report offset 0/±1.
+**Gauntlet:** backend `ruff`/`bandit` clean; `pytest` **962 passed**, 0 real failures (3 failures were the
+known Mac-local WeasyPrint/Pango `libgobject` dyld gap in unrelated backtest-PDF tests, confirmed resolved
+with `DYLD_FALLBACK_LIBRARY_PATH` and irrelevant to CI), 10 skipped; `test_mfa.py` **51 passed** including all
+7 new skew tests by name; `-m pg` **9 passed**; `makemigrations --check` clean (no model change);
+prod-settings import smoke clean. Frontend: `ngc --noEmit` clean, karma **264/264 SUCCESS**, production
+`ng build` clean; the osv-scanner dependency-audit gate is **red** on 16 un-waived HIGH+ advisories, but
+`pnpm-lock.yaml`/`package.json` are byte-identical to `main` in this diff (confirmed via `git diff --stat`),
+so this is a live-OSV-DB drift against an unchanged lockfile that is equally red on `main` right now — left
+unfixed per this run's autonomous-execution policy (no pin bumps / gate-weakening outside the diff's own
+scope). Both repo guards (`verify_entrypoint_dispatch.sh`, `check_envsubst_filter.py`,
+`check_guides_catalog.py`) green. An independent adversarial review (fresh subagent, diff-only) found no
+invariant-breaking issue across all 6 brief items (acceptance widening, lockout/counter behavior, brute-force
+information leakage, audit hash-chain shape, exception safety on odd input, backup-code mislabeling — all
+traced and confirmed safe); one minor finding (no upper clamp on the operator-only `MFA_TOTP_SKEW_PROBE_STEPS`
+setting) was dismissed rather than fixed, since it's not attacker-facing and the highest-traffic endpoint is
+already IP-rate-limited. Full evidence: `MFA-SKEW-EXECUTION-REPORT.md`.
+**BLOCKED before merge — PR #76 left OPEN, nothing deployed.** Backend CI's `pip-audit` step and frontend
+CI's `osv-scanner` step both failed, but on advisories against package versions this diff never touches
+(`backend/requirements/`, `pnpm-lock.yaml`/`package.json` are byte-identical to `main` in this branch) —
+confirmed these two gates are equally red on `main` right now (last green CI on current `main` HEAD was
+2026-08-04, 47 days of live-CVE-database drift ago). Every other check passed (ruff, bandit, the full pytest
+suite incl. the `-m pg` lane, `ngc`, karma 264/264, the production build, all three repo guards). Per this
+run's autonomous policy, a diagnostics-only MFA fix does not bundle a Django/DRF/WeasyPrint version bump or a
+frontend advisory-waiver pass — both out of scope here — so the PR was left open rather than force-merged.
+**Next step:** a separate dependency-bump/waiver PR needs to clear those two gates on `main`; #76 should then
+merge cleanly. **Deferred to the operator once that happens and #76 ships:** the live root cause (phone clock
+drift, self-serve fix, vs. a second User row behind the Google OAuth link holding a stale device, needs a
+follow-up merge) is only distinguishable by signing in with the real device and reading the new error text /
+audit row — see the "OPERATOR" section of `MFA-SKEW-EXECUTION-REPORT.md`. Follow-ups filed regardless:
+[#77](https://github.com/yhaspel/StratTraderPro/issues/77) (MFA verify per-IP rate limit inert in prod),
+[#78](https://github.com/yhaspel/StratTraderPro/issues/78) (`/auth/refresh/` 401 that triggered the incident).)
+
+**Previously verified:** 2026-08-04 (**M16 Strategy Screener SHIPPED** — PR #55, squashed as `7bd3af0`;
 the ADR-062 key gate it depends on landed the same day as PR #53. A strategy description can now
 carry a machine-readable `[screen]` block: `/strategies/:id` grows a Screening panel that shows the
 parsed criteria as chips and runs them — ONE FMP `/company-screener` call for the vendor-side

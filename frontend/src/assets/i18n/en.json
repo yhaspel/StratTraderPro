@@ -154,6 +154,7 @@
     },
     "error": {
       "MFA_CODE_INVALID": "That code didn't match. Try again.",
+      "MFA_CODE_CLOCK_SKEW": "That code is valid for a different time, so your authenticator app's clock is off. Sync its time (Google Authenticator: Settings → Time correction for codes → Sync now) and try again.",
       "MFA_LOCKED": "Too many incorrect codes. Please sign in again.",
       "TOKEN_INVALID": "Your sign-in session expired. Please sign in again.",
       "INVALID_CREDENTIALS": "Password or code didn't match.",
