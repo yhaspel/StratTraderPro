@@ -115,6 +115,11 @@ backend/loadtest/fixtures.json
 TESTER_ACCOUNT.local.md
 # Project-local agent notes (points to the tester file) — keep private
 CLAUDE.local.md
+# Any *.local.md is private by convention — personal notes, costs, strategy
+# reviews. This repo is PUBLIC, so a push here is effectively permanent
+# (history, forks and caches survive a later delete). Name it *.local.md and it
+# stays on disk only. Do not add exceptions without reading the file first.
+*.local.md
 
 # osv-scanner ephemeral output (CI dependency audit)
 frontend/osv.json
