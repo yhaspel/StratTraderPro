@@ -31,6 +31,7 @@ picked up later without re-deriving the investigation.
 | [BUG-009](BUG-009-all-alert-rules-imported-paused.md) | **Every imported alert rule was PAUSED — the M10 alerting stack had never been able to fire** | **S1** | FIXED (21 live at the time of the fix; 11 after the ADR-109 rightsizing, 0 paused) | Alerting |
 | [BUG-010](BUG-010-worker-beat-metrics-endpoints-unscrapeable.md) | celery-worker + celery-beat metrics endpoints unscrapeable in both envs | S2 | CLOSED — symptom of 011 | Observability/Railway |
 | [BUG-011](BUG-011-celery-worker-and-beat-are-not-running-celery.md) | **`celery-worker` + `celery-beat` were running gunicorn, not Celery — the default queue had no consumer and beat had never run, in both envs** | **S1/P0** | **FIXED & VERIFIED** | Railway/Celery |
+| [BUG-012](BUG-012-silent-failure-audit-prompt-reverted.md) | The daily silent-failure audit was silently reverted to a stale ancestor — 3 fabricated FAILs/day for 5 weeks, and CHECK 5's threshold sat on its own healthy value | S2 | **FIXED & VERIFIED** | Observability/Ops |
 
 BUG-004 is fixed, guarded in CI, and verified live: the SPA now serves a real DSN
 and Sentry recorded `STRATTRADERPRO-2` — the first frontend event this project has
