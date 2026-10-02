@@ -1,5 +1,10 @@
 # Scheduled task prompts (canonical copies)
 
+> **Retired 2026-10-02.** The audit below checked the hosted production on Railway and its
+> Grafana Cloud alert rules. Both were removed on 2026-10-02 (see
+> `docs/ops/production-endpoints.md`), and the scheduled task was disabled. The prompt is kept
+> as history; re-enable it only against a new hosted instance, after updating its baselines.
+
 Prompts for Claude desktop **scheduled tasks** that monitor production. The app runs them from
 `~/Documents/Claude/Scheduled/<task-id>/SKILL.md`, which is outside this repo — so the copies
 here are the source of truth and the only place their history is reviewable.

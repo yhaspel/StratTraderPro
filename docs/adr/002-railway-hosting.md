@@ -1,6 +1,6 @@
 # ADR-002: Railway for Hosting
 
-**Status:** Accepted
+**Status:** Superseded (2026-10-02): hosted production retired, see the update at the end
 **Date:** 2026-04-16
 **Decision Makers:** Yuval
 
@@ -34,3 +34,15 @@ Use **Railway** for staging and production.
 - Must use Railway CLI or API for deploys (wrapped in GitHub Actions).
 - No built-in CDN — may need Cloudflare in front for production.
 - Custom domains require Railway Pro plan.
+
+## Update 2026-10-02: hosted production retired
+
+The Railway `production` environment was deleted on 2026-10-02. A cost review measured it at
+about $31.70 a month (89% of it memory for ten always-on services) while it served a single
+user, so the project now runs locally with Docker Compose (`make up`). Staging had already been
+retired on 2026-07-15.
+
+The Dockerfiles, the `SERVICE_ROLE` dispatcher (ADR-103) and the Railway runbooks are unchanged,
+so Railway remains a working self-hosting target. The "1 web, 1 worker, 1 beat, 1 LLM-worker"
+shape above never shipped as written: production ended as nine services plus Postgres and Redis,
+and the LLM worker was never deployed.

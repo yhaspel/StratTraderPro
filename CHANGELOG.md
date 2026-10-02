@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed — hosted production on Railway (2026-10-02)
+
+- **The project no longer runs a hosted instance.** The Railway `production` environment was
+  deleted after a cost review (about $31.70 a month for a single user). Run it locally with
+  `make up`; the Dockerfiles and Railway runbooks still work for anyone self-hosting there.
+- **Former hostnames are retired.** `docs/ops/production-endpoints.md` now lists them as dead
+  so they don't get reused in docs, alerts or TradingView webhooks.
+- **The Grafana Cloud alert rules and dashboards were removed from the stack.** Their source
+  copies stay in `infra/grafana/`.
+- **The daily silent-failure audit is retired** along with the production it audited.
+
 ### Added — Strategy Screener: turn a description's universe rules into a runnable screen (M16)
 
 - **A `[screen]` block in a strategy description is now executable.** Authors already
