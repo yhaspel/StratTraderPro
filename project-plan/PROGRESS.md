@@ -4,6 +4,16 @@
 > Update this file with **every development milestone** (phase start/close, AC pass, tag push, scope change).
 > Detailed per-task history: `plan-progress-tracker.md`. Milestone specs: this folder. Master plan: `strat-trader-pro.md`.
 
+**2026-10-02 — hosted production retired (operator decision; no code change).** A cost review of
+the Railway project measured about $31.70 a month (89% memory for ten always-on services) for a
+single user, so production was taken down and the project now runs locally with `make up`. Done
+the same day: the Railway project was deleted (Railway completes the permanent deletion on
+2026-10-04); the StratTraderPro alert rules, folders, dashboards and Telegram contact point were
+deleted from Grafana Cloud (source copies remain in `infra/grafana/`); the daily silent-failure
+audit task was disabled. `docs/ops/production-endpoints.md` now lists every former hostname as
+retired, and ADR-002 is marked superseded. Code, Dockerfiles and the Railway runbooks are
+unchanged, so Railway still works as a self-hosting target.
+
 **Last verified:** 2026-08-04 (**M16 Strategy Screener SHIPPED** — PR #55, squashed as `7bd3af0`;
 the ADR-062 key gate it depends on landed the same day as PR #53. A strategy description can now
 carry a machine-readable `[screen]` block: `/strategies/:id` grows a Screening panel that shows the
